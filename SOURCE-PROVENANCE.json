@@ -4,8 +4,8 @@
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.2",
   "sourceRemote": "https://github.com/Doss-com/openontology.git",
-  "sourceCommit": "df20bb3bd37db48fa5b7a804c936d41c25104603",
-  "sourceTree": "e7a117e9a35d7e6fb02d1077c436d62e149a6b50",
+  "sourceCommit": "154f5b4cb0033f962b2e163b2a3b29e8dccd68fa",
+  "sourceTree": "d3c5cc19547aedae0edb902d2c95532d6e308c0c",
   "fileCount": 63,
   "files": [
     {
@@ -100,8 +100,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6444,
-      "sha256": "9db8f66a45760eb352923ad7ca039d78e081e8dac3ce87eb4c459ceaf5044239"
+      "bytes": 6602,
+      "sha256": "ab5cd8c64230ac428f869defbd03a0e655ec30b101ebdb282a18b14e8b4ae3a4"
     },
     {
       "path": "SECURITY.md",
@@ -324,5 +324,5 @@
       "sha256": "0eb9309f6f2d5a5a38747caf663eb470416be9ad80d21ae33527e60dacfddb33"
     }
   ],
-  "manifestSha256": "sha256:fc4d06fad7e8100a00f6363289e31f516b9c1e6d7deb4c5f557cb57007945254"
+  "manifestSha256": "sha256:84c879063ed214f2f7e43a31f92f4ce4d4e0f0e71d354aca36d34b3d0e06a70c"
 }

@@ -12,6 +12,9 @@ retrieval proposes -> Ont cross-walks and verifies -> exact Evidence supports
 Status: `0.3.0-alpha.2` is a developer alpha. It is suitable for local
 experimentation with explicit Adapter input. It is not a managed hosted service.
 
+[Technical documentation](https://docs.doss.com/docs/open-ontology) covers the
+quickstart, query contract, architecture, storage boundary, and alpha limits.
+
 ## Install
 
 OpenOntology requires Node.js 24 or newer.
