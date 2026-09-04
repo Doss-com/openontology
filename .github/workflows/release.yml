@@ -45,6 +45,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             oont-*.tgz SHA256SUMS \
+            --title "OpenOntology 0.3.0-alpha.2" \
             --prerelease \
             --verify-tag \
-            --generate-notes
+            --notes-file .github/release-notes/v0.3.0-alpha.2.md

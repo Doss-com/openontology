@@ -59,6 +59,7 @@ const repositoryFiles = [
   '.github/ISSUE_TEMPLATE/feature.yml',
   '.github/PULL_REQUEST_TEMPLATE.md',
   '.github/dependabot.yml',
+  '.github/release-notes/v0.3.0-alpha.2.md',
   '.github/workflows/ci.yml',
   '.github/workflows/release.yml',
   'AGENTS.md',

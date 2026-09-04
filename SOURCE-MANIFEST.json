@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.2",
-  "fileCount": 63,
+  "fileCount": 64,
   "files": [
     {
       "path": ".editorconfig",
@@ -41,14 +41,19 @@
       "sha256": "630d544a32f764ccc4a70bbd8cd7414ed7b77f7f40ea0b6f092a78bc740243f1"
     },
     {
+      "path": ".github/release-notes/v0.3.0-alpha.2.md",
+      "bytes": 1467,
+      "sha256": "d845a4e6cdb500e42796ea79b1e103fafb2bf465c6d7d4fa8f738c1b1218477d"
+    },
+    {
       "path": ".github/workflows/ci.yml",
       "bytes": 748,
       "sha256": "084d60d97a2794b217e24af7033d3cbebee9a91813b1f7e75ccec6f95d0b7399"
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 1394,
-      "sha256": "7db0db33994bb0ede0ed90b44103fccd5aaa94899189a44ad7afeda1cb991864"
+      "bytes": 1481,
+      "sha256": "73f8b225c58967614554ba5f15032d87e60b30b51a49088d730668eb0e02b652"
     },
     {
       "path": ".gitignore",
@@ -137,8 +142,8 @@
     },
     {
       "path": "scripts/build-public-source.mjs",
-      "bytes": 5542,
-      "sha256": "7177894e56b8ebb81ce9d4a901b36a62b3ed91271822b2e2795dbd4e330a1b79"
+      "bytes": 5587,
+      "sha256": "a7fafa4b9a5c33a7f2f7d78e956a5e7bb5550fa0450b200abcfaf7fbb1e39440"
     },
     {
       "path": "scripts/check-package-import-closure.mjs",
@@ -147,8 +152,8 @@
     },
     {
       "path": "scripts/check-public-release.mjs",
-      "bytes": 6606,
-      "sha256": "6ea0b8523ba9de1bec248d169390d12843a3bf6bd2468e48dcdc2072a31e5390"
+      "bytes": 6724,
+      "sha256": "37e7d0843ea00a9d267cccbb2e8eccc484fc1a5e26676dcdfd8d20ad5c77a99d"
     },
     {
       "path": "scripts/oont-resolver.mjs",
@@ -321,5 +326,5 @@
       "sha256": "0eb9309f6f2d5a5a38747caf663eb470416be9ad80d21ae33527e60dacfddb33"
     }
   ],
-  "manifestSha256": "sha256:9f279265557de924172bed3a2373a2834ff69d6480b884e8b39c6922a43fe110"
+  "manifestSha256": "sha256:53641dd880fd179659767bba7bcfad1c6972e304d529a67015f2961da29e6f02"
 }

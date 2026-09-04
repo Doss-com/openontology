@@ -33,6 +33,9 @@ const allowedRoots = new Set([
 const unexpectedRoots = [...new Set(tracked.map((path) => path.split('/')[0]))]
   .filter((name) => !allowedRoots.has(name));
 if (unexpectedRoots.length) fail(`unexpected root entries: ${unexpectedRoots.join(', ')}`);
+if (!tracked.includes('.github/release-notes/v0.3.0-alpha.2.md')) {
+  fail('versioned release notes are required');
+}
 
 const forbiddenPaths = tracked.filter((path) =>
   /^(eval|evidence|customers|design|eng|specs|harness|asks|studio|tooling)\//u.test(path)
