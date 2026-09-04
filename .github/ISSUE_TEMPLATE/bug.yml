@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible OpenOntology defect.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, customer data, or private source bytes.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: 0.3.0-alpha.2
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal synthetic reproduction
+      description: Include the command, input shape, output, and typed error code.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include operating system and Node.js version.
+    validations:
+      required: true

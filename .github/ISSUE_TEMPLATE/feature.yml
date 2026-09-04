@@ -1,0 +1,33 @@
+name: Feature proposal
+description: Propose a focused capability or Adapter.
+title: "proposal: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete agent or developer failure does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe observable behavior, not an implementation wishlist.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoff
+    attributes:
+      label: Tradeoff
+      description: What does this optimize for, and what does it give up?
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof and refusal behavior
+      description: Explain how navigation, exact Evidence, verification, and refusal remain distinct.
+    validations:
+      required: true

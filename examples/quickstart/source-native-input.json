@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "OpenOntologySourceNativeBuildInputV1",
+  "ontId": "quickstart",
+  "namespace": "demo",
+  "querySchemas": [
+    {
+      "sourceSystem": "tracker",
+      "objectType": "task",
+      "aliases": ["task"],
+      "fields": [
+        {
+          "fieldPath": "title",
+          "aliases": ["title", "task title"]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "relativePath": "tracker/demo/task-1-v1.txt",
+      "sourceType": "tracker",
+      "occurredAt": "2026-01-01T00:00:00.000Z",
+      "content": "Task task-1 title: Prepare launch"
+    },
+    {
+      "relativePath": "tracker/demo/task-1-v2.txt",
+      "sourceType": "tracker",
+      "occurredAt": "2026-02-01T00:00:00.000Z",
+      "content": "Task task-1 title: Ship verified context"
+    }
+  ],
+  "nativeObjectInputs": [
+    {
+      "relativePath": "tracker/demo/task-1-v1.txt",
+      "objectIdentity": {
+        "home": "ObjectDef/InstanceRef",
+        "sourceSystem": "tracker",
+        "objectType": "task",
+        "namespace": "demo",
+        "externalId": "task-1"
+      },
+      "fields": [
+        {
+          "fieldPath": "title",
+          "value": "Prepare launch"
+        }
+      ]
+    },
+    {
+      "relativePath": "tracker/demo/task-1-v2.txt",
+      "objectIdentity": {
+        "home": "ObjectDef/InstanceRef",
+        "sourceSystem": "tracker",
+        "objectType": "task",
+        "namespace": "demo",
+        "externalId": "task-1"
+      },
+      "fields": [
+        {
+          "fieldPath": "title",
+          "value": "Ship verified context"
+        }
+      ]
+    }
+  ]
+}
