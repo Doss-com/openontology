@@ -195,8 +195,8 @@
     },
     {
       "path": "scripts/test-product-surface-contract.mjs",
-      "bytes": 9295,
-      "sha256": "22406318c2d7b15726f6975caafe44bb33b73da5895b10d947aeb48f50b3f5d0"
+      "bytes": 9750,
+      "sha256": "0b8ebce501cbcb73c96de93afab9e48174a3c46540736e9ca04974a87e565333"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -324,5 +324,5 @@
       "sha256": "0eb9309f6f2d5a5a38747caf663eb470416be9ad80d21ae33527e60dacfddb33"
     }
   ],
-  "manifestSha256": "sha256:84c879063ed214f2f7e43a31f92f4ce4d4e0f0e71d354aca36d34b3d0e06a70c"
+  "manifestSha256": "sha256:0f1efc540cd41236b9c7b79e062092b15276722e238df3581a675d5d91c73f32"
 }

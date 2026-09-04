@@ -159,6 +159,12 @@ test('SDK exposes only the locked query interface and preserves navigation befor
     const verification = await ont.verify(query);
     assert.equal(verification.answerable, true);
     assert.equal(verification.context[0].exactText, 'Ready');
+    assert.equal(verification.context[0].binding.sourceSystem, 'linear');
+    assert.equal(verification.context[0].binding.objectType, 'issue');
+    assert.equal(verification.context[0].binding.namespace, 'contract');
+    assert.equal(verification.context[0].binding.externalId, 'issue-1');
+    assert.equal(verification.context[0].binding.fieldPath, 'status');
+    assert.equal(verification.query.externalId, verification.context[0].binding.externalId);
     assert.equal(verification.verification.navigationProposals.state, 'raw-only');
     assert.match(verification.verificationSha256, /^sha256:[0-9a-f]{64}$/u);
     assert.equal(Object.hasOwn(verification, 'learning'), false);
