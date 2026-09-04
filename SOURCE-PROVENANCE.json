@@ -50,8 +50,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 1053,
-      "sha256": "a6b46205d183855247684f3ebfcd064cedef21628d9f193a4d505d6da0b9ef28"
+      "bytes": 1394,
+      "sha256": "7db0db33994bb0ede0ed90b44103fccd5aaa94899189a44ad7afeda1cb991864"
     },
     {
       "path": ".gitignore",
@@ -75,8 +75,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 2830,
-      "sha256": "91b69216e0121d88ffecc4ac36a9a1078a76898fe286aed08e66cb84062fbf16"
+      "bytes": 2695,
+      "sha256": "027b95293c1d42e2e9084dbc79a85c449e752c94910eea6ce05bf32c3a87a0d8"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -100,8 +100,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6602,
-      "sha256": "ab5cd8c64230ac428f869defbd03a0e655ec30b101ebdb282a18b14e8b4ae3a4"
+      "bytes": 6734,
+      "sha256": "3ea99861a103c7249719644f244d2f7a7a539558414676c93fca88f93b047b05"
     },
     {
       "path": "SECURITY.md",
@@ -324,5 +324,5 @@
       "sha256": "0eb9309f6f2d5a5a38747caf663eb470416be9ad80d21ae33527e60dacfddb33"
     }
   ],
-  "manifestSha256": "sha256:0f1efc540cd41236b9c7b79e062092b15276722e238df3581a675d5d91c73f32"
+  "manifestSha256": "sha256:b1e7ca314c1abcf45de2e0af64a12f98a5eb8948deb4945542264fe53449f7f4"
 }

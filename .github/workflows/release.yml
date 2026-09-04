@@ -21,6 +21,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Verify tag matches package version
+        run: |
+          node <<'NODE'
+          const expected = `v${require('./package.json').version}`
+          if (process.env.GITHUB_REF_NAME !== expected) {
+            throw new Error(`release tag ${process.env.GITHUB_REF_NAME} does not match ${expected}`)
+          }
+          NODE
       - run: npm ci
       - run: npm run release:check
       - name: Build package

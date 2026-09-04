@@ -1,6 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-alpha.2
+
+First public developer alpha. Earlier prereleases were internal development
+candidates and are not supported.
+
+### Added
+
+- One public JavaScript client with `verify`, `search`, `read`, and `status`.
+- CLI operations `verify`, `search`, `check`, `status`, and `serve`.
+- Default one-tool MCP profile exposing `verify` and an advanced profile
+  exposing `search` and `read`.
+- Source-native Ont construction from deterministic Adapter input.
+- Exact Evidence reads, identity and chronology verification, typed refusals,
+  and proof-closure receipts.
+- Local canonical storage and a generation-bound GCS Adapter.
+- Explicit public package exports, focused release gates, and a synthetic
+  quickstart.
+- A zero-dependency runtime package containing only modules reachable from the
+  public SDK and CLI.
 
 ### Changed
 
@@ -26,31 +44,6 @@
   names from the public contract.
 - The dormant general evidence-neighborhood Resolver and its retired direct-map
   bridge. Neither was reachable from the public product.
-
-## 0.3.0-alpha.2
-
-First public developer alpha. Earlier prereleases were internal development
-candidates and are not supported.
-
-### Added
-
-- One public JavaScript client with `verify`, `search`, `read`, and `status`.
-- CLI operations `verify`, `search`, `check`, `status`, and `serve`.
-- Default one-tool MCP profile exposing `verify` and an advanced profile
-  exposing `search` and `read`.
-- Source-native Ont construction from deterministic Adapter input.
-- Exact Evidence reads, identity and chronology verification, typed refusals,
-  and proof-closure receipts.
-- Local canonical storage and a generation-bound GCS Adapter.
-- Explicit public package exports, focused release gates, and a synthetic
-  quickstart.
-- A zero-dependency runtime package containing only modules reachable from the
-  public SDK and CLI.
-- A source-native outcome-authority seam independent of the private Beam
-  curriculum and training stack.
-
-### Removed
-
 - The private research compiler, classic server, customer-specific skills, and
   experimental eval utilities from the public package boundary.
 - Unused Beam product-family dispatch from source-native proposal capture and

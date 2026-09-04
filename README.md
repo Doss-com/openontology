@@ -12,8 +12,8 @@ retrieval proposes -> Ont cross-walks and verifies -> exact Evidence supports
 Status: `0.3.0-alpha.2` is a developer alpha. It is suitable for local
 experimentation with explicit Adapter input. It is not a managed hosted service.
 
-[Technical documentation](https://docs.doss.com/docs/open-ontology) covers the
-quickstart, query contract, architecture, storage boundary, and alpha limits.
+Technical references: [Architecture](docs/ARCHITECTURE.md),
+[Storage](docs/STORAGE.md), and [Glossary](GLOSSARY.md).
 
 ## Install
 
@@ -26,6 +26,14 @@ npm install --global \
 
 The package and command are both named `oont`.
 GitHub prerelease packages are built with an attached provenance attestation.
+
+To verify a downloaded prerelease before installing it:
+
+```bash
+sha256sum -c SHA256SUMS
+gh attestation verify oont-0.3.0-alpha.2.tgz \
+  --repo Doss-com/openontology
+```
 
 ## Two-minute quickstart
 
