@@ -26,6 +26,8 @@ npm install --global \
 
 The package and command are both named `oont`.
 GitHub prerelease packages are built with an attached provenance attestation.
+`SOURCE-MANIFEST.json` binds the complete public file inventory. The release tag
+and GitHub attestation bind that source state to the package tarball.
 
 To verify a downloaded prerelease before installing it:
 

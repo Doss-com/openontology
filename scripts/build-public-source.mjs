@@ -87,7 +87,7 @@ const paths = [...new Set([
   ...repositoryFiles,
 ])].sort();
 if (update) {
-  const allowed = new Set([...paths, '.gitignore', 'SOURCE-PROVENANCE.json']);
+  const allowed = new Set([...paths, '.gitignore', 'SOURCE-MANIFEST.json']);
   const unexpected = listFiles(destination).filter((path) => !allowed.has(path));
   if (unexpected.length) fail(`destination has unexpected entries: ${unexpected.join(', ')}`);
 }
@@ -127,34 +127,20 @@ const files = paths.map((path) => {
   const bytes = readFileSync(join(destination, path));
   return { path: path.split(sep).join('/'), bytes: bytes.length, sha256: sha256(bytes) };
 });
-const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-  cwd: root, encoding: 'utf8',
-}).trim();
-const sourceTree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], {
-  cwd: root, encoding: 'utf8',
-}).trim();
-const sourceRemote = execFileSync('git', ['remote', 'get-url', 'origin'], {
-  cwd: root, encoding: 'utf8',
-}).trim();
 const core = {
   schemaVersion: 1,
-  kind: 'OpenOntologyPublicSourceProvenanceV1',
+  kind: 'OpenOntologyPublicSourceManifestV1',
   packageName: 'oont',
   packageVersion: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version,
-  sourceRemote,
-  sourceCommit,
-  sourceTree,
   fileCount: files.length,
   files,
 };
-const provenance = { ...core, manifestSha256: `sha256:${sha256(Buffer.from(canonical(core)))}` };
-writeFileSync(join(destination, 'SOURCE-PROVENANCE.json'), `${JSON.stringify(provenance, null, 2)}\n`);
+const manifest = { ...core, manifestSha256: `sha256:${sha256(Buffer.from(canonical(core)))}` };
+writeFileSync(join(destination, 'SOURCE-MANIFEST.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 process.stdout.write(`${JSON.stringify({
   destination,
-  sourceCommit,
-  sourceTree,
   publicFiles: files.length + 1,
   packageFiles: packed.entryCount,
-  manifestSha256: provenance.manifestSha256,
+  manifestSha256: manifest.manifestSha256,
 })}\n`);

@@ -1,11 +1,8 @@
 {
   "schemaVersion": 1,
-  "kind": "OpenOntologyPublicSourceProvenanceV1",
+  "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.2",
-  "sourceRemote": "https://github.com/Doss-com/openontology.git",
-  "sourceCommit": "154f5b4cb0033f962b2e163b2a3b29e8dccd68fa",
-  "sourceTree": "d3c5cc19547aedae0edb902d2c95532d6e308c0c",
   "fileCount": 63,
   "files": [
     {
@@ -100,8 +97,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6734,
-      "sha256": "3ea99861a103c7249719644f244d2f7a7a539558414676c93fca88f93b047b05"
+      "bytes": 6885,
+      "sha256": "2c744c59289533edad1d65bc838e5602ee856d565c4bb81b7888efb858b49372"
     },
     {
       "path": "SECURITY.md",
@@ -140,8 +137,8 @@
     },
     {
       "path": "scripts/build-public-source.mjs",
-      "bytes": 5969,
-      "sha256": "09f05d69b9b391cea40a2c14d6d6b31cc60a02abb4540cfec25b5fd8157d7148"
+      "bytes": 5542,
+      "sha256": "7177894e56b8ebb81ce9d4a901b36a62b3ed91271822b2e2795dbd4e330a1b79"
     },
     {
       "path": "scripts/check-package-import-closure.mjs",
@@ -150,8 +147,8 @@
     },
     {
       "path": "scripts/check-public-release.mjs",
-      "bytes": 6105,
-      "sha256": "2df622274ed8c7dfc411987c8ab3a8551e1400226e7481bfbadfa8ba1a2be611"
+      "bytes": 6606,
+      "sha256": "6ea0b8523ba9de1bec248d169390d12843a3bf6bd2468e48dcdc2072a31e5390"
     },
     {
       "path": "scripts/oont-resolver.mjs",
@@ -324,5 +321,5 @@
       "sha256": "0eb9309f6f2d5a5a38747caf663eb470416be9ad80d21ae33527e60dacfddb33"
     }
   ],
-  "manifestSha256": "sha256:b1e7ca314c1abcf45de2e0af64a12f98a5eb8948deb4945542264fe53449f7f4"
+  "manifestSha256": "sha256:9f279265557de924172bed3a2373a2834ff69d6480b884e8b39c6922a43fe110"
 }

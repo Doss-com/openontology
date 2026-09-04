@@ -27,7 +27,7 @@ const allowedRoots = new Set([
   'AGENTS.md', 'CHANGELOG.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
   'GLOSSARY.md', 'LICENSE', 'README.md', 'SECURITY.md', 'bin', 'docs',
   'examples',
-  'package-lock.json', 'package.json', 'scripts', 'SOURCE-PROVENANCE.json', 'src',
+  'package-lock.json', 'package.json', 'scripts', 'SOURCE-MANIFEST.json', 'src',
 ]);
 
 const unexpectedRoots = [...new Set(tracked.map((path) => path.split('/')[0]))]
@@ -51,26 +51,34 @@ for (const path of tracked.filter((name) => /^\.github\/workflows\/.*\.ya?ml$/u.
   }
 }
 
-const provenancePath = join(root, 'SOURCE-PROVENANCE.json');
-if (!tracked.includes('SOURCE-PROVENANCE.json')) fail('SOURCE-PROVENANCE.json is required');
-let provenance;
-try { provenance = JSON.parse(readFileSync(provenancePath, 'utf8')); } catch {
-  fail('SOURCE-PROVENANCE.json is not valid JSON');
+const manifestPath = join(root, 'SOURCE-MANIFEST.json');
+if (!tracked.includes('SOURCE-MANIFEST.json')) fail('SOURCE-MANIFEST.json is required');
+let sourceManifest;
+try { sourceManifest = JSON.parse(readFileSync(manifestPath, 'utf8')); } catch {
+  fail('SOURCE-MANIFEST.json is not valid JSON');
 }
-const { manifestSha256, ...provenanceCore } = provenance;
-if (provenance.kind !== 'OpenOntologyPublicSourceProvenanceV1'
-  || manifestSha256 !== `sha256:${sha256(Buffer.from(canonical(provenanceCore)))}`) {
-  fail('source provenance identity is invalid');
+const manifestKeys = [
+  'fileCount', 'files', 'kind', 'manifestSha256', 'packageName', 'packageVersion',
+  'schemaVersion',
+];
+if (JSON.stringify(Object.keys(sourceManifest).sort()) !== JSON.stringify(manifestKeys)) {
+  fail('source manifest has unexpected fields');
 }
-const provenancePaths = provenance.files?.map((file) => file.path) ?? [];
-const expectedProvenancePaths = tracked.filter((path) => path !== 'SOURCE-PROVENANCE.json');
-if (JSON.stringify(provenancePaths) !== JSON.stringify(expectedProvenancePaths)) {
-  fail('source provenance file inventory does not match Git');
+const { manifestSha256, ...manifestCore } = sourceManifest;
+if (sourceManifest.kind !== 'OpenOntologyPublicSourceManifestV1'
+  || manifestSha256 !== `sha256:${sha256(Buffer.from(canonical(manifestCore)))}`) {
+  fail('source manifest identity is invalid');
 }
-for (const file of provenance.files) {
+const manifestPaths = sourceManifest.files?.map((file) => file.path) ?? [];
+const expectedManifestPaths = tracked.filter((path) => path !== 'SOURCE-MANIFEST.json');
+if (sourceManifest.fileCount !== manifestPaths.length
+  || JSON.stringify(manifestPaths) !== JSON.stringify(expectedManifestPaths)) {
+  fail('source manifest file inventory does not match Git');
+}
+for (const file of sourceManifest.files) {
   const bytes = readFileSync(join(root, file.path));
   if (file.bytes !== bytes.length || file.sha256 !== sha256(bytes)) {
-    fail(`source provenance mismatch in ${file.path}`);
+    fail(`source manifest mismatch in ${file.path}`);
   }
 }
 
@@ -102,6 +110,10 @@ for (const path of tracked) {
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 if (packageJson.name !== 'oont') fail('package name must be oont');
 if (packageJson.version !== '0.3.0-alpha.2') fail('package version must be 0.3.0-alpha.2');
+if (sourceManifest.packageName !== packageJson.name
+  || sourceManifest.packageVersion !== packageJson.version) {
+  fail('source manifest package identity does not match package.json');
+}
 if (JSON.stringify(packageJson.exports) !== JSON.stringify({
   '.': './src/openontology.mjs',
   './package.json': './package.json',
