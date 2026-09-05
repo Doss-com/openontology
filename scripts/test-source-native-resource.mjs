@@ -141,9 +141,9 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
       expectedSourceCommitSha256: first.receipt.commitSha256,
     });
     assert.equal(firstBinding.replayed, false);
-    assert.equal(firstBinding.replayMetadataSource, 'graph');
-    assert.equal(firstBinding.replayIndexCheckpointSha256, null);
-    assert.equal(firstBinding.replayIndexCheckpointByteLength, null);
+    assert.equal(firstBinding.replayMetadataSource, 'checkpoint');
+    assert.match(firstBinding.replayIndexCheckpointSha256, /^sha256:[0-9a-f]{64}$/u);
+    assert.ok(firstBinding.replayIndexCheckpointByteLength > 0);
     assert.equal(await currentValue(boundA), 'Beta');
 
     const second = buildSourceNativeProduct({
@@ -152,11 +152,25 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
       objectBackendUri: backendUri,
     });
     assert.notEqual(second.receipt.commitSha256, first.receipt.commitSha256);
+    const successorBackend = openCanonicalObjectBackend({ uri: backendUri }).backend;
+    const successorStore = openObjectOntStore({ backend: successorBackend });
+    const successorCommit = successorStore.readCommit(second.receipt.commitSha256).commit;
+    const successorPack = successorCommit.blobs.find((blob) =>
+      blob.logicalPath.includes('/source-packs/'));
+    assert.ok(successorPack);
+    const successorPackBytes = successorBackend.get(successorPack.key).bytes;
+    const successorPackKeyHash = createHash('sha256').update(successorPack.key).digest('hex');
+    const successorPackPath = join(
+      fileURLToPath(new URL(backendUri)),
+      'objects', successorPackKeyHash.slice(0, 2), `${successorPackKeyHash.slice(2)}.json`,
+    );
+    rmSync(successorPackPath);
     assert.throws(() => openSourceNativeProduct({ artifactRoot: boundA }), {
       code: 'SOURCE_NATIVE_PRODUCT_REF',
     });
+    successorBackend.putIfAbsent(successorPack.key, successorPackBytes);
     const exact = openExactProductArtifactState({ artifactRoot: boundA });
-    assert.equal(exact.replayMetadataSource, 'graph');
+    assert.equal(exact.replayMetadataSource, 'checkpoint');
     assert.equal(exact.objectOnt.sources.at(-1).content, 'Beta');
 
     const boundABytes = readFileSync(join(boundA, 'source-native.json'));
@@ -313,6 +327,20 @@ test('exact open rejects forged cut metadata and missing source objects', () => 
     const backend = openCanonicalObjectBackend({ uri: backendUri }).backend;
     const store = openObjectOntStore({ backend });
     const commit = store.readCommit(clean.receipt.commitSha256).commit;
+    const sourcePack = commit.blobs.find((blob) =>
+      blob.logicalPath.includes('/source-packs/'));
+    assert.ok(sourcePack);
+    const sourcePackBytes = backend.get(sourcePack.key).bytes;
+    const sourcePackKeyHash = createHash('sha256').update(sourcePack.key).digest('hex');
+    const sourcePackPath = join(
+      fileURLToPath(new URL(backendUri)),
+      'objects', sourcePackKeyHash.slice(0, 2), `${sourcePackKeyHash.slice(2)}.json`,
+    );
+    rmSync(sourcePackPath);
+    assert.throws(() => openExactProductArtifactState({ artifactRoot: cleanRoot }), {
+      code: 'OBJECT_BACKEND_NOT_FOUND',
+    });
+    backend.putIfAbsent(sourcePack.key, sourcePackBytes);
     const map = commit.blobs.find((blob) => blob.logicalPath.includes('/maps/'));
     assert.ok(map);
     assert.throws(() => {

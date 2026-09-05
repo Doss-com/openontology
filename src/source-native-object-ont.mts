@@ -20,6 +20,7 @@ import type { ObjectBackend } from './object-storage-backend.mjs';
 import type {
   BlobDescriptor,
   ObjectOntStore,
+  ReplayMetadataCheckpointWriteResult,
   ReplayMetadataCheckpointSnapshot,
   ReplayMetadataGraph,
 } from './object-ont-store.mjs';
@@ -127,6 +128,17 @@ export interface OpenSourceNativeObjectOntOptions {
 export type SourceNativeObjectOntRefIndex = Omit<ReplayMetadataCheckpointSnapshot, 'replayMetadata'> & {
   commitOrder: string[];
   objectOnt: SourceNativeObjectOntIndex;
+};
+
+export interface SourceNativeObjectOntCut {
+  objectOnt: SourceNativeObjectOntModule;
+  replayMetadataSource: 'graph' | 'checkpoint';
+  replayIndexCheckpointSha256: string | null;
+  replayIndexCheckpointByteLength: number | null;
+}
+
+export type SourceNativeObjectOntRefCut = Omit<SourceNativeObjectOntRefIndex, 'objectOnt'> & {
+  objectOnt: SourceNativeObjectOntModule;
 };
 interface MaterializeResult {
   map: SourceNativeObjectMap;
@@ -425,12 +437,13 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
   });
 }
 
-function openAtCommit({ store, ontId, commitSha256 }: {
-  store: ObjectOntStore; ontId: string; commitSha256: string;
+function hydrateIndex({ store, index }: {
+  store: ObjectOntStore;
+  index: SourceNativeObjectOntIndex;
 }): SourceNativeObjectOntModule {
-  const index = openIndexAtCommit({ store, ontId, commitSha256 });
+  const { map, sources: indexSources } = index;
   const packBytesByKey = new Map<string, Buffer>();
-  const sources: Array<OpenSource & { content: string }> = index.sources.map((source) => {
+  const sources: Array<OpenSource & { content: string }> = indexSources.map((source) => {
     let bytes = packBytesByKey.get(source.blobDescriptor.key);
     if (!bytes) {
       bytes = store.readBlob(source.blobDescriptor).bytes;
@@ -446,7 +459,7 @@ function openAtCommit({ store, ontId, commitSha256 }: {
     });
   });
   const sourceByPath = new Map(sources.map((source) => [source.relativePath, source]));
-  for (const object of index.map.nativeObjects) {
+  for (const object of map.nativeObjects) {
     const source = sourceByPath.get(object.relativePath);
     const exactSource = source ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     if (exactSource.sourceSha256 !== object.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
@@ -467,6 +480,14 @@ function openAtCommit({ store, ontId, commitSha256 }: {
     kind: 'OpenOntologySourceNativeObjectOntModuleV1',
     sources: freeze(sources),
   });
+}
+
+function openAtCommit({ store, ontId, commitSha256, replayMetadata }: {
+  store: ObjectOntStore; ontId: string; commitSha256: string;
+  replayMetadata?: ReplayMetadataGraph;
+}): SourceNativeObjectOntModule {
+  const index = openIndexAtCommit({ store, ontId, commitSha256, replayMetadata });
+  return hydrateIndex({ store, index });
 }
 
 export function materializeSourceNativeObjectOnt({
@@ -580,9 +601,17 @@ export function materializeSourceNativeObjectOnt({
     bytes: Buffer.from(stableObjectText(manifestValue)),
     mediaType: 'application/json',
   });
-  const current = store.readRefMetadata({ ontId: ontIdValue, branch: branchValue });
+  const current = store.readRefMetadataCheckpointSnapshot({
+    ontId: ontIdValue,
+    branch: branchValue,
+  });
   if (current !== null) {
-    const opened = openIndexAtCommit({ store, ontId: ontIdValue, commitSha256: current.ref.commitSha256 });
+    const opened = openIndexAtCommit({
+      store,
+      ontId: ontIdValue,
+      commitSha256: current.ref.commitSha256,
+      replayMetadata: current.replayMetadata,
+    });
     if (opened.map.nativeObjectMapSha256 === map.nativeObjectMapSha256
       && opened.catalog.sourceCatalogSha256 === sourceCatalogSha256) {
       const core: Omit<SourceNativeObjectOntReceipt, 'receiptSha256'> = {
@@ -624,9 +653,9 @@ export function materializeSourceNativeObjectOnt({
       mapBlob,
     ],
   });
-  let ref: Record<string, unknown>;
+  let ref: ReplayMetadataCheckpointWriteResult;
   try {
-    ref = store.compareAndSwapRefMetadata({
+    ref = store.compareAndSwapRefMetadataCheckpointed({
       ontId: ontIdValue,
       branch: branchValue,
       expectedVersion,
@@ -638,8 +667,13 @@ export function materializeSourceNativeObjectOnt({
     }
     throw error;
   }
-  const opened = openIndexAtCommit({ store, ontId: ontIdValue, commitSha256: commit.commitSha256 });
-  const refVersion = typeof ref.version === 'string' ? ref.version : fail('SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT');
+  const opened = openIndexAtCommit({
+    store,
+    ontId: ontIdValue,
+    commitSha256: commit.commitSha256,
+    replayMetadata: ref.replayMetadata,
+  });
+  const refVersion = ref.version;
   const core: Omit<SourceNativeObjectOntReceipt, 'receiptSha256'> = {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeObjectOntReceiptV1',
@@ -680,6 +714,77 @@ export function openSourceNativeObjectOnt(options: OpenSourceNativeObjectOntOpti
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   return openAtCommit({ store: openObjectOntStore({ backend }), ontId, commitSha256 });
+}
+
+export function openSourceNativeObjectOntAtCut({
+  backend,
+  ontId,
+  commitSha256,
+  replaySha256,
+}: OpenSourceNativeObjectOntOptions & { replaySha256: string }): SourceNativeObjectOntCut {
+  if (!backend || typeof ontId !== 'string' || !ontId
+    || typeof commitSha256 !== 'string' || !SHA256.test(commitSha256)
+    || typeof replaySha256 !== 'string' || !SHA256.test(replaySha256)) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  }
+  const store = openObjectOntStore({ backend });
+  const indexed = store.readReplayIndexCheckpoint({
+    ontId,
+    tipCommitSha256: commitSha256,
+    replaySha256,
+  });
+  const index = openIndexAtCommit({
+    store,
+    ontId,
+    commitSha256,
+    replayMetadata: indexed?.replayMetadata,
+  });
+  if (index.replaySha256 !== replaySha256) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  const objectOnt = hydrateIndex({ store, index });
+  return freeze({
+    objectOnt,
+    replayMetadataSource: indexed === null ? 'graph' : 'checkpoint',
+    replayIndexCheckpointSha256: indexed?.checkpoint.checkpointSha256 ?? null,
+    replayIndexCheckpointByteLength: indexed?.byteLength ?? null,
+  });
+}
+
+export function openSourceNativeObjectOntRefAtCut({
+  backend,
+  ontId,
+  branch,
+  expectedCommitSha256,
+  expectedReplaySha256,
+}: {
+  backend: ObjectBackend;
+  ontId: string;
+  branch: string;
+  expectedCommitSha256?: string;
+  expectedReplaySha256?: string;
+}): SourceNativeObjectOntRefCut | null {
+  if (!backend || typeof ontId !== 'string' || !ontId
+    || typeof branch !== 'string' || !branch) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  const store = openObjectOntStore({ backend });
+  const snapshot = store.readRefMetadataCheckpointSnapshot({ ontId, branch });
+  if (snapshot === null) return null;
+  if ((expectedCommitSha256 !== undefined
+    && snapshot.ref.commitSha256 !== expectedCommitSha256)
+    || (expectedReplaySha256 !== undefined
+      && snapshot.ref.replaySha256 !== expectedReplaySha256)) {
+    fail('SOURCE_NATIVE_PRODUCT_REF');
+  }
+  const { replayMetadata, ...refMetadata } = snapshot;
+  const index = openIndexAtCommit({
+    store,
+    ontId,
+    commitSha256: snapshot.ref.commitSha256,
+    replayMetadata,
+  });
+  if (index.replaySha256 !== snapshot.ref.replaySha256) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  }
+  const objectOnt = hydrateIndex({ store, index });
+  return freeze({ ...refMetadata, commitOrder: replayMetadata.commitOrder, objectOnt });
 }
 
 export function openSourceNativeObjectOntIndex(options: OpenSourceNativeObjectOntOptions) {
