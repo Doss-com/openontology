@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
-  existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync,
+  existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
+  rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -34,6 +36,23 @@ const run = (command, args, options = {}) => spawnSync(command, args, {
   env: { ...process.env, ...options.env },
   timeout: options.timeout ?? 300_000,
 });
+
+function directorySnapshot(directory) {
+  const files = [];
+  const visit = (path, relative = '') => {
+    for (const name of readdirSync(path).sort()) {
+      const child = join(path, name);
+      const childRelative = relative ? `${relative}/${name}` : name;
+      const stat = lstatSync(child);
+      if (stat.isDirectory()) visit(child, childRelative);
+      else if (stat.isFile()) files.push([childRelative,
+        createHash('sha256').update(readFileSync(child)).digest('hex')]);
+      else throw new Error('Unexpected non-file in generated lifecycle output');
+    }
+  };
+  visit(directory);
+  return JSON.stringify(files);
+}
 
 async function mcpTools(bin, artifactRoot, advanced = false) {
   return new Promise((done) => {
@@ -410,6 +429,40 @@ assert.deepEqual(kernelKeys, [
 assert.equal(result.answerable, true);`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
+
+  const lifecycleExample = join(packageRoot, 'examples', 'quickstart', 'source-lifecycle.mjs');
+  const lifecycleGuide = join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md');
+  const lifecycleRoot = join(consumer, 'source-lifecycle');
+  const noNetwork = 'data:text/javascript,globalThis.fetch=async()=>{throw new Error("NETWORK_FORBIDDEN")}';
+  const runLifecycle = (outputRoot) => run(process.execPath, [
+    '--import', noNetwork, lifecycleExample, outputRoot,
+  ], { cwd: consumer });
+  for (const [name, outputRoot] of [['first run', lifecycleRoot],
+    ['independent second run', join(consumer, 'source-lifecycle-second')]]) {
+    const execution = runLifecycle(outputRoot);
+    let summary;
+    try { summary = JSON.parse(execution.stdout); } catch { summary = null; }
+    check(`installed source lifecycle ${name}`, execution.status === 0
+      && existsSync(lifecycleGuide)
+      && summary?.kind === 'OpenOntologySourceLifecycleWalkthroughV1'
+      && summary?.outputRoot === outputRoot
+      && summary?.initial?.value === 'Ship verified context'
+      && summary?.updated?.value === 'Keep context current'
+      && /^sha256:[0-9a-f]{64}$/u.test(summary?.initial?.sourceCommitSha256 ?? '')
+      && /^sha256:[0-9a-f]{64}$/u.test(summary?.updated?.sourceCommitSha256 ?? '')
+      && summary.initial.sourceCommitSha256 !== summary.updated.sourceCommitSha256
+      && summary?.searchRead?.value === 'Ship verified context'
+      && summary?.refusal?.state === 'unavailable-native-field-not-declared'
+      && summary?.refusal?.contextCount === 0
+      && summary?.staleOpen?.code === 'SOURCE_NATIVE_PRODUCT_REF',
+    execution.status === 0 ? JSON.stringify(summary) : tail(execution.stderr));
+  }
+  const beforeRerun = existsSync(lifecycleRoot) ? directorySnapshot(lifecycleRoot) : null;
+  const rerun = runLifecycle(lifecycleRoot);
+  check('installed lifecycle refuses existing output without changing bytes',
+    beforeRerun !== null && rerun.status !== 0
+      && existsSync(lifecycleRoot) && beforeRerun === directorySnapshot(lifecycleRoot),
+    tail(rerun.stderr));
 
   const ordinaryMcp = await mcpTools(bin, ont, false);
   check('default MCP exposes only verify', ordinaryMcp.ok

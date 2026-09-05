@@ -70,6 +70,11 @@ OpenOntology returns a JSON Verification. A successful result contains exact
 context and proof receipts. An ambiguous, unsupported, or incomplete question
 returns a typed refusal instead of a guessed answer.
 
+For an executable walkthrough that publishes a successor source cut and handles
+stale opening, see [Source input and updates](docs/SOURCE-LIFECYCLE.md). It uses
+the installed package offline and leaves its synthetic Onts in a new directory
+for inspection. Input remains explicit Adapter output, not automatic ingestion.
+
 ## TypeScript and JavaScript
 
 ```js

@@ -35,6 +35,7 @@
     "dist/",
     "docs/ARCHITECTURE.md",
     "docs/STORAGE.md",
+    "docs/SOURCE-LIFECYCLE.md",
     "examples/quickstart/",
     "CHANGELOG.md",
     "GLOSSARY.md"

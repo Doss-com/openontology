@@ -167,6 +167,7 @@ const required = [
   'dist/src/kernel.mjs', 'dist/src/kernel.d.mts',
   'dist/bin/oont.d.mts', 'dist/src/openontology.mjs',
   'dist/src/openontology.d.mts', 'examples/quickstart/source-native-input.json',
+  'examples/quickstart/source-lifecycle.mjs', 'docs/SOURCE-LIFECYCLE.md',
 ];
 for (const path of required) {
   if (!packedPaths.includes(path)) fail(`package is missing ${path}`);
