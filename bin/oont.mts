@@ -50,8 +50,8 @@ function runResolver(resolverArgs: string[]): void {
 type ProductCommand = 'verify' | 'search' | 'status' | 'check' | 'serve';
 function commandHelp(name: ProductCommand): never {
   const lines: Record<ProductCommand, string> = {
-    verify: 'usage: oont verify <ont> <question> [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]',
-    search: 'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]',
+    verify: 'usage: oont verify <ont> <question> [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
+    search: 'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
     status: 'usage: oont status <ont>',
     check: 'usage: oont check <ont>',
     serve: 'usage: oont serve <ont> --mcp [--advanced]',

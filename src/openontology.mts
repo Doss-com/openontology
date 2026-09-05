@@ -18,6 +18,7 @@ export interface OpenOntologyScopeInput {
 export interface OpenOntologyQueryInput {
   question: string;
   intent?: 'current' | 'next';
+  at?: string;
   anchorValue?: string | null;
   scope?: OpenOntologyScopeInput;
 }
@@ -25,6 +26,7 @@ export interface OpenOntologyQueryInput {
 interface OpenOntologyQuery {
   question: string;
   intent?: 'current' | 'next';
+  at?: string;
   anchorValue?: string | null;
   typedQuery?: {
     sourceSystem: string;
@@ -105,6 +107,34 @@ export interface OpenOntologyCurrentFieldChronologyVerification {
   exactSourcesRemainAuthority: true;
   verificationSha256: string;
 }
+export interface OpenOntologyHistoricalFieldChronologyVerification {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeHistoricalFieldChronologyVerificationV1';
+  proofDisposition: 'sufficient' | 'insufficient';
+  scope: 'retrospective-valid-time-over-bound-source-cut';
+  temporalProfile: 'source-native-basic-retrospective-v1';
+  at: string;
+  sourceObservedThrough: string;
+  knownAtLimitsSelection: false;
+  sourceCommitSha256: string;
+  sourceReplaySha256: string;
+  sourceCatalogSha256: string | null;
+  sourceHandleSetSha256: string;
+  nativeObjectMapSha256: string;
+  fieldResolutionSha256: string;
+  selectedFieldSha256: string;
+  selectedValidAt: string;
+  selectedKnownAt: string;
+  observationClosureCount: number;
+  observationClosureSha256: string;
+  revisionClosureCount: number;
+  revisionClosureSha256: string;
+  derivedValidAtFieldCount: number;
+  unmetRequirements: string[];
+  exactInspectRequired: true;
+  exactSourcesRemainAuthority: true;
+  verificationSha256: string;
+}
 export interface OpenOntologyObjectIdentityAbsenceReceipt {
   schema: 1;
   kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1';
@@ -180,6 +210,7 @@ export interface OpenOntologyVerificationMetadata {
   resolutionSha256: string | null;
   navigationProposals: Record<string, unknown> | null;
   currentFieldChronology: OpenOntologyCurrentFieldChronologyVerification | null;
+  historicalFieldChronology?: OpenOntologyHistoricalFieldChronologyVerification | null;
   absenceReceipt: OpenOntologyObjectIdentityAbsenceReceipt | null;
   semanticProofAuthority?: OpenOntologySemanticProofAuthority;
   semanticProof?: OpenOntologySemanticProofVerification;
@@ -196,7 +227,8 @@ export interface OpenOntologySearchResult {
   schemaVersion: number;
   kind: 'OpenOntologySourceNativeProductSearchResultV2';
   state: OpenOntologyResultState;
-  intent: 'current' | 'next';
+  intent: 'current' | 'next' | 'at';
+  at?: string;
   query: OpenOntologyResolvedQuery | null;
   mentionedExternalIds: string[] | undefined;
   unresolvedExternalIds: string[] | undefined;
@@ -252,7 +284,8 @@ export interface OpenOntologyVerificationResult {
   state: OpenOntologyResultState;
   answerable: boolean;
   proofDisposition?: 'contradicted' | 'qualified' | 'supported' | 'unresolved';
-  intent: 'current' | 'next';
+  intent: 'current' | 'next' | 'at';
+  at?: string;
   query: OpenOntologyResolvedQuery | null;
   context: Array<{
     role: string;
@@ -310,24 +343,44 @@ const fail = (code: string): never => {
   error.code = code;
   throw error;
 };
+const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
+function exactUtcMillisecondIso(value: unknown): value is string {
+  if (typeof value !== 'string' || !EXACT_UTC_MILLISECOND_ISO.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+}
+
 function queryFields(record: Record<string, unknown>): Omit<OpenOntologyQuery, 'typedQuery'> {
-  const { question: inputQuestion, intent: inputIntent, anchorValue } = record;
+  const {
+    question: inputQuestion,
+    intent: inputIntent,
+    at: inputAt,
+    anchorValue,
+  } = record;
   if (typeof inputQuestion !== 'string' || !inputQuestion.trim()
     || inputIntent !== undefined && inputIntent !== 'current' && inputIntent !== 'next'
+    || inputAt !== undefined && !exactUtcMillisecondIso(inputAt)
     || anchorValue !== undefined && anchorValue !== null && typeof anchorValue !== 'string') {
     fail('OPENONTOLOGY_QUERY');
   }
   const question = typeof inputQuestion === 'string' ? inputQuestion : fail('OPENONTOLOGY_QUERY');
+  const at = inputAt === undefined ? undefined
+    : exactUtcMillisecondIso(inputAt) ? inputAt : fail('OPENONTOLOGY_QUERY');
   const exactAnchorValue = anchorValue === undefined || anchorValue === null
     ? anchorValue
     : typeof anchorValue === 'string' ? anchorValue : fail('OPENONTOLOGY_QUERY');
+  if (at !== undefined && (inputIntent === 'next'
+    || typeof exactAnchorValue === 'string' && exactAnchorValue.trim())) {
+    fail('OPENONTOLOGY_QUERY');
+  }
   return {
     question,
     ...(inputIntent === 'current' || inputIntent === 'next' ? { intent: inputIntent } : {}),
+    ...(at === undefined ? {} : { at }),
     ...(exactAnchorValue === undefined ? {} : { anchorValue: exactAnchorValue }),
   };
 }
@@ -339,7 +392,7 @@ function query(input: unknown): OpenOntologyQuery {
   }
   const record = isRecord(input) ? input : fail('OPENONTOLOGY_QUERY');
   if (Object.keys(record).some((name) =>
-    !['question', 'intent', 'anchorValue', 'scope'].includes(name))) {
+    !['question', 'intent', 'at', 'anchorValue', 'scope'].includes(name))) {
     fail('OPENONTOLOGY_QUERY');
   }
   const fields = queryFields(record);

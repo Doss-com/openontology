@@ -29,6 +29,7 @@ function usage(code = 2): never {
   search <artifact-dir> <question> [--intent current|next] [--read]
          [--source-system <name> --object-type <name> --field <path>]
          [--external-id <id>] [--anchor-value <exact-value>]
+         [--at <UTC-millisecond-ISO>]
       Find candidate References for a source-bound current field or immediate
       next field revision. Search output is navigation only. --read returns
       the exact cited Evidence in the same process.
@@ -36,6 +37,7 @@ function usage(code = 2): never {
   verify <artifact-dir> <question> [--intent current|next]
           [--source-system <name> --object-type <name> --field <path>]
           [--external-id <id>] [--anchor-value <exact-value>]
+          [--at <UTC-millisecond-ISO>]
       Close the proof in one call by reading every required Reference. Returns
       a Verification or typed refusal, never a generated prose answer.
 
@@ -93,11 +95,13 @@ function print(value: object): void {
 }
 
 const queryOptionNames = new Set(['--intent', '--source-system', '--object-type',
-  '--external-id', '--field', '--anchor-value']);
+  '--external-id', '--field', '--anchor-value', '--at']);
+const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 function queryInput(question: string, values: Map<string, string>): {
   question: string;
   intent: 'current' | 'next';
+  at?: string;
   anchorValue: string | null;
   scope?: { sourceSystem: string; objectType: string; field: string; externalId?: string };
 } {
@@ -110,11 +114,15 @@ function queryInput(question: string, values: Map<string, string>): {
   const intentValue = values.get('--intent') ?? 'current';
   const intent: 'current' | 'next' = intentValue === 'next'
     ? 'next' : intentValue === 'current' ? 'current' : usage();
+  const atValue = values.get('--at');
+  const at = atValue === undefined ? undefined : exactUtcMillisecondIso(atValue) ? atValue : usage();
   const sourceSystem = values.get('--source-system');
   const objectType = values.get('--object-type');
   const field = values.get('--field');
   if (typedCount === typedNames.length
     && (sourceSystem === undefined || objectType === undefined || field === undefined)) usage();
+  const anchorValue = values.get('--anchor-value') ?? null;
+  if (at !== undefined && (intent === 'next' || anchorValue !== null && anchorValue.trim())) usage();
   const scope = sourceSystem !== undefined && objectType !== undefined && field !== undefined
     ? {
       sourceSystem,
@@ -126,9 +134,16 @@ function queryInput(question: string, values: Map<string, string>): {
   return {
     question,
     intent,
-    anchorValue: values.get('--anchor-value') ?? null,
+    ...(at === undefined ? {} : { at }),
+    anchorValue,
     ...(scope === undefined ? {} : { scope }),
   };
+}
+
+function exactUtcMillisecondIso(value: unknown): value is string {
+  if (typeof value !== 'string' || !EXACT_UTC_MILLISECOND_ISO.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
 }
 
 try {

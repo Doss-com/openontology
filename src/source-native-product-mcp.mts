@@ -22,6 +22,7 @@ const fail = (code: string): never => {
   error.code = code;
   throw error;
 };
+const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 const SCOPE_SCHEMA = Object.freeze({
   type: 'object',
@@ -38,6 +39,10 @@ const SCOPE_SCHEMA = Object.freeze({
 const QUERY_PROPERTIES = Object.freeze({
   question: { type: 'string', minLength: 1 },
   intent: { type: 'string', enum: ['current', 'next'], default: 'current' },
+  at: {
+    type: 'string',
+    pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$',
+  },
   anchorValue: { type: 'string', minLength: 1 },
   scope: SCOPE_SCHEMA,
 });
@@ -107,20 +112,38 @@ function scopeArguments(value: unknown): SourceNativeFieldQuery | null {
   };
 }
 
+function exactUtcMillisecondIso(value: unknown): value is string {
+  if (typeof value !== 'string' || !EXACT_UTC_MILLISECOND_ISO.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+}
+
 function queryArguments(value: unknown): ProductSearchInput {
-  const args = exactArguments(value, ['question', 'intent', 'anchorValue', 'scope']);
-  const { question, intent: inputIntent, anchorValue: inputAnchorValue } = args;
+  const args = exactArguments(value, ['question', 'intent', 'at', 'anchorValue', 'scope']);
+  const {
+    question,
+    intent: inputIntent,
+    at: inputAt,
+    anchorValue: inputAnchorValue,
+  } = args;
   if (typeof question !== 'string' || !question.trim()
     || inputIntent !== undefined && inputIntent !== 'current' && inputIntent !== 'next'
+    || inputAt !== undefined && !exactUtcMillisecondIso(inputAt)
     || inputAnchorValue !== undefined && typeof inputAnchorValue !== 'string') {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
   const exactQuestion = typeof question === 'string' ? question : fail('SOURCE_NATIVE_PRODUCT_QUERY');
   const anchorValue = typeof inputAnchorValue === 'string' ? inputAnchorValue.trim() || null : null;
+  const at = inputAt === undefined ? undefined
+    : exactUtcMillisecondIso(inputAt) ? inputAt : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  if (at !== undefined && (inputIntent === 'next' || anchorValue !== null)) {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  }
   const intent = inputIntent === 'next' ? 'next' : 'current';
   return {
     question: exactQuestion,
     intent,
+    ...(at === undefined ? {} : { at }),
     anchorValue,
     typedQuery: scopeArguments(args.scope),
   };
@@ -182,9 +205,13 @@ export function runSourceNativeProductMcp(product: ProductTransport, {
         response.result = { tools };
       } else if (request.method === 'tools/call') {
         if (profile === 'verify' && request.params?.name === 'verify') {
-          response.result = result(await product.verify(queryArguments(request.params?.arguments)));
+          response.result = result(await product.verify(
+            queryArguments(request.params?.arguments),
+          ));
         } else if (profile === 'advanced' && request.params?.name === 'search') {
-          response.result = result(await product.search(queryArguments(request.params?.arguments)));
+          response.result = result(await product.search(
+            queryArguments(request.params?.arguments),
+          ));
         } else if (profile === 'advanced' && request.params?.name === 'read') {
           const args = readArguments(request.params?.arguments);
           response.result = result(await product.read({ ref: args.ref }));
