@@ -272,7 +272,6 @@ function hostedSeedSearchAdapter(context, {
   networkCallsForQuestion = null,
   omitReceiptNetworkCalls = false,
   mutateReceiptHash = false,
-  delayMs = 0,
   beforeResponse = null,
 } = {}) {
   const { session } = context;
@@ -317,7 +316,6 @@ function hostedSeedSearchAdapter(context, {
     networkCalls: declaration,
     search: async ({ query }) => {
       if (typeof beforeResponse === 'function') await beforeResponse(query);
-      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
       return responseFor(query);
     },
   };
@@ -367,6 +365,10 @@ test('rejects malformed or over-declared hosted seed-search network counts', asy
     { declaration: 4, receiptNetworkCalls: 1.5, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
     { declaration: 4, receiptNetworkCalls: '1', expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
     { declaration: 4, receiptNetworkCalls: 5, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 0, receiptNetworkCalls: 1, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 4, receiptNetworkCalls: null, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 1000, receiptNetworkCalls: 1001, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 4, networkCalls: 2, mutateReceiptHash: true, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
   ];
   for (const adapterOptions of cases) {
     const root = mkdtempSync(join(tmpdir(), 'oont-source-native-hosted-accounting-invalid-'));

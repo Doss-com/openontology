@@ -13,10 +13,8 @@ const isSeedNetworkCalls = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value)
   && value >= 0 && value <= MAXIMUM_SEED_NETWORK_CALLS;
 const validateSeedNetworkCalls = (value: unknown, maximum: number): number => {
-  if (!isSeedNetworkCalls(value)) fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
-  const numericValue = value as number;
-  if (numericValue > maximum) fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
-  return numericValue;
+  if (isSeedNetworkCalls(value) && value <= maximum) return value;
+  return fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
 };
 const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {

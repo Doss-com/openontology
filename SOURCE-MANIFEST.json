@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 14624,
-      "sha256": "c4c8272c5e796db8e4c3013f16772de8ca92a92695e58bdf4529791380b231fb"
+      "bytes": 15170,
+      "sha256": "ce9c2b0ae1b5739a96f2bbd034314aa5f8b212f8be62901c7e80a013fc098f59"
     },
     {
       "path": "docs/STORAGE.md",
@@ -242,8 +242,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 45447,
-      "sha256": "f174d60d92c43f6e70876d3f7c444989eec7b1e3b31224f7e2f72fec0390c954"
+      "bytes": 53709,
+      "sha256": "c82ece171e69416e71888c93b8394ad8ddf6151e53ba250ed74b8e267638978a"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -372,8 +372,8 @@
     },
     {
       "path": "src/source-native-field-resolver.mts",
-      "bytes": 31509,
-      "sha256": "87c193d78b1e9ed78e388c0b5a8bb302f1818e0d6fa79f4bafc9dd81348201fb"
+      "bytes": 31801,
+      "sha256": "2baf934f6664b73e2ad8b479e7a0e69f80f5c8efc47cc31f9dc4ad4b8adac589"
     },
     {
       "path": "src/source-native-identity-census.mts",
@@ -412,8 +412,8 @@
     },
     {
       "path": "src/source-native-resolver-support.mts",
-      "bytes": 17281,
-      "sha256": "3dfafebfb2faef0c14f8d26163739124897ba4e14fddb80d9aea53b7e1457d91"
+      "bytes": 18332,
+      "sha256": "68256f54fb2cb3072dec44ff663c536b32e86f21303e87a0c96c7cebebeade3c"
     },
     {
       "path": "src/source-native-semantic-projection.mts",
@@ -431,5 +431,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:fad5c895e63d1f325808b27bd68362d82b0b555b6a357ea41bb15e9215e9cd47"
+  "manifestSha256": "sha256:7b2ab7372d0a9fe34478bf7744478f24aed1f65c8ae40c5461a6ae19a63cbe64"
 }

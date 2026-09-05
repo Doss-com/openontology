@@ -45,6 +45,14 @@ primitives, while control-plane policy remains outside the public package.
 The Interface's availability does not establish that every managed consumer
 already uses the same pinned package.
 
+Seed-search Adapters may declare up to 1,000 logical network operations per
+search, with zero model calls. Hosted receipts must report actual operations
+within that declaration. Current and immediate-successor results expose the
+request-local count as `verification.navigationProposals.seedSearchNetworkCalls`.
+Local legacy receipts without a count mean zero only for a zero declaration.
+This counts seed-search operations, not storage reads, SDK retries, total HTTP
+traffic, or monetary cost. Provider clients remain outside the public kernel.
+
 `[EXISTS]` The same kernel subpath exposes a source-agnostic proof-contract
 compiler, content-addressed ProofAuthorityProjection, and evaluator. The
 projection binds every proof-relevant item field, exact Evidence reference, and
