@@ -22,7 +22,22 @@ oont resolver build input.json \
 
 The GCS Adapter uses object generations as opaque versions. Immutable writes
 use generation preconditions. Refs use generation-bound compare-and-swap.
-Exact reads verify byte length and SHA-256 metadata.
+Full reads verify byte length and SHA-256. Range reads validate generation,
+length and returned range metadata; the caller still verifies the exact Evidence
+span against its bound hash.
+
+An optional prefix, such as `gs://your-ontology-bucket/project/ont`, scopes all
+physical object keys while receipts retain logical keys. Prefixes reject
+traversal, encoded aliases and trailing separators. A prefix is organization,
+not an IAM boundary. S3 prefix configuration is not supported.
+
+Programmatic `objectBackendEnv` accepts either `OONT_GCS_ACCESS_TOKEN` or a
+synchronous `OONT_GCS_ACCESS_TOKEN_PROVIDER` function that returns a current
+token, not both. The function is called for each request attempt. It cannot be
+supplied as a shell environment string. Ordinary nonempty reads use one media
+request. Transient read failures receive up to three attempts by default;
+writes are not automatically retried. This reduces metadata round trips but
+does not establish a total query-latency or operating-cost bound.
 
 To run the confined provider qualification:
 

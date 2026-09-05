@@ -11,19 +11,8 @@ export interface CanonicalObjectBackendSelection {
   capabilities: ObjectBackendCapabilities;
 }
 
-interface CanonicalObjectBackendEnvironmentValues {
-  readonly [key: string]: string | (() => string) | null | undefined;
-  readonly OONT_GCS_ACCESS_TOKEN?: string;
-  readonly OONT_GCS_ACCESS_TOKEN_PROVIDER?: (() => string) | null;
-  readonly OONT_GCS_ENDPOINT?: string;
-  readonly OONT_S3_ENDPOINT?: string;
-  readonly OONT_S3_REGION?: string;
-  readonly OONT_S3_ACCESS_KEY_ID?: string;
-  readonly OONT_S3_SECRET_ACCESS_KEY?: string;
-  readonly OONT_S3_SESSION_TOKEN?: string | null;
-  readonly OONT_S3_CONDITIONAL_WRITE_POLICY?: string;
-}
-export type CanonicalObjectBackendEnvironment = CanonicalObjectBackendEnvironmentValues | NodeJS.ProcessEnv;
+import type { OpenOntologyBackendEnvironment } from './openontology.mjs';
+export type CanonicalObjectBackendEnvironment = OpenOntologyBackendEnvironment;
 
 type BackendEnvironmentValue = string | (() => string) | null | undefined;
 
@@ -50,6 +39,7 @@ export function normalizeCanonicalObjectBackendUri(uriInput: string | undefined)
   try { uri = new URL(uriInput ?? ''); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }
   if (uri.username || uri.password || uri.search || uri.hash) fail('CANONICAL_OBJECT_BACKEND_URI');
   if (uri.protocol === 'gs:' && typeof uriInput === 'string') {
+    if (uriInput !== uriInput.trim()) fail('CANONICAL_OBJECT_BACKEND_URI');
     const rawPath = /^gs:\/\/[^\/?#]*(\/[^?#]*)?$/iu.exec(uriInput)?.[1] ?? '';
     for (const segment of rawPath.split('/')) {
       let decodedSegment: string;

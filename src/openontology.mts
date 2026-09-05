@@ -7,7 +7,6 @@ import {
   SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE,
 } from './source-native-product.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
-import type { CanonicalObjectBackendEnvironment } from './canonical-object-backend.mjs';
 import type { OpenOntologyResultState as ResultState } from './product-result-state.mjs';
 
 export interface OpenOntologyScopeInput {
@@ -37,10 +36,13 @@ interface OpenOntologyQuery {
   } | null;
 }
 export interface OpenOntologyReferenceInput { ref: string }
+export type OpenOntologyBackendEnvironment = Readonly<Record<
+  string, string | (() => string) | null | undefined
+>>;
 export interface OpenOntologyOptions {
   artifactRoot: string;
   objectBackendUri?: string | null;
-  objectBackendEnv?: CanonicalObjectBackendEnvironment;
+  objectBackendEnv?: OpenOntologyBackendEnvironment;
 }
 export type OpenOntologyResultState = ResultState;
 export interface OpenOntologyResolvedQuery {

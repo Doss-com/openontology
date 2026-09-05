@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import test from 'node:test';
+import * as kernel from '../dist/src/kernel.mjs';
 
 import { openOntology } from '../dist/src/openontology.mjs';
 import {
@@ -110,6 +111,30 @@ function mcpCall(input, outputLines, request) {
     input.write(`${JSON.stringify(request)}\n`);
   });
 }
+
+test('kernel MCP handler exposes and verifies canonical point-in-time queries', async () => {
+  const root = buildFixture();
+  try {
+    assert.equal(typeof kernel.createSourceNativeProductMcpHandler, 'function');
+    const handler = kernel.createSourceNativeProductMcpHandler(
+      openSourceNativeProduct({ artifactRoot: root }),
+    );
+    const listed = await handler.handle({ id: 1, method: 'tools/list' });
+    assert.ok(listed.result.tools[0].inputSchema.properties.at);
+    assert.equal(await handler.handle(null), null);
+    const response = await handler.handle({ id: 2, method: 'tools/call',
+      params: { name: 'verify', arguments: query({ at: AT, intent: 'current' }) } });
+    assert.equal(response.result.isError, undefined);
+    const verified = JSON.parse(response.result.content[0].text);
+    assert.equal(verified.at, AT);
+    assert.deepEqual(verified.context.map((row) => row.exactText), ['Beta']);
+    const invalid = await handler.handle({ id: 3, method: 'tools/call',
+      params: { name: 'verify', arguments: query({ at: AT, intent: 'next' }) } });
+    assert.equal(invalid.result.isError, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('SDK historical selection returns the earlier exact value while current stays latest', async () => {
   const root = buildFixture();

@@ -1,4 +1,6 @@
 /** Bounded extension Interface for managed and research runtimes. */
+export { createSourceNativeProductMcpHandler } from './source-native-product-mcp.mjs';
+export type { ProductTransport } from './source-native-product-mcp.mjs';
 export {
   buildSourceNativeProduct,
   openSourceNativeProductRuntime,

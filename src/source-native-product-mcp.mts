@@ -3,17 +3,14 @@ import { createInterface } from 'node:readline';
 import type { UnknownRecord } from './source-native-object-map.mjs';
 import type {
   ProductSearchInput,
-  SourceNativeProductReadResult,
-  SourceNativeProductSearchResult,
-  SourceNativeProductVerificationResult,
 } from './source-native-product.mjs';
 import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 
-interface ProductTransport {
-  kind: 'OpenOntologySourceNativeProductV2';
-  verify(input: ProductSearchInput): Promise<SourceNativeProductVerificationResult>;
-  search(input: ProductSearchInput): Promise<SourceNativeProductSearchResult>;
-  read(input: { ref: string }): Promise<SourceNativeProductReadResult>;
+export interface ProductTransport {
+  kind: 'OpenOntologySourceNativeProductV2' | 'OpenOntologySourceNativeAdmittedKnowledgeProductV1';
+  verify(input: ProductSearchInput): Promise<unknown>;
+  search(input: ProductSearchInput): Promise<unknown>;
+  read(input: { ref: string }): Promise<unknown>;
 }
 interface JsonRpcResponse { jsonrpc: '2.0'; id: unknown; result?: unknown; error?: UnknownRecord }
 
@@ -171,31 +168,29 @@ function errorResult(error: unknown): UnknownRecord {
   };
 }
 
-export function runSourceNativeProductMcp(product: ProductTransport, {
-  input = process.stdin,
-  output = process.stdout,
+export function createSourceNativeProductMcpHandler(product: ProductTransport, {
   profile = 'verify',
-}: { input?: NodeJS.ReadableStream; output?: NodeJS.WritableStream; profile?: 'verify' | 'advanced' } = {}) {
-  if (product?.kind !== 'OpenOntologySourceNativeProductV2'
+}: { profile?: 'verify' | 'advanced' } = {}) {
+  if (!['OpenOntologySourceNativeProductV2', 'OpenOntologySourceNativeAdmittedKnowledgeProductV1']
+    .includes(product?.kind)
     || typeof product.verify !== 'function'
     || typeof product.search !== 'function'
     || typeof product.read !== 'function'
     || !['verify', 'advanced'].includes(profile)) {
     throw new TypeError('SOURCE_NATIVE_PRODUCT_MCP');
   }
-  const tools = profile === 'verify' ? [VERIFY_TOOL] : [SEARCH_TOOL, READ_TOOL];
-  const send = (message: JsonRpcResponse) => output.write(`${JSON.stringify(message)}\n`);
-  const lines = createInterface({ input, crlfDelay: Infinity });
-  lines.on('line', async (line) => {
-    if (!line.trim()) return;
-    let request;
-    try { request = JSON.parse(line); } catch { return; }
-    if (request.id === undefined) return;
+  const tools = Object.freeze(profile === 'verify' ? [VERIFY_TOOL] : [SEARCH_TOOL, READ_TOOL]);
+  const handle = async (input: unknown): Promise<JsonRpcResponse | null> => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)
+      || !('id' in input) || input.id === undefined) return null;
+    const request = input as UnknownRecord;
+    const params = request.params && typeof request.params === 'object'
+      && !Array.isArray(request.params) ? request.params as UnknownRecord : {};
     const response: JsonRpcResponse = { jsonrpc: '2.0', id: request.id };
     try {
       if (request.method === 'initialize') {
         response.result = {
-          protocolVersion: request.params?.protocolVersion ?? '2024-11-05',
+          protocolVersion: params.protocolVersion ?? '2024-11-05',
           capabilities: { tools: {} },
           serverInfo: { name: 'openontology-source-native', version: '2' },
         };
@@ -204,16 +199,16 @@ export function runSourceNativeProductMcp(product: ProductTransport, {
       } else if (request.method === 'tools/list') {
         response.result = { tools };
       } else if (request.method === 'tools/call') {
-        if (profile === 'verify' && request.params?.name === 'verify') {
+        if (profile === 'verify' && params.name === 'verify') {
           response.result = result(await product.verify(
-            queryArguments(request.params?.arguments),
+            queryArguments(params.arguments),
           ));
-        } else if (profile === 'advanced' && request.params?.name === 'search') {
+        } else if (profile === 'advanced' && params.name === 'search') {
           response.result = result(await product.search(
-            queryArguments(request.params?.arguments),
+            queryArguments(params.arguments),
           ));
-        } else if (profile === 'advanced' && request.params?.name === 'read') {
-          const args = readArguments(request.params?.arguments);
+        } else if (profile === 'advanced' && params.name === 'read') {
+          const args = readArguments(params.arguments);
           response.result = result(await product.read({ ref: args.ref }));
         } else {
           response.result = errorResult({ code: 'SOURCE_NATIVE_PRODUCT_TOOL_NOT_FOUND' });
@@ -224,7 +219,24 @@ export function runSourceNativeProductMcp(product: ProductTransport, {
     } catch (error) {
       response.result = errorResult(error);
     }
-    send(response);
+    return response;
+  };
+  return Object.freeze({ tools, handle });
+}
+
+export function runSourceNativeProductMcp(product: ProductTransport, {
+  input = process.stdin,
+  output = process.stdout,
+  profile = 'verify',
+}: { input?: NodeJS.ReadableStream; output?: NodeJS.WritableStream; profile?: 'verify' | 'advanced' } = {}) {
+  const handler = createSourceNativeProductMcpHandler(product, { profile });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  lines.on('line', async (line) => {
+    if (!line.trim()) return;
+    let request: unknown;
+    try { request = JSON.parse(line); } catch { return; }
+    const response = await handler.handle(request);
+    if (response !== null) output.write(`${JSON.stringify(response)}\n`);
   });
   return lines;
 }

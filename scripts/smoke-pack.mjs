@@ -148,6 +148,9 @@ try {
 
 const ont: OpenOntologyProduct = openOntology({ artifactRoot: './verified-context' });
 const query: OpenOntologyQueryInput = { question: 'What is current?' };
+openOntology({ artifactRoot: './fixture', objectBackendEnv: {
+  OONT_GCS_ACCESS_TOKEN_PROVIDER: () => 'fixture-token',
+} });
 const verification: OpenOntologyVerificationResult = await ont.verify('What is current?');
 const search: OpenOntologySearchResult = await ont.search({
   question: 'What is current?',
@@ -434,6 +437,7 @@ assert.deepEqual(kernelKeys, [
     'compileSourceNativeCurrentFieldChronologyVerification',
     'compileSourceNativeProofAuthorityProjection',
     'compileSourceNativeSemanticKnowledgeBundle',
+    'createSourceNativeProductMcpHandler',
     'createSourceNativeProductResource',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',

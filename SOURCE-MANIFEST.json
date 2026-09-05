@@ -132,8 +132,8 @@
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 3590,
-      "sha256": "a164cb70b73f50674997b3e8d4b249e775f3d6d82e8f296ce5003a83ef195019"
+      "bytes": 4545,
+      "sha256": "b6a1fa3cedc816ae0f43cbc53b25935711fd26cb9cc3aa343b6318fd7cf07676"
     },
     {
       "path": "examples/quickstart/source-lifecycle.mjs",
@@ -192,8 +192,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 22632,
-      "sha256": "354ecd2fce5262fc82dd6715efcb9e8319c6d94c8498ec28f191c424916c8808"
+      "bytes": 22800,
+      "sha256": "adac6d032fc9f0343e99a18b6f866c658beca5071e4191e5acbd9e5991b116e5"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -202,13 +202,13 @@
     },
     {
       "path": "scripts/test-canonical-object-backend.mjs",
-      "bytes": 2822,
-      "sha256": "10f0a4c5dc58fcb82d42d6bc0e61709598ea0c6740d8383892055d9660fc9b59"
+      "bytes": 4296,
+      "sha256": "02814004a63d2b29140c1deeed2156004853128a4004462ccba1cc65286afa9f"
     },
     {
       "path": "scripts/test-gcs-object-storage-backend.mjs",
-      "bytes": 8862,
-      "sha256": "04d957d1cff97a0fa56ffa8676744e77f2ffd25aa4613bf48cf8104ad4539759"
+      "bytes": 16539,
+      "sha256": "28c8e18ab3a257a7780ccb7f2d8e7b0e2a20e9c265fb2f62e026d909ede34440"
     },
     {
       "path": "scripts/test-object-ont-replay-checkpoint.mjs",
@@ -252,8 +252,8 @@
     },
     {
       "path": "scripts/test-source-native-historical-surfaces.mjs",
-      "bytes": 8387,
-      "sha256": "7c3569c78abb854d4d6238bae32d8f38824e5af37e9d2926169b037a5280a082"
+      "bytes": 9638,
+      "sha256": "3439788242d513ea9d6c0e1bc629dff05bb76145f12a32ac3690ec593d01667f"
     },
     {
       "path": "scripts/test-source-native-object-map.mjs",
@@ -312,18 +312,18 @@
     },
     {
       "path": "src/canonical-object-backend.mts",
-      "bytes": 3113,
-      "sha256": "20f5162d36751d3f32654c2d0ddc04d25351e6cee7722a92fc9e043d1d1d95f2"
+      "bytes": 5043,
+      "sha256": "b1953ebccc589bbcc0f2730198d7b22e4a59b03498f35e07265b36939f6db7da"
     },
     {
       "path": "src/gcs-object-storage-backend.mts",
-      "bytes": 16828,
-      "sha256": "15e03028c9db49b357160d2775e4a0a8ff66ef9ab1a75a9d79fe2aa751a29e6f"
+      "bytes": 20814,
+      "sha256": "3a5d7186cb13e19676caf6dff8f352278814d394b5a931358cba86825963bbc5"
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 5338,
-      "sha256": "ab82791bd4c535d5bb6b97fdd1ee99e85d6c9477052fd3d57894ea9324a93b76"
+      "bytes": 5498,
+      "sha256": "1b4e7b38bd380183ce12e3e915d08fe472b171bc3e2056d99451fe3f98e15f02"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -337,8 +337,8 @@
     },
     {
       "path": "src/openontology.mts",
-      "bytes": 16165,
-      "sha256": "4bc08a2ce0e609c31265deeef177d28b9474a3206f44af53c48f78453a58250c"
+      "bytes": 16280,
+      "sha256": "a6fd82df5000baf63edbe72809202401834e4de26b515a0b0a60894ba053e86d"
     },
     {
       "path": "src/product-result-state.mts",
@@ -377,8 +377,8 @@
     },
     {
       "path": "src/source-native-artifact.mts",
-      "bytes": 30249,
-      "sha256": "bc3bc994306a9157caa312abbfe0e46739d5595ae1b6ac9a5528231fe6ce148a"
+      "bytes": 30402,
+      "sha256": "2fd42ad0bbbb33e38819cb67e04fd01b100cae24a347c554e630319f749d0926"
     },
     {
       "path": "src/source-native-current-field-verification.mts",
@@ -422,8 +422,8 @@
     },
     {
       "path": "src/source-native-product-mcp.mts",
-      "bytes": 9453,
-      "sha256": "6ea8cd61b356144c3874e7a11db1e662b3c54882f9fe1ed70d760ef6dd3bf5b2"
+      "bytes": 10039,
+      "sha256": "646ad30cac1ed45a962c67c4890b347a63212511178ac5a94fbb0104cebe5ce4"
     },
     {
       "path": "src/source-native-product.mts",
@@ -461,5 +461,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:be314f1a0060a69c238d24325b125ffb50a0c22ae2622721a423ff5cba0e7ba0"
+  "manifestSha256": "sha256:d922a21aded80c7c9a4d3a3e5cdc1ef81ec20ff8d7e6248de5c324212822a48f"
 }
