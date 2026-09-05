@@ -3,6 +3,7 @@ import { createPublicKey, verify as verifySignature } from 'node:crypto';
 
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
 import { openProductState } from './source-native-artifact.mjs';
+import type { RefReadResult } from './object-ont-store.mjs';
 import {
   resolveSourceNativeField,
   resolveSourceNativeFieldSuccessor,
@@ -1404,25 +1405,53 @@ async function inspectExactSources(record: SourceNativeAdmissionRecord,
   return reopened;
 }
 
+interface AdmittedKnowledgeReader {
+  ref: RefReadResult | null;
+  lastAcceptedCommitSha256: string | null;
+  verifyPrepared(prepared: SourceNativeProductPreparedSearch):
+    Promise<SourceNativeAdmittedKnowledgeVerification | null>;
+  status(): SourceNativeAdmittedKnowledgeLedgerStatus;
+}
+
 function openReader(context: SourceNativeProductRuntimeContext,
-  trustInput: readonly SourceNativeAdmissionTrustEntry[], knowledgeBranch: string) {
-  const registry = trustRegistry(trustInput);
-  let ref: ReturnType<typeof context.store.readRefMetadata> = null;
+  registry: Map<string, TrustedAdmissionKey>, knowledgeBranch: string,
+  previous: AdmittedKnowledgeReader | null = null): AdmittedKnowledgeReader {
+  let ref: RefReadResult | null = null;
+  let lastAcceptedCommitSha256 = previous?.lastAcceptedCommitSha256 ?? null;
   const structuralRecords: SourceNativeAdmissionRecord[] = [];
   const records: SourceNativeAdmissionRecord[] = [];
   let invalidAdmissionRecordCount = 0;
   const diagnosticCodes = new Set<string>();
   try {
-    ref = context.store.readRefMetadata({
+    if (previous?.ref) {
+      const head = context.backend.head(previous.ref.key);
+      if (head?.version === previous.ref.version
+        && head.checksumSha256 === previous.ref.checksumSha256) return previous;
+    }
+    const snapshot = context.store.readRefMetadataSnapshot({
       ontId: context.descriptor.ontId,
       branch: knowledgeBranch,
     });
-    if (ref !== null) {
-      const replay = context.store.replayMetadata(ref.ref.commitSha256);
+    ref = snapshot === null ? null : {
+      ref: snapshot.ref,
+      version: snapshot.version,
+      key: snapshot.key,
+      checksumSha256: snapshot.checksumSha256,
+    };
+    if (ref === null && lastAcceptedCommitSha256 !== null) {
+      fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_MISSING');
+    }
+    if (snapshot !== null) {
+      const replay = snapshot.replayMetadata;
       if (replay.status !== 'CLEAN'
         || !replay.commitOrder.includes(context.objectOnt.commitSha256)) {
         fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_BRANCH');
       }
+      if (lastAcceptedCommitSha256 !== null
+        && !replay.commitOrder.includes(lastAcceptedCommitSha256)) {
+        fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_ROLLBACK');
+      }
+      lastAcceptedCommitSha256 = snapshot.ref.commitSha256;
       for (const descriptor of replay.blobDescriptors.filter((row) =>
         row.logicalPath.startsWith(KNOWLEDGE_PREFIX))) {
         try {
@@ -1608,6 +1637,8 @@ function openReader(context: SourceNativeProductRuntimeContext,
     return freeze({ ...core, verificationSha256: stableObjectSha256(core) });
   };
   return freeze({
+    ref,
+    lastAcceptedCommitSha256,
     verifyPrepared,
     status: () => freeze({
       branch: knowledgeBranch,
@@ -1652,7 +1683,8 @@ export function openSourceNativeProductWithAdmittedKnowledge(
     ?? fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_RUNTIME');
   const knowledgeBranch = knowledgeBranchFor(exactContext.objectOnt.commitSha256,
     knowledgeBranchInput);
-  const reader = openReader(exactContext, trustInput, knowledgeBranch);
+  const registry = trustRegistry(trustInput);
+  let reader = openReader(exactContext, registry, knowledgeBranch);
   return freeze({
     ...product,
     kind: 'OpenOntologySourceNativeAdmittedKnowledgeProductV1' as const,
@@ -1660,6 +1692,7 @@ export function openSourceNativeProductWithAdmittedKnowledge(
       const { investigationId = null, ...searchInput } = input;
       if (investigationId !== null) return product.verify(input);
       const prepared = exactContext.prepareSearch(searchInput);
+      reader = openReader(exactContext, registry, knowledgeBranch, reader);
       return await reader.verifyPrepared(prepared) ?? product.verify(input);
     },
     search: async (input: ProductSearchInput = { question: '' }): Promise<SourceNativeProductSearchResult> =>

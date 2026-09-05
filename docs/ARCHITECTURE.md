@@ -206,6 +206,24 @@ The default knowledge branch includes the immutable source-commit identity.
 Advancing an Ont on a shared backend creates a new knowledge branch for the new
 source cut instead of wedging or silently reusing prior-cut knowledge.
 
+`[EXISTS]` An open admitted-knowledge client checks its knowledge ref before each
+ordinary `verify`. An unchanged ref costs one metadata read; it does not replay
+history or reload the source corpus. A changed ref loads a validated snapshot,
+rechecks Admission and supersession, then selects that snapshot for the request.
+Independent Admission can therefore help the same running client on its next
+verification. Exact Evidence is still inspected on every reuse. Source and trust
+remain pinned at open; `status`, `search`, and `read` do not refresh knowledge.
+An explicit investigation continues to bypass reuse.
+
+Missing, unreadable, corrupt or rewound knowledge disables cached reuse and
+reports degraded state while ordinary exact verification remains available.
+A repaired snapshot can recover. The running reader remembers its last accepted
+knowledge commit and requires later snapshots to contain that ancestry, so a
+rewound ref cannot silently restore a superseded Admission. This floor is
+process-local, not durable rollback protection across restarts. Trust changes
+require reopening the client. Changed snapshots still replay metadata and
+validate records; incremental large-ledger refresh is not implemented.
+
 The ordinary query runtime does not write learning state. Source-grounded
 capture and Admission use explicit kernel control-plane calls. The root SDK,
 CLI, and MCP remain read-only. This post-alpha kernel work has not been

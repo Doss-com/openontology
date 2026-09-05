@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
+import fs from 'node:fs';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -496,7 +498,7 @@ function createAdmittedFixture(root, {
     propositions: [{ revisionId: 'status-current-r1', ...item }],
     relations: [],
   });
-  const { proposerKeys, record, trustRegistry } = admitBundle(bundle);
+  const { proposerKeys, record, reviewerKeys, trustRegistry } = admitBundle(bundle);
   const write = writeSourceNativeAdmittedKnowledge({
     options: { artifactRoot: root },
     record,
@@ -507,9 +509,187 @@ function createAdmittedFixture(root, {
     { trustRegistry },
   );
   return {
-    bundle, context, product, proposerKeys, question, record, trustRegistry, write,
+    bundle, context, product, proposerKeys, reviewerKeys, question, record, trustRegistry, write,
   };
 }
+
+test('one open client adopts independently admitted knowledge on its next verify', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const options = { artifactRoot: root };
+  buildSourceNativeProduct({ ...options, input: buildSemanticInput() });
+  const query = { question: 'What is the current issue status for issue-1?' };
+  const bundle = await compileSourceNativeSemanticKnowledgeBundle({
+    options, query, proposedBy: 'warm-investigator',
+    proposedAt: '2026-09-05T08:00:00.000Z',
+  });
+  const admission = admitBundle(bundle);
+  const product = openSourceNativeProductWithAdmittedKnowledge(options,
+    { trustRegistry: admission.trustRegistry });
+  const fresh = await product.verify(query);
+  assert.equal(product.status().admittedKnowledge.admittedRecordCount, 0);
+  assert.equal(fresh.proofDisposition, 'qualified');
+  const write = writeSourceNativeAdmittedKnowledge({ options, ...admission });
+  // status is an observation, not an implicit refresh operation.
+  assert.equal(product.status().admittedKnowledge.admittedRecordCount, 0);
+  const reused = await product.verify(query);
+  assert.equal(reused.state, 'resolved-admitted-knowledge-proof-closure');
+  assert.equal(reused.proofDisposition, 'qualified');
+  assert.deepEqual(reused.context.map((row) => [row.role, row.exactText]),
+    fresh.context.map((row) => [row.role, row.exactText]));
+  assert.equal(reused.verification.sourceCommitSha256, fresh.verification.sourceCommitSha256);
+  assert.equal(reused.verification.rawSearchExecuted, false);
+  assert.ok(reused.verification.exactSourceInspectionCount > 0);
+  assert.equal(product.status().admittedKnowledge.commitSha256, write.commitSha256);
+});
+
+test('unchanged warm knowledge reads its ref once without replaying history', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-reads-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { product, question } = createAdmittedFixture(root);
+  const reads = [];
+  const originalRead = fs.readFileSync;
+  const spy = t.mock.method(fs, 'readFileSync', (...args) => {
+    const result = originalRead(...args);
+    try {
+      const envelope = JSON.parse(result.toString());
+      if (typeof envelope.key === 'string') reads.push(envelope.key);
+    } catch { /* Non-object source files are outside this observation. */ }
+    return result;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { spy.mock.restore(); syncBuiltinESMExports(); });
+  const reused = await product.verify({ question });
+  assert.equal(reused.state, 'resolved-admitted-knowledge-proof-closure');
+  assert.deepEqual(reads.filter((key) => key.startsWith('commits/')), []);
+  assert.equal(reads.filter((key) => key.startsWith('refs/')).length, 1);
+  assert.ok(reused.verification.exactSourceInspectionCount > 0);
+  reads.length = 0;
+  product.status();
+  assert.deepEqual(reads, []);
+});
+
+test('warm refresh does not adopt caller mutations to the opening trust registry', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-trust-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const options = { artifactRoot: root };
+  buildSourceNativeProduct({ ...options, input: buildSemanticInput() });
+  const query = { question: 'What is the current issue status for issue-1?' };
+  const bundle = await compileSourceNativeSemanticKnowledgeBundle({
+    options, query, proposedBy: 'warm-investigator',
+    proposedAt: '2026-09-05T08:00:00.000Z',
+  });
+  const admission = admitBundle(bundle);
+  const mutableTrust = structuredClone(admission.trustRegistry);
+  const product = openSourceNativeProductWithAdmittedKnowledge(options,
+    { trustRegistry: mutableTrust });
+  mutableTrust[1].roles.length = 0;
+  writeSourceNativeAdmittedKnowledge({ options, ...admission });
+  assert.equal((await product.verify(query)).state, 'resolved-admitted-knowledge-proof-closure');
+});
+
+test('warm correction replaces old reuse and a ref rewind cannot resurrect it', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-correction-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const fixture = createAdmittedFixture(root);
+  const { bundle, context, product, question, record, write } = fixture;
+  const query = { question };
+  assert.equal((await product.verify(query)).verification.admissionRecordSha256,
+    record.recordSha256);
+  const correction = admitBundle(bundle, {
+    proposerKeys: fixture.proposerKeys, reviewerKeys: fixture.reviewerKeys,
+    admittedAt: '2026-09-05T08:10:00.000Z',
+    supersedesRecordSha256s: [record.recordSha256],
+  });
+  const corrected = writeSourceNativeAdmittedKnowledge({
+    options: { artifactRoot: root }, ...correction,
+  });
+  const reused = await product.verify(query);
+  assert.equal(reused.verification.admissionRecordSha256, correction.record.recordSha256);
+  assert.deepEqual(reused.verification.supersededAdmissionRecordSha256s, [record.recordSha256]);
+  const refInput = { ontId: bundle.ontId, branch: write.branch };
+  let head = context.store.readRefMetadata(refInput);
+  context.store.compareAndSwapRefMetadata({ ...refInput, expectedVersion: head.version,
+    commitSha256: write.commitSha256 });
+  const rewound = await product.verify(query);
+  assert.equal(rewound.state, 'resolved-current-field');
+  assert.equal(rewound.answerable, true);
+  assert.deepEqual(product.status().admittedKnowledge.diagnosticCodes,
+    ['SOURCE_NATIVE_ADMITTED_KNOWLEDGE_ROLLBACK']);
+  // A second query must not forget the process-local accepted-commit floor.
+  assert.equal((await product.verify(query)).state, 'resolved-current-field');
+  head = context.store.readRefMetadata(refInput);
+  context.store.compareAndSwapRefMetadata({ ...refInput, expectedVersion: head.version,
+    commitSha256: corrected.commitSha256 });
+  assert.equal((await product.verify(query)).verification.admissionRecordSha256,
+    correction.record.recordSha256);
+  assert.equal(product.status().admittedKnowledge.state, 'ready');
+});
+
+test('unreadable or corrupt knowledge disables cached reuse and recovers when repaired', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-failure-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { bundle, context, product, question, write } = createAdmittedFixture(root);
+  const query = { question };
+  const ref = context.store.readRefMetadata({ ontId: bundle.ontId, branch: write.branch });
+  const original = context.backend.get(ref.key);
+  let unavailable = true;
+  const read = fs.readFileSync;
+  const spy = t.mock.method(fs, 'readFileSync', (...args) => {
+    const result = read(...args);
+    let envelope;
+    try { envelope = JSON.parse(result.toString()); } catch { return result; }
+    if (unavailable && envelope.key === ref.key) throw new Error('INJECTED_REF_READ_FAILURE');
+    return result;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { spy.mock.restore(); syncBuiltinESMExports(); });
+  const fallback = await product.verify(query);
+  assert.equal(fallback.state, 'resolved-current-field');
+  assert.equal(fallback.answerable, true);
+  assert.equal(product.status().admittedKnowledge.activeAdmissionRecordCount, 0);
+  assert.equal(product.status().admittedKnowledge.state, 'degraded');
+  unavailable = false;
+  assert.equal((await product.verify(query)).state, 'resolved-admitted-knowledge-proof-closure');
+  const corrupt = context.backend.compareAndSwap(ref.key, {
+    expectedVersion: original.version, bytes: Buffer.from('corrupt knowledge ref'),
+  });
+  assert.equal((await product.verify(query)).state, 'resolved-current-field');
+  assert.deepEqual(product.status().admittedKnowledge.diagnosticCodes, ['OBJECT_ONT_REF_READ']);
+  context.backend.compareAndSwap(ref.key, { expectedVersion: corrupt.version, bytes: original.bytes });
+  assert.equal((await product.verify(query)).state, 'resolved-admitted-knowledge-proof-closure');
+  assert.equal(product.status().admittedKnowledge.state, 'ready');
+});
+
+test('missing knowledge is observed without reusing its cached Admission', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-missing-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { bundle, context, product, question, write } = createAdmittedFixture(root);
+  const ref = context.store.readRefMetadata({ ontId: bundle.ontId, branch: write.branch });
+  let refPath;
+  const read = fs.readFileSync;
+  const readSpy = t.mock.method(fs, 'readFileSync', (...args) => {
+    const result = read(...args);
+    try { if (JSON.parse(result.toString()).key === ref.key) refPath = args[0]; } catch {}
+    return result;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { readSpy.mock.restore(); syncBuiltinESMExports(); });
+  context.backend.head(ref.key);
+  assert.ok(refPath);
+  let missing = true;
+  const exists = fs.existsSync;
+  const existsSpy = t.mock.method(fs, 'existsSync', (path) =>
+    path === refPath && missing ? false : exists(path));
+  syncBuiltinESMExports();
+  t.after(() => { existsSpy.mock.restore(); syncBuiltinESMExports(); });
+  assert.equal((await product.verify({ question })).state, 'resolved-current-field');
+  assert.equal(product.status().admittedKnowledge.activeAdmissionRecordCount, 0);
+  assert.deepEqual(product.status().admittedKnowledge.diagnosticCodes,
+    ['SOURCE_NATIVE_ADMITTED_KNOWLEDGE_MISSING']);
+  missing = false;
+  assert.equal((await product.verify({ question })).state, 'resolved-admitted-knowledge-proof-closure');
+});
 
 test('admitted opening preserves lifecycle extensions and status on a reuse hit', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-admission-lifecycle-extension-'));
@@ -2154,6 +2334,10 @@ test('cold reuse refuses distinct admitted proof bundles for the same exact quer
       issuerId: 'competing-independent-reviewer',
     });
     const completeTrustRegistry = [...trustRegistry, ...competing.trustRegistry];
+    const warm = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root }, { trustRegistry: completeTrustRegistry },
+    );
+    assert.equal((await warm.verify({ question })).answerable, true);
     writeSourceNativeAdmittedKnowledge({
       options: { artifactRoot: root },
       record: competing.record,
@@ -2170,6 +2354,10 @@ test('cold reuse refuses distinct admitted proof bundles for the same exact quer
     assert.deepEqual(verification.context, []);
     assert.equal(verification.verification.rawSearchCalls, 0);
     assert.equal(verification.verification.exactSourceInspectionCount, 0);
+    const warmConflict = await warm.verify({ question });
+    assert.equal(warmConflict.state, 'unavailable-admitted-knowledge-ambiguous');
+    assert.equal(warmConflict.answerable, false);
+    assert.deepEqual(warmConflict.context, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -2338,6 +2526,9 @@ test('default knowledge branches remain writable across source cuts on one backe
       record: first.record,
       trustRegistry: first.trustRegistry,
     });
+    const warmFirst = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: firstRoot }, { trustRegistry: first.trustRegistry },
+    );
 
     const secondInput = buildInput();
     secondInput.sources[0] = {
@@ -2362,6 +2553,10 @@ test('default knowledge branches remain writable across source cuts on one backe
       trustRegistry: second.trustRegistry,
     });
     assert.notEqual(secondWrite.branch, firstWrite.branch);
+    const stillFirst = await warmFirst.verify({ question });
+    assert.equal(stillFirst.state, 'resolved-admitted-knowledge-proof-closure');
+    assert.equal(stillFirst.verification.sourceCommitSha256, firstContext.objectOnt.commitSha256);
+    assert.deepEqual(stillFirst.context.map((row) => row.exactText), ['Ready']);
     const product = openSourceNativeProductWithAdmittedKnowledge(
       { artifactRoot: secondRoot },
       { trustRegistry: second.trustRegistry },

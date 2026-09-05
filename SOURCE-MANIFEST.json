@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 16297,
-      "sha256": "06cbd745fa0e952e4bb7aca3ed64524be8f9802c679824f210212e1f41bb9d8e"
+      "bytes": 17518,
+      "sha256": "326bb2093bb3674dbb7d7a8c8e885cb7389fdef5a65b0df369bd6e9cf476eba6"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
@@ -232,8 +232,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 120054,
-      "sha256": "7a9bc46ff5e1e7dedf5db8be6b5dc32cff83afee7e29c921dcc3f348ceaeae4f"
+      "bytes": 130702,
+      "sha256": "73ea498823e406fcc36103fb8c118bf7e4d91cc1dd769714e2e23e3f16ef9bc1"
     },
     {
       "path": "scripts/test-source-native-checkpoint-opening.mjs",
@@ -372,8 +372,8 @@
     },
     {
       "path": "src/source-native-admitted-knowledge.mts",
-      "bytes": 70704,
-      "sha256": "4d03bc2cdc8cd92bd7d06166ef744c046b78375659b1ef1125eb1882c665f029"
+      "bytes": 72037,
+      "sha256": "e1ff1de42bb14dc9bb5b3b71f61691fdac6a0514e71a4fff8bb15a4a07780ef3"
     },
     {
       "path": "src/source-native-artifact.mts",
@@ -461,5 +461,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:d922a21aded80c7c9a4d3a3e5cdc1ef81ec20ff8d7e6248de5c324212822a48f"
+  "manifestSha256": "sha256:6c13a259fba15b9900efe7ee66fba5a739c5ef072f5712377d4caf3f8b0af65f"
 }
