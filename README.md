@@ -97,6 +97,14 @@ source count. A missing source, adapter failure, or ambiguous latest value
 returns `unavailable-incomplete-recorded-field-chronology`. This proves the
 latest recorded value in the named source cut, not universal current state.
 
+`[ACTIVE-WORK]` An exact typed identity that does not occur in a complete,
+failure-free source catalog returns
+`verified-native-object-absent-from-bound-source-catalog`. The Verification is
+not answerable and contains no Evidence. Its hashed absence receipt binds the
+identity, complete identity census, source catalog, source-handle set, and
+source count. The receipt explicitly does not authorize a claim of world-wide
+absence. Any adapter failure disables this certification.
+
 `verify` answers a question against one Ont. `check` validates the Ont itself.
 
 `search` and `read` are the advanced path. Search returns navigation References,
@@ -116,6 +124,11 @@ evaluation.
 
 `[ACTIVE-WORK]` The post-alpha kernel adds the source-agnostic current-field
 chronology compiler used by the ordinary Verification path.
+
+`[ACTIVE-WORK]` The same ordinary path now compiles a complete, query-independent
+native-object identity census at safe open. The current-field Resolver can use
+that census to distinguish a proven catalog-scoped absence from an ordinary
+retrieval miss.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
 admitted-knowledge path. A proposer and an independent reviewer sign one

@@ -240,6 +240,43 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
   }
 });
 
+test('certifies a typed object identity as absent only from the complete bound source catalog', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-absence-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const product = openOntology({ artifactRoot: root });
+    const absent = await product.verify({
+      question: 'What is the current task title?',
+      scope: {
+        sourceSystem: 'clickup', objectType: 'task', externalId: 'task-999', field: 'title',
+      },
+    });
+
+    assert.equal(absent.state, 'verified-native-object-absent-from-bound-source-catalog');
+    assert.equal(absent.answerable, false);
+    assert.deepEqual(absent.context, []);
+    assert.equal(absent.verification.currentFieldChronology, null);
+    assert.equal(absent.verification.absenceReceipt.kind,
+      'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1');
+    assert.deepEqual(absent.verification.absenceReceipt.objectIdentity, {
+      sourceSystem: 'clickup', objectType: 'task', externalId: 'task-999',
+    });
+    assert.equal(absent.verification.absenceReceipt.sourceCount, 3);
+    assert.equal(absent.verification.absenceReceipt.exactOccurrenceCount, 0);
+    assert.equal(absent.verification.absenceReceipt.worldAbsenceAuthorized, false);
+    assert.equal(absent.verification.absenceReceipt.modelCalls, 0);
+    assert.equal(absent.verification.absenceReceipt.networkCalls, 0);
+    assert.match(absent.verification.absenceReceipt.censusSha256, /^sha256:[0-9a-f]{64}$/u);
+    assert.match(absent.verification.absenceReceipt.sourceCatalogSha256,
+      /^sha256:[0-9a-f]{64}$/u);
+    assert.match(absent.verification.absenceReceipt.sourceHandleSetSha256,
+      /^sha256:[0-9a-f]{64}$/u);
+    assert.match(absent.verification.absenceReceipt.receiptSha256, /^sha256:[0-9a-f]{64}$/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('refuses current-field proof when the bound source cut has adapter failures', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-incomplete-chronology-'));
   try {
@@ -258,6 +295,16 @@ test('refuses current-field proof when the bound source cut has adapter failures
       'insufficient');
     assert.deepEqual(verification.verification.currentFieldChronology.unmetRequirements,
       ['zero-adapter-failures']);
+
+    const unprovableAbsence = await openSourceNativeProduct({ artifactRoot: root }).verify({
+      question: 'What is the current task title?',
+      typedQuery: {
+        sourceSystem: 'clickup', objectType: 'task', externalId: 'task-999', fieldPath: 'title',
+      },
+    });
+    assert.equal(unprovableAbsence.state, 'unavailable-native-object-not-seeded');
+    assert.equal(unprovableAbsence.answerable, false);
+    assert.equal(unprovableAbsence.verification.absenceReceipt, null);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

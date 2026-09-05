@@ -105,6 +105,27 @@ export interface OpenOntologyCurrentFieldChronologyVerification {
   exactSourcesRemainAuthority: true;
   verificationSha256: string;
 }
+export interface OpenOntologyObjectIdentityAbsenceReceipt {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1';
+  namespace: string;
+  objectIdentity: {
+    sourceSystem: string;
+    objectType: string;
+    externalId: string;
+  };
+  censusSha256: string;
+  sourceCatalogSha256: string;
+  sourceHandleSetSha256: string;
+  sourceCount: number;
+  exactOccurrenceCount: 0;
+  authority: 'complete-strict-object-identity-census-over-bound-source-catalog';
+  worldAbsenceAuthorized: false;
+  modelCalls: 0;
+  networkCalls: 0;
+  targetLeakage: false;
+  receiptSha256: string;
+}
 export interface OpenOntologyVerificationMetadata {
   artifactSha256: string;
   nativeObjectMapSha256: string;
@@ -115,6 +136,7 @@ export interface OpenOntologyVerificationMetadata {
   resolutionSha256: string | null;
   navigationProposals: Record<string, unknown> | null;
   currentFieldChronology: OpenOntologyCurrentFieldChronologyVerification | null;
+  absenceReceipt: OpenOntologyObjectIdentityAbsenceReceipt | null;
 }
 export interface OpenOntologyResultPolicy {
   navigationOnly: boolean;

@@ -27,6 +27,15 @@ returns `unavailable-incomplete-recorded-field-chronology` without Evidence.
 The scope is deliberately limited to the latest recorded value in the bound
 source cut. It does not claim universal current state.
 
+`[EXISTS]` Safe open also compiles a complete native-object identity census over
+the bound source catalog when mapped coverage is complete and adapter failures
+are zero. An exact typed identity with zero census occurrences returns
+`verified-native-object-absent-from-bound-source-catalog`, no Evidence, and a
+hashed absence receipt binding the identity, census, catalog, source-handle
+set, and source count. The result remains `answerable: false` because it proves
+catalog-scoped absence, not a positive field value. Any incomplete Adapter cut
+falls back to an ordinary typed refusal and cannot issue this receipt.
+
 Managed and research runtimes attach through the bounded `oont/kernel` package
 subpath. That Interface exposes the product lifecycle hook and exact object
 primitives required by extensions, while control-plane policy remains outside

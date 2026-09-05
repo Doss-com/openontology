@@ -4,7 +4,9 @@ import {
   openSourceNativeCurrentFieldResolver,
   openSourceNativeHistoricalFieldResolver,
 } from './source-native-field-resolver.mjs';
+import type { SourceNativeObjectIdentityAbsenceReceipt } from './source-native-field-resolver.mjs';
 import { openSourceNativeExactEvidenceSession } from './source-native-evidence-session.mjs';
+import { compileSourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
 import { openProductState, productSources } from './source-native-artifact.mjs';
 import { compileProductQueryPlan, queryPlanner } from './source-native-query-plan.mjs';
 import { OPENONTOLOGY_RESULT_STATES } from './product-result-state.mjs';
@@ -17,6 +19,9 @@ import type { ValidatedFieldQueryPlan } from './source-native-resolver-support.m
 import type { SeedSearchAdapter } from './source-native-resolver-support.mjs';
 import type { SourceNativeFieldResolutionResult, SourceNativeFieldSuccessorResolutionResult } from './source-native-field-resolution.mjs';
 import type { SourceNativeCurrentFieldChronologyVerification } from './source-native-current-field-verification.mjs';
+import type { SourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
+
+export type { SourceNativeObjectIdentityAbsenceReceipt } from './source-native-field-resolver.mjs';
 
 const PRODUCT_OPTIONS = new Set(['artifactRoot', 'objectBackendUri', 'objectBackendEnv']);
 const MAXIMUM_OFFERED_REFERENCES = 1024;
@@ -59,6 +64,7 @@ export interface SourceNativeProductResolution extends UnknownRecord {
   searchPath?: UnknownRecord & { searchPathSha256: string; revisionSha256?: string } | null;
   navigationProposals?: UnknownRecord;
   currentFieldChronology?: SourceNativeCurrentFieldChronologyVerification | null;
+  absenceReceipt?: SourceNativeObjectIdentityAbsenceReceipt | null;
 }
 interface OfferedEvidence extends UnknownRecord {
   resolution: SourceNativeProductResolution;
@@ -193,6 +199,7 @@ export interface SourceNativeProductRuntimeContext {
   objectOnt: SourceNativeProductState['objectOnt'];
   sources: ReturnType<typeof productSources>;
   session: SourceNativeExactEvidenceSession;
+  objectIdentityCensus: SourceNativeObjectIdentityCensus | null;
   prepareSearch: (input: ProductSearchInput) => SourceNativeProductPreparedSearch;
   forgetOffers: (activityId: string | null) => void;
 }
@@ -255,6 +262,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
       resolutionSha256: resolution?.resultSha256 ?? null,
       navigationProposals: resolution?.navigationProposals ?? null,
       currentFieldChronology: resolution?.currentFieldChronology ?? null,
+      absenceReceipt: resolution?.absenceReceipt ?? null,
       ...verificationFields,
     }),
     policy: freeze({
@@ -300,6 +308,44 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
     retrievalAdapterSha256,
     maximumSearchResults: 4,
   });
+  const objectIdentityCensus = (() => {
+    if (objectOnt.map.parseFailureCount !== 0
+      || objectOnt.map.mappedSourceCount !== objectOnt.map.sourceCount
+      || objectOnt.map.unsupportedSourceCount !== 0) return null;
+    const identitiesByPath = new Map<string, Map<string, {
+      sourceSystem: string;
+      objectType: string;
+      externalId: string;
+    }>>();
+    for (const object of objectOnt.map.nativeObjects) {
+      if (object.objectIdentity.namespace !== descriptor.namespace) continue;
+      const identity = {
+        sourceSystem: object.objectIdentity.sourceSystem,
+        objectType: object.objectIdentity.objectType,
+        externalId: object.objectIdentity.externalId,
+      };
+      const identities = identitiesByPath.get(object.relativePath) ?? new Map();
+      identities.set(stableObjectSha256(identity), identity);
+      identitiesByPath.set(object.relativePath, identities);
+    }
+    return compileSourceNativeObjectIdentityCensus({
+      namespace: descriptor.namespace,
+      sourceCatalogSha256: session.sourceCatalogSha256,
+      sourceHandles: session.sourceHandles,
+      entries: session.sourceHandles.map((handle) => {
+        const source = sourceByPath.get(handle.relativePath)
+          ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+        return {
+          sourceMessageId: handle.sourceMessageId,
+          relativePath: handle.relativePath,
+          contentSha256: source.contentSha256,
+          objectIdentities: [...(identitiesByPath.get(handle.relativePath)?.values() ?? [])],
+        };
+      }),
+      adapter: 'source-native-product-object-map-v1',
+      adapterSha256: objectOnt.map.nativeObjectMapSha256,
+    });
+  })();
   const offered = new Map<string, OfferedEvidence>();
 
   const rememberOffer = (evidenceRef: string, offer: OfferedEvidence) => {
@@ -344,6 +390,7 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
     objectOnt,
     sources,
     session,
+    objectIdentityCensus,
     prepareSearch,
     forgetOffers,
   }) ?? null;
@@ -389,6 +436,7 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       ? openSourceNativeCurrentFieldResolver({
         ...common,
         sourceCatalogSha256: session.sourceCatalogSha256,
+        objectIdentityCensus,
       })
       : openSourceNativeHistoricalFieldResolver({
         ...common,

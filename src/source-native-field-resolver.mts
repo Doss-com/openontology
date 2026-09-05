@@ -50,6 +50,28 @@ const freeze = <T,>(value: T): T => {
   return value;
 };
 
+export interface SourceNativeObjectIdentityAbsenceReceipt {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1';
+  namespace: string;
+  objectIdentity: {
+    sourceSystem: string;
+    objectType: string;
+    externalId: string;
+  };
+  censusSha256: string;
+  sourceCatalogSha256: string;
+  sourceHandleSetSha256: string;
+  sourceCount: number;
+  exactOccurrenceCount: 0;
+  authority: 'complete-strict-object-identity-census-over-bound-source-catalog';
+  worldAbsenceAuthorized: false;
+  modelCalls: 0;
+  networkCalls: 0;
+  targetLeakage: false;
+  receiptSha256: string;
+}
+
 /**
  * Open one source-native Resolver Module bound to the exact source handles of a
  * committed Ont session. The query planner remains a source-format Adapter;
@@ -141,7 +163,7 @@ export function openSourceNativeCurrentFieldResolver({
     let state = queryPlan.state;
     let currentFieldChronology: SourceNativeCurrentFieldChronologyVerification | null = null;
     let absenceAuthorized = false;
-    let absenceReceipt = null;
+    let absenceReceipt: SourceNativeObjectIdentityAbsenceReceipt | null = null;
     let selectionLabel = 'unresolved source-native current field';
     if (queryPlan.state === 'resolved-native-field-query' && queryPlan.query !== null) {
       const resolvedQuery = queryPlan.query;
@@ -232,7 +254,7 @@ export function openSourceNativeCurrentFieldResolver({
         if (censusRow === undefined) {
           state = 'verified-native-object-absent-from-bound-source-catalog';
           absenceAuthorized = true;
-          const absenceCore = {
+          const absenceCore: Omit<SourceNativeObjectIdentityAbsenceReceipt, 'receiptSha256'> = {
             schema: 1,
             kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1',
             namespace: boundNamespace,
@@ -242,7 +264,8 @@ export function openSourceNativeCurrentFieldResolver({
               externalId: resolvedQuery.externalId,
             }),
             censusSha256: objectIdentityCensus.censusSha256,
-            sourceCatalogSha256,
+            sourceCatalogSha256: sourceCatalogSha256
+              ?? fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING'),
             sourceHandleSetSha256,
             sourceCount: objectIdentityCensus.sourceCount,
             exactOccurrenceCount: 0,

@@ -14,6 +14,7 @@ export type {
   SourceNativeProductResolution,
   SourceNativeProductRuntimeContext,
   SourceNativeProductState,
+  SourceNativeObjectIdentityAbsenceReceipt,
 } from './source-native-product.mjs';
 export {
   openProductState,

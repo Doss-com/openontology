@@ -46,6 +46,13 @@
   Adapter-declared observations for one stable native identity and field over a
   bound source cut. Its sufficient receipt proves the latest recorded value in
   that cut. It does not prove universal current state.
+- **Object identity census** is the complete, query-independent inventory of
+  Adapter-declared native object identities over one bound source catalog. It
+  can authorize catalog-scoped absence only when source coverage is complete
+  and adapter failures are zero.
+- **Absence receipt** is a content-addressed proof that one exact typed identity
+  has zero occurrences in a bound object identity census. It contains no
+  Evidence and cannot authorize a claim of world-wide nonexistence.
 
 SearchRoutes, SearchPaths, SearchEpisodes, SearchPolicyArtifacts, and retrieval
 scores cannot provide Support by themselves.
