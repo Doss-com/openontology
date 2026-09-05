@@ -160,12 +160,16 @@ openOntology();
 
   const kernelContractPath = join(consumer, 'kernel-contract.mts');
   writeFileSync(kernelContractPath, `import {
+  compileProofSufficiencyContract,
+  evaluateProofSufficiencyContract,
   openSourceNativeExactEvidenceSession,
   openSourceNativeObjectOntIndex,
   openSourceNativeProductRuntime,
   stableObjectSha256,
   type ExactSessionOptions,
   type OpenSourceNativeObjectOntOptions,
+  type ProofSufficiencyContract,
+  type ProofSufficiencyEvaluation,
   type SourceNativeProductRuntimeContext,
 } from 'oont/kernel';
 
@@ -174,11 +178,56 @@ const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProdu
 const context: SourceNativeProductRuntimeContext | null = null;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
+const proofContract: ProofSufficiencyContract = compileProofSufficiencyContract({
+  questionKind: 'fixture-state',
+  obligations: [{
+    obligationId: 'state',
+    propositionFamily: 'state',
+    role: 'support',
+    required: true,
+    relationshipAnyOf: [],
+    description: 'Require one state.',
+  }, {
+    obligationId: 'exact-support',
+    propositionFamily: 'exact-support',
+    role: 'support',
+    required: true,
+    relationshipAnyOf: [],
+    description: 'Require exact Evidence.',
+  }],
+  sufficiencyRule: 'The state obligation must close.',
+  stopWhen: 'Stop after proof closure or refusal.',
+});
+const proofEvaluation: ProofSufficiencyEvaluation = evaluateProofSufficiencyContract({
+  contract: proofContract,
+  propositions: [{
+    revisionId: 'state-1',
+    sourceProjectionItemId: 'state-1',
+    familyId: 'fixture',
+    canonicalRoles: ['state'],
+    modality: 'observed',
+    polarity: 'positive',
+    actorRef: 'actor:fixture',
+    validAt: '2026-09-01T00:00:00.000Z',
+    knownAt: '2026-09-01T00:00:00.000Z',
+    exactEvidenceReferences: [{
+      sourceRef: 'fixture/state-1.json',
+      sourceSha256: digest,
+      byteStart: 0,
+      byteEnd: 1,
+      textSha256: digest,
+    }],
+  }],
+  relations: [],
+});
 void digest;
 void openRuntime;
 void context;
 void exactOptions;
 void indexOptions;
+void proofEvaluation;
+// @ts-expect-error Proof contracts are immutable after compilation.
+proofContract.obligations.push({});
 // @ts-expect-error Evidence sessions require complete authority and retrieval bindings.
 openSourceNativeExactEvidenceSession({ sources: [] });
 // @ts-expect-error ObjectOnt reads require an explicit canonical backend.
@@ -267,10 +316,14 @@ const kernelKeys = Object.keys(kernel).sort();
 const result = await ont.verify('What is the current title of task-1?');
 if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','verify'])
   || JSON.stringify(kernelKeys) !== JSON.stringify([
-    'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','buildSourceNativeProduct','objectBytesSha256',
-    'openObjectOntStore','openProductState','openSourceNativeExactEvidenceSession',
-    'openSourceNativeObjectOntIndex','openSourceNativeProductRuntime','productSources',
-    'stableObjectSha256','stableObjectText',
+    'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','buildSourceNativeProduct',
+    'compileProofAuthorityProjection','compileProofSufficiencyContract',
+    'evaluateProjectionRelationCensus',
+    'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
+    'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
+    'openSourceNativeProductRuntime','productSources','proofAuthorityForProjection',
+    'stableObjectSha256','stableObjectText','validateProofAuthorityProjection',
+    'validateProofSufficiencyContract',
   ]) || !result.answerable) process.exit(1);`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));

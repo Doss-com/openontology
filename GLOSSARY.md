@@ -25,6 +25,16 @@
   to support a material claim.
 - **ProofClosure** is the complete exact Evidence needed to satisfy the current
   proof obligations.
+- **ProofSufficiencyContract** is a content-bound list of proposition, relation,
+  completeness, and coherence obligations that must close for one question.
+- **ProofDisposition** is `supported`, `qualified`, `contradicted`, or
+  `unresolved` after every required obligation and authoritative census is
+  evaluated. A complete contradiction is answerable as `contradicted`; it is
+  not converted into positive support.
+- **ProofAuthorityProjection** is the canonical item, exact Evidence-reference,
+  and relation census derived from one immutable semantic projection.
+- **SourceProjectionAuthority** binds a proof contract to the source projection
+  identity and the ProofAuthorityProjection's `proofCensusSha256`.
 - **Support** is an independently verified relationship between a material
   claim and inspected Exact Evidence.
 - **Verification** is proof-complete context against one named Ont, source cut,
@@ -32,6 +42,11 @@
 
 SearchRoutes, SearchPaths, SearchEpisodes, SearchPolicyArtifacts, and retrieval
 scores cannot provide Support by themselves.
+
+An invalidator obligation is the complete counterevidence census. Canonical
+`qualifies` and `contradicts` relations determine ProofDisposition. A
+counterevidence item without one of those outbound relations keeps proof
+unresolved.
 
 ## Product operations
 

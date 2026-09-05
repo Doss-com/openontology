@@ -22,6 +22,30 @@ subpath. That Interface exposes the product lifecycle hook and exact object
 primitives required by extensions, while control-plane policy remains outside
 the public package.
 
+`[EXISTS]` The same kernel subpath exposes a source-agnostic proof-contract
+compiler, content-addressed ProofAuthorityProjection, and evaluator. The
+projection binds every proof-relevant item field, exact Evidence reference, and
+typed relation into `proofCensusSha256`. Evaluation requires that binding to
+match the contract, requires each proposition to match its authoritative item,
+and closes the whole relation census before `proofClosed` can be true. A
+question-only contract cannot claim a complete invalidator census. These checks
+cover canonical proposition roles, relation direction and targets, actor
+binding, chronology, exact support, and proposition-family coherence.
+Canonical counterevidence must relate outbound through `qualifies` or
+`contradicts`. A closed proof reports `qualified` or `contradicted` accordingly;
+closure never converts counterevidence into positive support.
+
+The evaluator proves structural closure over content-bound Evidence references.
+It does not turn those references into Evidence. A product reader must still
+reopen the pinned source projection and inspect the exact Corpus bytes before a
+Verification can use the result.
+
+`[ACTIVE-WORK]` This branch does not yet contain a generic admitted-knowledge
+reader or a validated pre-verification reuse path. The ordinary `verify` path
+does not exit early from kernel evaluation. That connection belongs only after
+the reader can reopen Admission, revalidate projection authority, and reinspect
+the exact Corpus bytes bound by the result.
+
 The ordinary query runtime does not write learning state. Source-grounded
 capture, independent review, and later policy reuse are developed in a separate
 operator control plane. That control plane does not ship in this public alpha.

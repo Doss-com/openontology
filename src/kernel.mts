@@ -49,6 +49,44 @@ export type {
   ReplayMetadataGraph,
 } from './object-ont-store.mjs';
 export {
+  compileProofAuthorityProjection,
+  proofAuthorityForProjection,
+  validateProofAuthorityProjection,
+} from './proof-authority-projection.mjs';
+export type {
+  CompileProofAuthorityProjectionInput,
+  ProofAuthorityItem,
+  ProofAuthorityProjection,
+  ProofAuthorityRelation,
+  ProofEvidenceReference,
+  SourceProjectionAuthority,
+} from './proof-authority-projection.mjs';
+export {
+  compileProofSufficiencyContract,
+  validateProofSufficiencyContract,
+} from './proof-sufficiency-contract.mjs';
+export type {
+  CompileProofSufficiencyContractInput,
+  ProofObligationRole,
+  ProofRelationDirection,
+  ProofSufficiencyContract,
+  ProofSufficiencyObligation,
+} from './proof-sufficiency-contract.mjs';
+export {
+  evaluateProjectionRelationCensus,
+  evaluateProofSufficiencyContract,
+} from './proof-sufficiency-evaluator.mjs';
+export type {
+  EvaluateProjectionRelationCensusInput,
+  EvaluateProofSufficiencyContractInput,
+  ProjectionRelationCensusEvaluation,
+  ProofObligationEvaluation,
+  ProofProposition,
+  ProofRelation,
+  ProofRelationView,
+  ProofSufficiencyEvaluation,
+} from './proof-sufficiency-evaluator.mjs';
+export {
   openSourceNativeObjectOntIndex,
 } from './source-native-object-ont.mjs';
 export type {
