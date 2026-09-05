@@ -136,10 +136,13 @@ const read: OpenOntologyReadResult | undefined = search.matches[0]
   : undefined;
 const status: OpenOntologyStatus = ont.status();
 const state: OpenOntologyResultState = verification.state;
+const chronologyDisposition: 'sufficient' | 'insufficient' | undefined =
+  verification.verification.currentFieldChronology?.proofDisposition;
 const exactText: string | undefined = read?.exactText;
 void query;
 void status;
 void state;
+void chronologyDisposition;
 void exactText;
 // @ts-expect-error artifactRoot is required for a typed caller.
 openOntology();
@@ -161,6 +164,7 @@ openOntology();
   const kernelContractPath = join(consumer, 'kernel-contract.mts');
   writeFileSync(kernelContractPath, `import {
   compileProofSufficiencyContract,
+  compileSourceNativeCurrentFieldChronologyVerification,
   evaluateProofSufficiencyContract,
   openSourceNativeExactEvidenceSession,
   openSourceNativeObjectOntIndex,
@@ -172,6 +176,7 @@ openOntology();
   type ProofSufficiencyContract,
   type ProofSufficiencyEvaluation,
   type SourceNativeAdmittedKnowledgeProduct,
+  type SourceNativeCurrentFieldChronologyVerification,
   type SourceNativeAdmittedKnowledgeContext,
   type SourceNativeAdmittedKnowledgeLedgerStatus,
   type SourceNativeAdmittedKnowledgeVerificationResult,
@@ -185,6 +190,9 @@ const digest: string = stableObjectSha256({ contract: 'kernel' });
 const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProductRuntime;
 const openAdmitted: typeof openSourceNativeProductWithAdmittedKnowledge =
   openSourceNativeProductWithAdmittedKnowledge;
+const compileChronology: typeof compileSourceNativeCurrentFieldChronologyVerification =
+  compileSourceNativeCurrentFieldChronologyVerification;
+const chronology: SourceNativeCurrentFieldChronologyVerification | null = null;
 const context: SourceNativeProductRuntimeContext | null = null;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
@@ -273,6 +281,8 @@ const proofEvaluation: ProofSufficiencyEvaluation = evaluateProofSufficiencyCont
 void digest;
 void openRuntime;
 void openAdmitted;
+void compileChronology;
+void chronology;
 void context;
 void exactOptions;
 void indexOptions;
@@ -377,6 +387,7 @@ if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','ve
     'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','buildSourceNativeProduct',
     'compileProofAuthorityProjection','compileProofSufficiencyContract',
     'compileSourceNativeAdmissionRecord','compileSourceNativeAdmittedKnowledgeBundle',
+    'compileSourceNativeCurrentFieldChronologyVerification',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',

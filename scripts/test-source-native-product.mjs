@@ -137,6 +137,13 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     assert.equal(resolvedContext.context.length, 1);
     assert.equal(resolvedContext.context[0].exactText, 'Gamma');
     assert.equal(resolvedContext.context[0].binding.externalId, 'task-1');
+    assert.equal(resolvedContext.verification.currentFieldChronology.proofDisposition,
+      'sufficient');
+    assert.equal(resolvedContext.verification.currentFieldChronology.scope,
+      'latest-recorded-field-over-bound-source-cut');
+    assert.equal(resolvedContext.verification.currentFieldChronology.identityObservationCount, 3);
+    assert.equal(resolvedContext.verification.currentFieldChronology.fieldObservationCount, 3);
+    assert.equal(resolvedContext.verification.currentFieldChronology.fieldRevisionCount, 2);
     assert.equal(resolvedContext.verification.navigationProposals.state, 'raw-only');
     assert.equal(resolvedContext.verification.navigationProposals.learnedRouteUsed, false);
     assert.equal(resolvedContext.verification.navigationProposals.rawSearchExecuted, true);
@@ -228,6 +235,29 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     await assert.rejects(reopened.read({ ref: current.matches[0].ref }), {
       code: 'SOURCE_NATIVE_PRODUCT_READ',
     });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refuses current-field proof when the bound source cut has adapter failures', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-incomplete-chronology-'));
+  try {
+    const input = {
+      ...buildInput(),
+      adapterDiagnostics: [{ code: 'SOURCE_RECORD_NOT_PARSED', relativePath: 'clickup/acme/rev-2.md' }],
+    };
+    buildSourceNativeProduct({ artifactRoot: root, input });
+    const verification = await openSourceNativeProduct({ artifactRoot: root }).verify({
+      question: 'What is the current task title for task-1?',
+    });
+    assert.equal(verification.state, 'unavailable-incomplete-recorded-field-chronology');
+    assert.equal(verification.answerable, false);
+    assert.deepEqual(verification.context, []);
+    assert.equal(verification.verification.currentFieldChronology.proofDisposition,
+      'insufficient');
+    assert.deepEqual(verification.verification.currentFieldChronology.unmetRequirements,
+      ['zero-adapter-failures']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -406,6 +436,16 @@ test('does not let adversarial BM25 decoys choose a historical anchor', async ()
   try {
     buildSourceNativeProduct({ artifactRoot: root, input: buildAdversarialChronologyInput() });
     const product = openSourceNativeProduct({ artifactRoot: root });
+
+    const current = await product.verify({
+      question: 'What is the current issue status for NWD-418?',
+    });
+    assert.equal(current.answerable, true);
+    assert.equal(current.context[0].exactText, 'Done');
+    assert.equal(current.verification.currentFieldChronology.sourceCount, 11);
+    assert.equal(current.verification.currentFieldChronology.identityObservationCount, 3);
+    assert.equal(current.verification.currentFieldChronology.fieldObservationCount, 3);
+    assert.equal(current.verification.currentFieldChronology.proofDisposition, 'sufficient');
 
     const secondTransition = await product.search({
       question: 'What issue status immediately followed Blocked for NWD-418?',

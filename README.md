@@ -91,6 +91,12 @@ CommonJS `require('oont')` is not supported.
 `verify` is the ordinary path. It searches, runs internal Resolvers, performs
 the required exact reads, and closes the proof obligations.
 
+`[ACTIVE-WORK]` For a current-field result, Verification also binds the stable identity's
+complete recorded chronology to the source commit, replay, catalog, and mapped
+source count. A missing source, adapter failure, or ambiguous latest value
+returns `unavailable-incomplete-recorded-field-chronology`. This proves the
+latest recorded value in the named source cut, not universal current state.
+
 `verify` answers a question against one Ont. `check` validates the Ont itself.
 
 `search` and `read` are the advanced path. Search returns navigation References,
@@ -107,6 +113,9 @@ Node 24 type surface.
 The published alpha.3 kernel exposes product opening, exact source inspection,
 canonical object replay, hashing, and deterministic proof-sufficiency
 evaluation.
+
+`[ACTIVE-WORK]` The post-alpha kernel adds the source-agnostic current-field
+chronology compiler used by the ordinary Verification path.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
 admitted-knowledge path. A proposer and an independent reviewer sign one

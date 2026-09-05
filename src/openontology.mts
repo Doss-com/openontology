@@ -65,6 +65,46 @@ export interface OpenOntologyAvailableField {
   fieldPath: string;
   aliases: string[];
 }
+export interface OpenOntologyCurrentFieldChronologyVerification {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeCurrentFieldChronologyVerificationV1';
+  state: 'verified-complete-recorded-field-chronology'
+    | 'unverified-incomplete-recorded-field-chronology';
+  proofDisposition: 'sufficient' | 'insufficient';
+  scope: 'latest-recorded-field-over-bound-source-cut';
+  objectIdentity: {
+    home: 'ObjectDef/InstanceRef';
+    sourceSystem: string;
+    objectType: string;
+    externalId: string;
+    namespace?: string;
+  };
+  objectIdentitySha256: string;
+  fieldPath: string;
+  sourceCommitSha256: string;
+  sourceReplaySha256: string;
+  sourceCatalogSha256: string | null;
+  sourceHandleSetSha256: string;
+  nativeObjectMapSha256: string;
+  fieldResolutionSha256: string;
+  sourceCount: number;
+  mappedSourceCount: number;
+  identityObservationCount: number;
+  fieldObservationCount: number;
+  fieldRevisionCount: number;
+  chronologySha256: string;
+  revisionClosureSha256: string;
+  currentFieldSha256: string;
+  currentSourceSha256: string;
+  currentRelativePath: string;
+  currentOccurredAt: string;
+  unmetRequirements: string[];
+  questionIndependentMap: true;
+  navigationOnly: true;
+  exactInspectRequired: true;
+  exactSourcesRemainAuthority: true;
+  verificationSha256: string;
+}
 export interface OpenOntologyVerificationMetadata {
   artifactSha256: string;
   nativeObjectMapSha256: string;
@@ -74,6 +114,7 @@ export interface OpenOntologyVerificationMetadata {
   searchPathSha256: string | null;
   resolutionSha256: string | null;
   navigationProposals: Record<string, unknown> | null;
+  currentFieldChronology: OpenOntologyCurrentFieldChronologyVerification | null;
 }
 export interface OpenOntologyResultPolicy {
   navigationOnly: boolean;

@@ -28,6 +28,13 @@ export type {
 export {
   openSourceNativeExactEvidenceSession,
 } from './source-native-evidence-session.mjs';
+export {
+  compileSourceNativeCurrentFieldChronologyVerification,
+} from './source-native-current-field-verification.mjs';
+export type {
+  SourceNativeCurrentFieldChronologyVerification,
+  SourceNativeCurrentFieldProofDisposition,
+} from './source-native-current-field-verification.mjs';
 export type {
   BoundObjectOnt,
   ExactSessionOptions,

@@ -16,6 +16,7 @@ import type { SourceNativeObject } from './source-native-object-map.mjs';
 import type { ValidatedFieldQueryPlan } from './source-native-resolver-support.mjs';
 import type { SeedSearchAdapter } from './source-native-resolver-support.mjs';
 import type { SourceNativeFieldResolutionResult, SourceNativeFieldSuccessorResolutionResult } from './source-native-field-resolution.mjs';
+import type { SourceNativeCurrentFieldChronologyVerification } from './source-native-current-field-verification.mjs';
 
 const PRODUCT_OPTIONS = new Set(['artifactRoot', 'objectBackendUri', 'objectBackendEnv']);
 const MAXIMUM_OFFERED_REFERENCES = 1024;
@@ -57,6 +58,7 @@ export interface SourceNativeProductResolution extends UnknownRecord {
   evidenceUnits: UnknownRecord[];
   searchPath?: UnknownRecord & { searchPathSha256: string; revisionSha256?: string } | null;
   navigationProposals?: UnknownRecord;
+  currentFieldChronology?: SourceNativeCurrentFieldChronologyVerification | null;
 }
 interface OfferedEvidence extends UnknownRecord {
   resolution: SourceNativeProductResolution;
@@ -252,6 +254,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
       searchPathSha256: resolution?.searchPath?.searchPathSha256 ?? null,
       resolutionSha256: resolution?.resultSha256 ?? null,
       navigationProposals: resolution?.navigationProposals ?? null,
+      currentFieldChronology: resolution?.currentFieldChronology ?? null,
       ...verificationFields,
     }),
     policy: freeze({
@@ -548,7 +551,9 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       evidence: row.evidence,
       binding: row.binding,
     }));
-    const completeProof = searchResult.matches.length > 0
+    const chronologyComplete = searchResult.intent !== 'current'
+      || searchResult.verification.currentFieldChronology?.proofDisposition === 'sufficient';
+    const completeProof = chronologyComplete && searchResult.matches.length > 0
       && searchResult.matches.filter((match) => match.requiredForProof).length === context.length;
     const core = {
       schemaVersion: 1,

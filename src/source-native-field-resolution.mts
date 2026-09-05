@@ -236,7 +236,7 @@ export function resolveSourceNativeField({ sourceNativeObjectMap: mapInput,
     field: object.fields.find((field) => field.fieldPath === resolvedQuery.fieldPath),
   })).filter((row): row is { object: SourceNativeObject; field: SourceNativeField } => row.field !== undefined)
     .sort((left, right) => Date.parse(left.object.occurredAt) - Date.parse(right.object.occurredAt)
-    || left.object.relativePath.localeCompare(right.object.relativePath));
+    || compare(left.object.relativePath, right.object.relativePath));
   if (versions.length < 1) {
     const core = resultCore({ map, query: resolvedQuery, seedRelativePaths,
       state: 'unavailable-native-field-not-present', policy });
@@ -254,7 +254,7 @@ export function resolveSourceNativeField({ sourceNativeObjectMap: mapInput,
   });
   const revisionClosure = map.fieldRevisions.filter((row) => row.objectIdentitySha256 === latest.object.objectIdentitySha256
     && row.fieldPath === resolvedQuery.fieldPath).sort((left, right) => Date.parse(left.sourceOccurredAt)
-      - Date.parse(right.sourceOccurredAt) || left.revisionSha256.localeCompare(right.revisionSha256));
+      - Date.parse(right.sourceOccurredAt) || compare(left.revisionSha256, right.revisionSha256));
   const revisionClosureSha256 = stableObjectSha256(revisionClosure.map((row) => row.revisionSha256));
   const seededSupersededVersion = versions.filter((row) => seedRelativePaths.includes(row.object.relativePath)
     && row.field.value !== latest.field.value).at(-1) ?? null;

@@ -17,6 +17,16 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 5. Verification reads exact Evidence and closes the declared proof obligations.
 6. The SDK, CLI, and MCP surfaces expose the same query contract.
 
+`[EXISTS]` Current-field Verification compiles a content-addressed chronology
+receipt over one stable native identity and field. The receipt binds the source
+commit, replay, catalog, complete mapped source count, every identity
+observation, the ordered field-revision closure, and the selected exact field.
+It is sufficient only when source coverage is complete, adapter failures are
+zero, and the latest recorded value is unambiguous. Otherwise the Resolver
+returns `unavailable-incomplete-recorded-field-chronology` without Evidence.
+The scope is deliberately limited to the latest recorded value in the bound
+source cut. It does not claim universal current state.
+
 Managed and research runtimes attach through the bounded `oont/kernel` package
 subpath. That Interface exposes the product lifecycle hook and exact object
 primitives required by extensions, while control-plane policy remains outside

@@ -42,6 +42,10 @@
   claim and inspected Exact Evidence.
 - **Verification** is proof-complete context against one named Ont, source cut,
   scope, and authority contract. It is not universal truth.
+- **Recorded field chronology** is the complete ordered set of
+  Adapter-declared observations for one stable native identity and field over a
+  bound source cut. Its sufficient receipt proves the latest recorded value in
+  that cut. It does not prove universal current state.
 
 SearchRoutes, SearchPaths, SearchEpisodes, SearchPolicyArtifacts, and retrieval
 scores cannot provide Support by themselves.
