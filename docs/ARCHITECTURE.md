@@ -1,6 +1,6 @@
 # Architecture
 
-OpenOntology separates navigation from proof. Alpha.2 implements the compact
+OpenOntology separates navigation from proof. Alpha.3 implements the compact
 path below.
 
 ```text
@@ -26,7 +26,7 @@ The ordinary query runtime does not write learning state. Source-grounded
 capture, independent review, and later policy reuse are developed in a separate
 operator control plane. That control plane does not ship in this public alpha.
 
-`[EXISTS]` Both modes execute the same search, read, and verification Module.
+Both modes execute the same search, read, and verification Module.
 The operator control plane attaches one internal lifecycle Adapter for durable
 SearchEpisode capture and reviewed SearchPolicy reuse. It does not fork query
 semantics or create a second Resolver implementation.

@@ -7,6 +7,7 @@ import {
   SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE,
 } from './source-native-product.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
+import type { OpenOntologyResultState as ResultState } from './product-result-state.mjs';
 
 export interface OpenOntologyScopeInput {
   sourceSystem: string;
@@ -38,6 +39,7 @@ export interface OpenOntologyOptions {
   objectBackendUri?: string | null;
   objectBackendEnv?: Record<string, string | undefined>;
 }
+export type OpenOntologyResultState = ResultState;
 export interface OpenOntologyResolvedQuery {
   sourceSystem: string;
   objectType: string;
@@ -83,7 +85,7 @@ export interface OpenOntologySearchResult {
   resultSha256: string;
   schemaVersion: number;
   kind: 'OpenOntologySourceNativeProductSearchResultV2';
-  state: string;
+  state: OpenOntologyResultState;
   intent: 'current' | 'next';
   query: OpenOntologyResolvedQuery | null;
   mentionedExternalIds: string[] | undefined;
@@ -137,16 +139,18 @@ export interface OpenOntologyVerificationResult {
   verificationSha256: string;
   schemaVersion: number;
   kind: 'OpenOntologySourceNativeVerificationV1';
-  state: string;
+  state: OpenOntologyResultState;
   answerable: boolean;
   intent: 'current' | 'next';
   query: OpenOntologyResolvedQuery | null;
   context: Array<{
     role: string;
     exactText: string;
-    evidence: Record<string, unknown>;
-    binding: Record<string, unknown> & { role: string };
+    evidence: OpenOntologyReadEvidence;
+    binding: OpenOntologyReadBinding;
   }>;
+  mentionedExternalIds: string[] | undefined;
+  unresolvedExternalIds: string[] | undefined;
   availableFields: OpenOntologyAvailableField[];
   verification: OpenOntologyVerificationMetadata;
   policy: OpenOntologyResultPolicy;

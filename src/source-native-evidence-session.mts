@@ -13,14 +13,14 @@ export interface ExactSessionSource extends SourceHandle {
   content: string;
   contentSha256: string;
 }
-interface ExactSessionOptions {
-  namespace?: unknown;
-  nativeObjectMapSha256?: unknown;
+export interface ExactSessionOptions {
+  namespace: string;
+  nativeObjectMapSha256: string;
   objectOnt?: BoundObjectOnt | null;
-  sources?: ExactSessionSource[];
-  tokenize?: (value: string) => string[];
-  retrievalAdapter?: unknown;
-  retrievalAdapterSha256?: unknown;
+  sources: ExactSessionSource[];
+  tokenize: (value: string) => string[];
+  retrievalAdapter: string;
+  retrievalAdapterSha256: string;
   maximumSearchResults?: number;
   unavailableSourceMessageIds?: number[];
   taskId?: string;
@@ -44,7 +44,7 @@ export interface ExactSourceAvailabilitySnapshot extends UnknownRecord {
   availableSourceCount: number;
   unavailableSourceMessageIds: number[];
 }
-interface BoundObjectOnt extends UnknownRecord {
+export interface BoundObjectOnt extends UnknownRecord {
   kind: 'OpenOntologySourceNativeObjectOntModuleV1';
   map: { nativeObjectMapSha256: string };
   commitSha256: string;
@@ -52,11 +52,11 @@ interface BoundObjectOnt extends UnknownRecord {
   catalog: { sourceCount: number };
   sources: Array<{ relativePath: string; sourceSha256: string; content: string }>;
 }
-interface SeedRequest extends UnknownRecord {
+export interface SeedRequest extends UnknownRecord {
   query: string;
   limit: number;
 }
-interface SearchRequest extends SeedRequest {
+export interface SearchRequest extends SeedRequest {
   gaps: UnknownRecord[];
   filters: UnknownRecord;
 }
@@ -175,19 +175,23 @@ export function compileSourceNativeExactSourceAvailabilitySnapshot({
 }
 
 /** Open one immutable, capability-scoped Evidence session. */
-export function openSourceNativeExactEvidenceSession({
-  namespace,
-  nativeObjectMapSha256,
-  objectOnt = null,
-  sources: sourceInput,
-  tokenize,
-  retrievalAdapter,
-  retrievalAdapterSha256,
-  maximumSearchResults = 4,
-  unavailableSourceMessageIds = [],
-  taskId = 'source-native-resolution',
-  sessionId = 'source-native-exact-evidence',
-}: ExactSessionOptions = {}) {
+export function openSourceNativeExactEvidenceSession(options: ExactSessionOptions) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    fail('SOURCE_NATIVE_EXACT_SESSION_INPUT');
+  }
+  const {
+    namespace,
+    nativeObjectMapSha256,
+    objectOnt = null,
+    sources: sourceInput,
+    tokenize,
+    retrievalAdapter,
+    retrievalAdapterSha256,
+    maximumSearchResults = 4,
+    unavailableSourceMessageIds = [],
+    taskId = 'source-native-resolution',
+    sessionId = 'source-native-exact-evidence',
+  } = options;
   const mapSha256 = typeof nativeObjectMapSha256 === 'string' ? nativeObjectMapSha256 : '';
   const retrievalSha256 = typeof retrievalAdapterSha256 === 'string' ? retrievalAdapterSha256 : '';
   const sourceRows = sourceInput ?? [];

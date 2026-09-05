@@ -20,7 +20,7 @@ Technical references: [Architecture](docs/ARCHITECTURE.md),
 OpenOntology requires Node.js 24 or newer.
 
 ```bash
-npm install --global \
+npm install \
   https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.3/oont-0.3.0-alpha.3.tgz
 ```
 
@@ -42,14 +42,14 @@ gh attestation verify oont-0.3.0-alpha.3.tgz \
 Build a small Ont from the included deterministic Adapter input:
 
 ```bash
-oont resolver build examples/quickstart/source-native-input.json \
+npx oont resolver build ./node_modules/oont/examples/quickstart/source-native-input.json \
   --out ./verified-context
 ```
 
 Verify a question against it:
 
 ```bash
-oont verify ./verified-context \
+npx oont verify ./verified-context \
   'What is the current title of task-1?'
 ```
 
@@ -72,20 +72,21 @@ if (result.answerable) {
 }
 ```
 
-The public client has four methods:
+The public client and result types are exported under these names:
 
 ```ts
-interface OpenOntologyClientV2 {
-  verify(query: string | VerifyInput): Promise<Verification>
-  search(query: string | SearchInput): Promise<SearchResult>
-  read(ref: string | { ref: string }): Promise<ReadResult>
-  status(): OntStatus
+interface OpenOntologyProduct {
+  verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>
+  search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>
+  read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>
+  status(): OpenOntologyStatus
 }
 ```
 
 The canonical package source is strict TypeScript. The package ships
 dependency-free ESM, declarations, declaration maps, and source maps, so both
 TypeScript and JavaScript consumers use the same runtime implementation.
+CommonJS `require('oont')` is not supported.
 
 `verify` is the ordinary path. It searches, runs internal Resolvers, performs
 the required exact reads, and closes the proof obligations.
@@ -115,8 +116,8 @@ The public query and integrity operations are:
 oont verify <ont> <question>        proof-complete context or typed refusal
 oont search <ont> <question>        candidate navigation References
 oont search <ont> <question> --read navigation plus exact request-local reads
-oont check <ont>                    active Ont integrity validation
-oont status <ont>                   recorded state without recomputation
+oont check <ont>                    compact integrity assertion for automation
+oont status <ont>                   diagnostic snapshot of the validated Ont
 oont serve <ont> --mcp              one-tool MCP server exposing verify
 ```
 
@@ -126,9 +127,14 @@ Advanced MCP exposes exactly `search` and `read`:
 oont serve ./verified-context --mcp --advanced
 ```
 
-Run `oont --help` for the complete public CLI. The private research compiler
+Run `npx oont --help` for the complete public CLI. The private research compiler
 and its customer-specific compatibility commands are intentionally absent from
 this package.
+
+Both `check` and `status` fail closed if safe opening detects corrupt storage or
+an invalid artifact. `check` emits a compact assertion-shaped receipt for
+automation. `status` emits the recorded diagnostic metadata. Neither operation
+rereads Terrain or rebuilds the Ont.
 
 ## Typed scope
 
@@ -145,6 +151,25 @@ oont verify ./verified-context \
 
 Scope narrows authority. It cannot make missing proof answerable.
 
+## Temporal intent
+
+`current` is the default intent. OpenOntology does not silently infer a
+historical operation from question wording. A question that asks about a prior
+value, a date, a change, or relative ordering without a supported intent returns
+`unavailable-native-temporal-intent-not-declared` with `answerable: false`.
+
+The alpha supports one explicit historical operation: the field revision that
+immediately followed an exact anchor value.
+
+```bash
+npx oont verify ./verified-context \
+  'What title immediately followed Alpha for task-1?' \
+  --intent next
+```
+
+All result states are exported as `OpenOntologyResultState`. States beginning
+with `unavailable-` are normal typed refusals, not transport failures.
+
 ## Storage
 
 The local canonical object backend is the default and works offline. GCS is the
@@ -153,7 +178,7 @@ first distributed backend:
 ```bash
 export OONT_GCS_ACCESS_TOKEN="$(gcloud auth application-default print-access-token)"
 
-oont resolver build examples/quickstart/source-native-input.json \
+npx oont resolver build ./node_modules/oont/examples/quickstart/source-native-input.json \
   --out ./verified-context \
   --backend gs://your-ontology-bucket
 ```
@@ -218,9 +243,9 @@ Before opening a pull request:
 npm run release:check
 ```
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for repository structure, tests, and
+Read [CONTRIBUTING.md](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.3/CONTRIBUTING.md) for repository structure, tests, and
 review expectations. Security issues belong in a private GitHub security
-advisory, not a public issue. See [SECURITY.md](SECURITY.md).
+advisory, not a public issue. See [SECURITY.md](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.3/SECURITY.md).
 
 ## Support
 

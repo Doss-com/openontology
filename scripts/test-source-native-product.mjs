@@ -233,6 +233,44 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
   }
 });
 
+test('refuses temporal questions that do not declare a supported intent', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-temporal-intent-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const product = openOntology({ artifactRoot: root });
+    const temporalQuestions = [
+      'What was the previous title of task-1?',
+      'What was the original title of task-1?',
+      'What was the title of task-1 on 2026-01-15?',
+      'What was the title of task-1 in January 2026?',
+      'Has the title of task-1 changed?',
+      'How many times has the title of task-1 changed?',
+      'What title followed Alpha for task-1?',
+    ];
+    for (const question of temporalQuestions) {
+      const result = await product.verify(question);
+      assert.equal(result.state, 'unavailable-native-temporal-intent-not-declared', question);
+      assert.equal(result.answerable, false, question);
+      assert.deepEqual(result.context, [], question);
+    }
+
+    const current = await product.verify(
+      'After Alpha, what is the current task title for task-1?',
+    );
+    assert.equal(current.state, 'resolved-current-field');
+    assert.equal(current.answerable, true);
+
+    const next = await product.verify({
+      question: 'What title immediately followed Alpha for task-1?',
+      intent: 'next',
+    });
+    assert.equal(next.state, 'resolved-next-field-revision');
+    assert.equal(next.answerable, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('selects an explicit canonical object backend and binds it to the artifact', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-artifact-'));
   const backendRoot = mkdtempSync(join(tmpdir(), 'oont-source-native-product-backend-'));

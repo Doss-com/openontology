@@ -7,7 +7,9 @@ import {
 import { openSourceNativeExactEvidenceSession } from './source-native-evidence-session.mjs';
 import { openProductState, productSources } from './source-native-artifact.mjs';
 import { compileProductQueryPlan, queryPlanner } from './source-native-query-plan.mjs';
+import { OPENONTOLOGY_RESULT_STATES } from './product-result-state.mjs';
 import type { Descriptor, ObjectOnt, ProductOptions } from './source-native-artifact.mjs';
+import type { OpenOntologyResultState } from './product-result-state.mjs';
 import type { QuerySchema, SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 import type { UnknownRecord } from './source-native-object-map.mjs';
 import type { SourceNativeObject } from './source-native-object-map.mjs';
@@ -24,6 +26,8 @@ export interface ProductSearchInput {
   typedQuery?: SourceNativeFieldQuery | null;
   investigationId?: string | null;
 }
+export type SourceNativeProductResultState = OpenOntologyResultState;
+const PRODUCT_RESULT_STATES = new Set<OpenOntologyResultState>(OPENONTOLOGY_RESULT_STATES);
 export interface SourceNativeProductMatch {
   ref: string;
   role: string;
@@ -61,10 +65,35 @@ interface OfferedEvidence extends UnknownRecord {
   source: UnknownRecord & { content: string; contentSha256: string; occurredAt: string; relativePath: string; sourceMessageId: number };
   activityId: string | null;
 }
+interface ReadEvidence extends UnknownRecord {
+  relativePath: string;
+  occurredAt: string;
+  sourceSha256: string;
+  byteStart: number;
+  byteEnd: number;
+  textSha256: string;
+}
+interface ReadBinding extends UnknownRecord {
+  bindingSha256: string;
+  schemaVersion: number;
+  kind: 'OpenOntologyVerifiedSourceNativeFieldBindingV1';
+  role: string;
+  selectionMode: string;
+  sourceSystem: string;
+  objectType: string;
+  namespace: string | undefined;
+  externalId: string;
+  fieldPath: string;
+  fieldSha256: string;
+  sourceSha256: string;
+  resultSha256: string;
+  searchPathSha256: string | null;
+  exactSourcesRemainAuthority: boolean;
+}
 interface ReadResult extends UnknownRecord {
   exactText: string;
-  evidence: UnknownRecord;
-  binding: UnknownRecord & { role: string };
+  evidence: ReadEvidence;
+  binding: ReadBinding;
 }
 const fail = (code: string): never => {
   const error = new TypeError(code) as TypeError & { code: string };
@@ -73,6 +102,11 @@ const fail = (code: string): never => {
 };
 const isRecord = (value: unknown): value is UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
+function productResultState(value: string): SourceNativeProductResultState {
+  return PRODUCT_RESULT_STATES.has(value as SourceNativeProductResultState)
+    ? value as SourceNativeProductResultState
+    : fail('SOURCE_NATIVE_PRODUCT_RESULT_STATE');
+}
 function exactEvidenceReferences(unit: UnknownRecord): EvidenceReference[] {
   const values = unit.exactEvidenceReferences;
   if (!Array.isArray(values) || values.length !== unit.exactEvidenceReferenceCount) {
@@ -201,7 +235,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
   const core = {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeProductSearchResultV2' as const,
-    state: resolution?.state ?? plan.state,
+    state: productResultState(resolution?.state ?? plan.state),
     intent,
     query: plan.query,
     mentionedExternalIds: plan.mentionedExternalIds,
@@ -524,6 +558,8 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       intent: searchResult.intent,
       query: searchResult.query,
       context: freeze(context),
+      mentionedExternalIds: searchResult.mentionedExternalIds,
+      unresolvedExternalIds: searchResult.unresolvedExternalIds,
       availableFields: searchResult.availableFields,
       verification: searchResult.verification,
       policy: searchResult.policy,

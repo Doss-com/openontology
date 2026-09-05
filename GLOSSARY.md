@@ -40,8 +40,10 @@ scores cannot provide Support by themselves.
 - **`search(query)`** returns candidate References for navigation.
 - **`read(ref)`** returns exact authorized Evidence for a Reference offered by
   the same open client.
-- **`check(ont)`** actively validates Ont integrity and projection consistency.
-- **`status(ont)`** reports recorded state without recomputation.
+- **`check(ont)`** emits a compact integrity assertion after safe-open
+  validation.
+- **`status(ont)`** emits recorded diagnostic state from the same validated
+  open. It does not reread Terrain or rebuild the Ont.
 
 ## Construction
 

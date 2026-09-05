@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +9,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const command = argv[0];
 const args = argv.slice(1);
+const packageVersion = (() => {
+  const value: unknown = JSON.parse(readFileSync(join(root, '..', 'package.json'), 'utf8'));
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || !('version' in value) || typeof value.version !== 'string' || !value.version) {
+    throw new TypeError('OONT_PACKAGE_VERSION');
+  }
+  return value.version;
+})();
 
 function usage(code = 2) {
   process.stderr.write(`usage: oont <command>
@@ -51,6 +60,10 @@ function commandHelp(name: ProductCommand): never {
 
 if (command === undefined) usage();
 if (command === '--help' || command === '-h') usage(0);
+if (command === '--version' || command === '-v') {
+  process.stdout.write(`${packageVersion}\n`);
+  process.exit(0);
+}
 
 const productCommands = new Set(['verify', 'search', 'status', 'check', 'serve']);
 if (productCommands.has(command)) {

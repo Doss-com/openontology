@@ -43,9 +43,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          test -f "$notes_file"
           gh release create "$GITHUB_REF_NAME" \
             oont-*.tgz SHA256SUMS \
-            --title "OpenOntology 0.3.0-alpha.2" \
+            --title "OpenOntology ${GITHUB_REF_NAME#v}" \
             --prerelease \
             --verify-tag \
-            --notes-file .github/release-notes/v0.3.0-alpha.2.md
+            --notes-file "$notes_file"

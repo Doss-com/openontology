@@ -25,3 +25,8 @@ for (const args of [
   assert.match(result.stderr, /usage: oont/u, args.join(' '));
   assert.doesNotMatch(result.stderr, /\n\s+at\s/u, args.join(' '));
 }
+
+const version = run(['--version']);
+assert.equal(version.status, 0, version.stderr);
+assert.equal(version.stdout.trim(), '0.3.0-alpha.3');
+assert.equal(version.stderr, '');

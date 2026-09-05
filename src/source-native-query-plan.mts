@@ -27,6 +27,22 @@ const freeze = <T,>(value: T): T => {
 function normalizedQuestion(value: unknown): string {
   return String(value).normalize('NFKC').toLocaleLowerCase('en-US');
 }
+const EXPLICIT_CURRENT_TIME = /\b(?:current|currently|latest|present|right now|now|today)\b/u;
+const HISTORICAL_TIME = /\b(?:was|were|previous|previously|prior|original|originally|initial|initially|former|formerly|earlier|historical|history)\b/u;
+const RELATIVE_TIME = /\b(?:yesterday|tomorrow|last (?:week|month|year)|next (?:week|month|year)|at the time|as of|ago|future|upcoming)\b/u;
+const CHANGE_OVER_TIME = /\b(?:has|have|had|did|when)\b[^?]{0,80}\b(?:change|changed)\b|\b(?:change|revision|status) history\b|\bhow many times\b/u;
+const ORDERED_TIME = /\b(?:before|after|followed|following|preceded|preceding|succeeded|succeeding)\b/u;
+const CALENDAR_TIME = /\b(?:on|in|at|as of)\s+(?:(?:19|20)\d{2}(?:[-/]\d{1,2}(?:[-/]\d{1,2})?)?|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{1,2},?)?(?:\s+(?:19|20)\d{2})?)\b/u;
+
+function hasUndeclaredTemporalIntent(question: string, intent: 'current' | 'next'): boolean {
+  if (intent !== 'current') return false;
+  const text = normalizedQuestion(question);
+  return HISTORICAL_TIME.test(text)
+    || RELATIVE_TIME.test(text)
+    || CHANGE_OVER_TIME.test(text)
+    || CALENDAR_TIME.test(text)
+    || ORDERED_TIME.test(text) && !EXPLICIT_CURRENT_TIME.test(text);
+}
 function mentionedExternalId(question: string, map: SourceNativeObjectMap, namespace: string,
   query: SourceNativeFieldQuery): { value: string | symbol | null; candidates: string[]; unresolvedExternalIds: string[] } {
   const text = normalizedQuestion(question);
@@ -125,7 +141,8 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
   }) {
   let state: SourceNativeQueryPlanState | 'unavailable-native-object-identifier-not-declared'
     | 'unavailable-native-multiple-object-identifiers' | 'unavailable-native-field-anchor-not-matched'
-    | 'unavailable-native-field-anchor-ambiguous' | 'unavailable-native-field-not-declared';
+    | 'unavailable-native-field-anchor-ambiguous' | 'unavailable-native-field-not-declared'
+    | 'unavailable-native-temporal-intent-not-declared';
   let query: SourceNativeFieldQuery | null;
   let matchedObjectAliases: string[];
   let matchedFieldAliases: string[];
@@ -176,6 +193,10 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
       query = freeze({ ...query, namespace,
         ...(typeof externalId === 'string' ? { externalId } : {}) });
     }
+  }
+  if (query !== null && hasUndeclaredTemporalIntent(question, intent)) {
+    state = 'unavailable-native-temporal-intent-not-declared';
+    query = null;
   }
   if (query !== null && intent === 'next') {
     const anchor = bindHistoricalAnchor({

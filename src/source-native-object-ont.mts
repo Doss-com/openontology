@@ -118,6 +118,11 @@ export interface SourceNativeObjectOntReceipt {
   canonicalTruthMutation: false;
   receiptSha256: string;
 }
+export interface OpenSourceNativeObjectOntOptions {
+  backend: ObjectBackend;
+  ontId: string;
+  commitSha256: string;
+}
 interface MaterializeResult {
   map: SourceNativeObjectMap;
   catalog: SourceCatalog;
@@ -656,16 +661,26 @@ export function materializeSourceNativeObjectOnt({
   });
 }
 
-export function openSourceNativeObjectOnt({ backend, ontId, commitSha256 }: {
-  backend?: ObjectBackend; ontId?: string; commitSha256?: string;
-} = {}) {
-  if (!backend) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
-  return openAtCommit({ store: openObjectOntStore({ backend }), ontId: ontId ?? '', commitSha256: commitSha256 ?? '' });
+export function openSourceNativeObjectOnt(options: OpenSourceNativeObjectOntOptions) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  }
+  const { backend, ontId, commitSha256 } = options;
+  if (!backend || typeof ontId !== 'string' || !ontId
+    || typeof commitSha256 !== 'string' || !commitSha256) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  }
+  return openAtCommit({ store: openObjectOntStore({ backend }), ontId, commitSha256 });
 }
 
-export function openSourceNativeObjectOntIndex({ backend, ontId, commitSha256 }: {
-  backend?: ObjectBackend; ontId?: string; commitSha256?: string;
-} = {}) {
-  if (!backend) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
-  return openIndexAtCommit({ store: openObjectOntStore({ backend }), ontId: ontId ?? '', commitSha256: commitSha256 ?? '' });
+export function openSourceNativeObjectOntIndex(options: OpenSourceNativeObjectOntOptions) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  }
+  const { backend, ontId, commitSha256 } = options;
+  if (!backend || typeof ontId !== 'string' || !ontId
+    || typeof commitSha256 !== 'string' || !commitSha256) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  }
+  return openIndexAtCommit({ store: openObjectOntStore({ backend }), ontId, commitSha256 });
 }

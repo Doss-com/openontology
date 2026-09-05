@@ -5,11 +5,20 @@
 ### Changed
 
 - Made strict TypeScript the canonical source while preserving dependency-free
-  ESM output and existing runtime behavior.
+  ESM output and validated current-field and successor behavior.
 - Added declarations, declaration maps, source maps, and a clean-consumer type
   compilation gate to the release package.
 - Added the bounded `oont/kernel` extension Interface for managed and research
   runtimes without expanding the ordinary SDK surface.
+- Added typed public result states, exact Verification Evidence types, and
+  identity diagnostics on Verification results.
+- Refuse historical, dated, change, and ordered-time wording unless the caller
+  declares a supported intent. This prevents a temporal question from silently
+  receiving the current value.
+- Corrected the installed-package quickstart and public TypeScript names after
+  an independent context-blind package evaluation.
+- Added `oont --version` and made the GitHub release workflow derive its title
+  and notes file from the immutable tag.
 
 ## 0.3.0-alpha.2
 

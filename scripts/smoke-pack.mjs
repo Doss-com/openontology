@@ -2,7 +2,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync,
+  existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -115,12 +115,17 @@ try {
   const contractPath = join(consumer, 'contract.mts');
   writeFileSync(contractPath, `import {
   openOntology,
+  type OpenOntologyProduct,
+  type OpenOntologyQueryInput,
   type OpenOntologyReadResult,
+  type OpenOntologyResultState,
   type OpenOntologySearchResult,
+  type OpenOntologyStatus,
   type OpenOntologyVerificationResult,
 } from 'oont';
 
-const ont = openOntology({ artifactRoot: './verified-context' });
+const ont: OpenOntologyProduct = openOntology({ artifactRoot: './verified-context' });
+const query: OpenOntologyQueryInput = { question: 'What is current?' };
 const verification: OpenOntologyVerificationResult = await ont.verify('What is current?');
 const search: OpenOntologySearchResult = await ont.search({
   question: 'What is current?',
@@ -129,8 +134,11 @@ const search: OpenOntologySearchResult = await ont.search({
 const read: OpenOntologyReadResult | undefined = search.matches[0]
   ? await ont.read(search.matches[0].ref)
   : undefined;
-const state: string = verification.state;
+const status: OpenOntologyStatus = ont.status();
+const state: OpenOntologyResultState = verification.state;
 const exactText: string | undefined = read?.exactText;
+void query;
+void status;
 void state;
 void exactText;
 // @ts-expect-error artifactRoot is required for a typed caller.
@@ -152,17 +160,29 @@ openOntology();
 
   const kernelContractPath = join(consumer, 'kernel-contract.mts');
   writeFileSync(kernelContractPath, `import {
+  openSourceNativeExactEvidenceSession,
+  openSourceNativeObjectOntIndex,
   openSourceNativeProductRuntime,
   stableObjectSha256,
+  type ExactSessionOptions,
+  type OpenSourceNativeObjectOntOptions,
   type SourceNativeProductRuntimeContext,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
 const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProductRuntime;
 const context: SourceNativeProductRuntimeContext | null = null;
+const exactOptions: ExactSessionOptions | null = null;
+const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
 void digest;
 void openRuntime;
 void context;
+void exactOptions;
+void indexOptions;
+// @ts-expect-error Evidence sessions require complete authority and retrieval bindings.
+openSourceNativeExactEvidenceSession({ sources: [] });
+// @ts-expect-error ObjectOnt reads require an explicit canonical backend.
+openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
 `);
   const typedKernelConsumer = run(process.execPath, [
     compiler,
@@ -186,11 +206,9 @@ void context;
     && /resolver build/.test(help.stderr)
     && !/admin|init|extract/.test(help.stderr), tail(help.stderr, 12));
 
-  const inputPath = join(project, 'source-native-input.json');
-  writeFileSync(inputPath, readFileSync(join(root, 'examples', 'quickstart',
-    'source-native-input.json')));
+  const inputPath = join(packageRoot, 'examples', 'quickstart', 'source-native-input.json');
   const build = run(bin, ['resolver', 'build', inputPath, '--out', ont]);
-  check('deterministic Adapter build', build.status === 0
+  check('documented packaged quickstart build', build.status === 0
     && existsSync(join(ont, 'source-native.json')), tail(build.stderr));
 
   const integrity = run(bin, ['check', ont]);
@@ -216,6 +234,16 @@ void context;
     && refusal?.answerable === false
     && typeof refusal?.state === 'string',
   refused.status === 0 ? refusal?.state : tail(refused.stderr));
+
+  const temporal = run(bin, ['verify', ont, 'What was the title of task-1 on 2026-01-15?']);
+  let temporalRefusal;
+  try { temporalRefusal = JSON.parse(temporal.stdout); } catch { temporalRefusal = null; }
+  check('undeclared temporal intent refuses instead of returning current state',
+    temporal.status === 0
+      && temporalRefusal?.answerable === false
+      && temporalRefusal?.state === 'unavailable-native-temporal-intent-not-declared'
+      && temporalRefusal?.context?.length === 0,
+    temporal.status === 0 ? temporalRefusal?.state : tail(temporal.stderr));
 
   const navigation = run(bin, ['search', ont, 'What is the current title of task-1?']);
   const exact = run(bin, ['search', ont, 'What is the current title of task-1?',

@@ -29,8 +29,12 @@ export {
   openSourceNativeExactEvidenceSession,
 } from './source-native-evidence-session.mjs';
 export type {
+  BoundObjectOnt,
+  ExactSessionOptions,
   ExactSessionSource,
   ExactSourceAvailabilitySnapshot,
+  SearchRequest,
+  SeedRequest,
   SourceHandle,
 } from './source-native-evidence-session.mjs';
 export {
@@ -48,5 +52,6 @@ export {
   openSourceNativeObjectOntIndex,
 } from './source-native-object-ont.mjs';
 export type {
+  OpenSourceNativeObjectOntOptions,
   SourceNativeObjectOntIndex,
 } from './source-native-object-ont.mjs';

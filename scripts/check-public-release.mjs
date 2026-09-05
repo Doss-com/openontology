@@ -122,6 +122,13 @@ for (const path of tracked) {
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 if (packageJson.name !== 'oont') fail('package name must be oont');
 if (packageJson.version !== '0.3.0-alpha.3') fail('package version must be 0.3.0-alpha.3');
+const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+if (!releaseWorkflow.includes('.github/release-notes/${GITHUB_REF_NAME}.md')
+  || !releaseWorkflow.includes('OpenOntology ${GITHUB_REF_NAME#v}')
+  || releaseWorkflow.includes('--notes-file .github/release-notes/v0.3.0-alpha.2.md')
+  || releaseWorkflow.includes('--title "OpenOntology 0.3.0-alpha.2"')) {
+  fail('release workflow must derive title and notes from the immutable tag');
+}
 if (sourceManifest.packageName !== packageJson.name
   || sourceManifest.packageVersion !== packageJson.version) {
   fail('source manifest package identity does not match package.json');
@@ -167,7 +174,8 @@ for (const path of required) {
 const forbiddenPacked = packedPaths.filter((path) =>
   /^(eval|evidence|design|site|test|tests|src|bin|scripts)\//u.test(path)
   || path === 'PASTE-PROMPT.md'
-  || /(?:RESULT|REPORT|private|\.raw)/iu.test(path));
+  || /(?:^|\/)(?:RESULT|REPORT)(?:[._-]|$)/iu.test(path)
+  || /(?:^|[._/-])private(?:[._/-]|$)|\.raw$/iu.test(path));
 if (forbiddenPacked.length) fail(`forbidden package files: ${forbiddenPacked.join(', ')}`);
 const invalidGenerated = packedPaths.filter((path) => path.startsWith('dist/')
   && !/\.mjs(?:\.map)?$|\.d\.mts(?:\.map)?$/u.test(path));
