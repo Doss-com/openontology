@@ -49,6 +49,16 @@ export function normalizeCanonicalObjectBackendUri(uriInput: string | undefined)
   let uri: URL;
   try { uri = new URL(uriInput ?? ''); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }
   if (uri.username || uri.password || uri.search || uri.hash) fail('CANONICAL_OBJECT_BACKEND_URI');
+  if (uri.protocol === 'gs:' && typeof uriInput === 'string') {
+    const rawPath = /^gs:\/\/[^\/?#]*(\/[^?#]*)?$/iu.exec(uriInput)?.[1] ?? '';
+    for (const segment of rawPath.split('/')) {
+      let decodedSegment: string;
+      try { decodedSegment = decodeURIComponent(segment); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }
+      if (decodedSegment !== segment || decodedSegment === '.' || decodedSegment === '..') {
+        fail('CANONICAL_OBJECT_BACKEND_URI');
+      }
+    }
+  }
   if (uri.protocol === 'file:') {
     if (uri.hostname && uri.hostname !== 'localhost') fail('CANONICAL_OBJECT_BACKEND_URI');
     try { fileURLToPath(uri); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }

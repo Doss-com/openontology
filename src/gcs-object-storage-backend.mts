@@ -421,6 +421,9 @@ export function openGcsObjectBackend({
         || finalEnd > total || bytes.length !== finalEnd - start) {
         fail('OBJECT_BACKEND_CORRUPT');
       }
+      if (start === 0 && finalEnd === current.byteLength && sha256(bytes) !== current.checksumSha256) {
+        fail('OBJECT_BACKEND_CORRUPT');
+      }
     }
     return Object.freeze({ ...current, bytes, range: Object.freeze({ start, end: finalEnd }) });
   };

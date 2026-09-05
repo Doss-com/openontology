@@ -90,7 +90,8 @@ function gcsFixtureTransport() {
       const range = /^bytes=(\d+)-(\d*)$/u.exec(request.headers.range ?? '');
       const start = range ? Number(range[1]) : 0;
       const end = range?.[2] ? Number(range[2]) + 1 : current.bytes.length;
-      if (start >= current.bytes.length || end > current.bytes.length) {
+      if (range && (start >= current.bytes.length || end > current.bytes.length)
+        || !range && (start > current.bytes.length || end > current.bytes.length)) {
         return { status: 416, headers: {}, body: Buffer.alloc(0) };
       }
       const bytes = current.bytes.subarray(start, end);
@@ -249,6 +250,15 @@ test('GCS full and ranged reads use one media request and validate response inte
   assert.deepEqual(backend.get('segments/sha256/example').bytes, bytes);
   assert.equal(fixture.requests.length - beforeFull, 1);
 
+  const emptyFixture = gcsFixtureTransport();
+  const emptyBackend = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    accessToken: 'fixture-token-1',
+    transport: emptyFixture.transport,
+  });
+  emptyBackend.putIfAbsent('segments/sha256/empty', Buffer.alloc(0));
+  assert.deepEqual(emptyBackend.get('segments/sha256/empty').bytes, Buffer.alloc(0));
+
   const beforeRange = fixture.requests.length;
   assert.equal(backend.get('segments/sha256/example', { start: 5, end: 8 }).bytes.toString(), 'one');
   assert.equal(fixture.requests.length - beforeRange, 1);
@@ -267,6 +277,9 @@ test('GCS full and ranged reads use one media request and validate response inte
   });
   corruptBackend.putIfAbsent('segments/sha256/example', bytes);
   assert.throws(() => corruptBackend.get('segments/sha256/example'), {
+    code: 'OBJECT_BACKEND_CORRUPT',
+  });
+  assert.throws(() => corruptBackend.get('segments/sha256/example', { start: 0, end: bytes.length }), {
     code: 'OBJECT_BACKEND_CORRUPT',
   });
 
