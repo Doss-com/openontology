@@ -5,6 +5,9 @@
 - Bind native semantic Admission and cold reuse to the complete authority
   projection reconstructed from the selected source field. Reject signed
   reduced censuses and semantic drift without suppressing ordinary verification.
+- Enforce the native minimum proof profile at durable write and cold reuse.
+  Required exact support cannot replace or link only to an optional answer;
+  compatible stronger contracts and renamed obligation IDs remain supported.
 - Require counterevidence relation targets to satisfy all required support
   modality and polarity constraints for their family, independent of obligation
   order. Preserve the complete authoritative item and relation censuses.

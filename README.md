@@ -167,6 +167,9 @@ it only for the identical Ont, source cut, resolved query and answer revision,
 proof contract, and authority census. For native semantic queries, the writer
 and cold reader reconstruct that census from the selected source field; valid
 signatures cannot authorize removing counterevidence or changing its semantics.
+The contract must also retain the selected family's required answer obligation,
+linked exact support, and complete invalidator coverage. Renamed obligation IDs
+and compatible stricter requirements are allowed; an optional answer is not.
 Every Evidence reference is checked
 against Corpus bytes when admitted, every included proposition must participate
 in a required proof obligation, and every returned role is derived from that

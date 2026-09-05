@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 4311,
-      "sha256": "0fe79ef22b7f6d586d206b344386c2d298b8f8c8511616e94cdb4cadee1b06dd"
+      "bytes": 4540,
+      "sha256": "13de36435c7e5534cc39f1b27eef5eeff1bcb82047454f58f77b098f14047fd1"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13809,
-      "sha256": "d46ed101bf1fe20ed10a9233f3d53b91ada92f4312404ddf2b832b0f75b5964f"
+      "bytes": 14046,
+      "sha256": "5509aa51b06a6c65f606c52970ca93c867a67c6f7135bc1fb8b2950e51102c16"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 13947,
-      "sha256": "a32dcb939de9ae74f57264c10b0f452d2d4d24b0be8b8e5cf027f75675eee88b"
+      "bytes": 14504,
+      "sha256": "a235e47b9c950f425ec8103a2e4ba9a9124bcdddb6cf7435c8bf3514fad7df0f"
     },
     {
       "path": "docs/STORAGE.md",
@@ -222,8 +222,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 88181,
-      "sha256": "8c99eecebfe09ffa47331222f967fdd9d0cb592e6668f09e04f95a3efe9b77cb"
+      "bytes": 101297,
+      "sha256": "0f4602a96960a940bccf5cc72e62faae6bc30df177fd3eeeefc9817310c556e4"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -342,8 +342,8 @@
     },
     {
       "path": "src/source-native-admitted-knowledge.mts",
-      "bytes": 68617,
-      "sha256": "a47b76e3bf953bf717afa5be5664480da229a889d551fb64342899c8c741133d"
+      "bytes": 68852,
+      "sha256": "f6b28e65a9369f662a4f75601e8c48c96c5126925161b1788282940058757273"
     },
     {
       "path": "src/source-native-artifact.mts",
@@ -417,8 +417,8 @@
     },
     {
       "path": "src/source-native-semantic-verification.mts",
-      "bytes": 14635,
-      "sha256": "e8f0fec6aca012669faef22050734f43000c89a22d548a5da56f60ae4072325f"
+      "bytes": 16938,
+      "sha256": "0e9c99c9cf988fbf5cbc5da74960811f2e34ccfa978057644b0a24d5c88304e2"
     },
     {
       "path": "tsconfig.json",
@@ -426,5 +426,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:197b7ad3335ea08b8af2e6f93afb07c8e7ac237cd4cc528d82ab3f807599b72e"
+  "manifestSha256": "sha256:45f4b8ba124bec158e8a1b4a901e6a8acfec8ae06676ad4c1be97c1f9ef8f096"
 }

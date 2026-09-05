@@ -123,7 +123,15 @@ equal the bundle's projection, including counterevidence, relations, actor,
 modality, and polarity. A signed, internally consistent reduced census is not
 eligible for reuse, even if it calls itself a different projection kind. This
 check applies when the selected field has native semantic authority; it does
-not invent a semantic census for nonsemantic Adapter input. The cold
+not invent a semantic census for nonsemantic Adapter input. Native Admission
+also requires the source/query-derived minimum proof profile: the selected
+answer family is required, exact support links to required support for that
+family, and the canonical invalidator contract targets it. Optional answer
+obligations cannot satisfy that profile. IDs and descriptive prose can differ,
+and compatible stricter requirements remain eligible when evaluation closes.
+The profile does not force observed-positive modality for all recorded-field
+queries; inspecting a recorded plan is distinct from proving an action occurred.
+The cold
 reader derives each returned role from the evaluated obligation instead of a
 proposition label. Returned proof bindings expose fixed content hashes, not
 proposer-authored semantic strings or the full proof-evaluation payload. A
