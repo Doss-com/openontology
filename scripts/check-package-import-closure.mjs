@@ -62,6 +62,7 @@ try {
   const runtimeRoots = [
     'dist/bin/oont.mjs',
     'dist/scripts/oont-resolver.mjs',
+    'dist/src/kernel.mjs',
     'dist/src/openontology.mjs',
   ];
   for (const path of runtimeRoots) {

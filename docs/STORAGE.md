@@ -47,4 +47,4 @@ garbage collection remain provider responsibilities.
 
 Named hosted Onts, tenant isolation, API keys, IAM automation, interrupted-write
 recovery, garbage collection, quotas, and managed Turbopuffer projections are
-not part of `0.3.0-alpha.2`.
+not part of `0.3.0-alpha.3`.

@@ -17,6 +17,11 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 5. Verification reads exact Evidence and closes the declared proof obligations.
 6. The SDK, CLI, and MCP surfaces expose the same query contract.
 
+Managed and research runtimes attach through the bounded `oont/kernel` package
+subpath. That Interface exposes the product lifecycle hook and exact object
+primitives required by extensions, while control-plane policy remains outside
+the public package.
+
 The ordinary query runtime does not write learning state. Source-grounded
 capture, independent review, and later policy reuse are developed in a separate
 operator control plane. That control plane does not ship in this public alpha.

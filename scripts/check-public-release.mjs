@@ -40,7 +40,7 @@ const allowedRoots = new Set([
 const unexpectedRoots = [...new Set(tracked.map((path) => path.split('/')[0]))]
   .filter((name) => !allowedRoots.has(name));
 if (unexpectedRoots.length) fail(`unexpected root entries: ${unexpectedRoots.join(', ')}`);
-if (!tracked.includes('.github/release-notes/v0.3.0-alpha.2.md')) {
+if (!tracked.includes('.github/release-notes/v0.3.0-alpha.3.md')) {
   fail('versioned release notes are required');
 }
 
@@ -121,7 +121,7 @@ for (const path of tracked) {
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 if (packageJson.name !== 'oont') fail('package name must be oont');
-if (packageJson.version !== '0.3.0-alpha.2') fail('package version must be 0.3.0-alpha.2');
+if (packageJson.version !== '0.3.0-alpha.3') fail('package version must be 0.3.0-alpha.3');
 if (sourceManifest.packageName !== packageJson.name
   || sourceManifest.packageVersion !== packageJson.version) {
   fail('source manifest package identity does not match package.json');
@@ -130,6 +130,10 @@ if (JSON.stringify(packageJson.exports) !== JSON.stringify({
   '.': {
     types: './dist/src/openontology.d.mts',
     import: './dist/src/openontology.mjs',
+  },
+  './kernel': {
+    types: './dist/src/kernel.d.mts',
+    import: './dist/src/kernel.mjs',
   },
   './package.json': './package.json',
 })) {
@@ -153,6 +157,7 @@ try {
 const packedPaths = packed.files.map((file) => file.path);
 const required = [
   'README.md', 'LICENSE', 'package.json', 'dist/bin/oont.mjs',
+  'dist/src/kernel.mjs', 'dist/src/kernel.d.mts',
   'dist/bin/oont.d.mts', 'dist/src/openontology.mjs',
   'dist/src/openontology.d.mts', 'examples/quickstart/source-native-input.json',
 ];

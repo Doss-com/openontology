@@ -1,6 +1,6 @@
 {
   "name": "oont",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "type": "module",
   "description": "A factual context compiler that gives agents verified context or a typed refusal.",
   "main": "./dist/src/openontology.mjs",
@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/src/openontology.d.mts",
       "import": "./dist/src/openontology.mjs"
+    },
+    "./kernel": {
+      "types": "./dist/src/kernel.d.mts",
+      "import": "./dist/src/kernel.mjs"
     },
     "./package.json": "./package.json"
   },

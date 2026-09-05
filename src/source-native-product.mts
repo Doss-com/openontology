@@ -46,7 +46,7 @@ interface EvidenceReference extends UnknownRecord {
   fieldPath: string;
   propositionFamilyKey: string;
 }
-interface Resolution extends UnknownRecord {
+export interface SourceNativeProductResolution extends UnknownRecord {
   state: string;
   selectionMode: string;
   resultSha256: string;
@@ -54,23 +54,8 @@ interface Resolution extends UnknownRecord {
   searchPath?: UnknownRecord & { searchPathSha256: string; revisionSha256?: string } | null;
   navigationProposals?: UnknownRecord;
 }
-interface LifecycleAdapter extends UnknownRecord {
-  seedSearchAdapter?: SeedSearchAdapter;
-  readOnly?: boolean;
-  methods?: UnknownRecord;
-  beginSearch?: (prepared: UnknownRecord, investigationId: string | null) => unknown;
-  recordSearch?: (value: UnknownRecord) => unknown;
-  verificationMetadata?: (resolution: Resolution | null) => UnknownRecord;
-  resultMetadata?: (activity: unknown) => UnknownRecord;
-  bindResult?: (activity: unknown, result: UnknownRecord) => void;
-  activityId?: (activity: unknown) => string | null;
-  referenceMetadata?: (activity: unknown) => UnknownRecord;
-  readEvidence?: (value: UnknownRecord) => Promise<UnknownRecord>;
-  verificationResult?: (value: UnknownRecord) => UnknownRecord;
-  status?: () => UnknownRecord;
-}
 interface OfferedEvidence extends UnknownRecord {
-  resolution: Resolution;
+  resolution: SourceNativeProductResolution;
   role: string;
   reference: EvidenceReference;
   source: UnknownRecord & { content: string; contentSha256: string; occurredAt: string; relativePath: string; sourceMessageId: number };
@@ -152,13 +137,56 @@ export {
   SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE,
 } from './source-native-artifact.mjs';
 
+export type SourceNativeProductQueryPlan = ReturnType<typeof compileProductQueryPlan>;
+export interface SourceNativeProductPreparedSearch {
+  question: string;
+  intent: 'current' | 'next';
+  anchorValue: string | null;
+  typedQuery: SourceNativeFieldQuery | null;
+  plan: SourceNativeProductQueryPlan;
+}
+export type SourceNativeProductState = ReturnType<typeof openProductState>;
+export type SourceNativeExactEvidenceSession = ReturnType<
+  typeof openSourceNativeExactEvidenceSession
+>;
+export interface SourceNativeProductRuntimeContext {
+  descriptor: SourceNativeProductState['descriptor'];
+  selectedBackend: SourceNativeProductState['selectedBackend'];
+  backend: SourceNativeProductState['backend'];
+  store: SourceNativeProductState['store'];
+  objectOnt: SourceNativeProductState['objectOnt'];
+  sources: ReturnType<typeof productSources>;
+  session: SourceNativeExactEvidenceSession;
+  prepareSearch: (input: ProductSearchInput) => SourceNativeProductPreparedSearch;
+  forgetOffers: (activityId: string | null) => void;
+}
+export interface SourceNativeProductLifecycleAdapter extends UnknownRecord {
+  seedSearchAdapter?: SeedSearchAdapter;
+  readOnly?: boolean;
+  methods?: UnknownRecord;
+  beginSearch?: (prepared: SourceNativeProductPreparedSearch,
+    investigationId: string | null) => unknown;
+  recordSearch?: (value: UnknownRecord) => unknown;
+  verificationMetadata?: (resolution: SourceNativeProductResolution | null) => UnknownRecord;
+  resultMetadata?: (activity: unknown) => UnknownRecord;
+  bindResult?: (activity: unknown, result: UnknownRecord) => void;
+  activityId?: (activity: unknown) => string | null;
+  referenceMetadata?: (activity: unknown) => UnknownRecord;
+  readEvidence?: (value: UnknownRecord) => Promise<UnknownRecord>;
+  verificationResult?: (value: UnknownRecord) => UnknownRecord;
+  status?: () => UnknownRecord;
+}
+export type SourceNativeProductLifecycleAdapterFactory = (
+  context: SourceNativeProductRuntimeContext,
+) => SourceNativeProductLifecycleAdapter | null;
+
 function productResult({ descriptor, objectOnt, intent, plan, resolution = null, matches = [],
   verificationFields = {}, resultFields = {} }: {
   descriptor: Descriptor;
   objectOnt: ObjectOnt;
   intent: 'current' | 'next';
   plan: ValidatedFieldQueryPlan & { mentionedExternalIds?: string[]; unresolvedExternalIds?: string[]; query?: SourceNativeFieldQuery | null };
-  resolution?: Resolution | null;
+  resolution?: SourceNativeProductResolution | null;
   matches?: SourceNativeProductMatch[];
   verificationFields?: UnknownRecord;
   resultFields?: UnknownRecord;
@@ -203,7 +231,8 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
   return freeze({ ...core, resultSha256: stableObjectSha256(core) });
 }
 
-export function openSourceNativeProductRuntime(options: ProductOptions = {}, createLifecycleAdapter: ((value: UnknownRecord) => LifecycleAdapter | null) | null = null) {
+export function openSourceNativeProductRuntime(options: ProductOptions = {},
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
   if (!options || typeof options !== 'object' || Array.isArray(options)
     || Object.keys(options).some((name) => !PRODUCT_OPTIONS.has(name))) {
     fail('SOURCE_NATIVE_PRODUCT_OPTIONS');
@@ -328,7 +357,10 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {}, cre
         ...common,
         exactSourceAvailabilitySnapshot: session.exactSourceAvailabilitySnapshot,
     });
-    const resolution: Resolution = await resolver.search({ question, maximumSourceMessages: 4 });
+    const resolution: SourceNativeProductResolution = await resolver.search({
+      question,
+      maximumSourceMessages: 4,
+    });
     const activity = lifecycle?.recordSearch?.({
       question, intent, plan, startReceipt, resolution,
     }) ?? null;

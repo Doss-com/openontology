@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0-alpha.3
+
+### Changed
+
+- Made strict TypeScript the canonical source while preserving dependency-free
+  ESM output and existing runtime behavior.
+- Added declarations, declaration maps, source maps, and a clean-consumer type
+  compilation gate to the release package.
+- Added the bounded `oont/kernel` extension Interface for managed and research
+  runtimes without expanding the ordinary SDK surface.
+
 ## 0.3.0-alpha.2
 
 First public developer alpha. Earlier prereleases were internal development
@@ -7,8 +18,7 @@ candidates and are not supported.
 
 ### Added
 
-- One public TypeScript and JavaScript client with `verify`, `search`, `read`,
-  and `status`.
+- One public JavaScript client with `verify`, `search`, `read`, and `status`.
 - CLI operations `verify`, `search`, `check`, `status`, and `serve`.
 - Default one-tool MCP profile exposing `verify` and an advanced profile
   exposing `search` and `read`.
@@ -23,10 +33,6 @@ candidates and are not supported.
 
 ### Changed
 
-- Made strict TypeScript the canonical source while preserving dependency-free
-  ESM output and the existing runtime behavior.
-- Added declarations, declaration maps, source maps, and a clean-consumer type
-  compilation gate to the release package.
 - Split artifact persistence, query planning, Exact Evidence inspection, and
   the read-only query runtime into focused modules.
 - Public query calls reject control-plane options and expose only state that the

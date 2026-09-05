@@ -9,7 +9,7 @@ or a typed refusal.
 retrieval proposes -> Ont cross-walks and verifies -> exact Evidence supports
 ```
 
-Status: `0.3.0-alpha.2` is a developer alpha. It is suitable for local
+Status: `0.3.0-alpha.3` is a developer alpha. It is suitable for local
 experimentation with explicit Adapter input. It is not a managed hosted service.
 
 Technical references: [Architecture](docs/ARCHITECTURE.md),
@@ -21,7 +21,7 @@ OpenOntology requires Node.js 24 or newer.
 
 ```bash
 npm install --global \
-  https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.2/oont-0.3.0-alpha.2.tgz
+  https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.3/oont-0.3.0-alpha.3.tgz
 ```
 
 The package and command are both named `oont`.
@@ -33,7 +33,7 @@ To verify a downloaded prerelease before installing it:
 
 ```bash
 sha256sum -c SHA256SUMS
-gh attestation verify oont-0.3.0-alpha.2.tgz \
+gh attestation verify oont-0.3.0-alpha.3.tgz \
   --repo Doss-com/openontology
 ```
 
@@ -95,6 +95,17 @@ the required exact reads, and closes the proof obligations.
 `search` and `read` are the advanced path. Search returns navigation References,
 not Evidence. Read accepts a request-local Reference and returns exact authorized
 bytes with a receipt.
+
+### Managed extension Interface
+
+`oont/kernel` is the bounded extension subpath for managed and research runtimes
+that attach a governed lifecycle Adapter. Ordinary applications should use the
+root `oont` client. TypeScript extension authors compile against the supported
+Node 24 type surface.
+
+The kernel subpath exposes product opening, exact source inspection, canonical
+object replay, and hashing. It does not expose Admission, review, activation,
+or other private control-plane logic.
 
 ## CLI
 

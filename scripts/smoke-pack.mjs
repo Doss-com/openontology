@@ -150,6 +150,36 @@ openOntology();
   check('installed declarations compile for a strict consumer', typedConsumer.status === 0,
     tail(typedConsumer.stderr || typedConsumer.stdout, 12));
 
+  const kernelContractPath = join(consumer, 'kernel-contract.mts');
+  writeFileSync(kernelContractPath, `import {
+  openSourceNativeProductRuntime,
+  stableObjectSha256,
+  type SourceNativeProductRuntimeContext,
+} from 'oont/kernel';
+
+const digest: string = stableObjectSha256({ contract: 'kernel' });
+const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProductRuntime;
+const context: SourceNativeProductRuntimeContext | null = null;
+void digest;
+void openRuntime;
+void context;
+`);
+  const typedKernelConsumer = run(process.execPath, [
+    compiler,
+    '--noEmit',
+    '--strict',
+    '--skipLibCheck', 'false',
+    '--module', 'NodeNext',
+    '--moduleResolution', 'NodeNext',
+    '--target', 'ES2022',
+    '--typeRoots', join(root, 'node_modules', '@types'),
+    '--types', 'node',
+    kernelContractPath,
+  ], { cwd: consumer });
+  check('kernel declarations compile with the supported Node types',
+    typedKernelConsumer.status === 0,
+    tail(typedKernelConsumer.stderr || typedKernelConsumer.stdout, 12));
+
   const help = run(bin, ['--help']);
   check('public CLI is compact', help.status === 0
     && /verify <ont>/.test(help.stderr)
@@ -202,10 +232,18 @@ openOntology();
 
   const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
 import { openOntology } from 'oont';
+import * as kernel from 'oont/kernel';
 const ont = openOntology({ artifactRoot: ${JSON.stringify(ont)} });
 const keys = Object.keys(ont).sort();
+const kernelKeys = Object.keys(kernel).sort();
 const result = await ont.verify('What is the current title of task-1?');
-if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','verify']) || !result.answerable) process.exit(1);`;
+if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','verify'])
+  || JSON.stringify(kernelKeys) !== JSON.stringify([
+    'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','buildSourceNativeProduct','objectBytesSha256',
+    'openObjectOntStore','openProductState','openSourceNativeExactEvidenceSession',
+    'openSourceNativeObjectOntIndex','openSourceNativeProductRuntime','productSources',
+    'stableObjectSha256','stableObjectText',
+  ]) || !result.answerable) process.exit(1);`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
 
