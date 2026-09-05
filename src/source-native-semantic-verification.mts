@@ -130,6 +130,52 @@ function exactOffer(field: SourceNativeField, sourceProjectionItemId: string,
   });
 }
 
+export function sourceNativeSemanticProofContractCoversNavigation({
+  navigation,
+  contract,
+}: {
+  navigation?: SourceNativeSemanticNavigation;
+  contract?: ProofSufficiencyContract;
+} = {}): boolean {
+  if (!navigation || !contract) return false;
+  const supportFamily = navigation.authority.supportPropositionFamily;
+  if (contract.questionKind !== `source-native-${supportFamily}`) return false;
+  const obligationsById = new Map(contract.obligations.map((obligation) =>
+    [obligation.obligationId, obligation]));
+  const minimumCount = (obligation: ProofSufficiencyContract['obligations'][number]): number =>
+    obligation.minimumCount ?? 1;
+  const requiredSupport = contract.obligations.filter((obligation) =>
+    obligation.required
+    && obligation.role === 'support'
+    && obligation.propositionFamily === supportFamily
+    && minimumCount(obligation) >= 1);
+  if (requiredSupport.length === 0) return false;
+  if (!contract.obligations.some((obligation) => {
+    if (!obligation.required || obligation.role !== 'support'
+      || obligation.propositionFamily !== 'exact-support'
+      || minimumCount(obligation) < 1
+      || obligation.sameFamilyAsObligationId === undefined) return false;
+    const linked = obligationsById.get(obligation.sameFamilyAsObligationId);
+    return linked !== undefined
+      && linked.required
+      && linked.role === 'support'
+      && linked.propositionFamily === supportFamily
+      && minimumCount(linked) >= 1;
+  })) return false;
+  return contract.obligations.some((obligation) => {
+    if (!obligation.required || obligation.role !== 'invalidator'
+      || obligation.propositionFamily !== 'counterevidence'
+      || obligation.minimumCount !== 0
+      || obligation.relationshipDirection !== 'outbound'
+      || obligation.relationshipTargetPropositionFamily !== supportFamily
+      || obligation.allowedModalities !== undefined
+      || obligation.allowedPolarities !== undefined) return false;
+    return obligation.relationshipAnyOf.length === 2
+      && obligation.relationshipAnyOf.includes('contradicts')
+      && obligation.relationshipAnyOf.includes('qualifies');
+  });
+}
+
 export function compileSourceNativeSemanticNavigation({
   sourceNativeObjectMap,
   namespace,
@@ -312,6 +358,10 @@ export function evaluateSourceNativeSemanticNavigation({
     sufficiencyRule: 'close support only with the complete query-scoped invalidator census',
     stopWhen: 'proof closes or a required obligation remains unresolved',
   });
+  if (!sourceNativeSemanticProofContractCoversNavigation({
+    navigation: exactNavigation,
+    contract,
+  })) fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_PROFILE');
   const propositions = exactNavigation.authorityProjection.items.map((item) => ({
     revisionId: `source-native:${item.sourceProjectionItemId}`,
     ...item,

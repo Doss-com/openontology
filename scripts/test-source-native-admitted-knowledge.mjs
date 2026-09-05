@@ -56,7 +56,7 @@ function buildInput() {
   };
 }
 
-function buildSemanticInput() {
+function buildSemanticInput({ stateModality = 'observed' } = {}) {
   const input = buildInput();
   input.querySchemas[0].fields.push({
     fieldPath: 'statusException', aliases: ['status exception'],
@@ -79,7 +79,7 @@ function buildSemanticInput() {
       stateHome: 'Claim/PropositionRevision-payload',
       actorKind: 'issue', predicate: 'has-status', state: 'Ready',
       dimension: 'issue-status', canonicalRoles: ['state'],
-      modality: 'observed', polarity: 'positive', businessEntityKeys: ['issue:issue-1'],
+      modality: stateModality, polarity: 'positive', businessEntityKeys: ['issue:issue-1'],
       extractionAuthority: 'deterministic-source-adapter-v1', relations: [],
     },
   };
@@ -499,6 +499,24 @@ function recompileSemanticBundle(original, {
   });
 }
 
+function recompileSemanticBundleWithContract(original, proofSufficiencyContract) {
+  return compileSourceNativeAdmittedKnowledgeBundle({
+    proposedBy: original.proposedBy,
+    proposedAt: original.proposedAt,
+    ontId: original.ontId,
+    namespace: original.namespace,
+    artifactSha256: original.artifactSha256,
+    nativeObjectMapSha256: original.nativeObjectMapSha256,
+    sourceCommitSha256: original.sourceCommitSha256,
+    sourceReplaySha256: original.sourceReplaySha256,
+    queryBinding: original.queryBinding,
+    proofSufficiencyContract,
+    proofAuthorityProjection: original.proofAuthorityProjection,
+    propositions: original.propositions,
+    relations: original.relations,
+  });
+}
+
 test('cold verify reuses an independently admitted proof and reinspects exact Evidence', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-admitted-knowledge-'));
   try {
@@ -569,6 +587,318 @@ test('ordinary semantic verification compiles into cold admitted reuse', async (
     assert.equal(verified.proofDisposition, 'qualified');
     assert.equal(verified.verification.rawSearchExecuted, false);
     assert.equal(verified.verification.exactSourceInspectionCount, 1);
+    assert.deepEqual(verified.context.map((row) => [row.role, row.exactText]), [
+      ['answer', 'Ready'],
+      ['counterevidence', 'Manual approval absent'],
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('durable Admission rejects a native contract that makes the answer optional', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-minimum-proof-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    let context;
+    openSourceNativeProductRuntime({ artifactRoot: root }, (value) => {
+      context = value;
+      return null;
+    });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const weakContract = compileProofSufficiencyContract({
+      questionKind: original.proofSufficiencyContract.questionKind,
+      sourceProjectionAuthority: proofAuthorityForProjection(
+        original.proofAuthorityProjection,
+      ),
+      sufficiencyRule: 'Close exact support and the complete invalidator census.',
+      stopWhen: 'Every required obligation and authoritative relation census is closed.',
+      obligations: [{
+        obligationId: 'optional-answer',
+        propositionFamily: 'state',
+        role: 'support',
+        required: false,
+        relationshipAnyOf: [],
+        description: 'Optional current status state.',
+      }, {
+        obligationId: 'required-exact',
+        propositionFamily: 'exact-support',
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'Exact source bytes for the state.',
+        minimumCount: 1,
+        sameFamilyAsObligationId: 'optional-answer',
+      }, {
+        obligationId: 'required-counterevidence',
+        propositionFamily: 'counterevidence',
+        role: 'invalidator',
+        required: true,
+        relationshipAnyOf: ['contradicts', 'qualifies'],
+        description: 'Complete counterevidence census.',
+        minimumCount: 0,
+        relationshipDirection: 'outbound',
+        relationshipTargetPropositionFamily: 'state',
+      }],
+    });
+    const forged = recompileSemanticBundleWithContract(original, weakContract);
+    const admitted = admitBundle(forged);
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+    plantAdmission(root, context, admitted.record);
+    const cold = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry: admitted.trustRegistry },
+    );
+    assert.equal(cold.status().admittedKnowledge.invalidAdmissionRecordCount, 1);
+    const fallback = await cold.verify(query);
+    assert.equal(fallback.kind, 'OpenOntologySourceNativeVerificationV1');
+    assert.equal(fallback.proofDisposition, 'qualified');
+    assert.deepEqual(fallback.context.map((row) => [row.role, row.exactText]), [
+      ['answer', 'Ready'],
+      ['counterevidence', 'Manual approval absent'],
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('durable Admission rejects a native contract whose exact support links only optional support', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-minimum-exact-link-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const weakContract = compileProofSufficiencyContract({
+      questionKind: original.proofSufficiencyContract.questionKind,
+      sourceProjectionAuthority: proofAuthorityForProjection(
+        original.proofAuthorityProjection,
+      ),
+      sufficiencyRule: 'Close support and the complete invalidator census.',
+      stopWhen: 'Every required obligation and authoritative relation census is closed.',
+      obligations: [{
+        obligationId: 'optional-answer',
+        propositionFamily: 'state',
+        role: 'support',
+        required: false,
+        relationshipAnyOf: [],
+        description: 'Optional current status state.',
+      }, {
+        obligationId: 'required-answer',
+        propositionFamily: 'state',
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'Required current status state.',
+        minimumCount: 1,
+      }, {
+        obligationId: 'required-exact',
+        propositionFamily: 'exact-support',
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'Exact source bytes for the state.',
+        minimumCount: 1,
+        sameFamilyAsObligationId: 'optional-answer',
+      }, {
+        obligationId: 'required-counterevidence',
+        propositionFamily: 'counterevidence',
+        role: 'invalidator',
+        required: true,
+        relationshipAnyOf: ['contradicts', 'qualifies'],
+        description: 'Complete counterevidence census.',
+        minimumCount: 0,
+        relationshipDirection: 'outbound',
+        relationshipTargetPropositionFamily: 'state',
+      }],
+    });
+    const forged = recompileSemanticBundleWithContract(original, weakContract);
+    const admitted = admitBundle(forged);
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('durable Admission rejects a native contract with the wrong semantic question kind', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-minimum-kind-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const wrongQuestionKind = compileProofSufficiencyContract({
+      questionKind: 'source-native-outcome',
+      sourceProjectionAuthority: proofAuthorityForProjection(
+        original.proofAuthorityProjection,
+      ),
+      sufficiencyRule: original.proofSufficiencyContract.sufficiencyRule,
+      stopWhen: original.proofSufficiencyContract.stopWhen,
+      obligations: original.proofSufficiencyContract.obligations,
+    });
+    const forged = recompileSemanticBundleWithContract(original, wrongQuestionKind);
+    const admitted = admitBundle(forged);
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('native minimum proof accepts renamed IDs and a compatible stronger support requirement', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-minimum-positive-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const strongerContract = compileProofSufficiencyContract({
+      questionKind: original.proofSufficiencyContract.questionKind,
+      sourceProjectionAuthority: proofAuthorityForProjection(
+        original.proofAuthorityProjection,
+      ),
+      sufficiencyRule: 'Close the named current state, exact support, and complete invalidator census.',
+      stopWhen: 'Every required obligation and authoritative relation census is closed.',
+      obligations: [{
+        obligationId: 'renamed-current-state',
+        propositionFamily: 'state',
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'The named current status state is present.',
+        expectedSourceProjectionItemIds: ['issue-1-status-ready'],
+        minimumCount: 1,
+      }, {
+        obligationId: 'renamed-exact-bytes',
+        propositionFamily: 'exact-support',
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'Exact source bytes for the named state.',
+        minimumCount: 1,
+        sameFamilyAsObligationId: 'renamed-current-state',
+      }, {
+        obligationId: 'renamed-counter-census',
+        propositionFamily: 'counterevidence',
+        role: 'invalidator',
+        required: true,
+        relationshipAnyOf: ['contradicts', 'qualifies'],
+        description: 'Complete counterevidence census.',
+        minimumCount: 0,
+        relationshipDirection: 'outbound',
+        relationshipTargetPropositionFamily: 'state',
+      }],
+    });
+    const valid = recompileSemanticBundleWithContract(original, strongerContract);
+    const admitted = admitBundle(valid);
+    const write = writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    });
+    assert.equal(write.replayed, false);
+    const cold = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry: admitted.trustRegistry },
+    );
+    const verified = await cold.verify(query);
+    assert.equal(verified.proofDisposition, 'qualified');
+    assert.equal(verified.verification.rawSearchExecuted, false);
+    assert.deepEqual(verified.context.map((row) => [row.role, row.exactText]), [
+      ['answer', 'Ready'],
+      ['counterevidence', 'Manual approval absent'],
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('native minimum proof does not require observed modality for a recorded answer', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-minimum-recorded-'));
+  try {
+    buildSourceNativeProduct({
+      artifactRoot: root,
+      input: buildSemanticInput({ stateModality: 'planned' }),
+    });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const bundle = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const admitted = admitBundle(bundle);
+    writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    });
+    const cold = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry: admitted.trustRegistry },
+    );
+    const verified = await cold.verify(query);
+    assert.equal(verified.proofDisposition, 'qualified');
+    assert.equal(verified.verification.rawSearchExecuted, false);
     assert.deepEqual(verified.context.map((row) => [row.role, row.exactText]), [
       ['answer', 'Ready'],
       ['counterevidence', 'Manual approval absent'],

@@ -50,6 +50,7 @@ import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 import {
   compileSourceNativeSemanticNavigation,
   evaluateSourceNativeSemanticNavigation,
+  sourceNativeSemanticProofContractCoversNavigation,
 } from './source-native-semantic-verification.mjs';
 
 export interface SourceNativeAdmittedKnowledgeQueryBinding {
@@ -884,10 +885,15 @@ function assertSourceBinding(bundle: SourceNativeAdmittedKnowledgeBundle,
     namespace: context.descriptor.namespace,
     rootFieldSha256: answer.fieldSha256,
   });
-  if (expectedSemanticNavigation !== null
-    && stableObjectText(expectedSemanticNavigation.authorityProjection)
-      !== stableObjectText(bundle.proofAuthorityProjection)) {
-    fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING');
+  if (expectedSemanticNavigation !== null) {
+    if (stableObjectText(expectedSemanticNavigation.authorityProjection)
+      !== stableObjectText(bundle.proofAuthorityProjection)
+      || !sourceNativeSemanticProofContractCoversNavigation({
+        navigation: expectedSemanticNavigation,
+        contract: bundle.proofSufficiencyContract,
+      })) {
+      fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING');
+    }
   }
   assertProofContextBudget(bundle, anchor);
   const sourceByPath = new Map(context.objectOnt.sources.map((source) =>
