@@ -6,8 +6,18 @@ import type { SourceHandle } from './source-native-evidence-session.mjs';
 import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
+const MAXIMUM_SEED_NETWORK_CALLS = 1000;
 const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
+const isSeedNetworkCalls = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value)
+  && value >= 0 && value <= MAXIMUM_SEED_NETWORK_CALLS;
+const validateSeedNetworkCalls = (value: unknown, maximum: number): number => {
+  if (!isSeedNetworkCalls(value)) fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
+  const numericValue = value as number;
+  if (numericValue > maximum) fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
+  return numericValue;
+};
 const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
@@ -32,6 +42,7 @@ export interface SeedSearchAdapter extends UnknownRecord {
   sourceSearchRouteMapSha256: string;
   sourceHandleSetSha256: string;
   modelCalls: number;
+  /** Maximum logical network operations per seed search; each receipt reports actual use. */
   networkCalls: number;
   search(input: UnknownRecord): Promise<SeedPacket>;
   searchPolicyArtifactSha256?: string | null;
@@ -61,6 +72,7 @@ interface SeedReceipt extends UnknownRecord {
   receiptSha256: string;
   commitSha256: string;
   replaySha256: string;
+  networkCalls?: unknown;
 }
 interface SeedPacket { response: SeedResponse; receipt: SeedReceipt }
 interface SeedPolicyBinding {
@@ -82,6 +94,7 @@ export interface SeedSearchResult extends UnknownRecord {
   policyPreferredRows: SeedRow[];
   rawSearchExecuted: boolean;
   receiptSha256: string;
+  networkCalls: number;
 }
 interface FieldResolverContextOptions {
   mapInput?: SourceNativeObjectMap;
@@ -191,7 +204,8 @@ function validateSeedSearchAdapter(adapter: SeedSearchAdapter, {
     || adapter.sourceReplaySha256 !== sourceReplaySha256
     || adapter.sourceSearchRouteMapSha256 !== sourceSearchRouteMapSha256
     || adapter.sourceHandleSetSha256 !== sourceHandleSetSha256
-    || typeof adapter.search !== 'function' || adapter.modelCalls !== 0 || adapter.networkCalls !== 0) {
+    || typeof adapter.search !== 'function' || adapter.modelCalls !== 0
+    || !isSeedNetworkCalls(adapter.networkCalls)) {
     fail('SOURCE_NATIVE_SEED_SEARCH_ADAPTER');
   }
   seedSearchPolicyBinding(adapter);
@@ -205,6 +219,7 @@ export function navigationProposalSummary({
   searchPolicyArtifactSha256,
   learnedRouteUsed,
   rawSeedSearchExecuted,
+  seedSearchNetworkCalls,
 }: {
   seedSearchReceiptSha256: string | null;
   seedSourceMessageIds: number[];
@@ -212,6 +227,7 @@ export function navigationProposalSummary({
   searchPolicyArtifactSha256: string | null;
   learnedRouteUsed: boolean;
   rawSeedSearchExecuted: boolean;
+  seedSearchNetworkCalls: number;
 }): UnknownRecord {
   const learnedProposalCount = policyPreferredSeedSourceMessageIds.length;
   const rawProposalCount = seedSourceMessageIds.length - learnedProposalCount;
@@ -229,6 +245,7 @@ export function navigationProposalSummary({
     rawProposalCount,
     learnedRouteUsed,
     rawSearchExecuted: rawSeedSearchExecuted,
+    seedSearchNetworkCalls,
     rawProposalArmPreserved: true,
     navigationOnly: true,
     exactInspectRequired: true,
@@ -309,6 +326,14 @@ export async function runSeedSearch({ adapter, question, limit, maximumSeedSourc
     || seedPacket.receipt.replaySha256 !== sourceReplaySha256) {
     fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
   }
+  let declaredNetworkCalls: unknown = seedPacket.receipt.networkCalls;
+  if (declaredNetworkCalls === undefined) {
+    if (adapter.networkCalls !== 0) fail('SOURCE_NATIVE_SEED_SEARCH_RESULT');
+    declaredNetworkCalls = 0;
+  }
+  const validatedNetworkCalls = validateSeedNetworkCalls(
+    declaredNetworkCalls, adapter.networkCalls,
+  );
   const policyPreferredRows = adapter.searchPolicyArtifactSha256 === undefined ? []
     : seedPacket.response.rows.filter((row: SeedRow) =>
       row.proposalSource === 'learned-exact-route-memory');
@@ -319,6 +344,7 @@ export async function runSeedSearch({ adapter, question, limit, maximumSeedSourc
     rawSearchExecuted: adapter.searchPolicyArtifactSha256 === undefined
       ? true : seedPacket.response.rawSearchExecuted === true,
     receiptSha256,
+    networkCalls: validatedNetworkCalls,
   });
 }
 
