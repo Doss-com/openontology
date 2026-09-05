@@ -458,6 +458,47 @@ function plantAdmission(root, context, record) {
   });
 }
 
+function recompileSemanticBundle(original, {
+  sourceProjectionKind = original.proofAuthorityProjection.sourceProjectionKind,
+  mutateItem = (item) => item,
+} = {}) {
+  const authorityProjection = compileProofAuthorityProjection({
+    sourceProjectionKind,
+    sourceProjectionSha256: original.proofAuthorityProjection.sourceProjectionSha256,
+    items: original.proofAuthorityProjection.items.map(mutateItem),
+    relations: original.proofAuthorityProjection.relations,
+  });
+  const originalContract = original.proofSufficiencyContract;
+  const proofSufficiencyContract = compileProofSufficiencyContract({
+    questionKind: originalContract.questionKind,
+    obligations: originalContract.obligations,
+    sourceProjectionAuthority: proofAuthorityForProjection(authorityProjection),
+    sufficiencyRule: originalContract.sufficiencyRule,
+    stopWhen: originalContract.stopWhen,
+  });
+  const itemsById = new Map(authorityProjection.items.map((item) =>
+    [item.sourceProjectionItemId, item]));
+  return compileSourceNativeAdmittedKnowledgeBundle({
+    proposedBy: original.proposedBy,
+    proposedAt: original.proposedAt,
+    ontId: original.ontId,
+    namespace: original.namespace,
+    artifactSha256: original.artifactSha256,
+    nativeObjectMapSha256: original.nativeObjectMapSha256,
+    sourceCommitSha256: original.sourceCommitSha256,
+    sourceReplaySha256: original.sourceReplaySha256,
+    queryBinding: original.queryBinding,
+    proofSufficiencyContract,
+    proofAuthorityProjection: authorityProjection,
+    propositions: original.propositions.map((proposition) => ({
+      revisionId: proposition.revisionId,
+      ...(itemsById.get(proposition.sourceProjectionItemId) ??
+        assert.fail(`missing semantic item ${proposition.sourceProjectionItemId}`)),
+    })),
+    relations: original.relations,
+  });
+}
+
 test('cold verify reuses an independently admitted proof and reinspects exact Evidence', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-admitted-knowledge-'));
   try {
@@ -532,6 +573,153 @@ test('ordinary semantic verification compiles into cold admitted reuse', async (
       ['answer', 'Ready'],
       ['counterevidence', 'Manual approval absent'],
     ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('durable Admission rejects a signed semantic bundle with a stripped native census', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-admission-rebinding-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    let context;
+    openSourceNativeProductRuntime({ artifactRoot: root }, (value) => {
+      context = value;
+      return null;
+    });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const retainedItems = original.proofAuthorityProjection.items.filter((item) =>
+      item.canonicalRoles.includes('state'));
+    const strippedAuthority = compileProofAuthorityProjection({
+      sourceProjectionKind: original.proofAuthorityProjection.sourceProjectionKind,
+      sourceProjectionSha256: original.proofAuthorityProjection.sourceProjectionSha256,
+      items: retainedItems,
+      relations: [],
+    });
+    const originalContract = original.proofSufficiencyContract;
+    const strippedContract = compileProofSufficiencyContract({
+      questionKind: originalContract.questionKind,
+      obligations: originalContract.obligations,
+      sourceProjectionAuthority: proofAuthorityForProjection(strippedAuthority),
+      sufficiencyRule: originalContract.sufficiencyRule,
+      stopWhen: originalContract.stopWhen,
+    });
+    const strippedBundle = compileSourceNativeAdmittedKnowledgeBundle({
+      proposedBy: original.proposedBy,
+      proposedAt: original.proposedAt,
+      ontId: original.ontId,
+      namespace: original.namespace,
+      artifactSha256: original.artifactSha256,
+      nativeObjectMapSha256: original.nativeObjectMapSha256,
+      sourceCommitSha256: original.sourceCommitSha256,
+      sourceReplaySha256: original.sourceReplaySha256,
+      queryBinding: original.queryBinding,
+      proofSufficiencyContract: strippedContract,
+      proofAuthorityProjection: strippedAuthority,
+      propositions: original.propositions.filter((proposition) =>
+        retainedItems.some((item) =>
+          item.sourceProjectionItemId === proposition.sourceProjectionItemId)),
+      relations: [],
+    });
+    const admitted = admitBundle(strippedBundle);
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+    plantAdmission(root, context, admitted.record);
+    const cold = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry: admitted.trustRegistry },
+    );
+    const status = cold.status();
+    assert.equal(status.admittedKnowledge.invalidAdmissionRecordCount, 1);
+    const fallback = await cold.verify(query);
+    assert.equal(fallback.kind, 'OpenOntologySourceNativeVerificationV1');
+    assert.equal(fallback.proofDisposition, 'qualified');
+    assert.deepEqual(fallback.context.map((row) => [row.role, row.exactText]), [
+      ['answer', 'Ready'],
+      ['counterevidence', 'Manual approval absent'],
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('durable Admission rejects semantic actor and modality drift', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-admission-actor-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query: {
+        question: 'What is the current issue status for issue-1?',
+        typedQuery: {
+          sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+          fieldPath: 'status',
+        },
+      },
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    for (const mutateItem of [
+      (item) => item.canonicalRoles.includes('state') ? {
+        ...item, actorRef: 'linear:issue:northwind:other-issue',
+      } : item,
+      (item) => item.canonicalRoles.includes('state') ? {
+        ...item, modality: 'inferred',
+      } : item,
+    ]) {
+      const forged = recompileSemanticBundle(original, { mutateItem });
+      const admitted = admitBundle(forged);
+      assert.throws(() => writeSourceNativeAdmittedKnowledge({
+        options: { artifactRoot: root },
+        record: admitted.record,
+        trustRegistry: admitted.trustRegistry,
+      }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('durable Admission rejects a renamed semantic projection', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-admission-kind-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    const original = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query: {
+        question: 'What is the current issue status for issue-1?',
+        typedQuery: {
+          sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+          fieldPath: 'status',
+        },
+      },
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    const forged = recompileSemanticBundle(original, {
+      sourceProjectionKind: 'OpenOntologyRenamedSemanticProjectionV1',
+    });
+    const admitted = admitBundle(forged);
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

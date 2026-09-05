@@ -879,6 +879,16 @@ function assertSourceBinding(bundle: SourceNativeAdmittedKnowledgeBundle,
     fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SCOPE');
   }
   const { answer, anchor, scopedObjectCount } = resolveBoundRevisions(bundle, context);
+  const expectedSemanticNavigation = compileSourceNativeSemanticNavigation({
+    sourceNativeObjectMap: context.objectOnt.map,
+    namespace: context.descriptor.namespace,
+    rootFieldSha256: answer.fieldSha256,
+  });
+  if (expectedSemanticNavigation !== null
+    && stableObjectText(expectedSemanticNavigation.authorityProjection)
+      !== stableObjectText(bundle.proofAuthorityProjection)) {
+    fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING');
+  }
   assertProofContextBudget(bundle, anchor);
   const sourceByPath = new Map(context.objectOnt.sources.map((source) =>
     [source.relativePath, source]));
