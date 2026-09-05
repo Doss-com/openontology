@@ -19,8 +19,8 @@
   traversal, exact reads, dispositions, and an authenticated outcome.
 - **SearchPolicyArtifact** is a versioned Adapter that ranks SearchRoutes. It is
   navigation, not Evidence authority.
-- **Reference** is an opaque, request-local navigation handle offered by
-  `search`.
+- **Reference** is an opaque navigation handle offered by `search` and readable
+  by the same open client. It is not a portable Evidence identifier.
 - **Exact Evidence** is authorized Corpus bytes returned by `read` and eligible
   to support a material claim.
 - **ProofClosure** is the complete exact Evidence needed to satisfy the current

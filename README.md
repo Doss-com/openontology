@@ -9,8 +9,10 @@ or a typed refusal.
 retrieval proposes -> Ont cross-walks and verifies -> exact Evidence supports
 ```
 
-Status: `0.3.0-alpha.3` is a developer alpha. It is suitable for local
-experimentation with explicit Adapter input. It is not a managed hosted service.
+[ACTIVE-WORK] This is an unpublished development checkout targeting the next
+release. Its package metadata still reads `0.3.0-alpha.3`; use the source revision
+and tarball checksum to identify a development build. It is suitable for local
+experimentation with explicit Adapter input, not a managed hosted service.
 
 Technical references: [Architecture](docs/ARCHITECTURE.md),
 [Storage](docs/STORAGE.md), and [Glossary](GLOSSARY.md).
@@ -19,21 +21,32 @@ Technical references: [Architecture](docs/ARCHITECTURE.md),
 
 OpenOntology requires Node.js 24 or newer.
 
+Build and check this development checkout before packing it:
+
 ```bash
-npm install \
-  https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.3/oont-0.3.0-alpha.3.tgz
+npm ci
+npm run release:check
+npm pack
+```
+
+Then install the resulting tarball from your application's directory:
+
+```bash
+npm install /path/to/openontology/oont-0.3.0-alpha.3.tgz
 ```
 
 The package and command are both named `oont`.
-GitHub prerelease packages are built with an attached provenance attestation.
+The GitHub release workflow attaches a provenance attestation to its packages.
 `SOURCE-MANIFEST.json` binds the complete public file inventory. The release tag
 and GitHub attestation bind that source state to the package tarball.
 
-To verify a downloaded prerelease before installing it:
+For a downloaded, published prerelease, verify its checksum and attestation
+before installation. A locally packed development build has no GitHub release
+attestation:
 
 ```bash
 sha256sum -c SHA256SUMS
-gh attestation verify oont-0.3.0-alpha.3.tgz \
+gh attestation verify ./downloaded-package.tgz \
   --repo Doss-com/openontology
 ```
 
@@ -109,8 +122,8 @@ failure disables the certification and preserves the ordinary retrieval path.
 `verify` answers a question against one Ont. `check` validates the Ont itself.
 
 `search` and `read` are the advanced path. Search returns navigation References,
-not Evidence. Read accepts a request-local Reference and returns exact authorized
-bytes with a receipt.
+not Evidence. Read accepts a Reference offered by the same open client and
+returns exact authorized bytes with a receipt.
 
 ### Managed extension Interface
 
@@ -119,7 +132,7 @@ that attach a governed lifecycle Adapter. Ordinary applications should use the
 root `oont` client. TypeScript extension authors compile against the supported
 Node 24 type surface.
 
-The published alpha.3 kernel exposes product opening, exact source inspection,
+This checkout's kernel exposes product opening, exact source inspection,
 canonical object replay, hashing, and deterministic proof-sufficiency
 evaluation.
 
@@ -151,7 +164,10 @@ allowed counts. It never returns a partial proof.
 admitted-knowledge path. A proposer and an independent reviewer sign one
 content-bound proof bundle using role-scoped Ed25519 keys. A cold reader accepts
 it only for the identical Ont, source cut, resolved query and answer revision,
-proof contract, and authority census. Every Evidence reference is checked
+proof contract, and authority census. For native semantic queries, the writer
+and cold reader reconstruct that census from the selected source field; valid
+signatures cannot authorize removing counterevidence or changing its semantics.
+Every Evidence reference is checked
 against Corpus bytes when admitted, every included proposition must participate
 in a required proof obligation, and every returned role is derived from that
 obligation. Exact bytes are reopened before reuse. Returned bindings contain
@@ -308,9 +324,9 @@ Before opening a pull request:
 npm run release:check
 ```
 
-Read [CONTRIBUTING.md](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.3/CONTRIBUTING.md) for repository structure, tests, and
+Read [CONTRIBUTING.md](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) for repository structure, tests, and
 review expectations. Security issues belong in a private GitHub security
-advisory, not a public issue. See [SECURITY.md](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.3/SECURITY.md).
+advisory, not a public issue. See [SECURITY.md](https://github.com/Doss-com/openontology/blob/main/SECURITY.md).
 
 ## Support
 

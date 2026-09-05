@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Bind native semantic Admission and cold reuse to the complete authority
+  projection reconstructed from the selected source field. Reject signed
+  reduced censuses and semantic drift without suppressing ordinary verification.
+- Require counterevidence relation targets to satisfy all required support
+  modality and polarity constraints for their family, independent of obligation
+  order. Preserve the complete authoritative item and relation censuses.
+- Add stable source resource binding and validated ref-bound replay checkpoints
+  to the kernel. Ordinary product opening still performs full replay.
+
 ## 0.3.0-alpha.3
 
 ### Changed

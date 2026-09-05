@@ -1,7 +1,7 @@
 # Architecture
 
-OpenOntology separates navigation from proof. Alpha.3 implements the compact
-path below.
+OpenOntology separates navigation from proof. This unpublished development
+checkout implements the compact path below.
 
 ```text
 Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
@@ -58,6 +58,12 @@ Canonical counterevidence must relate outbound through `qualifies` or
 `contradicts`. A closed proof reports `qualified` or `contradicted` accordingly;
 closure never converts counterevidence into positive support.
 
+Relation targets must satisfy every declared modality and polarity constraint
+from required support obligations for their target family. Obligation order
+does not change that requirement, and optional obligations cannot weaken it.
+Filtering candidate matches does not shrink the authoritative invalidator item
+census or the whole-projection relation census.
+
 The evaluator proves structural closure over content-bound Evidence references.
 It does not turn those references into Evidence. A product reader must still
 reopen the pinned source projection and inspect the exact Corpus bytes before a
@@ -111,6 +117,13 @@ The writer deterministically resolves the exact current or successor answer
 revision, requires every primary support reference to equal that revision, and
 checks every bundle Evidence reference against Corpus bytes. It rejects any
 proposition that does not participate in a required proof obligation. The cold
+reader and writer also reconstruct native semantic authority from the selected
+field and immutable object map. The complete reconstructed projection must
+equal the bundle's projection, including counterevidence, relations, actor,
+modality, and polarity. A signed, internally consistent reduced census is not
+eligible for reuse, even if it calls itself a different projection kind. This
+check applies when the selected field has native semantic authority; it does
+not invent a semantic census for nonsemantic Adapter input. The cold
 reader derives each returned role from the evaluated obligation instead of a
 proposition label. Returned proof bindings expose fixed content hashes, not
 proposer-authored semantic strings or the full proof-evaluation payload. A

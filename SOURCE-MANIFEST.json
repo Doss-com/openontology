@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 3689,
-      "sha256": "baa7168d32f8e787dd2b46761620694713396dfab1e2f418503ae116db72d5b9"
+      "bytes": 4311,
+      "sha256": "0fe79ef22b7f6d586d206b344386c2d298b8f8c8511616e94cdb4cadee1b06dd"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -97,8 +97,8 @@
     },
     {
       "path": "GLOSSARY.md",
-      "bytes": 7411,
-      "sha256": "5f9bf1976f32bd5716eb3e8736ee60b68c02599823ae7df55612d060cf2d48a4"
+      "bytes": 7475,
+      "sha256": "48f4d81b5b87e54d8169efb12cd249bfeca3a40f9d84d786548ebffbb22107c4"
     },
     {
       "path": "LICENSE",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13215,
-      "sha256": "5bdf04b408a4caf1fcfcf519b999b002444f964830c8a9676a83e81bf311d59d"
+      "bytes": 13809,
+      "sha256": "d46ed101bf1fe20ed10a9233f3d53b91ada92f4312404ddf2b832b0f75b5964f"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 13026,
-      "sha256": "1113f1823c5c826a745fd61d18c6b1e7f26851d8d79fb373b2272e5edcea6ec7"
+      "bytes": 13947,
+      "sha256": "a32dcb939de9ae74f57264c10b0f452d2d4d24b0be8b8e5cf027f75675eee88b"
     },
     {
       "path": "docs/STORAGE.md",
@@ -217,13 +217,13 @@
     },
     {
       "path": "scripts/test-proof-sufficiency.mjs",
-      "bytes": 24442,
-      "sha256": "27b5d019a530656ed6c90c0d923249cfd80d5210f8bb2a97c6844df29a3ff658"
+      "bytes": 29530,
+      "sha256": "451839940188b5a74de1141252abb3161e2cc33a4d6c68460d59c7a6152f226c"
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 80213,
-      "sha256": "71720aaa2eff62ebc88287ceaa1a83012080e8e721c253013a87e8db58282810"
+      "bytes": 88181,
+      "sha256": "8c99eecebfe09ffa47331222f967fdd9d0cb592e6668f09e04f95a3efe9b77cb"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -332,8 +332,8 @@
     },
     {
       "path": "src/proof-sufficiency-evaluator.mts",
-      "bytes": 20644,
-      "sha256": "93e267030df22b38f8637df93bc37ad3d00c982fba1054e0448eef2705880941"
+      "bytes": 21369,
+      "sha256": "9a4d103aae3c110fc8d119659de9d14c93b5026a035f477279e36d7c6ac85395"
     },
     {
       "path": "src/s3-object-storage-backend.mts",
@@ -342,8 +342,8 @@
     },
     {
       "path": "src/source-native-admitted-knowledge.mts",
-      "bytes": 68156,
-      "sha256": "c7064eb7788d17900def53300ddd8eb01749d84eb3341b4eddd01d5532e09ff1"
+      "bytes": 68617,
+      "sha256": "a47b76e3bf953bf717afa5be5664480da229a889d551fb64342899c8c741133d"
     },
     {
       "path": "src/source-native-artifact.mts",
@@ -426,5 +426,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:825b20f3c9d0845f9a0ac151bc28606734acccef3a4d330d815c945e837c4cbc"
+  "manifestSha256": "sha256:197b7ad3335ea08b8af2e6f93afb07c8e7ac237cd4cc528d82ab3f807599b72e"
 }
