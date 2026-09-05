@@ -162,8 +162,8 @@
     },
     {
       "path": "scripts/check-package-import-closure.mjs",
-      "bytes": 4006,
-      "sha256": "34ebb62c1c56453a480ed3d41f7bc5c7d9e03e00c1b0e42c3f53624fa7c99300"
+      "bytes": 4062,
+      "sha256": "3e8c774885fd0546fa2cda61ae1aca30a26d1fe104900e5fde2a07c59400002e"
     },
     {
       "path": "scripts/check-public-release.mjs",
@@ -441,5 +441,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:a750cf617dccb52c8e7620c693ee996d00901e2d89ef9a5d857205c1a10b94c5"
+  "manifestSha256": "sha256:d42c103f3e2c996e7c8d0f4effd7a670dd75e3e4b0ef9533864cb6f8b404685e"
 }

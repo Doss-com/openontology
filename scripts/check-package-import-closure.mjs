@@ -64,6 +64,7 @@ try {
     'dist/scripts/oont-resolver.mjs',
     'dist/src/kernel.mjs',
     'dist/src/openontology.mjs',
+    'examples/quickstart/source-lifecycle.mjs',
   ];
   for (const path of runtimeRoots) {
     if (!paths.has(path)) missing.push({
@@ -90,7 +91,7 @@ try {
     fail(missing.map((item) =>
       `  ${item.importer}: ${item.kind} ${item.specifier} -> ${item.target}`).join('\n'));
   } else {
-    process.stdout.write(`package import closure passed: ${reachable.size} reachable emitted modules across ${packed.entryCount} files\n`);
+    process.stdout.write(`package import closure passed: ${reachable.size} reachable runtime/example modules across ${packed.entryCount} files\n`);
   }
 } catch (error) {
   fail(error?.message ?? String(error));
