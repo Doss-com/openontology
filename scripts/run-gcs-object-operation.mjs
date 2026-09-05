@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { openGcsObjectBackend } from '../src/gcs-object-storage-backend.mjs';
+import { openGcsObjectBackend } from '../dist/src/gcs-object-storage-backend.mjs';
 
 let operation;
 try {

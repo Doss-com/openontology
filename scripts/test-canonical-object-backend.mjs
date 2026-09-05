@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   normalizeCanonicalObjectBackendUri,
   openCanonicalObjectBackend,
-} from '../src/canonical-object-backend.mjs';
+} from '../dist/src/canonical-object-backend.mjs';
 
 test('canonical backend syntax is normalized once for every consumer', () => {
   assert.equal(normalizeCanonicalObjectBackendUri('gs://customer-ontology/'), 'gs://customer-ontology');

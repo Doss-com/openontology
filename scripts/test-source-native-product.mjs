@@ -6,8 +6,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 
-import { openOntology } from '../src/openontology.mjs';
-import { buildSourceNativeProduct, openSourceNativeProduct } from '../src/source-native-product.mjs';
+import { openOntology } from '../dist/src/openontology.mjs';
+import { buildSourceNativeProduct, openSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+
+const resolverCli = join(import.meta.dirname, '..', 'dist', 'scripts', 'oont-resolver.mjs');
+const publicCli = join(import.meta.dirname, '..', 'dist', 'bin', 'oont.mjs');
 
 function buildInput() {
   const revisions = [
@@ -266,7 +269,7 @@ test('accepts a canonical backend URI through the Resolver CLI', () => {
     writeFileSync(inputPath, JSON.stringify(buildInput()));
     const objectBackendUri = pathToFileURL(backendRoot).href;
     const run = spawnSync(process.execPath, [
-      join(import.meta.dirname, 'oont-resolver.mjs'),
+      resolverCli,
       'build', inputPath, '--out', artifactRoot, '--backend', objectBackendUri,
     ], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stderr);
@@ -274,7 +277,7 @@ test('accepts a canonical backend URI through the Resolver CLI', () => {
     assert.equal(result.kind, 'OpenOntologySourceNativeProductBuildResultV1');
     assert.equal(openSourceNativeProduct({ artifactRoot }).status().objectBackend, objectBackendUri);
     const verified = spawnSync(process.execPath, [
-      join(import.meta.dirname, 'oont-resolver.mjs'),
+      resolverCli,
       'verify', artifactRoot, 'What is the current task title for task-1?',
     ], { encoding: 'utf8' });
     assert.equal(verified.status, 0, verified.stderr);
@@ -283,13 +286,13 @@ test('accepts a canonical backend URI through the Resolver CLI', () => {
     assert.equal(context.context[0].exactText, 'Gamma');
     assert.equal(Object.hasOwn(context, 'learning'), false);
     const publicVerification = spawnSync(process.execPath, [
-      join(import.meta.dirname, '..', 'bin', 'oont.mjs'),
+      publicCli,
       'verify', artifactRoot, 'What is the current task title for task-1?',
     ], { encoding: 'utf8' });
     assert.equal(publicVerification.status, 0, publicVerification.stderr);
     assert.equal(JSON.parse(publicVerification.stdout).context[0].exactText, 'Gamma');
     const disabled = spawnSync(process.execPath, [
-      join(import.meta.dirname, 'oont-resolver.mjs'),
+      resolverCli,
       'status', artifactRoot,
     ], { encoding: 'utf8' });
     assert.equal(disabled.status, 0, disabled.stderr);
@@ -471,7 +474,7 @@ test('serves only verify over the default MCP surface', async () => {
   try {
     buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
     const observed = await new Promise((done, reject) => {
-      const child = spawn(process.execPath, [join(import.meta.dirname, '..', 'bin', 'oont.mjs'),
+      const child = spawn(process.execPath, [publicCli,
         'serve', root, '--mcp'], { stdio: ['pipe', 'pipe', 'pipe'] });
       let pending = '';
       let tools = [];

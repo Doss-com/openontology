@@ -1,15 +1,22 @@
 /** Bind product questions to declared source-native fields and identities. */
 import { stableObjectSha256 } from './canonical-content.mjs';
 import { compileSourceNativeFieldQuery } from './source-native-query-planner.mjs';
+import type {
+  QuerySchema,
+  SourceNativeFieldQuery,
+  SourceNativeQueryPlanState,
+} from './source-native-query-planner.mjs';
+import type { SourceNativeField, SourceNativeObjectMap } from './source-native-object-map.mjs';
+import type { FieldQueryPlanner, ValidatedFieldQueryPlan } from './source-native-resolver-support.mjs';
 
 const EXTERNAL_ID_COLLISION = Symbol('external-id-collision');
 const EXTERNAL_ID_MULTIPLE = Symbol('external-id-multiple');
-const fail = (code) => {
-  const error = new TypeError(code);
+const fail = (code: string): never => {
+  const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
 };
-const freeze = (value) => {
+const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
@@ -17,10 +24,11 @@ const freeze = (value) => {
   return value;
 };
 
-function normalizedQuestion(value) {
+function normalizedQuestion(value: unknown): string {
   return String(value).normalize('NFKC').toLocaleLowerCase('en-US');
 }
-function mentionedExternalId(question, map, namespace, query) {
+function mentionedExternalId(question: string, map: SourceNativeObjectMap, namespace: string,
+  query: SourceNativeFieldQuery): { value: string | symbol | null; candidates: string[]; unresolvedExternalIds: string[] } {
   const text = normalizedQuestion(question);
   let unsafeMention = false;
   const knownExternalIds = [...new Set(map.nativeObjects.filter((object) =>
@@ -29,19 +37,19 @@ function mentionedExternalId(question, map, namespace, query) {
     && object.objectIdentity.objectType === query.objectType)
     .map((object) => object.objectIdentity.externalId))];
   const candidates = knownExternalIds.filter((externalId) => {
-      const needle = normalizedQuestion(externalId);
-      let index = text.indexOf(needle);
-      while (index >= 0) {
-        const before = index === 0 ? '' : text[index - 1];
-        const after = index + needle.length === text.length ? '' : text[index + needle.length];
-        if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
-        unsafeMention = true;
-        index = text.indexOf(needle, index + 1);
-      }
-      return false;
-    });
+    const needle = normalizedQuestion(externalId);
+    let index = text.indexOf(needle);
+    while (index >= 0) {
+      const before = index === 0 ? '' : text[index - 1];
+      const after = index + needle.length === text.length ? '' : text[index + needle.length];
+      if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
+      unsafeMention = true;
+      index = text.indexOf(needle, index + 1);
+    }
+    return false;
+  });
   const identifierTokens = text.match(/[\p{L}\p{N}]+(?:[-_:./][\p{L}\p{N}]+)+/gu) ?? [];
-  const identifierShape = (value) => value.replace(/\p{N}+/gu, '#');
+  const identifierShape = (value: string): string => value.replace(/\p{N}+/gu, '#');
   const knownByText = new Set(knownExternalIds.map(normalizedQuestion));
   const knownShapes = new Set([...knownByText].map(identifierShape));
   const unresolvedExternalIds = [...new Set(identifierTokens.filter((token) =>
@@ -58,12 +66,18 @@ function mentionedExternalId(question, map, namespace, query) {
     unresolvedExternalIds,
   };
 }
-function normalizedAnchorValue(value) {
+function normalizedAnchorValue(value: unknown): string {
   return String(value).normalize('NFKC').toLocaleLowerCase('en-US')
     .replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/\s+/gu, ' ');
 }
 
-function bindHistoricalAnchor({ question, explicitAnchorValue, map, namespace, query }) {
+function bindHistoricalAnchor({ question, explicitAnchorValue, map, namespace, query }: {
+  question: string;
+  explicitAnchorValue: string | null;
+  map: SourceNativeObjectMap;
+  namespace: string;
+  query: SourceNativeFieldQuery;
+}): { state: 'resolved-native-field-query' | 'unavailable-native-object-identifier-not-declared' | 'unavailable-native-field-anchor-not-matched' | 'unavailable-native-field-anchor-ambiguous'; query: SourceNativeFieldQuery | null } {
   if (query.externalId === undefined) {
     return { state: 'unavailable-native-object-identifier-not-declared', query: null };
   }
@@ -73,7 +87,7 @@ function bindHistoricalAnchor({ question, explicitAnchorValue, map, namespace, q
     && object.objectIdentity.objectType === query.objectType
     && object.objectIdentity.externalId === query.externalId)
     .map((object) => object.fields.find((field) => field.fieldPath === query.fieldPath))
-    .filter(Boolean);
+    .filter((field): field is SourceNativeField => field !== undefined);
   const requested = explicitAnchorValue === null ? null : normalizedAnchorValue(explicitAnchorValue);
   const questionText = ` ${normalizedAnchorValue(question)} `;
   const matches = fields.filter((field) => {
@@ -91,21 +105,33 @@ function bindHistoricalAnchor({ question, explicitAnchorValue, map, namespace, q
       query: null,
     };
   }
+  const anchorField = uniqueMatches[0];
+  if (!anchorField) return { state: 'unavailable-native-field-anchor-not-matched', query: null };
   return {
     state: 'resolved-native-field-query',
-    query: freeze({ ...query, anchorFieldSha256: uniqueMatches[0].fieldSha256 }),
+    query: freeze({ ...query, anchorFieldSha256: anchorField.fieldSha256 }),
   };
 }
 
 export function compileProductQueryPlan({ question, namespace, querySchemas, map, intent,
-  anchorValue = null, typedQuery = null }) {
-  let state;
-  let query;
-  let matchedObjectAliases;
-  let matchedFieldAliases;
-  let plannerSchemaSha256;
-  let mentionedExternalIds = [];
-  let unresolvedExternalIds = [];
+  anchorValue = null, typedQuery = null }: {
+    question: string;
+    namespace: string;
+    querySchemas: QuerySchema[];
+    map: SourceNativeObjectMap;
+    intent: 'current' | 'next';
+    anchorValue?: string | null;
+    typedQuery?: SourceNativeFieldQuery | null;
+  }) {
+  let state: SourceNativeQueryPlanState | 'unavailable-native-object-identifier-not-declared'
+    | 'unavailable-native-multiple-object-identifiers' | 'unavailable-native-field-anchor-not-matched'
+    | 'unavailable-native-field-anchor-ambiguous' | 'unavailable-native-field-not-declared';
+  let query: SourceNativeFieldQuery | null;
+  let matchedObjectAliases: string[];
+  let matchedFieldAliases: string[];
+  let plannerSchemaSha256: string;
+  let mentionedExternalIds: string[] = [];
+  let unresolvedExternalIds: string[] = [];
   if (typedQuery === null) {
     const compiled = compileSourceNativeFieldQuery({ question, schemas: querySchemas });
     state = compiled.state;
@@ -147,7 +173,8 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
       state = 'unavailable-native-multiple-object-identifiers';
       query = null;
     } else {
-      query = freeze({ ...query, namespace, ...(externalId === null ? {} : { externalId }) });
+      query = freeze({ ...query, namespace,
+        ...(typeof externalId === 'string' ? { externalId } : {}) });
     }
   }
   if (query !== null && intent === 'next') {
@@ -187,7 +214,10 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
   return freeze({ ...core, planSha256: stableObjectSha256(core) });
 }
 
-export function queryPlanner({ namespace, plan }) {
+export function queryPlanner({ namespace, plan }: {
+  namespace: string;
+  plan: ValidatedFieldQueryPlan;
+}): FieldQueryPlanner {
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
@@ -196,7 +226,7 @@ export function queryPlanner({ namespace, plan }) {
     plannerSha256,
     modelCalls: 0,
     networkCalls: 0,
-    plan: ({ question }) => {
+    plan: ({ question }: { question: string }) => {
       if (stableObjectSha256({ question }) !== plan.questionSha256) fail('SOURCE_NATIVE_PRODUCT_QUERY');
       return plan;
     },

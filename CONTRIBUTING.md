@@ -47,6 +47,13 @@ results do not belong in this repository.
 
 ## Tests
 
+Type-check and build the canonical TypeScript source:
+
+```bash
+npm run typecheck
+npm run build
+```
+
 Run the focused product suite:
 
 ```bash
@@ -58,6 +65,13 @@ Run the installed-package and release gates:
 ```bash
 npm run release:check
 ```
+
+The package pins TypeScript 5.9.3 and `@types/node` 24.10.2 exactly. This
+conservative pin was qualified against the NodeNext `.mts` output contract and
+the Node 24 and Node 26 CI matrix. It keeps the release floor explicit and
+avoids taking a newer compiler or Node 26 type surface without qualification;
+the tradeoff is deferring newer compiler features until that compatibility work
+is complete.
 
 GCS qualification is optional and credentialed:
 

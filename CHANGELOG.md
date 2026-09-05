@@ -7,7 +7,8 @@ candidates and are not supported.
 
 ### Added
 
-- One public JavaScript client with `verify`, `search`, `read`, and `status`.
+- One public TypeScript and JavaScript client with `verify`, `search`, `read`,
+  and `status`.
 - CLI operations `verify`, `search`, `check`, `status`, and `serve`.
 - Default one-tool MCP profile exposing `verify` and an advanced profile
   exposing `search` and `read`.
@@ -22,6 +23,10 @@ candidates and are not supported.
 
 ### Changed
 
+- Made strict TypeScript the canonical source while preserving dependency-free
+  ESM output and the existing runtime behavior.
+- Added declarations, declaration maps, source maps, and a clean-consumer type
+  compilation gate to the release package.
 - Split artifact persistence, query planning, Exact Evidence inspection, and
   the read-only query runtime into focused modules.
 - Public query calls reject control-plane options and expose only state that the

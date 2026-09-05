@@ -1,29 +1,58 @@
 /** Stable entry envelope used by object-native Ont segments. */
 import { createHash } from 'node:crypto';
 
+export interface AssertionEntry {
+  v: string;
+  id: string;
+  kind: string;
+  about?: string;
+  body?: Record<string, unknown>;
+  provenance?: string;
+  evidence?: readonly unknown[];
+  producer: string;
+  occurredAt?: string;
+  recordedAt?: string | null;
+  supersedes?: string;
+  [key: string]: unknown;
+}
+
+export interface AssertionInput {
+  kind: string;
+  about?: string;
+  body?: Record<string, unknown>;
+  provenance?: string;
+  evidence?: readonly unknown[];
+  producer?: string;
+  occurredAt?: string;
+  validFrom?: string;
+  recordedAt?: string | null;
+  supersedes?: string;
+}
+
 export const ASSERTION_V = 'oont.assertion/v1';
 export const STORE_V = 'oont.ont/v1';
 
-export function canonicalJson(value) {
+export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null);
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const keys = Object.keys(value).filter((key) => value[key] !== undefined).sort();
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).filter((key) => record[key] !== undefined).sort();
   return `{${keys.map((key) =>
-    `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
 }
 
-export function sha256Hex(value) {
+export function sha256Hex(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-const seedValue = (entry, names) => {
+const seedValue = (entry: Record<string, unknown>, names: readonly string[]): unknown => {
   for (const name of names) {
     if (entry[name] !== undefined) return entry[name];
   }
   return null;
 };
 
-export function mintEntryId(entry) {
+export function mintEntryId(entry: Record<string, unknown>): string {
   const seed = canonicalJson({
     kind: entry.kind,
     about: entry.about,
@@ -51,9 +80,9 @@ export function entry({
   validFrom,
   recordedAt,
   supersedes,
-}) {
+}: AssertionInput): AssertionEntry {
   const when = occurredAt ?? validFrom;
-  if (CONCLUSION_KINDS.has(kind) && !(evidence?.length > 0)) {
+  if (CONCLUSION_KINDS.has(kind) && !((evidence?.length ?? 0) > 0)) {
     throw new Error(`a '${kind}' conclusion cannot be written without evidence `
       + `[G29, ED19]. Two evidence-free conclusions about one element are indistinguishable by `
       + `construction, so this would also collide with any other. About: ${about ?? 'ont'}`);
@@ -76,35 +105,36 @@ export function entry({
   };
 }
 
-export function encodeEntry(entry) {
+export function encodeEntry(entry: AssertionEntry): string {
   return JSON.stringify(entry);
 }
 
-export function entryProblem(entry) {
+export function entryProblem(entry: unknown): string | null {
   if (!entry || typeof entry !== 'object') return 'not a JSON object';
-  if (entry.v !== ASSERTION_V) {
-    return `unknown envelope version '${entry.v}' (this oont reads ${ASSERTION_V})`;
+  const record = entry as Record<string, unknown>;
+  if (record.v !== ASSERTION_V) {
+    return `unknown envelope version '${record.v}' (this oont reads ${ASSERTION_V})`;
   }
-  if (typeof entry.id !== 'string' || !entry.id.startsWith('as_')) return 'missing id';
-  if (typeof entry.kind !== 'string') return 'missing kind';
-  if (typeof entry.producer !== 'string') return 'missing producer';
-  if (entry.recordedAt != null && typeof entry.recordedAt !== 'string') {
+  if (typeof record.id !== 'string' || !record.id.startsWith('as_')) return 'missing id';
+  if (typeof record.kind !== 'string') return 'missing kind';
+  if (typeof record.producer !== 'string') return 'missing producer';
+  if (record.recordedAt != null && typeof record.recordedAt !== 'string') {
     return 'recordedAt must be an ISO string';
   }
-  const expected = mintEntryId(entry);
-  if (expected !== entry.id) {
-    return `id ${entry.id} does not match its content (expected ${expected}); `
+  const expected = mintEntryId(record);
+  if (expected !== record.id) {
+    return `id ${record.id} does not match its content (expected ${expected}); `
       + 'the line was edited without re-hashing';
   }
   return null;
 }
 
-export function compareEntries(left, right) {
+export function compareEntries(left: AssertionEntry, right: AssertionEntry): number {
   const leftRecordedAt = left.recordedAt ?? '';
   const rightRecordedAt = right.recordedAt ?? '';
   if (leftRecordedAt !== rightRecordedAt) return leftRecordedAt < rightRecordedAt ? -1 : 1;
-  const leftOrdinal = left.body?.ordinal ?? 0;
-  const rightOrdinal = right.body?.ordinal ?? 0;
+  const leftOrdinal = typeof left.body?.ordinal === 'number' ? left.body.ordinal : 0;
+  const rightOrdinal = typeof right.body?.ordinal === 'number' ? right.body.ordinal : 0;
   if (leftOrdinal !== rightOrdinal) return leftOrdinal - rightOrdinal;
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }

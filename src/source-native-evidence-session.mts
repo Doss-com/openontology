@@ -1,11 +1,74 @@
 /** Capability-scoped Exact Evidence search, inspection, and source availability. */
 import { createBm25Index } from './bm25-index.mjs';
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
+import type { SourceNativeObjectMap, UnknownRecord } from './source-native-object-map.mjs';
+
+export interface SourceHandle extends UnknownRecord {
+  sourceMessageId: number;
+  relativePath: string;
+}
+export interface ExactSessionSource extends SourceHandle {
+  ordinal: number;
+  occurredAt: string;
+  content: string;
+  contentSha256: string;
+}
+interface ExactSessionOptions {
+  namespace?: unknown;
+  nativeObjectMapSha256?: unknown;
+  objectOnt?: BoundObjectOnt | null;
+  sources?: ExactSessionSource[];
+  tokenize?: (value: string) => string[];
+  retrievalAdapter?: unknown;
+  retrievalAdapterSha256?: unknown;
+  maximumSearchResults?: number;
+  unavailableSourceMessageIds?: number[];
+  taskId?: string;
+  sessionId?: string;
+}
+interface AvailabilityOptions {
+  sourceCommitSha256: string;
+  sourceReplaySha256: string;
+  sourceSearchRouteMapSha256: string;
+  sourceHandleSetSha256: string;
+  sourceCount: number;
+}
+export interface ExactSourceAvailabilitySnapshot extends UnknownRecord {
+  kind: 'OpenOntologyExactSourceAvailabilitySnapshotV1';
+  snapshotSha256: string;
+  sourceCommitSha256: string;
+  sourceReplaySha256: string;
+  sourceSearchRouteMapSha256: string;
+  sourceHandleSetSha256: string;
+  sourceCount: number;
+  availableSourceCount: number;
+  unavailableSourceMessageIds: number[];
+}
+interface BoundObjectOnt extends UnknownRecord {
+  kind: 'OpenOntologySourceNativeObjectOntModuleV1';
+  map: { nativeObjectMapSha256: string };
+  commitSha256: string;
+  replaySha256: string;
+  catalog: { sourceCount: number };
+  sources: Array<{ relativePath: string; sourceSha256: string; content: string }>;
+}
+interface SeedRequest extends UnknownRecord {
+  query: string;
+  limit: number;
+}
+interface SearchRequest extends SeedRequest {
+  gaps: UnknownRecord[];
+  filters: UnknownRecord;
+}
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
-const compare = (left, right) => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const fail = (code) => { const error = new TypeError(code); error.code = code; throw error; };
-const freeze = (value) => {
+const isSourceMessageIds = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((id) => Number.isSafeInteger(id) && id >= 0);
+const exactSourceMessageIds = (value: unknown): number[] =>
+  isSourceMessageIds(value) ? value : fail('SOURCE_NATIVE_EXACT_SOURCE_AVAILABILITY');
+const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
+const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
@@ -13,30 +76,44 @@ const freeze = (value) => {
   return value;
 };
 
-export function validateSourceNativeExactSourceAvailabilitySnapshot(value, {
+export function validateSourceNativeExactSourceAvailabilitySnapshot(value: UnknownRecord, {
   sourceCommitSha256,
   sourceReplaySha256,
   sourceSearchRouteMapSha256,
   sourceHandleSetSha256,
   sourceCount,
-}) {
+}: AvailabilityOptions): ExactSourceAvailabilitySnapshot {
   const { snapshotSha256, ...core } = value ?? {};
+  const snapshot = typeof snapshotSha256 === 'string' ? snapshotSha256 : '';
+  const unavailableIds = exactSourceMessageIds(value.unavailableSourceMessageIds);
   if (value?.kind !== 'OpenOntologyExactSourceAvailabilitySnapshotV1'
-    || !SHA256.test(snapshotSha256 ?? '') || stableObjectSha256(core) !== snapshotSha256
+    || !SHA256.test(snapshot) || stableObjectSha256(core) !== snapshot
     || value.sourceCommitSha256 !== sourceCommitSha256
     || value.sourceReplaySha256 !== sourceReplaySha256
     || value.sourceSearchRouteMapSha256 !== sourceSearchRouteMapSha256
     || value.sourceHandleSetSha256 !== sourceHandleSetSha256
     || value.sourceCount !== sourceCount
-    || !Array.isArray(value.unavailableSourceMessageIds)
-    || new Set(value.unavailableSourceMessageIds).size !== value.unavailableSourceMessageIds.length
-    || value.unavailableSourceMessageIds.some((id) => !Number.isSafeInteger(id) || id < 0)
-    || value.availableSourceCount !== sourceCount - value.unavailableSourceMessageIds.length
+    || new Set(unavailableIds).size !== unavailableIds.length
+    || value.availableSourceCount !== sourceCount - unavailableIds.length
     || value.availabilityOnly !== true || value.navigationOnly !== true
     || value.exactSourcesRemainAuthority !== true) {
     fail('SOURCE_NATIVE_EXACT_SOURCE_AVAILABILITY');
   }
-  return freeze(value);
+  return freeze({
+    ...value,
+    kind: 'OpenOntologyExactSourceAvailabilitySnapshotV1',
+    snapshotSha256: snapshot,
+    sourceCommitSha256,
+    sourceReplaySha256,
+    sourceSearchRouteMapSha256,
+    sourceHandleSetSha256,
+    sourceCount,
+    availableSourceCount: sourceCount - unavailableIds.length,
+    unavailableSourceMessageIds: [...unavailableIds],
+    availabilityOnly: true,
+    navigationOnly: true,
+    exactSourcesRemainAuthority: true,
+  });
 }
 
 export function compileSourceNativeExactSourceAvailabilitySnapshot({
@@ -45,14 +122,24 @@ export function compileSourceNativeExactSourceAvailabilitySnapshot({
   sourceSearchRouteMapSha256,
   sourceHandles: sourceHandleInput,
   unavailableSourceMessageIds: unavailableInput = [],
-} = {}) {
-  if (!SHA256.test(sourceCommitSha256 ?? '') || !SHA256.test(sourceReplaySha256 ?? '')
-    || !SHA256.test(sourceSearchRouteMapSha256 ?? '')
-    || !Array.isArray(sourceHandleInput) || sourceHandleInput.length < 1
+}: {
+  sourceCommitSha256?: unknown;
+  sourceReplaySha256?: unknown;
+  sourceSearchRouteMapSha256?: unknown;
+  sourceHandles?: SourceHandle[];
+  unavailableSourceMessageIds?: number[];
+} = {}): ExactSourceAvailabilitySnapshot {
+  const commitSha256 = typeof sourceCommitSha256 === 'string' ? sourceCommitSha256 : '';
+  const replaySha256 = typeof sourceReplaySha256 === 'string' ? sourceReplaySha256 : '';
+  const routeMapSha256 = typeof sourceSearchRouteMapSha256 === 'string'
+    ? sourceSearchRouteMapSha256 : '';
+  const sourceRows = sourceHandleInput ?? [];
+  if (!SHA256.test(commitSha256) || !SHA256.test(replaySha256)
+    || !SHA256.test(routeMapSha256) || sourceRows.length < 1
     || !Array.isArray(unavailableInput)) {
     fail('SOURCE_NATIVE_EXACT_SOURCE_AVAILABILITY_INPUT');
   }
-  const sourceHandles = sourceHandleInput.map((row) => {
+  const sourceHandles = sourceRows.map((row: SourceHandle) => {
     if (!Number.isSafeInteger(row?.sourceMessageId) || row.sourceMessageId < 0
       || typeof row.relativePath !== 'string' || !row.relativePath) {
       fail('SOURCE_NATIVE_EXACT_SOURCE_AVAILABILITY_INPUT');
@@ -65,17 +152,17 @@ export function compileSourceNativeExactSourceAvailabilitySnapshot({
     fail('SOURCE_NATIVE_EXACT_SOURCE_AVAILABILITY_INPUT');
   }
   const knownIds = new Set(sourceHandles.map((row) => row.sourceMessageId));
-  const unavailableSourceMessageIds = [...unavailableInput].sort((left, right) => left - right);
+  const unavailableSourceMessageIds = [...unavailableInput].sort((left: number, right: number) => left - right);
   if (new Set(unavailableSourceMessageIds).size !== unavailableSourceMessageIds.length
     || unavailableSourceMessageIds.some((id) => !knownIds.has(id))) {
     fail('SOURCE_NATIVE_EXACT_SOURCE_AVAILABILITY_INPUT');
   }
   const core = {
     schema: 1,
-    kind: 'OpenOntologyExactSourceAvailabilitySnapshotV1',
-    sourceCommitSha256,
-    sourceReplaySha256,
-    sourceSearchRouteMapSha256,
+    kind: 'OpenOntologyExactSourceAvailabilitySnapshotV1' as const,
+    sourceCommitSha256: commitSha256,
+    sourceReplaySha256: replaySha256,
+    sourceSearchRouteMapSha256: routeMapSha256,
     sourceHandleSetSha256: stableObjectSha256(sourceHandles),
     sourceCount: sourceHandles.length,
     availableSourceCount: sourceHandles.length - unavailableSourceMessageIds.length,
@@ -100,13 +187,16 @@ export function openSourceNativeExactEvidenceSession({
   unavailableSourceMessageIds = [],
   taskId = 'source-native-resolution',
   sessionId = 'source-native-exact-evidence',
-} = {}) {
+}: ExactSessionOptions = {}) {
+  const mapSha256 = typeof nativeObjectMapSha256 === 'string' ? nativeObjectMapSha256 : '';
+  const retrievalSha256 = typeof retrievalAdapterSha256 === 'string' ? retrievalAdapterSha256 : '';
+  const sourceRows = sourceInput ?? [];
+  const tokenizeFn = typeof tokenize === 'function' ? tokenize : fail('SOURCE_NATIVE_EXACT_SESSION_INPUT');
   if (typeof namespace !== 'string' || !namespace
-    || !SHA256.test(nativeObjectMapSha256 ?? '')
-    || !Array.isArray(sourceInput) || sourceInput.length < 1
-    || typeof tokenize !== 'function'
+    || !SHA256.test(mapSha256) || sourceRows.length < 1
+    || typeof tokenizeFn !== 'function'
     || typeof retrievalAdapter !== 'string' || !retrievalAdapter
-    || !SHA256.test(retrievalAdapterSha256 ?? '')
+    || !SHA256.test(retrievalSha256)
     || !Number.isSafeInteger(maximumSearchResults) || maximumSearchResults < 1
     || maximumSearchResults > 128
     || !Array.isArray(unavailableSourceMessageIds)
@@ -114,7 +204,7 @@ export function openSourceNativeExactEvidenceSession({
     || typeof sessionId !== 'string' || !sessionId) {
     fail('SOURCE_NATIVE_EXACT_SESSION_INPUT');
   }
-  const sources = sourceInput.map((row) => {
+  const sources = sourceRows.map((row: ExactSessionSource) => {
     if (!Number.isSafeInteger(row?.sourceMessageId) || row.sourceMessageId < 0
       || !Number.isSafeInteger(row.ordinal) || row.ordinal < 1
       || typeof row.relativePath !== 'string' || !row.relativePath
@@ -132,25 +222,25 @@ export function openSourceNativeExactEvidenceSession({
       content: row.content,
       contentSha256: row.contentSha256,
     });
-  }).sort((left, right) => left.ordinal - right.ordinal
+  }).sort((left: ExactSessionSource, right: ExactSessionSource) => left.ordinal - right.ordinal
     || left.sourceMessageId - right.sourceMessageId || compare(left.relativePath, right.relativePath));
-  if (new Set(sources.map((row) => row.sourceMessageId)).size !== sources.length
-    || new Set(sources.map((row) => row.ordinal)).size !== sources.length
-    || new Set(sources.map((row) => row.relativePath)).size !== sources.length) {
+  if (new Set(sources.map((row: ExactSessionSource) => row.sourceMessageId)).size !== sources.length
+    || new Set(sources.map((row: ExactSessionSource) => row.ordinal)).size !== sources.length
+    || new Set(sources.map((row: ExactSessionSource) => row.relativePath)).size !== sources.length) {
     fail('SOURCE_NATIVE_EXACT_SESSION_SOURCE');
   }
-  const sourceById = new Map(sources.map((row) => [row.sourceMessageId, row]));
-  const sourceByRef = new Map(sources.map((row) => [`source-native:${row.sourceMessageId}`, row]));
-  const sourceCatalog = sources.map(({ content: _content, ...row }) => row);
+  const sourceById = new Map<number, ExactSessionSource>(sources.map((row: ExactSessionSource) => [row.sourceMessageId, row]));
+  const sourceByRef = new Map<string, ExactSessionSource>(sources.map((row: ExactSessionSource) => [`source-native:${row.sourceMessageId}`, row]));
+  const sourceCatalog = sources.map(({ content: _content, ...row }: ExactSessionSource) => row);
   const sourceCatalogSha256 = stableObjectSha256(sourceCatalog);
   if (objectOnt !== null
     && (objectOnt?.kind !== 'OpenOntologySourceNativeObjectOntModuleV1'
-      || objectOnt.map?.nativeObjectMapSha256 !== nativeObjectMapSha256
+      || objectOnt.map.nativeObjectMapSha256 !== mapSha256
       || !SHA256.test(objectOnt.commitSha256 ?? '')
       || !SHA256.test(objectOnt.replaySha256 ?? '')
       || objectOnt.catalog?.sourceCount !== sources.length
       || objectOnt.sources?.length !== sources.length
-      || sources.some((source) => !objectOnt.sources.some((bound) =>
+      || sources.some((source: ExactSessionSource) => !objectOnt.sources.some((bound: UnknownRecord) =>
         bound.relativePath === source.relativePath
         && bound.sourceSha256 === source.contentSha256
         && bound.content === source.content)))) {
@@ -160,7 +250,7 @@ export function openSourceNativeExactEvidenceSession({
     schema: 1,
     kind: 'OpenOntologySourceNativeExactSourceCommitV1',
     namespace,
-    nativeObjectMapSha256,
+    nativeObjectMapSha256: mapSha256,
     sourceCatalogSha256,
   }) : objectOnt.commitSha256;
   const sourceReplaySha256 = objectOnt === null ? stableObjectSha256({
@@ -172,11 +262,11 @@ export function openSourceNativeExactEvidenceSession({
   const sourceSearchRouteMapSha256 = stableObjectSha256({
     schema: 1,
     kind: 'OpenOntologySourceNativeNavigationMapBindingV1',
-    nativeObjectMapSha256,
+    nativeObjectMapSha256: mapSha256,
     sourceCatalogSha256,
     ...(objectOnt === null ? {} : { sourceCommitSha256, sourceReplaySha256 }),
   });
-  const sourceHandles = freeze(sources.map((row) => freeze({
+  const sourceHandles = freeze(sources.map((row: ExactSessionSource) => freeze({
     sourceMessageId: row.sourceMessageId,
     relativePath: row.relativePath,
   })));
@@ -188,20 +278,20 @@ export function openSourceNativeExactEvidenceSession({
     sourceHandles,
     unavailableSourceMessageIds,
   });
-  const unavailableSourceIds = new Set(exactSourceAvailabilitySnapshot.unavailableSourceMessageIds);
+  const unavailableSourceIds = new Set<number>(exactSourceAvailabilitySnapshot.unavailableSourceMessageIds);
   const availableSources = sources.filter((row) => !unavailableSourceIds.has(row.sourceMessageId));
   const index = createBm25Index(availableSources, {
     idOf: (row) => `source-native:${row.sourceMessageId}`,
     textOf: (row) => row.content,
-    tokenize,
+    tokenize: (text: unknown) => tokenizeFn(String(text)),
   });
-  const offeredRefs = new Set();
-  const offeredSourceMessageIds = new Set();
+  const offeredRefs = new Set<string>();
+  const offeredSourceMessageIds = new Set<number>();
   let searchCalls = 0;
   let navigationSourceOfferCalls = 0;
   let inspectCalls = 0;
 
-  const receipt = (toolId, request, response) => {
+  const receipt = (toolId: string, request: UnknownRecord, response: UnknownRecord) => {
     const core = {
       schemaVersion: 1,
       kind: 'OpenOntologySourceNativeExactEvidenceToolReceiptV1',
@@ -215,7 +305,7 @@ export function openSourceNativeExactEvidenceSession({
     };
     return freeze({ ...core, receiptSha256: stableObjectSha256(core) });
   };
-  const exactSource = (source) => freeze({
+  const exactSource = (source: ExactSessionSource): UnknownRecord => freeze({
     physicalChatId: `source-native:${namespace}`,
     sourceMessageId: source.sourceMessageId,
     ordinal: source.ordinal,
@@ -234,7 +324,7 @@ export function openSourceNativeExactEvidenceSession({
     byteStart: 0,
     byteEnd: Buffer.byteLength(source.content),
   });
-  const inspectEnvelope = (toolId, request, rows) => {
+  const inspectEnvelope = (toolId: string, request: UnknownRecord, rows: ExactSessionSource[]) => {
     const exactSources = freeze(rows.map(exactSource));
     const ref = toolId === 'inspect'
       ? request.ref : `sources:${stableObjectSha256(request.sources)}`;
@@ -263,7 +353,7 @@ export function openSourceNativeExactEvidenceSession({
     return freeze({ response, receipt: receipt(toolId, request, response) });
   };
 
-  const search = async (request) => {
+  const search = async (request: SearchRequest) => {
     if (typeof request?.query !== 'string' || !request.query.trim()
       || !Array.isArray(request.gaps)
       || !request.filters || typeof request.filters !== 'object' || Array.isArray(request.filters)
@@ -271,11 +361,11 @@ export function openSourceNativeExactEvidenceSession({
       fail('SOURCE_NATIVE_EXACT_SESSION_SEARCH');
     }
     const ranked = index.rank(request.query, { limit: Math.min(request.limit, maximumSearchResults) });
-    const candidates = freeze(ranked.map((row, rank) => {
+    const candidates = freeze(ranked.map((row: { id: string; score: number }, rank: number) => {
       const source = sourceByRef.get(row.id);
-      if (!source) fail('SOURCE_NATIVE_EXACT_SESSION_SEARCH');
+      const exact: ExactSessionSource = source ?? fail('SOURCE_NATIVE_EXACT_SESSION_SEARCH');
       offeredRefs.add(row.id);
-      offeredSourceMessageIds.add(source.sourceMessageId);
+      offeredSourceMessageIds.add(exact.sourceMessageId);
       return freeze({ ref: row.id, rank: rank + 1, score: row.score });
     }));
     searchCalls += 1;
@@ -291,28 +381,28 @@ export function openSourceNativeExactEvidenceSession({
     });
     return freeze({ response, receipt: receipt('search', request, response) });
   };
-  const searchSourceHandles = async (request) => {
+  const searchSourceHandles = async (request: SeedRequest) => {
     if (typeof request?.query !== 'string' || !request.query.trim()
       || !Number.isSafeInteger(request.limit) || request.limit < 1 || request.limit > 128) {
       fail('SOURCE_NATIVE_EXACT_SESSION_SEED_SEARCH');
     }
     const ranked = index.rank(request.query, { limit: Math.min(request.limit, maximumSearchResults) });
-    const rows = freeze(ranked.map((row, rank) => {
+    const rows = freeze(ranked.map((row: { id: string; score: number }, rank: number) => {
       const source = sourceByRef.get(row.id);
-      if (!source) fail('SOURCE_NATIVE_EXACT_SESSION_SEED_SEARCH');
+      const exact: ExactSessionSource = source ?? fail('SOURCE_NATIVE_EXACT_SESSION_SEED_SEARCH');
       offeredRefs.add(row.id);
-      offeredSourceMessageIds.add(source.sourceMessageId);
+      offeredSourceMessageIds.add(exact.sourceMessageId);
       return freeze({
         rank: rank + 1,
         score: row.score,
-        sourceMessageId: source.sourceMessageId,
-        relativePath: source.relativePath,
+        sourceMessageId: exact.sourceMessageId,
+        relativePath: exact.relativePath,
       });
     }));
     searchCalls += 1;
     const core = {
       schema: 1,
-      kind: 'OpenOntologySourceNativeSeedSearchResultV1',
+      kind: 'OpenOntologySourceNativeSeedSearchResultV1' as const,
       query: request.query,
       sourceCommitSha256,
       sourceReplaySha256,
@@ -327,37 +417,39 @@ export function openSourceNativeExactEvidenceSession({
     const response = freeze({ ...core, resultSha256: stableObjectSha256(core) });
     return freeze({ response, receipt: receipt('search_source_handles', request, response) });
   };
-  const inspect = async (request) => {
+  const inspect = async (request: UnknownRecord & { ref?: unknown }) => {
     if (typeof request?.ref !== 'string' || !offeredRefs.has(request.ref)) {
       fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT');
     }
-    const source = sourceByRef.get(request.ref);
-    if (!source || unavailableSourceIds.has(source.sourceMessageId)) {
-      fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT');
-    }
-    return inspectEnvelope('inspect', request, [source]);
+    const ref = typeof request.ref === 'string'
+      ? request.ref : fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT');
+    const source = sourceByRef.get(ref);
+    const exact: ExactSessionSource = source && !unavailableSourceIds.has(source.sourceMessageId)
+      ? source : fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT');
+    return inspectEnvelope('inspect', request, [exact]);
   };
-  const offerNavigationSources = (request) => {
+  const offerNavigationSources = (request: UnknownRecord & { selectionKind?: unknown; selectionSha256?: unknown; sourceCommitSha256?: unknown; sourceReplaySha256?: unknown; sourceSearchRouteMapSha256?: unknown; sourceMessageIds?: number[] }) => {
+    const sourceMessageIds: number[] = request.sourceMessageIds ?? [];
+    const selectionSha256 = typeof request.selectionSha256 === 'string' ? request.selectionSha256 : '';
     if (typeof request?.selectionKind !== 'string' || !request.selectionKind
-      || !SHA256.test(request.selectionSha256 ?? '')
+      || !SHA256.test(selectionSha256)
       || request.sourceCommitSha256 !== sourceCommitSha256
       || request.sourceReplaySha256 !== sourceReplaySha256
       || request.sourceSearchRouteMapSha256 !== sourceSearchRouteMapSha256
-      || !Array.isArray(request.sourceMessageIds) || request.sourceMessageIds.length < 1
-      || request.sourceMessageIds.length > 128
-      || new Set(request.sourceMessageIds).size !== request.sourceMessageIds.length
-      || request.sourceMessageIds.some((sourceMessageId) => !sourceById.has(sourceMessageId)
+      || sourceMessageIds.length < 1 || sourceMessageIds.length > 128
+      || new Set(sourceMessageIds).size !== sourceMessageIds.length
+      || sourceMessageIds.some((sourceMessageId: number) => !sourceById.has(sourceMessageId)
         || unavailableSourceIds.has(sourceMessageId))) {
       fail('SOURCE_NATIVE_EXACT_SESSION_OFFER');
     }
-    for (const sourceMessageId of request.sourceMessageIds) offeredSourceMessageIds.add(sourceMessageId);
+    for (const sourceMessageId of sourceMessageIds) offeredSourceMessageIds.add(sourceMessageId);
     navigationSourceOfferCalls += 1;
     const response = freeze({
       schemaVersion: 1,
       kind: 'OpenOntologyNavigationSourceOfferV1',
       selectionKind: request.selectionKind,
-      selectionSha256: request.selectionSha256,
-      sourceMessageIds: freeze([...request.sourceMessageIds]),
+      selectionSha256,
+      sourceMessageIds: freeze([...sourceMessageIds]),
       commitSha256: sourceCommitSha256,
       replaySha256: sourceReplaySha256,
       sourceSearchRouteMapSha256,
@@ -367,25 +459,31 @@ export function openSourceNativeExactEvidenceSession({
     });
     return freeze({ response, receipt: receipt('offer_navigation_sources', request, response) });
   };
-  const inspectSources = async (request) => {
-    if (!Array.isArray(request?.sources) || request.sources.length < 1 || request.sources.length > 32
-      || new Set(request.sources.map((row) => row?.sourceMessageId)).size !== request.sources.length
-      || request.sources.some((row) => !Number.isSafeInteger(row?.sourceMessageId)
-        || !offeredSourceMessageIds.has(row.sourceMessageId)
+  const inspectSources = async (request: UnknownRecord & { sources?: Array<UnknownRecord & { sourceMessageId?: unknown; navigationQuery?: unknown }> }) => {
+    const sourceRequests = request.sources ?? [];
+    if (sourceRequests.length < 1 || sourceRequests.length > 32
+      || new Set(sourceRequests.map((row) => row?.sourceMessageId)).size !== sourceRequests.length
+      || sourceRequests.some((row) => !Number.isSafeInteger(row?.sourceMessageId)
+        || !offeredSourceMessageIds.has(typeof row.sourceMessageId === 'number'
+          ? row.sourceMessageId : -1)
         || typeof row.navigationQuery !== 'string' || !row.navigationQuery.trim()
         || Object.hasOwn(row, 'sourceSpanIds'))) {
       fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT_SOURCES');
     }
-    const rows = request.sources.map((row) => sourceById.get(row.sourceMessageId));
+    const requestedSourceMessageIds = sourceRequests.map((row) =>
+      typeof row.sourceMessageId === 'number'
+        ? row.sourceMessageId : fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT_SOURCES'));
+    const rows = requestedSourceMessageIds.map((sourceMessageId) => sourceById.get(sourceMessageId))
+      .filter((row): row is ExactSessionSource => row !== undefined);
     if (rows.some((row) => !row || unavailableSourceIds.has(row.sourceMessageId))) {
       fail('SOURCE_NATIVE_EXACT_SESSION_INSPECT_SOURCES');
     }
     return inspectEnvelope('inspect_sources', request, rows);
   };
   const sourceNativeSeedSearchAdapter = freeze({
-    kind: 'OpenOntologySourceNativeSeedSearchAdapterV1',
+    kind: 'OpenOntologySourceNativeSeedSearchAdapterV1' as const,
     adapter: retrievalAdapter,
-    adapterSha256: retrievalAdapterSha256,
+    adapterSha256: retrievalSha256,
     sourceCommitSha256,
     sourceReplaySha256,
     sourceSearchRouteMapSha256,
@@ -401,7 +499,7 @@ export function openSourceNativeExactEvidenceSession({
     taskId,
     sessionId,
     namespace,
-    nativeObjectMapSha256,
+    nativeObjectMapSha256: mapSha256,
     objectOntBound: objectOnt !== null,
     sourceCatalogSha256,
     sourceCommitSha256,
@@ -413,7 +511,7 @@ export function openSourceNativeExactEvidenceSession({
     exactSourceAvailabilitySnapshotSha256: exactSourceAvailabilitySnapshot.snapshotSha256,
     sourceNativeSeedSearchAdapter,
     retrievalAdapter,
-    retrievalAdapterSha256,
+    retrievalAdapterSha256: retrievalSha256,
     maximumSearchResults,
     modelCalls: 0,
     networkCalls: 0,

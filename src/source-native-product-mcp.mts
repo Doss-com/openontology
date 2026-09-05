@@ -1,5 +1,27 @@
 /** MCP transport for the source-native verification product. */
 import { createInterface } from 'node:readline';
+import type { UnknownRecord } from './source-native-object-map.mjs';
+import type {
+  ProductSearchInput,
+  SourceNativeProductReadResult,
+  SourceNativeProductSearchResult,
+  SourceNativeProductVerificationResult,
+} from './source-native-product.mjs';
+import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
+
+interface ProductTransport {
+  kind: 'OpenOntologySourceNativeProductV2';
+  verify(input: ProductSearchInput): Promise<SourceNativeProductVerificationResult>;
+  search(input: ProductSearchInput): Promise<SourceNativeProductSearchResult>;
+  read(input: { ref: string }): Promise<SourceNativeProductReadResult>;
+}
+interface JsonRpcResponse { jsonrpc: '2.0'; id: unknown; result?: unknown; error?: UnknownRecord }
+
+const fail = (code: string): never => {
+  const error = new TypeError(code) as TypeError & { code: string };
+  error.code = code;
+  throw error;
+};
 
 const SCOPE_SCHEMA = Object.freeze({
   type: 'object',
@@ -53,80 +75,84 @@ const READ_TOOL = Object.freeze({
   },
 });
 
-function exactArguments(value, allowed) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || Object.keys(value).some((name) => !allowed.includes(name))) {
-    const error = new TypeError('SOURCE_NATIVE_PRODUCT_QUERY');
-    error.code = 'SOURCE_NATIVE_PRODUCT_QUERY';
-    throw error;
+function exactArguments(value: unknown, allowed: string[]): UnknownRecord {
+  const record = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as UnknownRecord : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  if (Object.keys(record).some((name) => !allowed.includes(name))) {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
-  return value;
+  return { ...record };
 }
 
-function scopeArguments(value) {
+function scopeArguments(value: unknown): SourceNativeFieldQuery | null {
   if (value === undefined) return null;
   const scope = exactArguments(value, ['sourceSystem', 'objectType', 'externalId', 'field']);
-  if (typeof scope.sourceSystem !== 'string' || !scope.sourceSystem
-    || typeof scope.objectType !== 'string' || !scope.objectType
-    || typeof scope.field !== 'string' || !scope.field
-    || scope.externalId !== undefined
-      && (typeof scope.externalId !== 'string' || !scope.externalId)) {
-    const error = new TypeError('SOURCE_NATIVE_PRODUCT_QUERY');
-    error.code = 'SOURCE_NATIVE_PRODUCT_QUERY';
-    throw error;
+  const { sourceSystem, objectType, externalId, field } = scope;
+  if (typeof sourceSystem !== 'string' || !sourceSystem
+    || typeof objectType !== 'string' || !objectType
+    || typeof field !== 'string' || !field
+    || externalId !== undefined && (typeof externalId !== 'string' || !externalId)) {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
+  const exactSourceSystem = typeof sourceSystem === 'string'
+    ? sourceSystem : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  const exactObjectType = typeof objectType === 'string'
+    ? objectType : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  const exactField = typeof field === 'string' ? field : fail('SOURCE_NATIVE_PRODUCT_QUERY');
   return {
-    sourceSystem: scope.sourceSystem,
-    objectType: scope.objectType,
-    fieldPath: scope.field,
-    ...(scope.externalId === undefined ? {} : { externalId: scope.externalId }),
+    sourceSystem: exactSourceSystem,
+    objectType: exactObjectType,
+    fieldPath: exactField,
+    ...(typeof externalId === 'string' ? { externalId } : {}),
   };
 }
 
-function queryArguments(value) {
+function queryArguments(value: unknown): ProductSearchInput {
   const args = exactArguments(value, ['question', 'intent', 'anchorValue', 'scope']);
-  if (typeof args.question !== 'string' || !args.question.trim()
-    || args.intent !== undefined && !['current', 'next'].includes(args.intent)
-    || args.anchorValue !== undefined && typeof args.anchorValue !== 'string') {
-    const error = new TypeError('SOURCE_NATIVE_PRODUCT_QUERY');
-    error.code = 'SOURCE_NATIVE_PRODUCT_QUERY';
-    throw error;
+  const { question, intent: inputIntent, anchorValue: inputAnchorValue } = args;
+  if (typeof question !== 'string' || !question.trim()
+    || inputIntent !== undefined && inputIntent !== 'current' && inputIntent !== 'next'
+    || inputAnchorValue !== undefined && typeof inputAnchorValue !== 'string') {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
+  const exactQuestion = typeof question === 'string' ? question : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  const anchorValue = typeof inputAnchorValue === 'string' ? inputAnchorValue.trim() || null : null;
+  const intent = inputIntent === 'next' ? 'next' : 'current';
   return {
-    question: args.question,
-    intent: args.intent ?? 'current',
-    anchorValue: args.anchorValue?.trim() || null,
+    question: exactQuestion,
+    intent,
+    anchorValue,
     typedQuery: scopeArguments(args.scope),
   };
 }
 
-function readArguments(value) {
+function readArguments(value: unknown): { ref: string } {
   const args = exactArguments(value, ['ref']);
-  if (typeof args.ref !== 'string' || !/^evidence:[0-9a-f]{64}$/u.test(args.ref)) {
-    const error = new TypeError('SOURCE_NATIVE_PRODUCT_READ');
-    error.code = 'SOURCE_NATIVE_PRODUCT_READ';
-    throw error;
+  const ref = args.ref;
+  if (typeof ref !== 'string' || !/^evidence:[0-9a-f]{64}$/u.test(ref)) {
+    fail('SOURCE_NATIVE_PRODUCT_READ');
   }
-  return args;
+  return { ref: typeof ref === 'string' ? ref : fail('SOURCE_NATIVE_PRODUCT_READ') };
 }
 
-function result(value) {
+function result(value: unknown): UnknownRecord {
   return { content: [{ type: 'text', text: JSON.stringify(value) }] };
 }
 
-function errorResult(error) {
-  const code = error?.code ?? 'SOURCE_NATIVE_PRODUCT_ERROR';
+function errorResult(error: unknown): UnknownRecord {
+  const code = error && typeof error === 'object' && 'code' in error
+    && typeof error.code === 'string' ? error.code : 'SOURCE_NATIVE_PRODUCT_ERROR';
   return {
     isError: true,
     content: [{ type: 'text', text: code }],
   };
 }
 
-export function runSourceNativeProductMcp(product, {
+export function runSourceNativeProductMcp(product: ProductTransport, {
   input = process.stdin,
   output = process.stdout,
   profile = 'verify',
-} = {}) {
+}: { input?: NodeJS.ReadableStream; output?: NodeJS.WritableStream; profile?: 'verify' | 'advanced' } = {}) {
   if (product?.kind !== 'OpenOntologySourceNativeProductV2'
     || typeof product.verify !== 'function'
     || typeof product.search !== 'function'
@@ -135,14 +161,14 @@ export function runSourceNativeProductMcp(product, {
     throw new TypeError('SOURCE_NATIVE_PRODUCT_MCP');
   }
   const tools = profile === 'verify' ? [VERIFY_TOOL] : [SEARCH_TOOL, READ_TOOL];
-  const send = (message) => output.write(`${JSON.stringify(message)}\n`);
+  const send = (message: JsonRpcResponse) => output.write(`${JSON.stringify(message)}\n`);
   const lines = createInterface({ input, crlfDelay: Infinity });
   lines.on('line', async (line) => {
     if (!line.trim()) return;
     let request;
     try { request = JSON.parse(line); } catch { return; }
     if (request.id === undefined) return;
-    const response = { jsonrpc: '2.0', id: request.id };
+    const response: JsonRpcResponse = { jsonrpc: '2.0', id: request.id };
     try {
       if (request.method === 'initialize') {
         response.result = {

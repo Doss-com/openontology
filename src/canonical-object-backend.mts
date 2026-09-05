@@ -1,34 +1,50 @@
 /** Canonical object-backend URI selection. */
 import { fileURLToPath } from 'node:url';
+import type { ObjectBackend, ObjectBackendCapabilities } from './object-storage-backend.mjs';
 import { openGcsObjectBackend } from './gcs-object-storage-backend.mjs';
 import { openFileObjectBackend } from './object-storage-backend.mjs';
 import { openS3ObjectBackend } from './s3-object-storage-backend.mjs';
 
-const fail = (code) => { const error = new TypeError(code); error.code = code; throw error; };
+export interface CanonicalObjectBackendSelection {
+  uri: string;
+  backend: ObjectBackend;
+  capabilities: ObjectBackendCapabilities;
+}
 
-export function normalizeCanonicalObjectBackendUri(uriInput) {
-  let uri;
-  try { uri = new URL(uriInput); } catch { fail('CANONICAL_OBJECT_BACKEND_URI'); }
+type BackendEnvironment = Record<string, string | undefined>;
+
+const fail = (code: string): never => {
+  const error = new TypeError(code) as TypeError & { code: string };
+  error.code = code;
+  throw error;
+};
+
+export function normalizeCanonicalObjectBackendUri(uriInput: string | undefined): string {
+  let uri: URL;
+  try { uri = new URL(uriInput ?? ''); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }
   if (uri.username || uri.password || uri.search || uri.hash) fail('CANONICAL_OBJECT_BACKEND_URI');
   if (uri.protocol === 'file:') {
     if (uri.hostname && uri.hostname !== 'localhost') fail('CANONICAL_OBJECT_BACKEND_URI');
-    try { fileURLToPath(uri); } catch { fail('CANONICAL_OBJECT_BACKEND_URI'); }
+    try { fileURLToPath(uri); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }
     return uri.href;
   }
   if (['s3:', 'gs:'].includes(uri.protocol)
     && uri.hostname && (!uri.pathname || uri.pathname === '/')) {
     return `${uri.protocol}//${uri.hostname}`;
   }
-  fail('CANONICAL_OBJECT_BACKEND_URI');
+  return fail('CANONICAL_OBJECT_BACKEND_URI');
 }
 
-export function openCanonicalObjectBackend({ uri: uriInput, env = process.env } = {}) {
+export function openCanonicalObjectBackend({
+  uri: uriInput,
+  env = process.env,
+}: { uri?: string; env?: BackendEnvironment } = {}): CanonicalObjectBackendSelection {
   const normalizedUri = normalizeCanonicalObjectBackendUri(uriInput);
   const uri = new URL(normalizedUri);
-  let backend;
+  let backend: ObjectBackend;
   if (uri.protocol === 'file:') {
-    let root;
-    try { root = fileURLToPath(uri); } catch { fail('CANONICAL_OBJECT_BACKEND_URI'); }
+    let root: string;
+    try { root = fileURLToPath(uri); } catch { return fail('CANONICAL_OBJECT_BACKEND_URI'); }
     backend = openFileObjectBackend({ root });
   } else if (uri.protocol === 's3:') {
     if (!env || typeof env !== 'object'
@@ -53,7 +69,7 @@ export function openCanonicalObjectBackend({ uri: uriInput, env = process.env } 
       accessToken: env.OONT_GCS_ACCESS_TOKEN,
       endpoint: env.OONT_GCS_ENDPOINT ?? 'https://storage.googleapis.com',
     });
-  } else fail('CANONICAL_OBJECT_BACKEND_URI');
+  } else return fail('CANONICAL_OBJECT_BACKEND_URI');
   return Object.freeze({
     uri: normalizedUri,
     backend,

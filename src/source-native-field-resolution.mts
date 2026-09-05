@@ -1,11 +1,94 @@
 /** Deterministic field selection over a validated source-native object map. */
 import { stableObjectSha256, stableObjectText } from './canonical-content.mjs';
 import { validateSourceNativeObjectMap } from './source-native-object-map.mjs';
+import type {
+  SourceNativeField,
+  SourceNativeObject,
+  SourceNativeObjectIdentity,
+  SourceNativeObjectMap,
+} from './source-native-object-map.mjs';
+import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
+
+export interface SourceNativeFieldResolutionResult {
+  state: string;
+  query: SourceNativeFieldQuery;
+  resolutionSha256: string;
+  current?: {
+    relativePath: string;
+    objectIdentitySha256: string;
+    fieldSha256: string;
+    evidence: { sourceSha256: string; byteStart: number; byteEnd: number; textSha256: string };
+    objectIdentity: SourceNativeObjectIdentity;
+    occurredAt: string;
+    value: string;
+  } | null;
+  suppressedRelativePaths: string[];
+  revisionClosureCount: number;
+  revisionClosureSha256: string;
+  policy: string;
+}
+export interface SourceNativeFieldSuccessorResolutionResult {
+  state: string;
+  query: SourceNativeFieldQuery;
+  resolutionSha256: string;
+  anchor?: (NonNullable<SourceNativeFieldResolutionResult['current']> & { revisionSha256: string }) | null;
+  successor?: (NonNullable<SourceNativeFieldResolutionResult['current']> & { revisionSha256: string }) | null;
+  proofRelativePaths: string[];
+  policy: string;
+}
+
+interface ResolutionCore {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeFieldResolutionV1';
+  state: string;
+  nativeObjectMapSha256: string;
+  query: SourceNativeFieldQuery;
+  seedRelativePaths: string[];
+  current: SourceNativeFieldResolutionResult['current'];
+  expandedRelativePaths: string[];
+  suppressedRelativePaths: string[];
+  revisionPath: unknown[];
+  revisionClosureCount: number;
+  revisionClosureSha256: string;
+  suppressedClosureCount: number;
+  suppressedClosureSha256: string;
+  policy: string;
+  candidateQuestionReads: 1;
+  candidateGoldReads: 0;
+  modelCalls: 0;
+  networkCalls: 0;
+  targetLeakage: false;
+  navigationOnly: true;
+  exactInspectRequired: true;
+  exactSourcesRemainAuthority: true;
+}
+interface SuccessorResolutionCore {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeFieldSuccessorResolutionV1';
+  state: string;
+  nativeObjectMapSha256: string;
+  query: SourceNativeFieldQuery;
+  seedRelativePaths: string[];
+  anchor: SourceNativeFieldSuccessorResolutionResult['anchor'];
+  successor: SourceNativeFieldSuccessorResolutionResult['successor'];
+  proofRelativePaths: string[];
+  expandedRelativePaths: string[];
+  revisionPath: unknown[];
+  policy: string;
+  candidateQuestionReads: 1;
+  candidateGoldReads: 0;
+  modelCalls: 0;
+  networkCalls: 0;
+  targetLeakage: false;
+  navigationOnly: true;
+  exactInspectRequired: true;
+  exactSourcesRemainAuthority: true;
+}
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
-const compare = (left, right) => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const fail = (code) => { const error = new TypeError(code); error.code = code; throw error; };
-const freeze = (value) => {
+const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
+const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
@@ -13,12 +96,25 @@ const freeze = (value) => {
   return value;
 };
 
-
 function resultCore({ map, query, seedRelativePaths, state, current = null,
   expandedRelativePaths = [], suppressedRelativePaths = [], revisionPath = [],
   revisionClosureCount = 0, revisionClosureSha256 = stableObjectSha256([]),
   suppressedClosureCount = 0, suppressedClosureSha256 = stableObjectSha256([]),
-  policy = 'bm25-seed-then-source-native-object-identity-and-field-revision-v1' }) {
+  policy = 'bm25-seed-then-source-native-object-identity-and-field-revision-v1' }: {
+    map: SourceNativeObjectMap;
+    query: SourceNativeFieldQuery;
+    seedRelativePaths: string[];
+    state: string;
+    current?: SourceNativeFieldResolutionResult['current'];
+    expandedRelativePaths?: string[];
+    suppressedRelativePaths?: string[];
+    revisionPath?: unknown[];
+    revisionClosureCount?: number;
+    revisionClosureSha256?: string;
+    suppressedClosureCount?: number;
+    suppressedClosureSha256?: string;
+    policy?: string;
+  }): ResolutionCore {
   return {
     schema: 1,
     kind: 'OpenOntologySourceNativeFieldResolutionV1',
@@ -48,7 +144,18 @@ function resultCore({ map, query, seedRelativePaths, state, current = null,
 
 function successorResultCore({ map, query, seedRelativePaths, state, anchor = null, successor = null,
   proofRelativePaths = [], expandedRelativePaths = [], revisionPath = [],
-  policy = 'bm25-seed-then-direct-source-native-field-successor-v1' }) {
+  policy = 'bm25-seed-then-direct-source-native-field-successor-v1' }: {
+    map: SourceNativeObjectMap;
+    query: SourceNativeFieldQuery;
+    seedRelativePaths: string[];
+    state: string;
+    anchor?: SourceNativeFieldSuccessorResolutionResult['anchor'];
+    successor?: SourceNativeFieldSuccessorResolutionResult['successor'];
+    proofRelativePaths?: string[];
+    expandedRelativePaths?: string[];
+    revisionPath?: unknown[];
+    policy?: string;
+  }): SuccessorResolutionCore {
   return {
     schema: 1,
     kind: 'OpenOntologySourceNativeFieldSuccessorResolutionV1',
@@ -74,9 +181,17 @@ function successorResultCore({ map, query, seedRelativePaths, state, anchor = nu
 }
 
 export function resolveSourceNativeField({ sourceNativeObjectMap: mapInput,
-  seedRelativePaths: seedInput, query } = {}) {
-  let map;
-  try { map = validateSourceNativeObjectMap(mapInput); } catch { fail('SOURCE_NATIVE_RESOLVER_MAP'); }
+  seedRelativePaths: seedValues, query: queryInput }: {
+    sourceNativeObjectMap?: SourceNativeObjectMap;
+    seedRelativePaths?: string[];
+    query?: SourceNativeFieldQuery;
+  } = {}): SourceNativeFieldResolutionResult {
+  const query = queryInput ?? fail('SOURCE_NATIVE_RESOLVER_INPUT');
+  const seedInput = seedValues ?? [];
+  const map = (() => {
+    try { return validateSourceNativeObjectMap(mapInput ?? fail('SOURCE_NATIVE_RESOLVER_MAP')); }
+    catch { return fail('SOURCE_NATIVE_RESOLVER_MAP'); }
+  })();
   if (!Array.isArray(seedInput)
     || seedInput.some((value) => typeof value !== 'string' || !value)
     || new Set(seedInput).size !== seedInput.length
@@ -119,16 +234,18 @@ export function resolveSourceNativeField({ sourceNativeObjectMap: mapInput,
     .map((object) => ({
     object,
     field: object.fields.find((field) => field.fieldPath === resolvedQuery.fieldPath),
-  })).filter((row) => row.field).sort((left, right) => Date.parse(left.object.occurredAt) - Date.parse(right.object.occurredAt)
+  })).filter((row): row is { object: SourceNativeObject; field: SourceNativeField } => row.field !== undefined)
+    .sort((left, right) => Date.parse(left.object.occurredAt) - Date.parse(right.object.occurredAt)
     || left.object.relativePath.localeCompare(right.object.relativePath));
   if (versions.length < 1) {
     const core = resultCore({ map, query: resolvedQuery, seedRelativePaths,
       state: 'unavailable-native-field-not-present', policy });
     return freeze({ ...core, resolutionSha256: stableObjectSha256(core) });
   }
-  const latest = versions.at(-1);
+  const latest = versions.at(-1)!;
   const current = freeze({
     objectIdentity: latest.object.objectIdentity,
+    objectIdentitySha256: latest.object.objectIdentitySha256,
     occurredAt: latest.object.occurredAt,
     relativePath: latest.object.relativePath,
     value: latest.field.value,
@@ -180,9 +297,17 @@ export function resolveSourceNativeField({ sourceNativeObjectMap: mapInput,
 
 /** Resolve exactly one direct field revision after a seeded historical source. */
 export function resolveSourceNativeFieldSuccessor({ sourceNativeObjectMap: mapInput,
-  seedRelativePaths: seedInput, query } = {}) {
-  let map;
-  try { map = validateSourceNativeObjectMap(mapInput); } catch { fail('SOURCE_NATIVE_RESOLVER_MAP'); }
+  seedRelativePaths: seedValues, query: queryInput }: {
+    sourceNativeObjectMap?: SourceNativeObjectMap;
+    seedRelativePaths?: string[];
+    query?: SourceNativeFieldQuery;
+  } = {}): SourceNativeFieldSuccessorResolutionResult {
+  const query = queryInput ?? fail('SOURCE_NATIVE_SUCCESSOR_RESOLVER_INPUT');
+  const seedInput = seedValues ?? [];
+  const map = (() => {
+    try { return validateSourceNativeObjectMap(mapInput ?? fail('SOURCE_NATIVE_RESOLVER_MAP')); }
+    catch { return fail('SOURCE_NATIVE_RESOLVER_MAP'); }
+  })();
   if (!Array.isArray(seedInput)
     || seedInput.length < 1 && !SHA256.test(query?.anchorFieldSha256 ?? '')
     || seedInput.some((value) => typeof value !== 'string' || !value)
@@ -234,6 +359,7 @@ export function resolveSourceNativeFieldSuccessor({ sourceNativeObjectMap: mapIn
     return freeze({ ...core, resolutionSha256: stableObjectSha256(core) });
   }
   const revision = revisions[0];
+  if (!revision) fail('SOURCE_NATIVE_SUCCESSOR_RESOLVER_INPUT');
   const anchor = freeze({
     objectIdentity: revision.objectIdentity,
     objectIdentitySha256,

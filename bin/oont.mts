@@ -5,7 +5,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const [command, ...args] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const command = argv[0];
+const args = argv.slice(1);
 
 function usage(code = 2) {
   process.stderr.write(`usage: oont <command>
@@ -25,16 +27,18 @@ Serve accepts --advanced to expose search and read instead of verify.
   process.exit(code);
 }
 
-function runResolver(resolverArgs) {
+function runResolver(resolverArgs: string[]): void {
   const child = spawn(process.execPath, [
     join(root, 'scripts', 'oont-resolver.mjs'),
     ...resolverArgs,
   ], { stdio: 'inherit' });
-  child.on('exit', (code, signal) => process.exit(signal ? 1 : (code ?? 1)));
+  child.on('exit', (code: number | null, signal: NodeJS.Signals | null) =>
+    process.exit(signal ? 1 : (code ?? 1)));
 }
 
-function commandHelp(name) {
-  const lines = {
+type ProductCommand = 'verify' | 'search' | 'status' | 'check' | 'serve';
+function commandHelp(name: ProductCommand): never {
+  const lines: Record<ProductCommand, string> = {
     verify: 'usage: oont verify <ont> <question> [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]',
     search: 'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]',
     status: 'usage: oont status <ont>',
@@ -50,7 +54,9 @@ if (command === '--help' || command === '-h') usage(0);
 
 const productCommands = new Set(['verify', 'search', 'status', 'check', 'serve']);
 if (productCommands.has(command)) {
-  if (args.some((token) => token === '--help' || token === '-h')) commandHelp(command);
+  if (args.some((token) => token === '--help' || token === '-h')) {
+    commandHelp(command as ProductCommand);
+  }
   runResolver([command, ...args]);
 } else if (command === 'resolver') {
   runResolver(args);

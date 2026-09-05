@@ -1,22 +1,35 @@
 /** Deterministic content encoding and addressing for immutable Ont records. */
-import { createHash } from 'node:crypto';
+import { createHash, type Hash } from 'node:crypto';
 
-const compare = (left, right) => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const compare = (left: unknown, right: unknown): number =>
+  Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 
-export const stableObjectText = (value) => JSON.stringify(value, (_key, row) =>
-  row && typeof row === 'object' && !Array.isArray(row)
-    ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, row[key]]))
-    : row);
+/** Values accepted by the canonical JSON text boundary. */
+export type CanonicalJsonValue = null | boolean | number | string | object;
 
-export const objectBytesSha256 = (bytes) =>
+const stringifyStableObjectText = (value: unknown): string | undefined =>
+  JSON.stringify(value, (_key: string, row: unknown) =>
+    row && typeof row === 'object' && !Array.isArray(row)
+      ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
+      : row);
+
+export const stableObjectText = (value: CanonicalJsonValue): string => {
+  const text = stringifyStableObjectText(value);
+  if (text === undefined) throw new TypeError('canonical value must serialize to JSON text');
+  return text;
+};
+
+export const objectBytesSha256 = (bytes: Uint8Array): string =>
   `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
 const STREAM_HASH_FALLBACK = Symbol('STREAM_HASH_FALLBACK');
 
-function updateStableObjectHash(hash, input, key, ancestors) {
+function updateStableObjectHash(hash: Hash, input: unknown, key: string, ancestors: Set<object>): void {
   let value = input;
-  if (value && typeof value === 'object' && typeof value.toJSON === 'function') {
-    value = value.toJSON(key);
+  const objectWithToJson = value && typeof value === 'object'
+    ? value as { toJSON?: (key: string) => unknown } : null;
+  if (typeof objectWithToJson?.toJSON === 'function') {
+    value = objectWithToJson.toJSON(key);
   }
   if (value === null || typeof value === 'boolean' || typeof value === 'number'
     || typeof value === 'string') {
@@ -34,7 +47,7 @@ function updateStableObjectHash(hash, input, key, ancestors) {
     hash.update('[');
     for (let index = 0; index < value.length; index += 1) {
       if (index > 0) hash.update(',');
-      const child = value[index];
+      const child = value[index] as unknown;
       if (child === undefined || typeof child === 'function' || typeof child === 'symbol') {
         hash.update('null');
       } else {
@@ -46,7 +59,7 @@ function updateStableObjectHash(hash, input, key, ancestors) {
     hash.update('{');
     let emitted = 0;
     for (const childKey of Object.keys(value).sort(compare)) {
-      const child = value[childKey];
+      const child = (value as Record<string, unknown>)[childKey];
       if (child === undefined || typeof child === 'function' || typeof child === 'symbol') continue;
       if (emitted > 0) hash.update(',');
       hash.update(JSON.stringify(childKey));
@@ -59,13 +72,15 @@ function updateStableObjectHash(hash, input, key, ancestors) {
   ancestors.delete(value);
 }
 
-export const stableObjectSha256 = (value) => {
+export const stableObjectSha256 = (value: unknown): string => {
   const hash = createHash('sha256');
   try {
     updateStableObjectHash(hash, value, '', new Set());
     return `sha256:${hash.digest('hex')}`;
   } catch (error) {
     if (error !== STREAM_HASH_FALLBACK) throw error;
-    return objectBytesSha256(Buffer.from(stableObjectText(value)));
+    const text = stringifyStableObjectText(value);
+    if (text === undefined) throw new TypeError('canonical value must serialize to JSON text');
+    return objectBytesSha256(Buffer.from(text));
   }
 };

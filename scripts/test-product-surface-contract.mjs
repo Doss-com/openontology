@@ -7,12 +7,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 
-import * as publicSdk from '../src/openontology.mjs';
-import { buildSourceNativeProduct } from '../src/source-native-product.mjs';
-import { SOURCE_NATIVE_PRODUCT_TOOLS } from '../src/source-native-product-mcp.mjs';
+import * as publicSdk from '../dist/src/openontology.mjs';
+import { buildSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+import { SOURCE_NATIVE_PRODUCT_TOOLS } from '../dist/src/source-native-product-mcp.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const bin = resolve(repositoryRoot, 'bin/oont.mjs');
+const bin = resolve(repositoryRoot, 'dist/bin/oont.mjs');
 const { openOntology } = publicSdk;
 
 function run(args) {

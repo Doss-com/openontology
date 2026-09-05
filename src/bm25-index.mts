@@ -1,16 +1,41 @@
 /** Small deterministic BM25 inverted index. Candidate generation only, never Evidence or truth. */
+export interface Bm25IndexOptions<TDocument> {
+  idOf?: (row: TDocument) => unknown;
+  textOf?: (row: TDocument) => unknown;
+  tokenize?: (text: unknown) => string[];
+  k1?: number;
+  b?: number;
+}
+
+export interface Bm25RankedDocument<TDocument> {
+  id: string;
+  score: number;
+  document: TDocument;
+}
+
+export interface Bm25Index<TDocument> {
+  schema: 1;
+  kind: 'Bm25IndexV1';
+  count: number;
+  k1: number;
+  b: number;
+  averageLength: number;
+  rank(query: string, options?: { limit?: number }): Bm25RankedDocument<TDocument>[];
+  stats(): { documents: number; terms: number; averageLength: number; k1: number; b: number };
+}
+
 const DEFAULTS = Object.freeze({ k1: 1.2, b: 0.75 });
 
-export const bm25Tokens = (text) =>
+export const bm25Tokens = (text: unknown): string[] =>
   String(text ?? '').toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? [];
 
-export function createBm25Index(documents, {
-  idOf = (row) => row.id,
-  textOf = (row) => row.text,
+export function createBm25Index<TDocument extends object>(documents: TDocument[], {
+  idOf = (row) => Reflect.get(row, 'id'),
+  textOf = (row) => Reflect.get(row, 'text'),
   tokenize = bm25Tokens,
   k1 = DEFAULTS.k1,
   b = DEFAULTS.b,
-} = {}) {
+}: Bm25IndexOptions<TDocument> = {}): Bm25Index<TDocument> {
   if (!Array.isArray(documents)
     || typeof idOf !== 'function'
     || typeof textOf !== 'function'
@@ -20,9 +45,15 @@ export function createBm25Index(documents, {
     throw new TypeError('documents/options');
   }
 
-  const rows = [];
-  const postings = new Map();
-  const seen = new Set();
+  const rows: Array<{
+    id: string;
+    document: TDocument;
+    tokens: string[];
+    frequency: Map<string, number>;
+    ordinal: number;
+  }> = [];
+  const postings = new Map<string, number[]>();
+  const seen = new Set<string>();
   let totalLength = 0;
 
   for (const [ordinal, document] of documents.entries()) {
@@ -33,7 +64,7 @@ export function createBm25Index(documents, {
     seen.add(id);
 
     const tokens = tokenize(textOf(document));
-    const frequency = new Map();
+    const frequency = new Map<string, number>();
     for (const token of tokens) frequency.set(token, (frequency.get(token) ?? 0) + 1);
 
     const row = { id, document, tokens, frequency, ordinal };
@@ -47,10 +78,10 @@ export function createBm25Index(documents, {
   }
 
   const averageLength = rows.length ? totalLength / rows.length : 0;
-  const documentFrequency = new Map(
+  const documentFrequency = new Map<string, number>(
     [...postings].map(([token, posting]) => [token, posting.length]),
   );
-  const score = (row, queryTokens) => {
+  const score = (row: typeof rows[number], queryTokens: string[]): number => {
     let value = 0;
     for (const token of queryTokens) {
       const termFrequency = row.frequency.get(token) ?? 0;
@@ -73,10 +104,10 @@ export function createBm25Index(documents, {
     k1,
     b,
     averageLength,
-    rank(query, { limit = 10 } = {}) {
+    rank(query: string, { limit = 10 } = {}): Bm25RankedDocument<TDocument>[] {
       if (!Number.isSafeInteger(limit) || limit < 0) throw new TypeError('limit');
       const queryTokens = [...new Set(tokenize(query))];
-      const ordinals = new Set();
+      const ordinals = new Set<number>();
       for (const token of queryTokens) {
         for (const ordinal of postings.get(token) ?? []) ordinals.add(ordinal);
       }

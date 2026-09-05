@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const run = (args) => spawnSync(process.execPath, [resolve(repositoryRoot, 'bin/oont.mjs'), ...args], {
+const run = (args) => spawnSync(process.execPath, [resolve(repositoryRoot, 'dist/bin/oont.mjs'), ...args], {
   cwd: repositoryRoot,
   encoding: 'utf8',
 });

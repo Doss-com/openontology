@@ -11,14 +11,220 @@ import {
   stableObjectSha256,
   stableObjectText,
 } from './canonical-content.mjs';
+import type {
+  AssertionEntry,
+} from './assertion-envelope.mjs';
+import type {
+  ObjectBackend,
+  ObjectBackendCapabilities,
+  ObjectBackendInput,
+  ObjectReadResult,
+  ObjectWriteReceipt,
+} from './object-storage-backend.mjs';
 
 export { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
 
+export interface AssertionSegmentDescriptor {
+  schemaVersion: 1;
+  kind: 'OpenOntologyAssertionSegmentDescriptorV1';
+  key: string;
+  logicalPath: string;
+  storedSha256: string;
+  storedByteLength: number;
+  uncompressedSha256: string;
+  uncompressedByteLength: number;
+  lineCount: number;
+  assertionLinesSha256: string;
+}
+
+export interface BlobDescriptor {
+  schemaVersion: 1;
+  kind: 'OpenOntologyBlobDescriptorV1';
+  key: string;
+  logicalPath: string;
+  storedSha256: string;
+  byteLength: number;
+  mediaType: string;
+}
+
+export interface ObjectCommit {
+  schemaVersion: 1;
+  kind: 'OpenOntologyObjectCommitV1';
+  formatVersion: 'object/v1';
+  ontId: string;
+  parents: string[];
+  assertionEnvelopeVersion: string;
+  storeManifestVersion: string;
+  ontManifest: BlobDescriptor;
+  segments: AssertionSegmentDescriptor[];
+  blobs: BlobDescriptor[];
+}
+
+export interface BranchRef {
+  schemaVersion: 1;
+  kind: 'OpenOntologyBranchRefV1';
+  ontId: string;
+  branch: string;
+  commitSha256: string;
+  replayStatus: 'CLEAN' | 'CONFLICT';
+  replaySha256: string;
+}
+
+export interface LoadedAssertionSegment {
+  descriptor: AssertionSegmentDescriptor;
+  bytes: Buffer;
+  records: AssertionRecord[];
+}
+
+export interface AssertionRecord {
+  entry: AssertionEntry;
+  line: string;
+  lineSha256: string;
+}
+
+interface CommitRecord {
+  commitSha256: string;
+  key: string;
+  byteLength: number;
+  commit: ObjectCommit;
+}
+
+export interface ReplayConflict {
+  type: string;
+  identity: string;
+  variants: string[];
+}
+
+export interface ReplayGraph {
+  schemaVersion: 1;
+  kind: 'OpenOntologyObjectReplayV1';
+  ontId: string;
+  tipCommitSha256: string;
+  ontManifestSha256: string;
+  commitOrder: string[];
+  segmentKeys: string[];
+  blobKeys: string[];
+  assertionRows: Array<{ assertionId: string; lineSha256s: string[] }>;
+  conflicts: ReplayConflict[];
+  status: 'CLEAN' | 'CONFLICT';
+  replaySha256: string;
+  manifest: { descriptor: BlobDescriptor; bytes: Buffer };
+  segments: LoadedAssertionSegment[];
+  blobs: Array<{ descriptor: BlobDescriptor; bytes: Buffer }>;
+  ledgerFiles: Array<{ logicalPath: string; bytes: Buffer; sha256: string; segmentKeys: string[] }>;
+  entries: AssertionEntry[];
+}
+
+export interface ReplayMetadataGraph {
+  schemaVersion: 1;
+  kind: 'OpenOntologyObjectReplayMetadataV1';
+  replayIdentity: Record<string, unknown>;
+  ontId: string;
+  tipCommitSha256: string;
+  ontManifestSha256: string;
+  commitOrder: string[];
+  segmentKeys: string[];
+  blobKeys: string[];
+  assertionRows: Array<{ assertionId: string; lineSha256s: string[] }>;
+  conflicts: ReplayConflict[];
+  status: 'CLEAN' | 'CONFLICT';
+  replaySha256: string;
+  manifestDescriptor: BlobDescriptor;
+  segmentDescriptors: AssertionSegmentDescriptor[];
+  blobDescriptors: BlobDescriptor[];
+  segments: LoadedAssertionSegment[];
+  ledgerFiles: Array<{ logicalPath: string; bytes: Buffer; sha256: string; segmentKeys: string[] }>;
+  entries: AssertionEntry[];
+  blobBytesLoaded: number;
+  payloadBlobBytesValidated: boolean;
+}
+
+interface MergePlanBase {
+  schemaVersion: 1;
+  kind: 'OpenOntologyMergePlanV1';
+  ontId: string;
+  parents: string[];
+  conflicts: ReplayConflict[];
+}
+interface FastForwardMergePlan extends MergePlanBase {
+  status: 'FAST_FORWARD';
+  targetCommitSha256: string;
+}
+interface ConflictMergePlan extends MergePlanBase {
+  status: 'CONFLICT';
+}
+interface CleanMergePlan extends MergePlanBase {
+  status: 'CLEAN';
+  prospectiveCommitSha256: string;
+  prospectiveReplaySha256: string;
+}
+type MergePlan = FastForwardMergePlan | ConflictMergePlan | CleanMergePlan;
+
+interface CommitInput {
+  ontId: string;
+  parents?: string[];
+  ontManifest: unknown;
+  segments?: unknown[];
+  blobs?: unknown[];
+}
+
+export interface ObjectOntStore {
+  backendCapabilities: ObjectBackendCapabilities;
+  putAssertionSegment(input: { logicalPath: string; jsonlBytes: ObjectBackendInput }): AssertionSegmentDescriptor;
+  readAssertionSegment(descriptor: unknown): LoadedAssertionSegment;
+  putBlob(input: { logicalPath: string; bytes: ObjectBackendInput; mediaType?: string }): BlobDescriptor;
+  readBlob(descriptor: unknown, options?: { manifest?: boolean }): { descriptor: BlobDescriptor; bytes: Buffer };
+  readBlobRange(descriptor: unknown, options?: { start?: number; end?: number | null }): {
+    descriptor: BlobDescriptor;
+    bytes: Buffer;
+    range: { start: number; end: number };
+    objectChecksumSha256: string;
+    deliveredSha256: string;
+    objectChecksumBound: true;
+    completeObjectBytesVerified: boolean;
+  };
+  writeCommit(input: CommitInput): { ontId: string; commitSha256: string; key: string; byteLength: number; replayed: boolean };
+  writeCommitMetadata(input: CommitInput): { ontId: string; commitSha256: string; key: string; byteLength: number; replayed: boolean };
+  readCommit(commitSha256: string): { commitSha256: string; key: string; byteLength: number; commit: ObjectCommit };
+  loadGraph(tipCommitSha256: string, virtualCommits?: Map<string, CommitRecord>): {
+    commits: Map<string, CommitRecord>;
+    order: string[];
+    ontId: string;
+  };
+  replay(tipCommitSha256: string): ReplayGraph;
+  replayMetadata(tipCommitSha256: string): ReplayMetadataGraph;
+  planMerge(input: { leftCommitSha256: string; rightCommitSha256: string }): MergePlan;
+  merge(input: { leftCommitSha256: string; rightCommitSha256: string }): Record<string, unknown>;
+  readRef(input: { ontId: string; branch: string }): RefReadResult | null;
+  readRefMetadata(input: { ontId: string; branch: string }): RefReadResult | null;
+  compareAndSwapRef(input: RefUpdateInput): Record<string, unknown>;
+  compareAndSwapRefMetadata(input: RefUpdateInput): Record<string, unknown>;
+}
+
+interface RefReadResult {
+  ref: BranchRef;
+  version: string;
+  key: string;
+  checksumSha256: string;
+}
+
+interface RefUpdateInput {
+  ontId: string;
+  branch: string;
+  expectedVersion?: string | null;
+  commitSha256: string;
+  allowConflicts?: boolean;
+}
+
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
-const compare = (left, right) => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const fail = (code) => { const error = new Error(code); error.code = code; throw error; };
-const freeze = (value) => {
+const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const fail = (code: string): never => {
+  const error = new Error(code) as Error & { code: string };
+  error.code = code;
+  throw error;
+};
+const freeze = <T,>(value: T): T => {
   if (ArrayBuffer.isView(value)) return value;
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
@@ -26,55 +232,57 @@ const freeze = (value) => {
   }
   return value;
 };
-const clone = (value) => structuredClone(value);
+const clone = <T,>(value: T): T => structuredClone(value);
 
-function exactKeys(value, keys, code) {
+function exactKeys(value: unknown, keys: readonly string[], code: string): void {
+  const record = value && typeof value === 'object' ? value as Record<string, unknown> : null;
   if (!value || typeof value !== 'object' || Array.isArray(value)
-    || stableObjectText(Object.keys(value).sort(compare)) !== stableObjectText([...keys].sort(compare))) fail(code);
+    || stableObjectText(Object.keys(record ?? {}).sort(compare)) !== stableObjectText([...keys].sort(compare))) fail(code);
 }
 
-function validateSha256(value, code) {
-  if (!SHA256.test(value ?? '')) fail(code);
+function validateSha256(value: unknown, code: string): string {
+  if (typeof value !== 'string' || !SHA256.test(value)) return fail(code);
   return value;
 }
 
-function validateIdentity(value, code) {
-  if (!ID.test(value ?? '')) fail(code);
+function validateIdentity(value: unknown, code: string): string {
+  if (typeof value !== 'string' || !ID.test(value)) return fail(code);
   return value;
 }
 
-function validateLogicalPath(value, code) {
+function validateLogicalPath(value: unknown, code: string): string {
   if (typeof value !== 'string' || !value || value.length > 1024 || value.includes('\0')
-    || value.startsWith('/') || value.includes('\\')) fail(code);
+    || value.startsWith('/') || value.includes('\\')) return fail(code);
   const segments = value.split('/');
   if (segments.some((segment) => !segment || segment === '.' || segment === '..')) fail(code);
   return value;
 }
 
-function exactBytes(value) {
+function exactBytes(value: ObjectBackendInput): Buffer {
   if (Buffer.isBuffer(value)) return Buffer.from(value);
   if (value instanceof Uint8Array) return Buffer.from(value);
   if (typeof value === 'string') return Buffer.from(value);
-  fail('OBJECT_ONT_BYTES');
+  return fail('OBJECT_ONT_BYTES');
 }
 
-function parseAssertionJsonl(bytesInput) {
+function parseAssertionJsonl(bytesInput: ObjectBackendInput): { bytes: Buffer; records: AssertionRecord[] } {
   const bytes = exactBytes(bytesInput);
   if (bytes.length === 0 || bytes.at(-1) !== 0x0a) fail('OBJECT_ONT_SEGMENT_JSONL');
   const lines = bytes.toString('utf8').split('\n');
   lines.pop();
   if (!lines.length || lines.some((line) => !line)) fail('OBJECT_ONT_SEGMENT_JSONL');
-  const records = lines.map((line) => {
-    let entry;
-    try { entry = JSON.parse(line); } catch { fail('OBJECT_ONT_SEGMENT_JSONL'); }
-    if (entryProblem(entry) !== null) fail('OBJECT_ONT_SEGMENT_ASSERTION');
+  const records = lines.map((line): AssertionRecord => {
+    let entry: AssertionEntry | undefined;
+    try { entry = JSON.parse(line) as AssertionEntry; } catch { fail('OBJECT_ONT_SEGMENT_JSONL'); }
+    if (entry === undefined) return fail('OBJECT_ONT_SEGMENT_ASSERTION');
+    if (entryProblem(entry) !== null) return fail('OBJECT_ONT_SEGMENT_ASSERTION');
     return {
       entry,
       line,
       lineSha256: objectBytesSha256(Buffer.from(line)),
     };
   });
-  const variants = new Map();
+  const variants = new Map<string, string>();
   for (const record of records) {
     const prior = variants.get(record.entry.id);
     if (prior && prior !== record.lineSha256) fail('OBJECT_ONT_SEGMENT_IDENTITY_VARIANT');
@@ -92,111 +300,123 @@ const zstdOptions = Object.freeze({
   }),
 });
 
-function segmentDigestRows(records) {
+function segmentDigestRows(records: AssertionRecord[]): Array<{ assertionId: string; lineSha256: string }> {
   return records.map((record) => ({ assertionId: record.entry.id, lineSha256: record.lineSha256 }));
 }
 
-function validateSegmentDescriptor(value) {
+function validateSegmentDescriptor(value: unknown): AssertionSegmentDescriptor {
+  const descriptor = value as AssertionSegmentDescriptor;
   exactKeys(value, [
     'schemaVersion', 'kind', 'key', 'logicalPath', 'storedSha256', 'storedByteLength',
     'uncompressedSha256', 'uncompressedByteLength', 'lineCount', 'assertionLinesSha256',
   ], 'OBJECT_ONT_SEGMENT_DESCRIPTOR');
-  if (value.schemaVersion !== 1 || value.kind !== 'OpenOntologyAssertionSegmentDescriptorV1'
-    || validateLogicalPath(value.logicalPath, 'OBJECT_ONT_SEGMENT_DESCRIPTOR').startsWith('ledger/') !== true
-    || !value.logicalPath.endsWith('.jsonl')
-    || value.key !== `segments/sha256/${validateSha256(value.storedSha256, 'OBJECT_ONT_SEGMENT_DESCRIPTOR').slice(7)}.jsonl.zst`
-    || !Number.isSafeInteger(value.storedByteLength) || value.storedByteLength < 1
-    || !SHA256.test(value.uncompressedSha256 ?? '')
-    || !Number.isSafeInteger(value.uncompressedByteLength) || value.uncompressedByteLength < 1
-    || !Number.isSafeInteger(value.lineCount) || value.lineCount < 1
-    || !SHA256.test(value.assertionLinesSha256 ?? '')) fail('OBJECT_ONT_SEGMENT_DESCRIPTOR');
-  return value;
+  if (descriptor.schemaVersion !== 1 || descriptor.kind !== 'OpenOntologyAssertionSegmentDescriptorV1'
+    || validateLogicalPath(descriptor.logicalPath, 'OBJECT_ONT_SEGMENT_DESCRIPTOR').startsWith('ledger/') !== true
+    || !descriptor.logicalPath.endsWith('.jsonl')
+    || descriptor.key !== `segments/sha256/${validateSha256(descriptor.storedSha256, 'OBJECT_ONT_SEGMENT_DESCRIPTOR').slice(7)}.jsonl.zst`
+    || !Number.isSafeInteger(descriptor.storedByteLength) || descriptor.storedByteLength < 1
+    || !SHA256.test(descriptor.uncompressedSha256 ?? '')
+    || !Number.isSafeInteger(descriptor.uncompressedByteLength) || descriptor.uncompressedByteLength < 1
+    || !Number.isSafeInteger(descriptor.lineCount) || descriptor.lineCount < 1
+    || !SHA256.test(descriptor.assertionLinesSha256 ?? '')) fail('OBJECT_ONT_SEGMENT_DESCRIPTOR');
+  return descriptor;
 }
 
-function validateBlobDescriptor(value, { manifest = false } = {}) {
+function validateBlobDescriptor(value: unknown, { manifest = false }: { manifest?: boolean } = {}): BlobDescriptor {
+  const descriptor = value as BlobDescriptor;
   exactKeys(value, [
     'schemaVersion', 'kind', 'key', 'logicalPath', 'storedSha256', 'byteLength', 'mediaType',
   ], 'OBJECT_ONT_BLOB_DESCRIPTOR');
-  if (value.schemaVersion !== 1 || value.kind !== 'OpenOntologyBlobDescriptorV1'
-    || value.key !== `blobs/sha256/${validateSha256(value.storedSha256, 'OBJECT_ONT_BLOB_DESCRIPTOR').slice(7)}`
-    || !Number.isSafeInteger(value.byteLength) || value.byteLength < 1
-    || typeof value.mediaType !== 'string' || !value.mediaType
-    || validateLogicalPath(value.logicalPath, 'OBJECT_ONT_BLOB_DESCRIPTOR') !== value.logicalPath
-    || (manifest ? value.logicalPath !== 'oont.json' : !value.logicalPath.startsWith('blobs/'))) {
+  if (descriptor.schemaVersion !== 1 || descriptor.kind !== 'OpenOntologyBlobDescriptorV1'
+    || descriptor.key !== `blobs/sha256/${validateSha256(descriptor.storedSha256, 'OBJECT_ONT_BLOB_DESCRIPTOR').slice(7)}`
+    || !Number.isSafeInteger(descriptor.byteLength) || descriptor.byteLength < 1
+    || typeof descriptor.mediaType !== 'string' || !descriptor.mediaType
+    || validateLogicalPath(descriptor.logicalPath, 'OBJECT_ONT_BLOB_DESCRIPTOR') !== descriptor.logicalPath
+    || (manifest ? descriptor.logicalPath !== 'oont.json' : !descriptor.logicalPath.startsWith('blobs/'))) {
     fail('OBJECT_ONT_BLOB_DESCRIPTOR');
   }
-  return value;
+  return descriptor;
 }
 
-function descriptorOrder(left, right) {
+function descriptorOrder(left: AssertionSegmentDescriptor | BlobDescriptor, right: AssertionSegmentDescriptor | BlobDescriptor): number {
   return compare(left.logicalPath, right.logicalPath) || compare(left.key, right.key);
 }
 
-function canonicalDescriptors(values, validator, code) {
-  if (!Array.isArray(values)) fail(code);
-  const normalized = values.map((value) => clone(validator(value))).sort(descriptorOrder);
+function canonicalDescriptors<T extends AssertionSegmentDescriptor | BlobDescriptor>(
+  values: unknown,
+  validator: (value: unknown) => T,
+  code: string,
+): T[] {
+  if (!Array.isArray(values)) return fail(code);
+  const normalized = (values as unknown[]).map((value) => clone(validator(value))).sort(descriptorOrder);
   const identities = normalized.map((value) => `${value.logicalPath}\0${value.key}`);
   if (new Set(identities).size !== identities.length) fail(code);
   return normalized;
 }
 
-function validateCommitCore(value) {
+function validateCommitCore(value: unknown): ObjectCommit {
+  const commit = value as ObjectCommit;
   exactKeys(value, [
     'schemaVersion', 'kind', 'formatVersion', 'ontId', 'parents', 'assertionEnvelopeVersion',
     'storeManifestVersion', 'ontManifest', 'segments', 'blobs',
   ], 'OBJECT_ONT_COMMIT');
-  if (value.schemaVersion !== 1 || value.kind !== 'OpenOntologyObjectCommitV1'
-    || value.formatVersion !== 'object/v1' || value.assertionEnvelopeVersion !== ASSERTION_V
-    || value.storeManifestVersion !== STORE_V) fail('OBJECT_ONT_COMMIT');
-  validateIdentity(value.ontId, 'OBJECT_ONT_COMMIT');
-  if (!Array.isArray(value.parents) || value.parents.length > 2
-    || value.parents.some((parent) => !SHA256.test(parent))
-    || new Set(value.parents).size !== value.parents.length
-    || stableObjectText(value.parents) !== stableObjectText([...value.parents].sort(compare))) fail('OBJECT_ONT_COMMIT');
-  validateBlobDescriptor(value.ontManifest, { manifest: true });
-  const segments = canonicalDescriptors(value.segments, validateSegmentDescriptor, 'OBJECT_ONT_COMMIT');
-  const blobs = canonicalDescriptors(value.blobs, (row) => validateBlobDescriptor(row), 'OBJECT_ONT_COMMIT');
-  if (stableObjectText(segments) !== stableObjectText(value.segments)
-    || stableObjectText(blobs) !== stableObjectText(value.blobs)) fail('OBJECT_ONT_COMMIT');
-  return value;
+  if (commit.schemaVersion !== 1 || commit.kind !== 'OpenOntologyObjectCommitV1'
+    || commit.formatVersion !== 'object/v1' || commit.assertionEnvelopeVersion !== ASSERTION_V
+    || commit.storeManifestVersion !== STORE_V) fail('OBJECT_ONT_COMMIT');
+  validateIdentity(commit.ontId, 'OBJECT_ONT_COMMIT');
+  if (!Array.isArray(commit.parents) || commit.parents.length > 2
+    || commit.parents.some((parent) => !SHA256.test(parent))
+    || new Set(commit.parents).size !== commit.parents.length
+    || stableObjectText(commit.parents) !== stableObjectText([...commit.parents].sort(compare))) fail('OBJECT_ONT_COMMIT');
+  validateBlobDescriptor(commit.ontManifest, { manifest: true });
+  const segments = canonicalDescriptors(commit.segments, validateSegmentDescriptor, 'OBJECT_ONT_COMMIT');
+  const blobs = canonicalDescriptors(commit.blobs, (row) => validateBlobDescriptor(row), 'OBJECT_ONT_COMMIT');
+  if (stableObjectText(segments) !== stableObjectText(commit.segments)
+    || stableObjectText(blobs) !== stableObjectText(commit.blobs)) fail('OBJECT_ONT_COMMIT');
+  return commit;
 }
 
-function commitKey(commitSha256) {
+function commitKey(commitSha256: string): string {
   return `commits/sha256/${validateSha256(commitSha256, 'OBJECT_ONT_COMMIT_ID').slice(7)}.json`;
 }
 
-function refKey(ontId, branch) {
+function refKey(ontId: string, branch: string): string {
   return `refs/${validateIdentity(ontId, 'OBJECT_ONT_REF')}/${validateIdentity(branch, 'OBJECT_ONT_REF')}.json`;
 }
 
-function validateRef(value, { ontId, branch } = {}) {
+function validateRef(value: unknown, { ontId, branch }: { ontId?: string; branch?: string } = {}): BranchRef {
+  const ref = value as BranchRef;
   exactKeys(value, [
     'schemaVersion', 'kind', 'ontId', 'branch', 'commitSha256', 'replayStatus', 'replaySha256',
   ], 'OBJECT_ONT_REF');
-  if (value.schemaVersion !== 1 || value.kind !== 'OpenOntologyBranchRefV1'
-    || validateIdentity(value.ontId, 'OBJECT_ONT_REF') !== value.ontId
-    || validateIdentity(value.branch, 'OBJECT_ONT_REF') !== value.branch
-    || !SHA256.test(value.commitSha256 ?? '') || !['CLEAN', 'CONFLICT'].includes(value.replayStatus)
-    || !SHA256.test(value.replaySha256 ?? '')
-    || ontId && value.ontId !== ontId || branch && value.branch !== branch) fail('OBJECT_ONT_REF');
-  return value;
+  if (ref.schemaVersion !== 1 || ref.kind !== 'OpenOntologyBranchRefV1'
+    || validateIdentity(ref.ontId, 'OBJECT_ONT_REF') !== ref.ontId
+    || validateIdentity(ref.branch, 'OBJECT_ONT_REF') !== ref.branch
+    || !SHA256.test(ref.commitSha256 ?? '') || !['CLEAN', 'CONFLICT'].includes(ref.replayStatus)
+    || !SHA256.test(ref.replaySha256 ?? '')
+    || ontId && ref.ontId !== ontId || branch && ref.branch !== branch) fail('OBJECT_ONT_REF');
+  return ref;
 }
 
-function readBackendBytes(backend, key, expectedSha256, code) {
+function readBackendBytes(backend: ObjectBackend, key: string, expectedSha256: string, code: string): ObjectReadResult {
   const result = backend.get(key);
   if (result.checksumSha256 !== expectedSha256 || objectBytesSha256(result.bytes) !== expectedSha256) fail(code);
   return result;
 }
 
-function conflictOrder(left, right) {
+function conflictOrder(left: ReplayConflict, right: ReplayConflict): number {
   return compare(left.type, right.type) || compare(left.identity, right.identity);
 }
 
-export function openObjectOntStore({ backend } = {}) {
-  if (!backend || typeof backend.get !== 'function' || typeof backend.putIfAbsent !== 'function'
-    || typeof backend.compareAndSwap !== 'function' || typeof backend.head !== 'function') fail('OBJECT_ONT_BACKEND');
+export function openObjectOntStore({ backend: backendInput }: { backend?: ObjectBackend } = {}): ObjectOntStore {
+  if (!backendInput || typeof backendInput.get !== 'function' || typeof backendInput.putIfAbsent !== 'function'
+    || typeof backendInput.compareAndSwap !== 'function' || typeof backendInput.head !== 'function') return fail('OBJECT_ONT_BACKEND');
+  const backend = backendInput;
 
-  const putAssertionSegment = ({ logicalPath, jsonlBytes }) => {
+  const putAssertionSegment = ({ logicalPath, jsonlBytes }: {
+    logicalPath: string;
+    jsonlBytes: ObjectBackendInput;
+  }): AssertionSegmentDescriptor => {
     const parsed = parseAssertionJsonl(jsonlBytes);
     validateLogicalPath(logicalPath, 'OBJECT_ONT_SEGMENT_DESCRIPTOR');
     if (!logicalPath.startsWith('ledger/') || !logicalPath.endsWith('.jsonl')) fail('OBJECT_ONT_SEGMENT_DESCRIPTOR');
@@ -219,12 +439,12 @@ export function openObjectOntStore({ backend } = {}) {
     });
   };
 
-  const readAssertionSegment = (descriptorInput) => {
+  const readAssertionSegment = (descriptorInput: unknown): LoadedAssertionSegment => {
     const descriptor = validateSegmentDescriptor(descriptorInput);
     const stored = readBackendBytes(backend, descriptor.key, descriptor.storedSha256, 'OBJECT_ONT_SEGMENT_READ');
     if (stored.bytes.length !== descriptor.storedByteLength) fail('OBJECT_ONT_SEGMENT_READ');
     let uncompressed;
-    try { uncompressed = zstdDecompressSync(stored.bytes); } catch { fail('OBJECT_ONT_SEGMENT_READ'); }
+    try { uncompressed = zstdDecompressSync(stored.bytes); } catch { return fail('OBJECT_ONT_SEGMENT_READ'); }
     const parsed = parseAssertionJsonl(uncompressed);
     if (parsed.bytes.length !== descriptor.uncompressedByteLength
       || objectBytesSha256(parsed.bytes) !== descriptor.uncompressedSha256
@@ -235,7 +455,11 @@ export function openObjectOntStore({ backend } = {}) {
     return freeze({ descriptor: clone(descriptor), bytes: parsed.bytes, records: parsed.records });
   };
 
-  const putBlob = ({ logicalPath, bytes: bytesInput, mediaType = 'application/octet-stream' }) => {
+  const putBlob = ({ logicalPath, bytes: bytesInput, mediaType = 'application/octet-stream' }: {
+    logicalPath: string;
+    bytes: ObjectBackendInput;
+    mediaType?: string;
+  }): BlobDescriptor => {
     validateLogicalPath(logicalPath, 'OBJECT_ONT_BLOB_DESCRIPTOR');
     if (logicalPath !== 'oont.json' && !logicalPath.startsWith('blobs/')) fail('OBJECT_ONT_BLOB_DESCRIPTOR');
     if (typeof mediaType !== 'string' || !mediaType) fail('OBJECT_ONT_BLOB_DESCRIPTOR');
@@ -256,14 +480,25 @@ export function openObjectOntStore({ backend } = {}) {
     });
   };
 
-  const readBlob = (descriptorInput, options = {}) => {
+  const readBlob = (descriptorInput: unknown, options: { manifest?: boolean } = {}): { descriptor: BlobDescriptor; bytes: Buffer } => {
     const descriptor = validateBlobDescriptor(descriptorInput, options);
     const result = readBackendBytes(backend, descriptor.key, descriptor.storedSha256, 'OBJECT_ONT_BLOB_READ');
     if (result.bytes.length !== descriptor.byteLength) fail('OBJECT_ONT_BLOB_READ');
     return freeze({ descriptor: clone(descriptor), bytes: result.bytes });
   };
 
-  const readBlobRange = (descriptorInput, { start = 0, end = null } = {}) => {
+  const readBlobRange = (descriptorInput: unknown, { start = 0, end = null }: {
+    start?: number;
+    end?: number | null;
+  } = {}): {
+    descriptor: BlobDescriptor;
+    bytes: Buffer;
+    range: { start: number; end: number };
+    objectChecksumSha256: string;
+    deliveredSha256: string;
+    objectChecksumBound: true;
+    completeObjectBytesVerified: boolean;
+  } => {
     const descriptor = validateBlobDescriptor(descriptorInput);
     const finalEnd = end === null ? descriptor.byteLength : end;
     if (!Number.isSafeInteger(start) || !Number.isSafeInteger(finalEnd)
@@ -292,7 +527,7 @@ export function openObjectOntStore({ backend } = {}) {
     });
   };
 
-  const readCommit = (commitSha256) => {
+  const readCommit = (commitSha256: string): { commitSha256: string; key: string; byteLength: number; commit: ObjectCommit } => {
     const key = commitKey(commitSha256);
     const result = readBackendBytes(backend, key, commitSha256, 'OBJECT_ONT_COMMIT_READ');
     let commit;
@@ -302,7 +537,10 @@ export function openObjectOntStore({ backend } = {}) {
     return freeze({ commitSha256, key, byteLength: result.bytes.length, commit });
   };
 
-  const readRefWith = ({ ontId, branch }, replayReader) => {
+  const readRefWith = ({ ontId, branch }: { ontId: string; branch: string }, replayReader: (
+    tipCommitSha256: string,
+    virtualCommits?: Map<string, CommitRecord>,
+  ) => ReplayGraph | ReplayMetadataGraph): RefReadResult | null => {
     const key = refKey(ontId, branch);
     if (backend.head(key) === null) return null;
     const result = backend.get(key);
@@ -314,15 +552,19 @@ export function openObjectOntStore({ backend } = {}) {
     if (replay.status !== ref.replayStatus || replay.replaySha256 !== ref.replaySha256) fail('OBJECT_ONT_REF_READ');
     return freeze({ ref: clone(ref), version: result.version, key, checksumSha256: result.checksumSha256 });
   };
-  const readRef = (input) => readRefWith(input, replayGraph);
-  const readRefMetadata = (input) => readRefWith(input, replayMetadataGraph);
+  const readRef = (input: { ontId: string; branch: string }): RefReadResult | null => readRefWith(input, replayGraph);
+  const readRefMetadata = (input: { ontId: string; branch: string }): RefReadResult | null => readRefWith(input, replayMetadataGraph);
 
-  const loadGraph = (tipCommitSha256, virtualCommits = new Map()) => {
+  const loadGraph = (tipCommitSha256: string, virtualCommits: Map<string, CommitRecord> = new Map()): {
+    commits: Map<string, CommitRecord>;
+    order: string[];
+    ontId: string;
+  } => {
     validateSha256(tipCommitSha256, 'OBJECT_ONT_COMMIT_ID');
-    const commits = new Map();
-    const visiting = new Set();
-    const order = [];
-    const visit = (commitSha256) => {
+    const commits = new Map<string, CommitRecord>();
+    const visiting = new Set<string>();
+    const order: string[] = [];
+    const visit = (commitSha256: string): void => {
       if (commits.has(commitSha256)) return;
       if (visiting.has(commitSha256)) fail('OBJECT_ONT_COMMIT_CYCLE');
       visiting.add(commitSha256);
@@ -342,12 +584,16 @@ export function openObjectOntStore({ backend } = {}) {
     tipCommitSha256,
     virtualCommits = new Map(),
     hydrateBlobs,
-  }) => {
+  }: {
+    tipCommitSha256: string;
+    virtualCommits?: Map<string, CommitRecord>;
+    hydrateBlobs: boolean;
+  }): ReplayGraph | ReplayMetadataGraph => {
     const graph = loadGraph(tipCommitSha256, virtualCommits);
-    const segmentDescriptors = new Map();
-    const blobDescriptors = new Map();
+    const segmentDescriptors = new Map<string, AssertionSegmentDescriptor>();
+    const blobDescriptors = new Map<string, BlobDescriptor>();
     for (const commitSha256 of graph.order) {
-      const commit = graph.commits.get(commitSha256).commit;
+      const commit = graph.commits.get(commitSha256)?.commit ?? fail('OBJECT_ONT_COMMIT_READ');
       for (const descriptor of commit.segments) {
         const identity = `${descriptor.logicalPath}\0${descriptor.key}`;
         segmentDescriptors.set(identity, descriptor);
@@ -358,10 +604,10 @@ export function openObjectOntStore({ backend } = {}) {
       }
     }
 
-    const conflicts = [];
-    const blobPaths = new Map();
+    const conflicts: ReplayConflict[] = [];
+    const blobPaths = new Map<string, Set<string>>();
     for (const descriptor of blobDescriptors.values()) {
-      const variants = blobPaths.get(descriptor.logicalPath) ?? new Set();
+      const variants = blobPaths.get(descriptor.logicalPath) ?? new Set<string>();
       variants.add(descriptor.storedSha256);
       blobPaths.set(descriptor.logicalPath, variants);
     }
@@ -373,12 +619,13 @@ export function openObjectOntStore({ backend } = {}) {
       });
     }
 
-    const assertionVariants = new Map();
-    const entriesByLine = new Map();
+    const assertionVariants = new Map<string, Map<string, AssertionEntry>>();
+    const entriesByLine = new Map<string, AssertionEntry>();
     const segments = [...segmentDescriptors.values()].sort(descriptorOrder).map((descriptor) => {
       const loaded = readAssertionSegment(descriptor);
       for (const record of loaded.records) {
-        const variants = assertionVariants.get(record.entry.id) ?? new Map();
+        const variants = assertionVariants.get(record.entry.id)
+          ?? new Map<string, AssertionEntry>();
         variants.set(record.lineSha256, record.entry);
         assertionVariants.set(record.entry.id, variants);
         entriesByLine.set(record.lineSha256, record.entry);
@@ -392,10 +639,10 @@ export function openObjectOntStore({ backend } = {}) {
         variants: [...variants.keys()].sort(compare),
       });
     }
-    const superseders = new Map();
+    const superseders = new Map<string, Set<string>>();
     for (const entry of entriesByLine.values()) {
       if (!entry.supersedes) continue;
-      const ids = superseders.get(entry.supersedes) ?? new Set();
+      const ids = superseders.get(entry.supersedes) ?? new Set<string>();
       ids.add(entry.id);
       superseders.set(entry.supersedes, ids);
     }
@@ -408,22 +655,23 @@ export function openObjectOntStore({ backend } = {}) {
     }
     conflicts.sort(conflictOrder);
 
-    const tipManifest = graph.commits.get(tipCommitSha256).commit.ontManifest;
+    const tipManifest = graph.commits.get(tipCommitSha256)?.commit.ontManifest
+      ?? fail('OBJECT_ONT_COMMIT_READ');
     const canonicalSegmentDescriptors = [...segmentDescriptors.values()].sort(descriptorOrder);
     const canonicalBlobDescriptors = [...blobDescriptors.values()].sort(descriptorOrder);
     const manifest = hydrateBlobs ? readBlob(tipManifest, { manifest: true }) : null;
     const blobs = hydrateBlobs
       ? canonicalBlobDescriptors.map((descriptor) => readBlob(descriptor)) : null;
-    const ledgerGroups = new Map();
+    const ledgerGroups = new Map<string, LoadedAssertionSegment[]>();
     for (const segment of segments) {
       const rows = ledgerGroups.get(segment.descriptor.logicalPath) ?? [];
       rows.push(segment);
       ledgerGroups.set(segment.descriptor.logicalPath, rows);
     }
     const ledgerFiles = [...ledgerGroups.entries()].sort(([left], [right]) => compare(left, right)).map(([logicalPath, rows]) => {
-      rows.sort((left, right) => compare(left.descriptor.key, right.descriptor.key));
-      const bytes = Buffer.concat(rows.map((row) => row.bytes));
-      return freeze({ logicalPath, bytes, sha256: objectBytesSha256(bytes), segmentKeys: rows.map((row) => row.descriptor.key) });
+      rows.sort((left: LoadedAssertionSegment, right: LoadedAssertionSegment) => compare(left.descriptor.key, right.descriptor.key));
+      const bytes = Buffer.concat(rows.map((row: LoadedAssertionSegment) => row.bytes));
+      return freeze({ logicalPath, bytes, sha256: objectBytesSha256(bytes), segmentKeys: rows.map((row: LoadedAssertionSegment) => row.descriptor.key) });
     });
     const entries = [...entriesByLine.values()].sort(compareEntries);
     const replayCore = {
@@ -443,16 +691,19 @@ export function openObjectOntStore({ backend } = {}) {
     };
     const status = conflicts.length ? 'CONFLICT' : 'CLEAN';
     const replaySha256 = stableObjectSha256(replayCore);
-    if (hydrateBlobs) return freeze({
-      ...replayCore,
-      status,
-      replaySha256,
-      manifest,
-      segments,
-      blobs,
-      ledgerFiles,
-      entries,
-    });
+    if (hydrateBlobs) {
+      if (manifest === null || blobs === null) return fail('OBJECT_ONT_COMMIT_READ');
+      return freeze({
+        ...replayCore,
+        status,
+        replaySha256,
+        manifest,
+        segments,
+        blobs,
+        ledgerFiles,
+        entries,
+      }) as ReplayGraph;
+    }
     return freeze({
       schemaVersion: 1,
       kind: 'OpenOntologyObjectReplayMetadataV1',
@@ -477,15 +728,27 @@ export function openObjectOntStore({ backend } = {}) {
       payloadBlobBytesValidated: false,
     });
   };
-  const replayGraph = (tipCommitSha256, virtualCommits = new Map()) => compileReplayGraph({
-    tipCommitSha256,
-    virtualCommits,
-    hydrateBlobs: true,
-  });
-  const replayMetadataGraph = (tipCommitSha256, virtualCommits = new Map()) =>
-    compileReplayGraph({ tipCommitSha256, virtualCommits, hydrateBlobs: false });
+  const replayGraph = (tipCommitSha256: string,
+    virtualCommits: Map<string, CommitRecord> = new Map()): ReplayGraph => {
+    const replay = compileReplayGraph({
+      tipCommitSha256,
+      virtualCommits,
+      hydrateBlobs: true,
+    });
+    return replay.kind === 'OpenOntologyObjectReplayV1'
+      ? replay : fail('OBJECT_ONT_COMMIT_READ');
+  };
+  const replayMetadataGraph = (tipCommitSha256: string,
+    virtualCommits: Map<string, CommitRecord> = new Map()): ReplayMetadataGraph => {
+    const replay = compileReplayGraph({ tipCommitSha256, virtualCommits, hydrateBlobs: false });
+    return replay.kind === 'OpenOntologyObjectReplayMetadataV1'
+      ? replay : fail('OBJECT_ONT_COMMIT_READ');
+  };
 
-  const planMerge = ({ leftCommitSha256, rightCommitSha256 }) => {
+  const planMerge = ({ leftCommitSha256, rightCommitSha256 }: {
+    leftCommitSha256: string;
+    rightCommitSha256: string;
+  }): MergePlan => {
     validateSha256(leftCommitSha256, 'OBJECT_ONT_MERGE');
     validateSha256(rightCommitSha256, 'OBJECT_ONT_MERGE');
     const parents = [...new Set([leftCommitSha256, rightCommitSha256])].sort(compare);
@@ -523,7 +786,7 @@ export function openObjectOntStore({ backend } = {}) {
         }],
       });
     }
-    const previewCore = {
+    const previewCore: ObjectCommit = {
       schemaVersion: 1,
       kind: 'OpenOntologyObjectCommitV1',
       formatVersion: 'object/v1',
@@ -564,7 +827,15 @@ export function openObjectOntStore({ backend } = {}) {
     ontManifest,
     segments = [],
     blobs = [],
-  }, { hydratePayloadBlobs }) => {
+  }: CommitInput, { hydratePayloadBlobs }: { hydratePayloadBlobs: boolean }): {
+    schemaVersion: 1;
+    kind: 'OpenOntologyCommitReceiptV1';
+    ontId: string;
+    commitSha256: string;
+    key: string;
+    byteLength: number;
+    replayed: boolean;
+  } => {
     validateIdentity(ontId, 'OBJECT_ONT_COMMIT');
     const canonicalParents = [...parents].sort(compare);
     if (canonicalParents.length !== parents.length || new Set(canonicalParents).size !== canonicalParents.length
@@ -620,16 +891,23 @@ export function openObjectOntStore({ backend } = {}) {
       commitSha256,
       key,
       byteLength: bytes.length,
-      replayed: write.replayed,
+      replayed: write.replayed === true,
     });
   };
-  const writeCommit = (input) => writeCommitWith(input, { hydratePayloadBlobs: true });
-  const writeCommitMetadata = (input) => writeCommitWith(input, { hydratePayloadBlobs: false });
+  const writeCommit = (input: CommitInput) =>
+    writeCommitWith(input, { hydratePayloadBlobs: true });
+  const writeCommitMetadata = (input: CommitInput) =>
+    writeCommitWith(input, { hydratePayloadBlobs: false });
 
-  const merge = ({ leftCommitSha256, rightCommitSha256 }) => {
+  const merge = ({ leftCommitSha256, rightCommitSha256 }: {
+    leftCommitSha256: string;
+    rightCommitSha256: string;
+  }): Record<string, unknown> => {
     const plan = planMerge({ leftCommitSha256, rightCommitSha256 });
-    if (plan.status === 'FAST_FORWARD') return freeze({ plan, receipt: null, commitSha256: plan.targetCommitSha256 });
-    if (plan.status !== 'CLEAN') fail('OBJECT_ONT_MERGE_CONFLICT');
+    if (plan.status === 'FAST_FORWARD') {
+      return freeze({ plan, receipt: null, commitSha256: plan.targetCommitSha256 });
+    }
+    if (plan.status !== 'CLEAN') return fail('OBJECT_ONT_MERGE_CONFLICT');
     const left = readCommit(plan.parents[0]);
     const receipt = writeCommit({
       ontId: plan.ontId,
@@ -646,7 +924,16 @@ export function openObjectOntStore({ backend } = {}) {
     expectedVersion = null,
     commitSha256,
     allowConflicts = false,
-  }, replayReader) => {
+  }: {
+    ontId: string;
+    branch: string;
+    expectedVersion?: string | null;
+    commitSha256: string;
+    allowConflicts?: boolean;
+  }, replayReader: (
+    tipCommitSha256: string,
+    virtualCommits?: Map<string, CommitRecord>,
+  ) => ReplayGraph | ReplayMetadataGraph): Record<string, unknown> => {
     const commit = readCommit(commitSha256);
     if (commit.commit.ontId !== ontId) fail('OBJECT_ONT_REF_SCOPE');
     const replay = replayReader(commitSha256);
@@ -666,8 +953,10 @@ export function openObjectOntStore({ backend } = {}) {
     });
     return freeze({ ref: clone(ref), version: result.version, previousVersion: result.previousVersion, key: refKey(ontId, branch) });
   };
-  const compareAndSwapRef = (input) => compareAndSwapRefWith(input, replayGraph);
-  const compareAndSwapRefMetadata = (input) => compareAndSwapRefWith(input, replayMetadataGraph);
+  const compareAndSwapRef = (input: RefUpdateInput): Record<string, unknown> =>
+    compareAndSwapRefWith(input, replayGraph);
+  const compareAndSwapRefMetadata = (input: RefUpdateInput): Record<string, unknown> =>
+    compareAndSwapRefWith(input, replayMetadataGraph);
 
   return freeze({
     backendCapabilities: clone(backend.capabilities),
@@ -680,8 +969,8 @@ export function openObjectOntStore({ backend } = {}) {
     writeCommitMetadata,
     readCommit,
     loadGraph,
-    replay: (tipCommitSha256) => replayGraph(tipCommitSha256),
-    replayMetadata: (tipCommitSha256) => replayMetadataGraph(tipCommitSha256),
+    replay: (tipCommitSha256: string): ReplayGraph => replayGraph(tipCommitSha256),
+    replayMetadata: (tipCommitSha256: string): ReplayMetadataGraph => replayMetadataGraph(tipCommitSha256),
     planMerge,
     merge,
     readRef,

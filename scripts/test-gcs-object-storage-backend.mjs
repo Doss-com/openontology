@@ -2,9 +2,9 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { encodeEntry, entry as makeEntry } from '../src/assertion-envelope.mjs';
-import { openGcsObjectBackend } from '../src/gcs-object-storage-backend.mjs';
-import { openObjectOntStore } from '../src/object-ont-store.mjs';
+import { encodeEntry, entry as makeEntry } from '../dist/src/assertion-envelope.mjs';
+import { openGcsObjectBackend } from '../dist/src/gcs-object-storage-backend.mjs';
+import { openObjectOntStore } from '../dist/src/object-ont-store.mjs';
 
 const json = (status, value) => ({
   status,

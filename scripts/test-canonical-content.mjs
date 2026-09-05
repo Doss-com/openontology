@@ -5,7 +5,7 @@ import {
   objectBytesSha256,
   stableObjectSha256,
   stableObjectText,
-} from '../src/canonical-content.mjs';
+} from '../dist/src/canonical-content.mjs';
 
 test('canonical content is order-independent and byte-addressed', () => {
   const left = { z: [3, { b: true, a: null }], a: 'value' };

@@ -8,9 +8,11 @@ import { buildSourceNativeProduct, openSourceNativeProduct } from '../src/source
 import { runSourceNativeProductMcp } from '../src/source-native-product-mcp.mjs';
 import { stableObjectText } from '../src/canonical-content.mjs';
 
-const [command, ...tokens] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const command = argv[0];
+const tokens = argv.slice(1);
 
-function usage(code = 2) {
+function usage(code = 2): never {
   process.stderr.write(`usage: oont resolver <command>
 
   build <input.json> --out <artifact-dir> [--backend <file-gs-or-s3-uri>]
@@ -51,9 +53,12 @@ if (['--help', '-h'].includes(tokens[0])
   usage(0);
 }
 
-function options(input, allowedFlags = []) {
-  const values = new Map();
-  const flags = new Set();
+function options(input: string[], allowedFlags: string[] = []): {
+  values: Map<string, string>;
+  flags: Set<string>;
+} {
+  const values = new Map<string, string>();
+  const flags = new Set<string>();
   for (let index = 0; index < input.length;) {
     const name = input[index];
     if (allowedFlags.includes(name)) {
@@ -72,7 +77,7 @@ function options(input, allowedFlags = []) {
   return { values, flags };
 }
 
-function exactJson(pathInput) {
+function exactJson(pathInput: string): unknown {
   const path = resolve(pathInput);
   const status = lstatSync(path);
   if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1) {
@@ -83,29 +88,44 @@ function exactJson(pathInput) {
   }
 }
 
-function print(value) {
+function print(value: object): void {
   process.stdout.write(`${stableObjectText(value)}\n`);
 }
 
 const queryOptionNames = new Set(['--intent', '--source-system', '--object-type',
   '--external-id', '--field', '--anchor-value']);
 
-function queryInput(question, values) {
+function queryInput(question: string, values: Map<string, string>): {
+  question: string;
+  intent: 'current' | 'next';
+  anchorValue: string | null;
+  scope?: { sourceSystem: string; objectType: string; field: string; externalId?: string };
+} {
   if (typeof question !== 'string' || !question.trim()
     || [...values.keys()].some((key) => !queryOptionNames.has(key))) usage();
   const typedNames = ['--source-system', '--object-type', '--field'];
   const typedCount = typedNames.filter((name) => values.has(name)).length;
   if (![0, typedNames.length].includes(typedCount)
     || values.has('--external-id') && typedCount !== typedNames.length) usage();
-  const scope = typedCount === 0 ? undefined : {
-    sourceSystem: values.get('--source-system'),
-    objectType: values.get('--object-type'),
-    field: values.get('--field'),
-    ...(values.has('--external-id') ? { externalId: values.get('--external-id') } : {}),
-  };
+  const intentValue = values.get('--intent') ?? 'current';
+  const intent: 'current' | 'next' = intentValue === 'next'
+    ? 'next' : intentValue === 'current' ? 'current' : usage();
+  const sourceSystem = values.get('--source-system');
+  const objectType = values.get('--object-type');
+  const field = values.get('--field');
+  if (typedCount === typedNames.length
+    && (sourceSystem === undefined || objectType === undefined || field === undefined)) usage();
+  const scope = sourceSystem !== undefined && objectType !== undefined && field !== undefined
+    ? {
+      sourceSystem,
+      objectType,
+      field,
+      ...(values.has('--external-id') ? { externalId: values.get('--external-id') } : {}),
+    }
+    : undefined;
   return {
     question,
-    intent: values.get('--intent') ?? 'current',
+    intent,
     anchorValue: values.get('--anchor-value') ?? null,
     ...(scope === undefined ? {} : { scope }),
   };
@@ -140,8 +160,8 @@ try {
       ok: true,
       ontId: status.ontId,
       artifactSha256: status.artifactSha256,
-      sourceCommitSha256: status.sourceCommitSha256 ?? status.commitSha256,
-      sourceReplaySha256: status.sourceReplaySha256 ?? status.replaySha256,
+      sourceCommitSha256: status.sourceCommitSha256,
+      sourceReplaySha256: status.sourceReplaySha256,
     });
   } else if (command === 'verify' || command === 'search') {
     const [artifactRoot, question, ...rest] = tokens;
@@ -157,7 +177,10 @@ try {
     const search = await product.search(input);
     const evidence = [];
     if (flags.has('--read')) {
-      for (const match of search.matches) evidence.push(await product.read({ ref: match.ref }));
+      for (const match of search.matches) {
+        const ref = typeof match.ref === 'string' ? match.ref : usage();
+        evidence.push(await product.read({ ref }));
+      }
     }
     print({ ...search, ...(flags.has('--read') ? { evidence } : {}) });
   } else if (command === 'serve') {
@@ -177,7 +200,9 @@ try {
   } else {
     usage();
   }
-} catch (error) {
-  process.stderr.write(`error: ${error?.code ?? error?.message ?? 'OONT_RESOLVER_ERROR'}\n`);
+} catch (error: unknown) {
+  const failure = error instanceof Error ? error : new Error('OONT_RESOLVER_ERROR');
+  const code = 'code' in failure && typeof failure.code === 'string' ? failure.code : failure.message;
+  process.stderr.write(`error: ${code}\n`);
   process.exit(1);
 }

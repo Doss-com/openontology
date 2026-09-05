@@ -4,32 +4,75 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { CANONICAL_OBJECT_BACKEND_CONTRACT } from './object-storage-backend.mjs';
+import {
+  CANONICAL_OBJECT_BACKEND_CONTRACT,
+  type ObjectBackend,
+  type ObjectBackendInput,
+  type ObjectReadResult,
+  type ObjectWriteReceipt,
+} from './object-storage-backend.mjs';
+
+export interface GcsTransportRequest {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: Buffer;
+  curlPath: string;
+}
+
+export interface GcsTransportResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: Buffer;
+}
+
+export type GcsTransport = (request: GcsTransportRequest) => GcsTransportResponse;
+
+export interface GcsObjectBackendOptions {
+  bucket?: string;
+  accessToken?: string | null;
+  accessTokenProvider?: (() => string) | null;
+  endpoint?: string;
+  curlPath?: string;
+  transport?: GcsTransport;
+}
+
+export interface GcsObjectBackend extends ObjectBackend {
+  ensureBucket(): { bucket: string; status: number; available: true };
+  head(key: string): ObjectWriteReceipt | null;
+  get(key: string, options?: { start?: number; end?: number | null }): ObjectReadResult;
+}
+
+interface GcsWriteReceipt extends ObjectWriteReceipt {
+  generation: string;
+}
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const GENERATION = /^[1-9][0-9]*$/u;
 const BUCKET = /^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$/u;
-const compare = (left, right) => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const stable = (value) => JSON.stringify(value, (_key, row) => row && typeof row === 'object' && !Array.isArray(row)
-  ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, row[key]]))
-  : row);
-const sha256 = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-const digest = (value) => sha256(Buffer.from(stable(value)));
-const fail = (code, details = null) => {
-  const error = new Error(code);
+const compare = (left: unknown, right: unknown): number =>
+  Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const stable = (value: unknown): string => JSON.stringify(value, (_key: string, row: unknown) =>
+  row && typeof row === 'object' && !Array.isArray(row)
+    ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
+    : row) as string;
+const sha256 = (bytes: Uint8Array): string => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+const digest = (value: unknown): string => sha256(Buffer.from(stable(value)));
+const fail = (code: string, details: unknown = null): never => {
+  const error = new Error(code) as Error & { code: string; details?: unknown };
   error.code = code;
   if (details !== null) error.details = details;
   throw error;
 };
 
-function exactBytes(value) {
+function exactBytes(value: ObjectBackendInput | undefined): Buffer {
   if (Buffer.isBuffer(value)) return Buffer.from(value);
   if (value instanceof Uint8Array) return Buffer.from(value);
   if (typeof value === 'string') return Buffer.from(value);
-  fail('OBJECT_BACKEND_BYTES');
+  return fail('OBJECT_BACKEND_BYTES');
 }
 
-function validateKey(key) {
+function validateKey(key: string): string {
   if (typeof key !== 'string' || key.length < 1 || Buffer.byteLength(key) > 1024 || key.includes('\0')
     || key.startsWith('/') || key.includes('\\')) fail('OBJECT_BACKEND_KEY');
   const segments = key.split('/');
@@ -39,30 +82,32 @@ function validateKey(key) {
   return key;
 }
 
-function exactToken(value) {
+function exactToken(value: string): string {
   if (typeof value !== 'string' || !value || value !== value.trim() || value.length > 16_384
     || /[\u0000-\u001f\u007f]/u.test(value)) fail('OBJECT_BACKEND_GCS_AUTH');
   return value;
 }
 
-function encodeVersion(generation) {
+function encodeVersion(generation: string): string {
   if (!GENERATION.test(generation ?? '')) fail('OBJECT_BACKEND_VERSION');
   return `gcs-v1:${generation}`;
 }
 
-function decodeVersion(version) {
+function decodeVersion(version: string): { generation: string } {
   const match = /^gcs-v1:([1-9][0-9]*)$/u.exec(version ?? '');
   if (!match) fail('OBJECT_BACKEND_VERSION');
-  return { generation: match[1] };
+  return { generation: match?.[1] ?? fail('OBJECT_BACKEND_VERSION') };
 }
 
-function parseHeaders(bytes) {
-  const blocks = bytes.toString('latin1').split(/\r?\n\r?\n/u).filter((block) => /^HTTP\//u.test(block));
+function parseHeaders(bytes: Uint8Array): { status: number; headers: Record<string, string> } {
+  const blocks = Buffer.from(bytes).toString('latin1').split(/\r?\n\r?\n/u).filter((block) => /^HTTP\//u.test(block));
   if (!blocks.length) fail('OBJECT_BACKEND_GCS_RESPONSE');
-  const lines = blocks.at(-1).split(/\r?\n/u);
-  const statusMatch = /^HTTP\/\S+\s+(\d{3})/u.exec(lines.shift());
-  if (!statusMatch) fail('OBJECT_BACKEND_GCS_RESPONSE');
-  const headers = {};
+  const block = blocks.at(-1);
+  if (!block) return fail('OBJECT_BACKEND_GCS_RESPONSE');
+  const lines = block.split(/\r?\n/u);
+  const statusMatch = /^HTTP\/\S+\s+(\d{3})/u.exec(lines.shift() ?? '');
+  if (!statusMatch) return fail('OBJECT_BACKEND_GCS_RESPONSE');
+  const headers: Record<string, string> = {};
   for (const line of lines) {
     const colon = line.indexOf(':');
     if (colon < 1) continue;
@@ -70,10 +115,10 @@ function parseHeaders(bytes) {
     const value = line.slice(colon + 1).trim();
     headers[name] = headers[name] ? `${headers[name]}, ${value}` : value;
   }
-  return { status: Number(statusMatch[1]), headers };
+  return { status: Number(statusMatch?.[1]), headers };
 }
 
-function curlTransport({ method, url, headers, body = Buffer.alloc(0), curlPath = '/usr/bin/curl' }) {
+function curlTransport({ method, url, headers, body = Buffer.alloc(0), curlPath = '/usr/bin/curl' }: GcsTransportRequest): GcsTransportResponse {
   const scratch = mkdtempSync(join(tmpdir(), 'oont-gcs-request-'));
   const requestPath = join(scratch, 'request.bin');
   const requestHeadersPath = join(scratch, 'request-headers.txt');
@@ -106,11 +151,11 @@ function curlTransport({ method, url, headers, body = Buffer.alloc(0), curlPath 
   }
 }
 
-function parseJson(response, code) {
-  try { return JSON.parse(exactBytes(response.body).toString('utf8')); } catch { fail(code); }
+function parseJson<T>(response: GcsTransportResponse, code: string): T {
+  try { return JSON.parse(exactBytes(response.body).toString('utf8')) as T; } catch { return fail(code); }
 }
 
-function multipartUpload(key, bytes, checksumSha256) {
+function multipartUpload(key: string, bytes: Buffer, checksumSha256: string): { contentType: string; body: Buffer } {
   let boundary;
   let marker;
   do {
@@ -147,11 +192,11 @@ export function openGcsObjectBackend({
   endpoint: endpointInput = 'https://storage.googleapis.com',
   curlPath = '/usr/bin/curl',
   transport = curlTransport,
-} = {}) {
-  let endpoint;
-  try { endpoint = new URL(endpointInput); } catch { fail('OBJECT_BACKEND_GCS_CONFIG'); }
+}: GcsObjectBackendOptions = {}): GcsObjectBackend {
+  let endpoint: URL;
+  try { endpoint = new URL(endpointInput); } catch { return fail('OBJECT_BACKEND_GCS_CONFIG'); }
   if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search
-    || endpoint.hash || endpoint.pathname !== '/' || !BUCKET.test(bucket ?? '')
+    || endpoint.hash || endpoint.pathname !== '/' || typeof bucket !== 'string' || !BUCKET.test(bucket)
     || typeof transport !== 'function' || typeof curlPath !== 'string' || !curlPath
     || (accessToken === null) === (accessTokenProvider === null)
     || accessTokenProvider !== null && typeof accessTokenProvider !== 'function') {
@@ -160,13 +205,15 @@ export function openGcsObjectBackend({
   if (accessToken !== null) {
     try { exactToken(accessToken); } catch { fail('OBJECT_BACKEND_GCS_CONFIG'); }
   }
+  const configuredBucket = typeof bucket === 'string'
+    ? bucket : fail('OBJECT_BACKEND_GCS_CONFIG');
 
   const capabilitiesCore = {
-    schemaVersion: 1,
-    kind: 'OpenOntologyObjectBackendCapabilitiesV1',
+    schemaVersion: 1 as const,
+    kind: 'OpenOntologyObjectBackendCapabilitiesV1' as const,
     backend: 'gcs',
     endpointOrigin: endpoint.origin,
-    bucket,
+    bucket: configuredBucket,
     contractSha256: digest(CANONICAL_OBJECT_BACKEND_CONTRACT),
     operations: CANONICAL_OBJECT_BACKEND_CONTRACT.operations,
     distributedObjectStore: true,
@@ -177,8 +224,15 @@ export function openGcsObjectBackend({
     opaqueGenerationVersions: true,
   };
   const capabilities = Object.freeze({ ...capabilitiesCore, capabilitiesSha256: digest(capabilitiesCore) });
-  const token = () => exactToken(accessTokenProvider === null ? accessToken : accessTokenProvider());
-  const call = ({ method, url, headers = {}, body = Buffer.alloc(0) }) => {
+  const token = (): string => accessTokenProvider === null
+    ? exactToken(accessToken ?? fail('OBJECT_BACKEND_GCS_CONFIG'))
+    : exactToken(accessTokenProvider());
+  const call = ({ method, url, headers = {}, body = Buffer.alloc(0) }: {
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: Buffer;
+  }): GcsTransportResponse => {
     const response = transport({
       method,
       url,
@@ -190,36 +244,50 @@ export function openGcsObjectBackend({
       || !Buffer.isBuffer(response.body)) fail('OBJECT_BACKEND_GCS_RESPONSE');
     return response;
   };
-  const bucketUrl = `${endpoint.origin}/storage/v1/b/${encodeURIComponent(bucket)}`;
-  const objectUrl = (key) => `${bucketUrl}/o/${encodeURIComponent(validateKey(key))}`;
-  const uploadUrl = (key, expectedGeneration) => {
-    const url = new URL(`${endpoint.origin}/upload/storage/v1/b/${encodeURIComponent(bucket)}/o`);
+  const bucketUrl = `${endpoint.origin}/storage/v1/b/${encodeURIComponent(configuredBucket)}`;
+  const objectUrl = (key: string): string => `${bucketUrl}/o/${encodeURIComponent(validateKey(key))}`;
+  const uploadUrl = (key: string, expectedGeneration: string): string => {
+    const url = new URL(`${endpoint.origin}/upload/storage/v1/b/${encodeURIComponent(configuredBucket)}/o`);
     url.searchParams.set('uploadType', 'multipart');
     url.searchParams.set('name', validateKey(key));
     url.searchParams.set('ifGenerationMatch', expectedGeneration);
     return url.href;
   };
 
-  const exactMetadata = (value, expectedKey = null) => {
-    const lengthText = value?.metadata?.['oont-byte-length'];
-    const sizeText = value?.size;
-    if (value?.bucket !== bucket || typeof value.name !== 'string'
-      || expectedKey !== null && value.name !== expectedKey
-      || !GENERATION.test(value.generation ?? '') || !/^(0|[1-9][0-9]*)$/u.test(sizeText ?? '')
-      || lengthText !== sizeText || !SHA256.test(value?.metadata?.['oont-sha256'] ?? '')) {
-      fail('OBJECT_BACKEND_CORRUPT');
-    }
-    const byteLength = Number(sizeText);
+  const exactMetadata = (value: Record<string, unknown>, expectedKey: string | null = null): {
+    key: string;
+    generation: string;
+    version: string;
+    byteLength: number;
+    checksumSha256: string;
+  } => {
+    const metadata = value.metadata && typeof value.metadata === 'object'
+      ? value.metadata as Record<string, unknown> : {};
+    const lengthText = metadata['oont-byte-length'];
+    const sizeText = value.size;
+    const generation = value.generation;
+    const name = value.name;
+    const checksumSha256 = metadata['oont-sha256'];
+    const safeName = value.bucket === configuredBucket && typeof name === 'string'
+      && (expectedKey === null || name === expectedKey)
+      ? name : fail('OBJECT_BACKEND_CORRUPT');
+    const safeGeneration = typeof generation === 'string' && GENERATION.test(generation)
+      ? generation : fail('OBJECT_BACKEND_CORRUPT');
+    const safeSizeText = typeof sizeText === 'string' && /^(0|[1-9][0-9]*)$/u.test(sizeText)
+      && lengthText === sizeText ? sizeText : fail('OBJECT_BACKEND_CORRUPT');
+    const safeChecksumSha256 = typeof checksumSha256 === 'string' && SHA256.test(checksumSha256)
+      ? checksumSha256 : fail('OBJECT_BACKEND_CORRUPT');
+    const byteLength = Number(safeSizeText);
     if (!Number.isSafeInteger(byteLength) || byteLength < 0) fail('OBJECT_BACKEND_CORRUPT');
     return {
-      key: value.name,
-      generation: value.generation,
-      version: encodeVersion(value.generation),
+      key: safeName,
+      generation: safeGeneration,
+      version: encodeVersion(safeGeneration),
       byteLength,
-      checksumSha256: value.metadata['oont-sha256'],
+      checksumSha256: safeChecksumSha256,
     };
   };
-  const receipt = (metadata, extra = {}) => Object.freeze({
+  const receipt = (metadata: ReturnType<typeof exactMetadata>, extra: Record<string, unknown> = {}): GcsWriteReceipt => Object.freeze({
     schemaVersion: 1,
     kind: 'OpenOntologyObjectWriteReceiptV1',
     key: metadata.key,
@@ -229,17 +297,17 @@ export function openGcsObjectBackend({
     generation: metadata.generation,
     ...extra,
   });
-  const head = (keyInput) => {
+  const head = (keyInput: string): GcsWriteReceipt | null => {
     const key = validateKey(keyInput);
     const response = call({ method: 'GET', url: objectUrl(key) });
     if (response.status === 404) return null;
     if (response.status !== 200) fail('OBJECT_BACKEND_GCS_STATUS', response.status);
-    return receipt(exactMetadata(parseJson(response, 'OBJECT_BACKEND_GCS_RESPONSE'), key));
+    return receipt(exactMetadata(parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE'), key));
   };
-  const get = (keyInput, { start = 0, end = null } = {}) => {
+  const get = (keyInput: string, { start = 0, end = null }: { start?: number; end?: number | null } = {}): ObjectReadResult => {
     const key = validateKey(keyInput);
     const current = head(key);
-    if (current === null) fail('OBJECT_BACKEND_NOT_FOUND');
+    if (current === null) return fail('OBJECT_BACKEND_NOT_FOUND');
     const finalEnd = end === null ? current.byteLength : end;
     if (!Number.isSafeInteger(start) || !Number.isSafeInteger(finalEnd)
       || start < 0 || finalEnd < start || finalEnd > current.byteLength) fail('OBJECT_BACKEND_RANGE');
@@ -263,7 +331,7 @@ export function openGcsObjectBackend({
     }
     return Object.freeze({ ...current, bytes, range: Object.freeze({ start, end: finalEnd }) });
   };
-  const put = (key, bytes, expectedGeneration) => {
+  const put = (key: string, bytes: Buffer, expectedGeneration: string): GcsWriteReceipt | null => {
     const checksumSha256 = sha256(bytes);
     const multipart = multipartUpload(key, bytes, checksumSha256);
     const response = call({
@@ -274,7 +342,7 @@ export function openGcsObjectBackend({
     });
     if (response.status === 412) return null;
     if (![200, 201].includes(response.status)) fail('OBJECT_BACKEND_GCS_STATUS', response.status);
-    const metadata = exactMetadata(parseJson(response, 'OBJECT_BACKEND_GCS_RESPONSE'), key);
+    const metadata = exactMetadata(parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE'), key);
     if (metadata.checksumSha256 !== checksumSha256 || metadata.byteLength !== bytes.length) {
       fail('OBJECT_BACKEND_CORRUPT');
     }
@@ -286,13 +354,13 @@ export function openGcsObjectBackend({
     ensureBucket() {
       const response = call({ method: 'GET', url: bucketUrl });
       if (response.status !== 200) fail('OBJECT_BACKEND_GCS_BUCKET', response.status);
-      const value = parseJson(response, 'OBJECT_BACKEND_GCS_RESPONSE');
-      if (value?.name !== bucket) fail('OBJECT_BACKEND_GCS_RESPONSE');
-      return Object.freeze({ bucket, status: response.status, available: true });
+      const value = parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE');
+      if (value?.name !== configuredBucket) fail('OBJECT_BACKEND_GCS_RESPONSE');
+      return Object.freeze({ bucket: configuredBucket, status: response.status, available: true });
     },
     head,
     get,
-    putIfAbsent(keyInput, bytesInput) {
+    putIfAbsent(keyInput: string, bytesInput: ObjectBackendInput): ObjectWriteReceipt {
       const key = validateKey(keyInput);
       const bytes = exactBytes(bytesInput);
       const written = put(key, bytes, '0');
@@ -302,12 +370,15 @@ export function openGcsObjectBackend({
       const { bytes: _bytes, range: _range, ...currentReceipt } = current;
       return Object.freeze({ ...currentReceipt, created: false, replayed: true });
     },
-    compareAndSwap(keyInput, { expectedVersion = null, bytes: bytesInput } = {}) {
+    compareAndSwap(keyInput: string, { expectedVersion = null, bytes: bytesInput }: {
+      expectedVersion?: string | null;
+      bytes?: ObjectBackendInput;
+    } = {}): ObjectWriteReceipt {
       const key = validateKey(keyInput);
       const bytes = exactBytes(bytesInput);
       const expected = expectedVersion === null ? null : decodeVersion(expectedVersion);
       const written = put(key, bytes, expected?.generation ?? '0');
-      if (written === null) fail('OBJECT_BACKEND_PRECONDITION');
+      if (written === null) return fail('OBJECT_BACKEND_PRECONDITION');
       return Object.freeze({
         ...written,
         created: expected === null,

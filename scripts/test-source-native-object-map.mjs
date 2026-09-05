@@ -4,14 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { objectBytesSha256, stableObjectSha256 } from '../src/canonical-content.mjs';
-import { openFileObjectBackend } from '../src/object-storage-backend.mjs';
+import { objectBytesSha256, stableObjectSha256 } from '../dist/src/canonical-content.mjs';
+import { openFileObjectBackend } from '../dist/src/object-storage-backend.mjs';
 import {
   compileSourceNativeObjectMap,
   materializeSourceNativeObjectMap,
   openSourceNativeObjectMap,
   validateSourceNativeObjectMap,
-} from '../src/source-native-object-map.mjs';
+} from '../dist/src/source-native-object-map.mjs';
 
 function source(relativePath, occurredAt, content) {
   return {

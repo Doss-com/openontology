@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { objectBytesSha256 } from '../src/canonical-content.mjs';
-import { compileSourceNativeObjectMap } from '../src/source-native-object-map.mjs';
+import { objectBytesSha256 } from '../dist/src/canonical-content.mjs';
+import { compileSourceNativeObjectMap } from '../dist/src/source-native-object-map.mjs';
 import {
   resolveSourceNativeField,
   resolveSourceNativeFieldSuccessor,
-} from '../src/source-native-field-resolution.mjs';
+} from '../dist/src/source-native-field-resolution.mjs';
 
 function source(relativePath, occurredAt, content, sourceType = 'clickup') {
   return {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { compileSourceNativeFieldQuery } from '../src/source-native-query-planner.mjs';
+import { compileSourceNativeFieldQuery } from '../dist/src/source-native-query-planner.mjs';
 
 const schemas = [{
   sourceSystem: 'supabase',

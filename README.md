@@ -57,7 +57,7 @@ OpenOntology returns a JSON Verification. A successful result contains exact
 context and proof receipts. An ambiguous, unsupported, or incomplete question
 returns a typed refusal instead of a guessed answer.
 
-## JavaScript
+## TypeScript and JavaScript
 
 ```js
 import { openOntology } from 'oont'
@@ -82,6 +82,10 @@ interface OpenOntologyClientV2 {
   status(): OntStatus
 }
 ```
+
+The canonical package source is strict TypeScript. The package ships
+dependency-free ESM, declarations, declaration maps, and source maps, so both
+TypeScript and JavaScript consumers use the same runtime implementation.
 
 `verify` is the ordinary path. It searches, runs internal Resolvers, performs
 the required exact reads, and closes the proof obligations.
@@ -193,6 +197,7 @@ See [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md).
 git clone https://github.com/Doss-com/openontology.git
 cd openontology
 npm ci
+npm run typecheck
 npm test
 ```
 

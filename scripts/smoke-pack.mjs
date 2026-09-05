@@ -13,9 +13,11 @@ const keep = process.argv.includes('--keep');
 const sandbox = mkdtempSync(join(tmpdir(), 'oont-smoke-'));
 const prefix = join(sandbox, 'prefix');
 const project = join(sandbox, 'project');
+const consumer = join(sandbox, 'consumer');
 const ont = join(project, 'verified-context');
 mkdirSync(prefix, { recursive: true });
 mkdirSync(project, { recursive: true });
+mkdirSync(consumer, { recursive: true });
 
 let failures = 0;
 let ordinal = 0;
@@ -101,8 +103,52 @@ try {
     'install', '--global', '--prefix', prefix, '--no-audit', '--no-fund', tarballPath,
   ]);
   const bin = join(prefix, 'bin', 'oont');
-  const packageRoot = join(prefix, 'lib', 'node_modules', 'oont');
   check('clean global install', installed.status === 0 && existsSync(bin), tail(installed.stderr));
+
+  const consumerInstall = run('npm', [
+    'install', '--prefix', consumer, '--ignore-scripts', '--no-audit', '--no-fund', tarballPath,
+  ]);
+  const packageRoot = join(consumer, 'node_modules', 'oont');
+  check('clean package install', consumerInstall.status === 0 && existsSync(packageRoot),
+    tail(consumerInstall.stderr));
+
+  const contractPath = join(consumer, 'contract.mts');
+  writeFileSync(contractPath, `import {
+  openOntology,
+  type OpenOntologyReadResult,
+  type OpenOntologySearchResult,
+  type OpenOntologyVerificationResult,
+} from 'oont';
+
+const ont = openOntology({ artifactRoot: './verified-context' });
+const verification: OpenOntologyVerificationResult = await ont.verify('What is current?');
+const search: OpenOntologySearchResult = await ont.search({
+  question: 'What is current?',
+  scope: { sourceSystem: 'tracker', objectType: 'task', field: 'title' },
+});
+const read: OpenOntologyReadResult | undefined = search.matches[0]
+  ? await ont.read(search.matches[0].ref)
+  : undefined;
+const state: string = verification.state;
+const exactText: string | undefined = read?.exactText;
+void state;
+void exactText;
+// @ts-expect-error artifactRoot is required for a typed caller.
+openOntology();
+`);
+  const compiler = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  const typedConsumer = run(process.execPath, [
+    compiler,
+    '--noEmit',
+    '--strict',
+    '--skipLibCheck', 'false',
+    '--module', 'NodeNext',
+    '--moduleResolution', 'NodeNext',
+    '--target', 'ES2022',
+    contractPath,
+  ], { cwd: consumer });
+  check('installed declarations compile for a strict consumer', typedConsumer.status === 0,
+    tail(typedConsumer.stderr || typedConsumer.stdout, 12));
 
   const help = run(bin, ['--help']);
   check('public CLI is compact', help.status === 0
@@ -155,13 +201,12 @@ try {
   `references ${navigationResult?.matches?.length ?? 0}; exact reads ${exactResult?.evidence?.length ?? 0}`);
 
   const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
-import { openOntology } from ${JSON.stringify(new URL(
-    `file://${join(packageRoot, 'src', 'openontology.mjs')}`).href)};
+import { openOntology } from 'oont';
 const ont = openOntology({ artifactRoot: ${JSON.stringify(ont)} });
 const keys = Object.keys(ont).sort();
 const result = await ont.verify('What is the current title of task-1?');
 if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','verify']) || !result.answerable) process.exit(1);`;
-  const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram]);
+  const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
 
   const ordinaryMcp = await mcpTools(bin, ont, false);

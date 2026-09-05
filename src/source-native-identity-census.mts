@@ -1,10 +1,32 @@
 /** Complete source-native identity census compilation and validation. */
 import { stableObjectSha256, stableObjectText } from './canonical-content.mjs';
+import type { SourceHandle } from './source-native-evidence-session.mjs';
+import type { UnknownRecord } from './source-native-object-map.mjs';
+
+interface CensusIdentity {
+  sourceSystem: string;
+  objectType: string;
+  externalId: string;
+}
+interface CensusEntry extends UnknownRecord {
+  sourceMessageId: number;
+  relativePath: string;
+  contentSha256: string;
+  objectIdentities: CensusIdentity[];
+}
+export interface SourceNativeObjectIdentityCensus extends UnknownRecord {
+  kind: 'OpenOntologySourceNativeObjectIdentityCensusV1';
+  sourceCount: number;
+  objectIdentityCount: number;
+  entries: CensusEntry[];
+  objectIdentities: Array<CensusIdentity & { identitySha256: string; sourceMessageIds: number[] }>;
+  censusSha256: string;
+}
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
-const compare = (left, right) => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const fail = (code) => { const error = new TypeError(code); error.code = code; throw error; };
-const freeze = (value) => {
+const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
+const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
@@ -19,15 +41,26 @@ export function compileSourceNativeObjectIdentityCensus({
   entries: entryInput,
   adapter,
   adapterSha256,
-} = {}) {
+}: {
+  namespace?: unknown;
+  sourceCatalogSha256?: unknown;
+  sourceHandles?: SourceHandle[];
+  entries?: CensusEntry[];
+  adapter?: unknown;
+  adapterSha256?: unknown;
+} = {}): SourceNativeObjectIdentityCensus {
+  const catalogSha256 = typeof sourceCatalogSha256 === 'string' ? sourceCatalogSha256 : '';
+  const censusAdapterSha256 = typeof adapterSha256 === 'string' ? adapterSha256 : '';
+  const sourceRows = sourceHandleInput ?? [];
+  const censusRows = entryInput ?? [];
   if (typeof namespace !== 'string' || !namespace
-    || !SHA256.test(sourceCatalogSha256 ?? '')
-    || !Array.isArray(sourceHandleInput) || sourceHandleInput.length < 1
-    || !Array.isArray(entryInput) || entryInput.length !== sourceHandleInput.length
-    || typeof adapter !== 'string' || !adapter || !SHA256.test(adapterSha256 ?? '')) {
+    || !SHA256.test(catalogSha256)
+    || sourceRows.length < 1
+    || censusRows.length !== sourceRows.length
+    || typeof adapter !== 'string' || !adapter || !SHA256.test(censusAdapterSha256)) {
     fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_INPUT');
   }
-  const sourceHandles = sourceHandleInput.map((row) => {
+  const sourceHandles = sourceRows.map((row: SourceHandle) => {
     if (!Number.isSafeInteger(row?.sourceMessageId) || row.sourceMessageId < 0
       || typeof row.relativePath !== 'string' || !row.relativePath) {
       fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_SOURCE');
@@ -40,9 +73,9 @@ export function compileSourceNativeObjectIdentityCensus({
     fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_SOURCE');
   }
   const handleById = new Map(sourceHandles.map((row) => [row.sourceMessageId, row]));
-  const entries = entryInput.map((row) => {
+  const entries = censusRows.map((row: CensusEntry) => {
     const handle = handleById.get(row?.sourceMessageId);
-    const identities = (row?.objectIdentities ?? []).map((identity) => {
+    const identities = (row?.objectIdentities ?? []).map((identity: CensusIdentity) => {
       if (typeof identity?.sourceSystem !== 'string' || !identity.sourceSystem
         || typeof identity.objectType !== 'string' || !identity.objectType
         || typeof identity.externalId !== 'string' || !identity.externalId) {
@@ -66,7 +99,10 @@ export function compileSourceNativeObjectIdentityCensus({
   if (new Set(entries.map((row) => row.sourceMessageId)).size !== sourceHandles.length) {
     fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_SOURCE');
   }
-  const identityGroups = new Map();
+  const identityGroups = new Map<string, {
+    identity: CensusIdentity;
+    sourceMessageIds: number[];
+  }>();
   for (const row of entries) for (const identity of row.objectIdentities) {
     const key = stableObjectText(identity);
     const group = identityGroups.get(key) ?? { identity, sourceMessageIds: [] };
@@ -82,12 +118,12 @@ export function compileSourceNativeObjectIdentityCensus({
     })));
   const core = {
     schema: 1,
-    kind: 'OpenOntologySourceNativeObjectIdentityCensusV1',
+    kind: 'OpenOntologySourceNativeObjectIdentityCensusV1' as const,
     namespace,
-    sourceCatalogSha256,
+    sourceCatalogSha256: catalogSha256,
     sourceHandleSetSha256: stableObjectSha256(sourceHandles),
     adapter,
-    adapterSha256,
+    adapterSha256: censusAdapterSha256,
     sourceCount: sourceHandles.length,
     objectIdentityCount: objectIdentities.length,
     entries: freeze(entries),
@@ -103,7 +139,7 @@ export function compileSourceNativeObjectIdentityCensus({
   return freeze({ ...core, censusSha256: stableObjectSha256(core) });
 }
 
-export function validateSourceNativeObjectIdentityCensus(value) {
+export function validateSourceNativeObjectIdentityCensus(value: SourceNativeObjectIdentityCensus): SourceNativeObjectIdentityCensus {
   const { censusSha256, ...core } = value ?? {};
   if (value?.kind !== 'OpenOntologySourceNativeObjectIdentityCensusV1'
     || !SHA256.test(censusSha256 ?? '') || stableObjectSha256(core) !== censusSha256
