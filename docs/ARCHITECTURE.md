@@ -62,6 +62,15 @@ It does not turn those references into Evidence. A product reader must still
 reopen the pinned source projection and inspect the exact Corpus bytes before a
 Verification can use the result.
 
+`[EXISTS]` The post-alpha kernel now has the generic source-native bridge into
+that evaluator. A canonical proposition V2 record adds explicit proposition
+identity, family, roles, modality, polarity, valid time, and known time to the
+existing source-native field and exact Evidence span. The bridge compiles those
+records into one ProofAuthorityProjection bound to the native object map and
+namespace. Safe-open validation rejects a self-consistently rehashed record
+whose semantic vocabulary leaves the locked taxonomy. Typed proposition
+relations and ordinary root Verification wiring are not implemented yet.
+
 `[ACTIVE-WORK]` The post-alpha kernel branch contains a bounded source-native
 admitted-knowledge loop. It is not a generic early-exit hook and it does not
 change the root client. The loop is:

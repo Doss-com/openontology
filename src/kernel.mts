@@ -95,6 +95,15 @@ export type {
   ProofSufficiencyEvaluation,
 } from './proof-sufficiency-evaluator.mjs';
 export {
+  compileSourceNativeProofAuthorityProjection,
+} from './source-native-semantic-projection.mjs';
+export type {
+  CompileSourceNativeProofAuthorityProjectionInput,
+} from './source-native-semantic-projection.mjs';
+export type {
+  SourceNativeCanonicalPropositionV2,
+} from './source-native-object-map.mjs';
+export {
   openSourceNativeObjectOntIndex,
 } from './source-native-object-ont.mjs';
 export type {

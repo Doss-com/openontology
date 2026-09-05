@@ -36,6 +36,10 @@
   span, so repeated citations do not repeat Evidence in agent context.
 - **ProofAuthorityProjection** is the canonical item, exact Evidence-reference,
   and relation census derived from one immutable semantic projection.
+- **Canonical proposition V2** is the deterministic Adapter record that binds a
+  proposition identity, family, canonical roles, modality, polarity, actor,
+  valid time, known time, and one exact source span. It is compiled into a
+  ProofAuthorityProjection; it is not Evidence by itself.
 - **SourceProjectionAuthority** binds a proof contract to the source projection
   identity and the ProofAuthorityProjection's `proofCensusSha256`.
 - **Support** is an independently verified relationship between a material

@@ -131,6 +131,13 @@ native-object identity census at safe open. The current-field Resolver can use
 that census to distinguish a proven catalog-scoped absence from an ordinary
 retrieval miss.
 
+`[ACTIVE-WORK]` The post-alpha kernel also compiles deterministic source-native
+canonical proposition V2 records into the existing ProofAuthorityProjection.
+The record keeps canonical roles, modality, polarity, actor identity, valid and
+known time, and its exact source span in one source-native map. This projection
+compiler is implemented and tamper-tested. Typed relations and ordinary root
+`verify` integration remain active work.
+
 `[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
 admitted-knowledge path. A proposer and an independent reviewer sign one
 content-bound proof bundle using role-scoped Ed25519 keys. A cold reader accepts

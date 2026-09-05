@@ -49,6 +49,7 @@ export interface SourceNativeField {
   canonicalValue?: JsonValue;
   canonicalProposition?: UnknownRecord;
   validAt?: string;
+  knownAt?: string;
   provenanceBy?: UnknownRecord;
   actorResolutionEvidence?: UnknownRecord;
 }
@@ -61,9 +62,26 @@ export interface SourceNativeFieldInput {
   businessEntityKeys?: unknown;
   canonicalProposition?: unknown;
   validAt?: unknown;
+  knownAt?: unknown;
   canonicalValue?: unknown;
   provenanceBy?: unknown;
   actorResolutionEvidence?: unknown;
+}
+
+export interface SourceNativeCanonicalPropositionV2 extends UnknownRecord {
+  kind: 'OpenOntologySourceNativeCanonicalPropositionV2';
+  propositionKey: string;
+  actorHome: 'ObjectDef/InstanceRef';
+  stateHome: 'Claim/PropositionRevision-payload';
+  actorKind: string;
+  predicate: string;
+  state: string;
+  dimension: string;
+  canonicalRoles: string[];
+  modality: string;
+  polarity: string;
+  businessEntityKeys: string[];
+  extractionAuthority: 'deterministic-source-adapter-v1';
 }
 
 export interface SourceNativeObjectIdentity {
@@ -162,6 +180,7 @@ interface ExactFieldInput {
   businessEntityKeys?: string[] | null;
   canonicalProposition?: UnknownRecord | null;
   validAt?: string | null;
+  knownAt?: string | null;
   canonicalValue?: JsonValue | null;
   provenanceBy?: UnknownRecord | null;
   actorResolutionEvidence?: UnknownRecord | null;
@@ -177,6 +196,11 @@ interface ExactObjectInput {
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const FIELD_PATH = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
+const CANONICAL_ROLES = new Set([
+  'action', 'actor', 'change', 'chronology', 'counterevidence', 'outcome', 'state',
+]);
+const PROPOSITION_MODALITIES = new Set(['observed', 'planned', 'reported', 'static-only', 'unresolved']);
+const PROPOSITION_POLARITIES = new Set(['mixed', 'negative', 'positive']);
 const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
 const freeze = <T,>(value: T): T => {
@@ -237,6 +261,8 @@ function normalizeFieldInput(value: unknown): ExactFieldInput {
     : isRecord(row.canonicalProposition) ? row.canonicalProposition : fail('SOURCE_NATIVE_FIELD_INPUT');
   const validAt = row.validAt === undefined ? null
     : typeof row.validAt === 'string' ? row.validAt : fail('SOURCE_NATIVE_FIELD_INPUT');
+  const knownAt = row.knownAt === undefined ? null
+    : typeof row.knownAt === 'string' ? row.knownAt : fail('SOURCE_NATIVE_FIELD_INPUT');
   const canonicalValue = row.canonicalValue === undefined ? null
     : isJsonValue(row.canonicalValue) ? row.canonicalValue : fail('SOURCE_NATIVE_FIELD_INPUT');
   const provenanceBy = row.provenanceBy === undefined ? null
@@ -248,7 +274,7 @@ function normalizeFieldInput(value: unknown): ExactFieldInput {
   }
   return {
     fieldPath, value: fieldValue, codeUnitStart, propositionFamilyKey,
-    businessEntityKeys, canonicalProposition, validAt, canonicalValue,
+    businessEntityKeys, canonicalProposition, validAt, knownAt, canonicalValue,
     provenanceBy, actorResolutionEvidence,
   };
 }
@@ -392,9 +418,49 @@ function exactActorResolutionEvidence({ source, input, fieldBusinessEntityKeys }
   });
 }
 
+function validateCanonicalProposition(value: UnknownRecord, {
+  propositionFamilyKey,
+  fieldBusinessEntityKeys,
+  validAt,
+  knownAt,
+  code,
+}: {
+  propositionFamilyKey: string | null;
+  fieldBusinessEntityKeys: string[] | null;
+  validAt: string | null;
+  knownAt: string | null;
+  code: string;
+}): void {
+  const propositionKeys = value.businessEntityKeys;
+  const canonicalRoles = value.canonicalRoles;
+  const version = value.kind;
+  if (!['OpenOntologySourceNativeCanonicalPropositionV1',
+    'OpenOntologySourceNativeCanonicalPropositionV2'].includes(String(version))
+    || value.actorHome !== 'ObjectDef/InstanceRef'
+    || value.stateHome !== 'Claim/PropositionRevision-payload'
+    || typeof value.actorKind !== 'string' || !value.actorKind
+    || typeof value.predicate !== 'string' || !value.predicate
+    || typeof value.state !== 'string' || !value.state
+    || typeof value.dimension !== 'string' || !value.dimension
+    || !isStringArray(propositionKeys)
+    || propositionKeys.some((key: string) => !fieldBusinessEntityKeys?.includes(key))
+    || value.extractionAuthority !== 'deterministic-source-adapter-v1'
+    || version === 'OpenOntologySourceNativeCanonicalPropositionV2'
+      && (typeof value.propositionKey !== 'string' || !value.propositionKey
+        || propositionFamilyKey === null || value.dimension !== propositionFamilyKey
+        || !isStringArray(canonicalRoles) || canonicalRoles.length < 1
+        || new Set(canonicalRoles).size !== canonicalRoles.length
+        || canonicalRoles.some((role: string) => !CANONICAL_ROLES.has(role))
+        || !PROPOSITION_MODALITIES.has(String(value.modality))
+        || !PROPOSITION_POLARITIES.has(String(value.polarity))
+        || validAt === null || knownAt === null)) {
+    fail(code);
+  }
+}
+
 function exactField({ source, fieldPath, value, codeUnitStart,
   propositionFamilyKey = null, businessEntityKeys: fieldBusinessEntityKeys = null,
-  canonicalProposition: canonicalPropositionInput = null, validAt = null,
+  canonicalProposition: canonicalPropositionInput = null, validAt = null, knownAt = null,
   canonicalValue: canonicalValueInput = null, provenanceBy: provenanceByInput = null,
   actorResolutionEvidence: actorResolutionEvidenceInput = null }: {
     source: SourceNativeSource;
@@ -405,6 +471,7 @@ function exactField({ source, fieldPath, value, codeUnitStart,
     businessEntityKeys?: string[] | null;
     canonicalProposition?: unknown;
     validAt?: string | null;
+    knownAt?: string | null;
     canonicalValue?: JsonValue | null;
     provenanceBy?: UnknownRecord | null;
     actorResolutionEvidence?: UnknownRecord | null;
@@ -413,6 +480,7 @@ function exactField({ source, fieldPath, value, codeUnitStart,
     || !Number.isSafeInteger(codeUnitStart) || codeUnitStart < 0
     || propositionFamilyKey !== null && !FIELD_PATH.test(propositionFamilyKey)
     || validAt !== null && (typeof validAt !== 'string' || !Number.isFinite(Date.parse(validAt)))
+    || knownAt !== null && (typeof knownAt !== 'string' || !Number.isFinite(Date.parse(knownAt)))
     || fieldBusinessEntityKeys !== null
       && (!Array.isArray(fieldBusinessEntityKeys)
         || fieldBusinessEntityKeys.length < 1
@@ -435,19 +503,13 @@ function exactField({ source, fieldPath, value, codeUnitStart,
     fieldBusinessEntityKeys,
   });
   if (canonicalProposition !== null) {
-    const propositionKeys = canonicalProposition.businessEntityKeys;
-    if (canonicalProposition.kind !== 'OpenOntologySourceNativeCanonicalPropositionV1'
-      || canonicalProposition.actorHome !== 'ObjectDef/InstanceRef'
-      || canonicalProposition.stateHome !== 'Claim/PropositionRevision-payload'
-      || typeof canonicalProposition.actorKind !== 'string' || !canonicalProposition.actorKind
-      || typeof canonicalProposition.predicate !== 'string' || !canonicalProposition.predicate
-      || typeof canonicalProposition.state !== 'string' || !canonicalProposition.state
-      || typeof canonicalProposition.dimension !== 'string' || !canonicalProposition.dimension
-      || !isStringArray(propositionKeys)
-      || propositionKeys.some((key: string) => !fieldBusinessEntityKeys?.includes(key))
-      || canonicalProposition.extractionAuthority !== 'deterministic-source-adapter-v1') {
-    fail('SOURCE_NATIVE_CANONICAL_PROPOSITION');
-    }
+    validateCanonicalProposition(canonicalProposition, {
+      propositionFamilyKey,
+      fieldBusinessEntityKeys,
+      validAt,
+      knownAt,
+      code: 'SOURCE_NATIVE_CANONICAL_PROPOSITION',
+    });
   }
   const byteStart = Buffer.byteLength(source.content.slice(0, codeUnitStart));
   const byteEnd = byteStart + Buffer.byteLength(value);
@@ -463,6 +525,7 @@ function exactField({ source, fieldPath, value, codeUnitStart,
     ...(canonicalValue === null ? {} : { canonicalValue: freeze(canonicalValue) }),
     ...(actorResolutionEvidence === null ? {} : { actorResolutionEvidence }),
     ...(validAt === null ? {} : { validAt }),
+    ...(knownAt === null ? {} : { knownAt }),
     ...(provenanceBy === null ? {} : { provenanceBy }),
     value,
     evidence: freeze({
@@ -758,11 +821,21 @@ function validateCompiledField(field: SourceNativeField, object: SourceNativeObj
     || !Number.isSafeInteger(field.evidence.byteEnd) || field.evidence.byteEnd <= field.evidence.byteStart
     || !SHA256.test(field.evidence.textSha256 ?? '')
     || field.validAt !== undefined && !Number.isFinite(Date.parse(field.validAt))
+    || field.knownAt !== undefined && !Number.isFinite(Date.parse(field.knownAt))
     || field.businessEntityKeys !== undefined
       && (!Array.isArray(field.businessEntityKeys)
         || new Set(field.businessEntityKeys).size !== field.businessEntityKeys.length
         || field.businessEntityKeys.some((key) => typeof key !== 'string' || !key))) {
     fail('SOURCE_NATIVE_MAP_FIELD');
+  }
+  if (field.canonicalProposition !== undefined) {
+    validateCanonicalProposition(field.canonicalProposition, {
+      propositionFamilyKey: field.propositionFamilyKey ?? null,
+      fieldBusinessEntityKeys: field.businessEntityKeys ?? null,
+      validAt: field.validAt ?? null,
+      knownAt: field.knownAt ?? null,
+      code: 'SOURCE_NATIVE_MAP_FIELD',
+    });
   }
 }
 
