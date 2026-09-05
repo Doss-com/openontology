@@ -9,10 +9,29 @@ import {
 
 test('canonical backend syntax is normalized once for every consumer', () => {
   assert.equal(normalizeCanonicalObjectBackendUri('gs://customer-ontology/'), 'gs://customer-ontology');
+  assert.equal(
+    normalizeCanonicalObjectBackendUri('gs://customer-ontology/tenant-a/ont-a'),
+    'gs://customer-ontology/tenant-a/ont-a',
+  );
   assert.equal(normalizeCanonicalObjectBackendUri('s3://customer-ontology/'), 's3://customer-ontology');
-  assert.throws(() => normalizeCanonicalObjectBackendUri('gs://customer-ontology/prefix'), {
+  assert.throws(() => normalizeCanonicalObjectBackendUri('s3://customer-ontology/prefix'), {
     code: 'CANONICAL_OBJECT_BACKEND_URI',
   });
+});
+
+test('canonical GCS prefixes reject aliases, traversal, and encoded separators', () => {
+  for (const uri of [
+    'gs://customer-ontology/tenant-a/',
+    'gs://customer-ontology/tenant-a//ont-a',
+    'gs://customer-ontology/tenant-a/./ont-a',
+    'gs://customer-ontology/tenant-a/../ont-a',
+    'gs://customer-ontology/tenant-a%2Font-a',
+    'gs://customer-ontology/tenant-a%2Font-a/child',
+  ]) {
+    assert.throws(() => normalizeCanonicalObjectBackendUri(uri), {
+      code: 'CANONICAL_OBJECT_BACKEND_URI',
+    });
+  }
 });
 
 test('s3 URI selects the distributed Adapter without opening the network', () => {
@@ -48,6 +67,18 @@ test('gs URI selects the native GCS Adapter without opening the network', () => 
   assert.equal(selected.capabilities.distributedObjectStore, true);
   assert.equal(selected.capabilities.providerConditionalWritePolicy, true);
   assert.equal(selected.capabilities.nativeGenerationPreconditions, true);
+});
+
+test('gs URI preserves a scoped prefix and accepts a renewable token provider', () => {
+  const selected = openCanonicalObjectBackend({
+    uri: 'gs://customer-ontology/tenant-a/ont-a',
+    env: { OONT_GCS_ACCESS_TOKEN_PROVIDER: () => 'fixture-token' },
+  });
+  assert.equal(selected.uri, 'gs://customer-ontology/tenant-a/ont-a');
+  assert.equal(selected.capabilities.backend, 'gcs');
+  assert.equal(selected.capabilities.keyPrefix, 'tenant-a/ont-a');
+  assert.equal('accessToken' in selected.capabilities, false);
+  assert.equal('accessTokenProvider' in selected.capabilities, false);
 });
 
 test('canonical backend URI never accepts embedded credentials or configuration query text', () => {

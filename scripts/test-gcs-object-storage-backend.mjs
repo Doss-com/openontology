@@ -57,13 +57,15 @@ function gcsFixtureTransport() {
     const url = new URL(request.url);
     const segments = url.pathname.split('/');
     const isUpload = segments[1] === 'upload';
-    const bucket = decodeURIComponent(segments[isUpload ? 5 : 4] ?? '');
+    const isDownload = !isUpload && segments[1] !== 'storage';
+    const bucket = decodeURIComponent(segments[isDownload ? 1 : isUpload ? 5 : 4] ?? '');
 
     if (request.method === 'GET' && segments.length === 5 && segments[3] === 'b') {
       return json(200, { name: bucket });
     }
 
-    const encodedKey = isUpload ? url.searchParams.get('name') : segments.at(-1);
+    const encodedKey = isUpload ? url.searchParams.get('name')
+      : isDownload ? segments.slice(2).join('/') : segments.at(-1);
     const key = decodeURIComponent(encodedKey ?? '');
 
     if (isUpload) {
@@ -84,16 +86,34 @@ function gcsFixtureTransport() {
 
     const current = objects.get(key) ?? null;
     if (current === null) return json(404, {});
+    if (isDownload) {
+      const range = /^bytes=(\d+)-(\d*)$/u.exec(request.headers.range ?? '');
+      const start = range ? Number(range[1]) : 0;
+      const end = range?.[2] ? Number(range[2]) + 1 : current.bytes.length;
+      if (start >= current.bytes.length || end > current.bytes.length) {
+        return { status: 416, headers: {}, body: Buffer.alloc(0) };
+      }
+      const bytes = current.bytes.subarray(start, end);
+      const integrityHeaders = {
+        'content-length': String(bytes.length),
+        'x-goog-generation': current.generation,
+        'x-goog-meta-oont-byte-length': String(current.bytes.length),
+        'x-goog-meta-oont-sha256': current.metadata['oont-sha256'],
+      };
+      return {
+        status: range ? 206 : 200,
+        headers: {
+          ...integrityHeaders,
+          ...(range ? { 'content-range': `bytes ${start}-${end - 1}/${current.bytes.length}` } : {}),
+        },
+        body: bytes,
+      };
+    }
     if (url.searchParams.get('alt') !== 'media') return json(200, metadata(bucket, key, current));
-    if (url.searchParams.get('ifGenerationMatch') !== current.generation) return json(412, {});
-    const range = /^bytes=(\d+)-(\d+)$/u.exec(request.headers.range ?? '');
-    if (!range) return { status: 200, headers: {}, body: Buffer.from(current.bytes) };
-    const start = Number(range[1]);
-    const end = Number(range[2]) + 1;
-    return { status: 206, headers: {}, body: current.bytes.subarray(start, end) };
+    return { status: 200, headers: {}, body: Buffer.from(current.bytes) };
   };
 
-  return { transport, requests };
+  return { transport, requests, objects };
 }
 
 test('GCS satisfies the canonical object contract with native generation preconditions', () => {
@@ -158,7 +178,23 @@ test('GCS configuration and versions reject ambiguous or secret-bearing input', 
     {},
     { bucket: 'bad/bucket', accessToken: 'token', transport: fixture.transport },
     { bucket: 'valid-bucket', accessToken: 'line\nbreak', transport: fixture.transport },
+    { bucket: 'valid-bucket', accessToken: 'token with space', transport: fixture.transport },
     { bucket: 'valid-bucket', accessToken: 'token', endpoint: 'http://storage.example.test', transport: fixture.transport },
+    { bucket: 'valid-bucket', prefix: 'tenant-a/', accessToken: 'token', transport: fixture.transport },
+    { bucket: 'valid-bucket', prefix: 'tenant-a//ont-a', accessToken: 'token', transport: fixture.transport },
+    { bucket: 'valid-bucket', prefix: 'tenant-a/../ont-a', accessToken: 'token', transport: fixture.transport },
+    {
+      bucket: 'valid-bucket',
+      prefix: `tenant-${'a'.repeat(510)}`,
+      accessToken: 'token',
+      transport: fixture.transport,
+    },
+    {
+      bucket: 'valid-bucket',
+      accessToken: 'token',
+      accessTokenProvider: () => 'provider-token',
+      transport: fixture.transport,
+    },
   ]) assert.throws(() => openGcsObjectBackend(config), { code: 'OBJECT_BACKEND_GCS_CONFIG' });
 
   const backend = openGcsObjectBackend({
@@ -170,6 +206,155 @@ test('GCS configuration and versions reject ambiguous or secret-bearing input', 
     () => backend.compareAndSwap('refs/main', { expectedVersion: 'gcs-v1:not-a-generation', bytes: 'x' }),
     { code: 'OBJECT_BACKEND_VERSION' },
   );
+});
+
+test('GCS scoped prefixes bind provider keys while receipts remain logical', () => {
+  const fixture = gcsFixtureTransport();
+  let tokenCalls = 0;
+  const backend = openGcsObjectBackend({
+    bucket: 'customer-ontology',
+    prefix: 'tenant-a/ont-a',
+    accessTokenProvider: () => `fixture-token-${tokenCalls += 1}`,
+    transport: fixture.transport,
+  });
+
+  const receipt = backend.putIfAbsent('refs/main', Buffer.from('scoped'));
+  const upload = fixture.requests.find((request) => new URL(request.url).pathname.startsWith('/upload/'));
+  assert(upload);
+  assert.equal(new URL(upload.url).searchParams.get('name'), 'tenant-a/ont-a/refs/main');
+  assert.equal(receipt.key, 'refs/main');
+  assert.equal(backend.capabilities.keyPrefix, 'tenant-a/ont-a');
+  assert.equal(tokenCalls, 1);
+  assert.equal(backend.get('refs/main').bytes.toString(), 'scoped');
+  assert.equal(fixture.objects.has('tenant-a/ont-a/refs/main'), true);
+  assert.equal(fixture.objects.has('refs/main'), false);
+  assert.throws(
+    () => backend.putIfAbsent(`${'a'.repeat(1010)}`, Buffer.from('too long')),
+    { code: 'OBJECT_BACKEND_KEY' },
+  );
+});
+
+test('GCS full and ranged reads use one media request and validate response integrity', () => {
+  const fixture = gcsFixtureTransport();
+  const backend = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    prefix: 'tenant-a/ont-a',
+    accessToken: 'fixture-token-1',
+    transport: fixture.transport,
+  });
+  const bytes = Buffer.from('zero\none\ntwo\n');
+  backend.putIfAbsent('segments/sha256/example', bytes);
+
+  const beforeFull = fixture.requests.length;
+  assert.deepEqual(backend.get('segments/sha256/example').bytes, bytes);
+  assert.equal(fixture.requests.length - beforeFull, 1);
+
+  const beforeRange = fixture.requests.length;
+  assert.equal(backend.get('segments/sha256/example', { start: 5, end: 8 }).bytes.toString(), 'one');
+  assert.equal(fixture.requests.length - beforeRange, 1);
+
+  const corruptFixture = gcsFixtureTransport();
+  const corruptBackend = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    accessToken: 'fixture-token-1',
+    transport: (request) => {
+      const response = corruptFixture.transport(request);
+      if (request.method === 'GET' && new URL(request.url).pathname.split('/')[1] !== 'storage') {
+        response.headers['x-goog-meta-oont-sha256'] = 'sha256:' + '0'.repeat(64);
+      }
+      return response;
+    },
+  });
+  corruptBackend.putIfAbsent('segments/sha256/example', bytes);
+  assert.throws(() => corruptBackend.get('segments/sha256/example'), {
+    code: 'OBJECT_BACKEND_CORRUPT',
+  });
+
+  const rangeCorruptFixture = gcsFixtureTransport();
+  const rangeCorruptBackend = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    accessToken: 'fixture-token-1',
+    transport: (request) => {
+      const response = rangeCorruptFixture.transport(request);
+      if (request.method === 'GET' && new URL(request.url).pathname.split('/')[1] !== 'storage'
+        && response.status === 206) {
+        response.headers['content-range'] = `bytes 0-${bytes.length - 1}/${bytes.length}`;
+      }
+      return response;
+    },
+  });
+  rangeCorruptBackend.putIfAbsent('segments/sha256/example', bytes);
+  assert.throws(() => rangeCorruptBackend.get('segments/sha256/example', { start: 5, end: 8 }), {
+    code: 'OBJECT_BACKEND_CORRUPT',
+  });
+});
+
+test('GCS retries only bounded reads and reacquires renewable credentials', () => {
+  const fixture = gcsFixtureTransport();
+  let transientReads = 2;
+  let transportCalls = 0;
+  let tokenCalls = 0;
+  const retryDelays = [];
+  const transport = (request) => {
+    transportCalls += 1;
+    if (request.method === 'GET' && transientReads > 0) {
+      transientReads -= 1;
+      const error = new Error('OBJECT_BACKEND_GCS_TRANSPORT');
+      error.code = 'OBJECT_BACKEND_GCS_TRANSPORT';
+      throw error;
+    }
+    return fixture.transport(request);
+  };
+  const backend = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    accessTokenProvider: () => `fixture-token-${tokenCalls += 1}`,
+    transport,
+    maximumReadAttempts: 3,
+    retryDelay: (attempt) => retryDelays.push(attempt),
+  });
+  assert.equal(backend.ensureBucket().available, true);
+  assert.equal(transportCalls, 3);
+  assert.equal(tokenCalls, 3);
+  assert.deepEqual(retryDelays, [1, 2]);
+  assert.equal(backend.capabilities.maximumReadAttempts, 3);
+
+  const statusFixture = gcsFixtureTransport();
+  let transientStatuses = 2;
+  let statusCalls = 0;
+  const statusBackend = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    accessToken: 'fixture-token-1',
+    transport: (request) => {
+      statusCalls += 1;
+      if (request.method === 'GET' && transientStatuses > 0) {
+        transientStatuses -= 1;
+        return { status: 503, headers: {}, body: Buffer.alloc(0) };
+      }
+      return statusFixture.transport(request);
+    },
+    maximumReadAttempts: 3,
+    retryDelay: () => {},
+  });
+  assert.equal(statusBackend.ensureBucket().available, true);
+  assert.equal(statusCalls, 3);
+
+  let writeCalls = 0;
+  const unsafeWrite = openGcsObjectBackend({
+    bucket: 'valid-bucket',
+    accessToken: 'fixture-token-1',
+    transport: () => {
+      writeCalls += 1;
+      const error = new Error('OBJECT_BACKEND_GCS_TRANSPORT');
+      error.code = 'OBJECT_BACKEND_GCS_TRANSPORT';
+      throw error;
+    },
+    maximumReadAttempts: 3,
+    retryDelay: () => assert.fail('write retry delay must not run'),
+  });
+  assert.throws(() => unsafeWrite.putIfAbsent('segments/sha256/example', Buffer.from('value')), {
+    code: 'OBJECT_BACKEND_GCS_TRANSPORT',
+  });
+  assert.equal(writeCalls, 1);
 });
 
 test('GCS carries a complete ObjectOnt commit, branch activation, and exact replay', () => {
