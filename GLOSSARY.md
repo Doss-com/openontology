@@ -40,6 +40,10 @@
   proposition identity, family, canonical roles, modality, polarity, actor,
   valid time, known time, and one exact source span. It is compiled into a
   ProofAuthorityProjection; it is not Evidence by itself.
+- **Canonical proposition relation** is an Adapter-declared `qualifies` or
+  `contradicts` edge from one counterevidence proposition to another canonical
+  proposition in the same namespace projection. The edge is navigation and
+  proof-census data; its endpoint source spans remain Evidence.
 - **SourceProjectionAuthority** binds a proof contract to the source projection
   identity and the ProofAuthorityProjection's `proofCensusSha256`.
 - **Support** is an independently verified relationship between a material

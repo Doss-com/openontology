@@ -4,6 +4,7 @@ import { compileProofAuthorityProjection } from './proof-authority-projection.mj
 import type {
   ProofAuthorityItem,
   ProofAuthorityProjection,
+  ProofAuthorityRelation,
 } from './proof-authority-projection.mjs';
 import { validateSourceNativeObjectMap } from './source-native-object-map.mjs';
 import type {
@@ -38,6 +39,7 @@ export function compileSourceNativeProofAuthorityProjection({
     fieldSha256: string;
     objectIdentitySha256: string;
   }> = [];
+  const relations: ProofAuthorityRelation[] = [];
   for (const object of map.nativeObjects) {
     if (object.objectIdentity.namespace !== namespace) continue;
     for (const field of object.fields) {
@@ -69,12 +71,19 @@ export function compileSourceNativeProofAuthorityProjection({
         fieldSha256: field.fieldSha256,
         objectIdentitySha256: object.objectIdentitySha256,
       });
+      relations.push(...proposition.relations.map((relation) => ({
+        type: relation.type,
+        sourceProjectionItemId: proposition.propositionKey,
+        targetProjectionItemId: relation.targetPropositionKey,
+      })));
     }
   }
-  if (bindings.length < 1
-    || new Set(bindings.map((row) => row.item.sourceProjectionItemId)).size
-      !== bindings.length) {
+  const itemIds = new Set(bindings.map((row) => row.item.sourceProjectionItemId));
+  if (bindings.length < 1 || itemIds.size !== bindings.length) {
     fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_EMPTY_OR_DUPLICATE');
+  }
+  if (relations.some((relation) => !itemIds.has(relation.targetProjectionItemId))) {
+    fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_RELATION_TARGET');
   }
   const sourceProjectionSha256 = stableObjectSha256({
     schemaVersion: 1,
@@ -91,6 +100,6 @@ export function compileSourceNativeProofAuthorityProjection({
     sourceProjectionKind: 'OpenOntologySourceNativeSemanticProjectionV1',
     sourceProjectionSha256,
     items: bindings.map((row) => row.item),
-    relations: [],
+    relations,
   });
 }

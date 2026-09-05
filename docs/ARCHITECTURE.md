@@ -69,7 +69,11 @@ existing source-native field and exact Evidence span. The bridge compiles those
 records into one ProofAuthorityProjection bound to the native object map and
 namespace. Safe-open validation rejects a self-consistently rehashed record
 whose semantic vocabulary leaves the locked taxonomy. Typed proposition
-relations and ordinary root Verification wiring are not implemented yet.
+relations live on the source proposition inside that same immutable map.
+`qualifies` and `contradicts` are implemented, must originate from
+counterevidence, and must target a proposition in the same namespace
+projection. The proof evaluator closes their authoritative census. Ordinary
+root Verification wiring is not implemented yet.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch contains a bounded source-native
 admitted-knowledge loop. It is not a generic early-exit hook and it does not

@@ -101,7 +101,12 @@ export type {
   CompileSourceNativeProofAuthorityProjectionInput,
 } from './source-native-semantic-projection.mjs';
 export type {
+  SourceNativeCanonicalRole,
   SourceNativeCanonicalPropositionV2,
+  SourceNativePropositionModality,
+  SourceNativePropositionPolarity,
+  SourceNativePropositionRelationType,
+  SourceNativePropositionRelationV1,
 } from './source-native-object-map.mjs';
 export {
   openSourceNativeObjectOntIndex,

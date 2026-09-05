@@ -135,8 +135,11 @@ retrieval miss.
 canonical proposition V2 records into the existing ProofAuthorityProjection.
 The record keeps canonical roles, modality, polarity, actor identity, valid and
 known time, and its exact source span in one source-native map. This projection
-compiler is implemented and tamper-tested. Typed relations and ordinary root
-`verify` integration remain active work.
+compiler is implemented and tamper-tested. Counterevidence can carry typed
+`qualifies` and `contradicts` relations to proposition identities in the same
+namespace; the proof evaluator closes the exact relation census before it
+returns a qualified or contradicted disposition. Ordinary root `verify`
+integration remains active work.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
 admitted-knowledge path. A proposer and an independent reviewer sign one

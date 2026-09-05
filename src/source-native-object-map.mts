@@ -68,6 +68,19 @@ export interface SourceNativeFieldInput {
   actorResolutionEvidence?: unknown;
 }
 
+export type SourceNativeCanonicalRole = 'action' | 'actor' | 'change' | 'chronology'
+  | 'counterevidence' | 'outcome' | 'state';
+export type SourceNativePropositionModality = 'observed' | 'planned' | 'reported'
+  | 'static-only' | 'unresolved';
+export type SourceNativePropositionPolarity = 'mixed' | 'negative' | 'positive';
+export type SourceNativePropositionRelationType = 'contradicts' | 'qualifies';
+
+export interface SourceNativePropositionRelationV1 extends UnknownRecord {
+  kind: 'OpenOntologySourceNativePropositionRelationV1';
+  type: SourceNativePropositionRelationType;
+  targetPropositionKey: string;
+}
+
 export interface SourceNativeCanonicalPropositionV2 extends UnknownRecord {
   kind: 'OpenOntologySourceNativeCanonicalPropositionV2';
   propositionKey: string;
@@ -77,11 +90,12 @@ export interface SourceNativeCanonicalPropositionV2 extends UnknownRecord {
   predicate: string;
   state: string;
   dimension: string;
-  canonicalRoles: string[];
-  modality: string;
-  polarity: string;
+  canonicalRoles: SourceNativeCanonicalRole[];
+  modality: SourceNativePropositionModality;
+  polarity: SourceNativePropositionPolarity;
   businessEntityKeys: string[];
   extractionAuthority: 'deterministic-source-adapter-v1';
+  relations: SourceNativePropositionRelationV1[];
 }
 
 export interface SourceNativeObjectIdentity {
@@ -201,6 +215,7 @@ const CANONICAL_ROLES = new Set([
 ]);
 const PROPOSITION_MODALITIES = new Set(['observed', 'planned', 'reported', 'static-only', 'unresolved']);
 const PROPOSITION_POLARITIES = new Set(['mixed', 'negative', 'positive']);
+const PROPOSITION_RELATION_TYPES = new Set(['contradicts', 'qualifies']);
 const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
 const freeze = <T,>(value: T): T => {
@@ -433,6 +448,7 @@ function validateCanonicalProposition(value: UnknownRecord, {
 }): void {
   const propositionKeys = value.businessEntityKeys;
   const canonicalRoles = value.canonicalRoles;
+  const relationValues = value.relations;
   const version = value.kind;
   if (!['OpenOntologySourceNativeCanonicalPropositionV1',
     'OpenOntologySourceNativeCanonicalPropositionV2'].includes(String(version))
@@ -453,6 +469,16 @@ function validateCanonicalProposition(value: UnknownRecord, {
         || canonicalRoles.some((role: string) => !CANONICAL_ROLES.has(role))
         || !PROPOSITION_MODALITIES.has(String(value.modality))
         || !PROPOSITION_POLARITIES.has(String(value.polarity))
+        || !Array.isArray(relationValues)
+        || relationValues.some((relation) => !isRecord(relation)
+          || relation.kind !== 'OpenOntologySourceNativePropositionRelationV1'
+          || !PROPOSITION_RELATION_TYPES.has(String(relation.type))
+          || typeof relation.targetPropositionKey !== 'string'
+          || !relation.targetPropositionKey
+          || relation.targetPropositionKey === value.propositionKey)
+        || new Set(relationValues.map((relation) => stableObjectText(relation))).size
+          !== relationValues.length
+        || relationValues.length > 0 && !canonicalRoles.includes('counterevidence')
         || validAt === null || knownAt === null)) {
     fail(code);
   }

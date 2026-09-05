@@ -97,8 +97,8 @@
     },
     {
       "path": "GLOSSARY.md",
-      "bytes": 6386,
-      "sha256": "4d14353cb7b40d7d478b27cc3007304f241739b05d71be76d7fa051b599f9cc4"
+      "bytes": 6679,
+      "sha256": "5db52a2032651adb07f58ef8406ff4036d0319968a9e5ef505d540263251d940"
     },
     {
       "path": "LICENSE",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12266,
-      "sha256": "527b3658986765fb8efe4a26c4d7d5a16b24a405d1a559a0455cdc8e0c68339a"
+      "bytes": 12480,
+      "sha256": "4b69bea7732bc2c30fb5ed4e34873260abecb18f2d7f2c43aa10988f15568f17"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 11387,
-      "sha256": "bc312fb0c36264246be9b33f45a1fc405c87d6fb08c31afc1d126c9468e03110"
+      "bytes": 11648,
+      "sha256": "89842efd49c169304c6d5e1899221e716f6e23e78b7858ce46199e8d4707e361"
     },
     {
       "path": "docs/STORAGE.md",
@@ -242,8 +242,8 @@
     },
     {
       "path": "scripts/test-source-native-semantic-projection.mjs",
-      "bytes": 5245,
-      "sha256": "dcf9102b6fcaa74a15683694862c027373fd633aedaeceb14cd7187c07afe92b"
+      "bytes": 11035,
+      "sha256": "b78b64c24f3fdacd76f83b304a8b79cb0262249feeed31283df48443ee5d3a17"
     },
     {
       "path": "scripts/update-source-manifest.mjs",
@@ -277,8 +277,8 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 4537,
-      "sha256": "310b5d00f1dc458305409b5362084d87e9c51917b38a147938db3278ec35172f"
+      "bytes": 4712,
+      "sha256": "2c765308bc2fda914e11d0d7ffd09ea86314b5abae8e41368dca412a88b5f23d"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -357,8 +357,8 @@
     },
     {
       "path": "src/source-native-object-map.mts",
-      "bytes": 53906,
-      "sha256": "ab4a278bd699d121ff726269bc81b561f5e3e158827a425c49338e6f1976afca"
+      "bytes": 55396,
+      "sha256": "05ad56dc93d2fcaf9c07a0f632c5fe8163287d355cf722d17a02e84382189642"
     },
     {
       "path": "src/source-native-object-ont.mts",
@@ -392,8 +392,8 @@
     },
     {
       "path": "src/source-native-semantic-projection.mts",
-      "bytes": 3728,
-      "sha256": "b697441db0cee440997cabfe738421a506d031d5e8ed4166f63d85f529ebf36d"
+      "bytes": 4200,
+      "sha256": "b79c5e9c3b84467fb1aa96350dfc93107df6016e0130c202534cd966b9eede3c"
     },
     {
       "path": "tsconfig.json",
@@ -401,5 +401,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:8f82a11116ed17eb1bb7b4d0888d5d63038dd918c62b3fabc9acd5347564a75c"
+  "manifestSha256": "sha256:468c8572578e1962ff4fd6f3f605573d670fc9f8c88ba2e6e6a69ad67bf32e3b"
 }
