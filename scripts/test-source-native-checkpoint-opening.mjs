@@ -6,10 +6,15 @@ import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import { openCanonicalObjectBackend } from '../dist/src/canonical-object-backend.mjs';
-import { objectBytesSha256, stableObjectText } from '../dist/src/canonical-content.mjs';
+import {
+  objectBytesSha256,
+  stableObjectSha256,
+  stableObjectText,
+} from '../dist/src/canonical-content.mjs';
 import { openObjectOntStore } from '../dist/src/object-ont-store.mjs';
 import {
   materializeSourceNativeObjectOnt,
+  openSourceNativeObjectOnt,
   openSourceNativeObjectOntAtCut,
   openSourceNativeObjectOntRefAtCut,
 } from '../dist/src/source-native-object-ont.mjs';
@@ -69,6 +74,59 @@ function checkpointFor(store, receipt) {
 
 function commitKey(commitSha256) {
   return `commits/sha256/${commitSha256.slice(7)}.json`;
+}
+
+function rehashedTimestampMismatch({ store, receipt, expectedVersion, occurredAt }) {
+  const originalCommit = store.readCommit(receipt.commitSha256).commit;
+  const originalReplay = store.replayMetadata(receipt.commitSha256);
+  const originalMapDescriptor = originalReplay.blobDescriptors.find((descriptor) =>
+    descriptor.logicalPath.startsWith('blobs/source-native/maps/sha256/'));
+  assert.ok(originalMapDescriptor);
+  const originalMap = JSON.parse(store.readBlob(originalMapDescriptor).bytes.toString('utf8'));
+  const nativeObjects = originalMap.nativeObjects.map((object, index) => {
+    if (index !== 0) return object;
+    const { nativeObjectSha256: _oldObjectHash, ...objectCore } = { ...object, occurredAt };
+    return { ...objectCore, nativeObjectSha256: stableObjectSha256(objectCore) };
+  });
+  const { nativeObjectMapSha256: _oldHash, ...mapCore } = {
+    ...originalMap,
+    nativeObjects,
+  };
+  const nativeObjectMapSha256 = stableObjectSha256(mapCore);
+  const map = { ...mapCore, nativeObjectMapSha256 };
+  const mapBlob = store.putBlob({
+    logicalPath: `blobs/source-native/maps/sha256/${nativeObjectMapSha256.slice(7)}.json`,
+    bytes: Buffer.from(stableObjectText(map)),
+    mediaType: 'application/json',
+  });
+  const originalManifest = JSON.parse(store.readBlob(originalCommit.ontManifest, { manifest: true }).bytes.toString('utf8'));
+  const manifest = {
+    ...originalManifest,
+    nativeObjectMapSha256,
+    mapBlobLogicalPath: mapBlob.logicalPath,
+    mapBlobStoredSha256: mapBlob.storedSha256,
+  };
+  const manifestBlob = store.putBlob({
+    logicalPath: 'oont.json',
+    bytes: Buffer.from(stableObjectText(manifest)),
+    mediaType: 'application/json',
+  });
+  const blobs = originalCommit.blobs
+    .filter((descriptor) => descriptor.logicalPath !== originalMapDescriptor.logicalPath)
+    .concat(mapBlob);
+  const commit = store.writeCommitMetadata({
+    ontId: receipt.ontId,
+    parents: [receipt.commitSha256],
+    ontManifest: manifestBlob,
+    blobs,
+  });
+  const activated = store.compareAndSwapRefMetadataCheckpointed({
+    ontId: receipt.ontId,
+    branch: 'main',
+    expectedVersion,
+    commitSha256: commit.commitSha256,
+  });
+  return { commit, activated };
 }
 
 test('present checkpoint corruption fails ordinary and exact opens without graph fallback', () => {
@@ -194,6 +252,49 @@ test('checkpointed cut openings avoid ancestor commit reads and still fetch sour
     assert.ok(currentCommitReads.length >= 1 && currentCommitReads.length <= 2);
     assert.deepEqual([...new Set(currentCommitReads)], [commitKey(third.receipt.commitSha256)]);
     assert.ok(reads.includes(sourcePack.key));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('catalog occurredAt binds ordinary and checkpoint-backed map openings', () => {
+  const { backend, materialize, root, store } = fixture();
+  try {
+    const first = materialize(['Alpha']);
+    const ordinary = openSourceNativeObjectOnt({
+      backend,
+      ontId: first.receipt.ontId,
+      commitSha256: first.receipt.commitSha256,
+    });
+    assert.equal(ordinary.sources[0].occurredAt, '2026-01-01T00:00:00.000Z');
+    const checkpoint = checkpointFor(store, first.receipt);
+    assert.ok(checkpoint);
+    const checkpointed = openSourceNativeObjectOntAtCut({
+      backend,
+      ontId: first.receipt.ontId,
+      commitSha256: first.receipt.commitSha256,
+      replaySha256: first.receipt.replaySha256,
+    });
+    assert.equal(checkpointed.replayMetadataSource, 'checkpoint');
+    assert.equal(checkpointed.objectOnt.sources[0].occurredAt, '2026-01-01T00:00:00.000Z');
+
+    const tampered = rehashedTimestampMismatch({
+      store,
+      receipt: first.receipt,
+      expectedVersion: first.receipt.refVersion,
+      occurredAt: '2026-02-01T00:00:00.000Z',
+    });
+    assert.throws(() => openSourceNativeObjectOnt({
+      backend,
+      ontId: first.receipt.ontId,
+      commitSha256: tampered.commit.commitSha256,
+    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_CATALOG' });
+    assert.throws(() => openSourceNativeObjectOntAtCut({
+      backend,
+      ontId: first.receipt.ontId,
+      commitSha256: tampered.commit.commitSha256,
+      replaySha256: tampered.activated.ref.replaySha256,
+    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_CATALOG' });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
