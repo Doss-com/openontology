@@ -27,6 +27,23 @@ returns `unavailable-incomplete-recorded-field-chronology` without Evidence.
 The scope is deliberately limited to the latest recorded value in the bound
 source cut. It does not claim universal current state.
 
+`[ACTIVE-WORK]` Point-in-time queries add an explicit `at` binding to the same
+Resolver and exact-read path. The native retrospective profile uses declared
+`validAt`, or source `occurredAt` when omitted. `knownAt` is reported but does
+not limit selection. The source horizon is the complete native catalog's last
+observation, not a guarantee about the external world. Selection reconstructs
+the full revision census and follows only direct edges whose endpoints are
+valid at the requested time. Consecutive equivalent observations share a state;
+nonconsecutive equal states stay distinct. Missing coverage, unresolved states,
+and requests outside the recorded horizon refuse without Evidence.
+
+Historical semantic projection validates the full immutable proposition and
+relation census, then selects active fields and their inbound counterevidence
+closure for that same time. An inactive intermediate revision is not a shortcut
+to an earlier state. Historical Admission and cold reuse independently repeat
+this selection and bind the exact timestamp. They cannot answer `current` or a
+different instant using the saved proof.
+
 `[EXISTS]` Safe open also compiles a complete native-object identity census over
 the bound source catalog when mapped coverage is complete and adapter failures
 are zero. An exact typed identity with zero census occurrences returns

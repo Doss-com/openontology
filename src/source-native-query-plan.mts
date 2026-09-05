@@ -8,6 +8,7 @@ import type {
 } from './source-native-query-planner.mjs';
 import type { SourceNativeField, SourceNativeObjectMap } from './source-native-object-map.mjs';
 import type { FieldQueryPlanner, ValidatedFieldQueryPlan } from './source-native-resolver-support.mjs';
+import { normalizeSourceNativeHistoricalTime } from './source-native-historical-field.mjs';
 
 const EXTERNAL_ID_COLLISION = Symbol('external-id-collision');
 const EXTERNAL_ID_MULTIPLE = Symbol('external-id-multiple');
@@ -34,7 +35,7 @@ const CHANGE_OVER_TIME = /\b(?:has|have|had|did|when)\b[^?]{0,80}\b(?:change|cha
 const ORDERED_TIME = /\b(?:before|after|followed|following|preceded|preceding|succeeded|succeeding)\b/u;
 const CALENDAR_TIME = /\b(?:on|in|at|as of)\s+(?:(?:19|20)\d{2}(?:[-/]\d{1,2}(?:[-/]\d{1,2})?)?|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{1,2},?)?(?:\s+(?:19|20)\d{2})?)\b/u;
 
-function hasUndeclaredTemporalIntent(question: string, intent: 'current' | 'next'): boolean {
+function hasUndeclaredTemporalIntent(question: string, intent: 'current' | 'next' | 'at'): boolean {
   if (intent !== 'current') return false;
   const text = normalizedQuestion(question);
   return HISTORICAL_TIME.test(text)
@@ -130,15 +131,18 @@ function bindHistoricalAnchor({ question, explicitAnchorValue, map, namespace, q
 }
 
 export function compileProductQueryPlan({ question, namespace, querySchemas, map, intent,
-  anchorValue = null, typedQuery = null }: {
+  anchorValue = null, typedQuery = null, at = null }: {
     question: string;
     namespace: string;
     querySchemas: QuerySchema[];
     map: SourceNativeObjectMap;
-    intent: 'current' | 'next';
+    intent: 'current' | 'next' | 'at';
+    at?: string | null;
     anchorValue?: string | null;
     typedQuery?: SourceNativeFieldQuery | null;
   }) {
+  if (intent === 'at') normalizeSourceNativeHistoricalTime(at);
+  else if (at !== null) fail('SOURCE_NATIVE_PRODUCT_QUERY');
   let state: SourceNativeQueryPlanState | 'unavailable-native-object-identifier-not-declared'
     | 'unavailable-native-multiple-object-identifiers' | 'unavailable-native-field-anchor-not-matched'
     | 'unavailable-native-field-anchor-ambiguous' | 'unavailable-native-field-not-declared'
@@ -218,6 +222,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     state,
     namespace,
     query,
+    ...(intent === 'at' ? { at, temporalProfile: 'source-native-basic-retrospective-v1' } : {}),
     mentionedExternalIds: freeze(mentionedExternalIds),
     unresolvedExternalIds: freeze(unresolvedExternalIds),
     matchedObjectAliases: freeze(matchedObjectAliases),

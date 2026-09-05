@@ -25,6 +25,7 @@ import type {
 } from './source-native-resolver-support.mjs';
 import type { SourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
 import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
+import { normalizeSourceNativeHistoricalTime, resolveSourceNativeFieldAt } from './source-native-historical-field.mjs';
 import {
   validateSourceNativeObjectIdentityCensus as validateObjectIdentityCensus,
 } from './source-native-identity-census.mjs';
@@ -71,6 +72,35 @@ export interface SourceNativeObjectIdentityAbsenceReceipt {
   networkCalls: 0;
   targetLeakage: false;
   receiptSha256: string;
+}
+
+export interface SourceNativeHistoricalFieldChronologyVerification {
+  schema: 1;
+  kind: 'OpenOntologySourceNativeHistoricalFieldChronologyVerificationV1';
+  proofDisposition: 'sufficient' | 'insufficient';
+  scope: 'retrospective-valid-time-over-bound-source-cut';
+  temporalProfile: 'source-native-basic-retrospective-v1';
+  at: string;
+  sourceObservedThrough: string;
+  knownAtLimitsSelection: false;
+  sourceCommitSha256: string;
+  sourceReplaySha256: string;
+  sourceCatalogSha256: string | null;
+  sourceHandleSetSha256: string;
+  nativeObjectMapSha256: string;
+  fieldResolutionSha256: string;
+  selectedFieldSha256: string;
+  selectedValidAt: string;
+  selectedKnownAt: string;
+  observationClosureCount: number;
+  observationClosureSha256: string;
+  revisionClosureCount: number;
+  revisionClosureSha256: string;
+  derivedValidAtFieldCount: number;
+  unmetRequirements: string[];
+  exactInspectRequired: true;
+  exactSourcesRemainAuthority: true;
+  verificationSha256: string;
 }
 
 function compileObjectIdentityAbsenceReceipt({
@@ -127,7 +157,7 @@ function compileObjectIdentityAbsenceReceipt({
  * committed Ont session. The query planner remains a source-format Adapter;
  * native identity traversal and duplicate-Evidence compaction stay here.
  */
-export function openSourceNativeCurrentFieldResolver({
+export function openSourceNativeRecordedFieldResolver({
   sourceNativeObjectMap: mapInput,
   sourceHandles: sourceHandleInput,
   namespace,
@@ -136,6 +166,7 @@ export function openSourceNativeCurrentFieldResolver({
   sourceSearchRouteMapSha256,
   sourceCatalogSha256 = null,
   objectIdentityCensus: objectIdentityCensusInput = null,
+  at: atInput = null,
   seedSearchAdapter: seedSearchAdapterInput,
   maximumSeedSourceMessages = 4,
   queryPlanner: queryPlannerInput,
@@ -148,10 +179,13 @@ export function openSourceNativeCurrentFieldResolver({
   sourceSearchRouteMapSha256?: string;
   sourceCatalogSha256?: string | null;
   objectIdentityCensus?: SourceNativeObjectIdentityCensus | null;
+  at?: string | null;
   seedSearchAdapter?: SeedSearchAdapter;
   maximumSeedSourceMessages?: number;
   queryPlanner?: FieldQueryPlanner;
 } = {}) {
+  const at = atInput === null ? null : normalizeSourceNativeHistoricalTime(atInput);
+  const intent = at === null ? 'current' : 'at';
   const boundNamespace = namespace ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
   const boundCommitSha256 = sourceCommitSha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
   const boundReplaySha256 = sourceReplaySha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
@@ -216,6 +250,7 @@ export function openSourceNativeCurrentFieldResolver({
     let rawSeedSearchExecuted = false;
     let state = queryPlan.state;
     let currentFieldChronology: SourceNativeCurrentFieldChronologyVerification | null = null;
+    let historicalFieldChronology: SourceNativeHistoricalFieldChronologyVerification | null = null;
     let absenceAuthorized = false;
     let absenceReceipt: SourceNativeObjectIdentityAbsenceReceipt | null = null;
     let selectionLabel = 'unresolved source-native current field';
@@ -236,7 +271,8 @@ export function openSourceNativeCurrentFieldResolver({
         state = 'verified-native-object-absent-from-bound-source-catalog';
         absenceAuthorized = true;
       } else {
-        const bindingSha256 = queryBindingSha256('current', resolvedQuery);
+        const bindingSha256 = at === null ? queryBindingSha256('current', resolvedQuery)
+          : stableObjectSha256({ intent, at, query: resolvedQuery });
         const seedSearch = await runSeedSearch({
           adapter: seedSearchAdapter,
           question: askedQuestion,
@@ -255,15 +291,20 @@ export function openSourceNativeCurrentFieldResolver({
         seedSearchReceiptSha256 = seedSearch.receiptSha256;
         seedSearchNetworkCalls = seedSearch.networkCalls;
         rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
-        resolution = resolveSourceNativeField({
+        const historical = at === null ? null : resolveSourceNativeFieldAt({
+          sourceNativeObjectMap: map, query: resolvedQuery, at,
+        });
+        resolution = historical === null ? resolveSourceNativeField({
           sourceNativeObjectMap: map,
           seedRelativePaths: seedSearch.traversalRows.map((row) => row.relativePath),
           query: resolvedQuery,
-        });
+        }) : { ...historical, current: historical.selected, suppressedRelativePaths: [],
+          policy: historical.temporalProfile };
         state = resolution.state;
-        if (resolution.state === 'resolved-current-field' && resolution.current !== null
+        if ((resolution.state === 'resolved-current-field' || resolution.state === 'resolved-historical-field')
+          && resolution.current !== null
           && resolution.current !== undefined) {
-          currentFieldChronology = compileSourceNativeCurrentFieldChronologyVerification({
+          if (historical === null) currentFieldChronology = compileSourceNativeCurrentFieldChronologyVerification({
             sourceNativeObjectMap: map,
             resolution,
             sourceCommitSha256: boundCommitSha256,
@@ -271,7 +312,45 @@ export function openSourceNativeCurrentFieldResolver({
             sourceCatalogSha256,
             sourceHandles,
           });
-          if (currentFieldChronology.proofDisposition === 'insufficient') {
+          else {
+            const selected = historical.selected ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_SELECTION');
+            const paths = new Set(map.nativeObjects.map((object) => object.relativePath));
+            const completeCatalog = SHA256.test(sourceCatalogSha256 ?? '')
+              && sourceHandles.length === map.sourceCount && paths.size === sourceHandles.length
+              && sourceHandles.every((handle) => paths.has(handle.relativePath));
+            const core = {
+              schema: 1 as const,
+              kind: 'OpenOntologySourceNativeHistoricalFieldChronologyVerificationV1' as const,
+              proofDisposition: completeCatalog ? 'sufficient' as const : 'insufficient' as const,
+              scope: 'retrospective-valid-time-over-bound-source-cut' as const,
+              temporalProfile: historical.temporalProfile,
+              at: historical.at,
+              sourceObservedThrough: historical.sourceObservedThrough
+                ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_SELECTION'),
+              knownAtLimitsSelection: false as const,
+              sourceCommitSha256: boundCommitSha256,
+              sourceReplaySha256: boundReplaySha256,
+              sourceCatalogSha256,
+              sourceHandleSetSha256,
+              nativeObjectMapSha256: map.nativeObjectMapSha256,
+              fieldResolutionSha256: historical.resolutionSha256,
+              selectedFieldSha256: selected.fieldSha256,
+              selectedValidAt: selected.validAt,
+              selectedKnownAt: selected.knownAt,
+              observationClosureCount: historical.observationClosureCount,
+              observationClosureSha256: historical.observationClosureSha256,
+              revisionClosureCount: historical.revisionClosureCount,
+              revisionClosureSha256: historical.revisionClosureSha256,
+              derivedValidAtFieldCount: historical.derivedValidAtFieldCount,
+              unmetRequirements: completeCatalog ? [] : ['complete-bound-source-catalog'],
+              exactInspectRequired: true as const,
+              exactSourcesRemainAuthority: true as const,
+            };
+            historicalFieldChronology = freeze({ ...core, verificationSha256: stableObjectSha256(core) });
+          }
+          const chronology = historicalFieldChronology ?? currentFieldChronology
+            ?? fail('SOURCE_NATIVE_FIELD_CHRONOLOGY');
+          if (chronology.proofDisposition === 'insufficient') {
             state = 'unavailable-incomplete-recorded-field-chronology';
           } else {
             const currentHandle = handleByPath.get(resolution.current.relativePath)
@@ -282,7 +361,8 @@ export function openSourceNativeCurrentFieldResolver({
             }).sort((left: number, right: number) => left - right);
             const unitCore = {
               schema: 1,
-              kind: 'OpenOntologySourceNativeCurrentFieldEvidenceUnitV1',
+              kind: at === null ? 'OpenOntologySourceNativeCurrentFieldEvidenceUnitV1'
+                : 'OpenOntologySourceNativeHistoricalFieldEvidenceUnitV1',
               selectionLabel,
               representativeSourceMessageId: currentHandle.sourceMessageId,
               referenceSourceMessageIds: freeze([currentHandle.sourceMessageId]),
@@ -303,8 +383,13 @@ export function openSourceNativeCurrentFieldResolver({
               suppressedSourceMessageIds: freeze(suppressedSourceMessageIds),
               revisionClosureCount: resolution.revisionClosureCount,
               revisionClosureSha256: resolution.revisionClosureSha256,
-              currentFieldChronologyVerificationSha256: currentFieldChronology.verificationSha256,
-              currentFieldSha256: resolution.current.fieldSha256,
+              ...(at === null ? {
+                currentFieldChronologyVerificationSha256: chronology.verificationSha256,
+                currentFieldSha256: resolution.current.fieldSha256,
+              } : {
+                historicalFieldChronologyVerificationSha256: chronology.verificationSha256,
+                selectedFieldSha256: resolution.current.fieldSha256,
+              }),
               navigationOnly: true,
               exactInspectRequired: true,
               exactSourcesRemainAuthority: true,
@@ -324,7 +409,7 @@ export function openSourceNativeCurrentFieldResolver({
       schema: 1,
       kind: 'OpenOntologySourceNativeObjectResolverResultV1',
       state,
-      selectionMode: 'current-field-revision',
+      selectionMode: at === null ? 'current-field-revision' : 'historical-field-revision',
       selectionLabel,
       nativeObjectMapSha256: map.nativeObjectMapSha256,
       sourceCommitSha256: boundCommitSha256,
@@ -334,13 +419,15 @@ export function openSourceNativeCurrentFieldResolver({
       queryPlannerAdapter: queryPlanner.adapter,
       queryPlannerSha256: queryPlanner.plannerSha256,
       queryPlan,
-      queryBindingSha256: queryBindingSha256('current', queryPlan.query),
+      queryBindingSha256: at === null ? queryBindingSha256('current', queryPlan.query)
+        : stableObjectSha256({ intent, at, query: queryPlan.query }),
       resolutionSha256: resolution?.resolutionSha256 ?? null,
       fieldResolutionPolicy: resolution?.policy ?? null,
       businessEntityKey: null,
       businessEntityCensusSha256: null,
       objectIdentityCensusSha256: objectIdentityCensus?.censusSha256 ?? null,
       currentFieldChronology,
+      ...(at === null ? {} : { at, historicalFieldChronology }),
       absenceReceipt,
       searchPath: null,
       evidenceUnits: freeze(evidenceUnits),
@@ -391,7 +478,8 @@ export function openSourceNativeCurrentFieldResolver({
 
   return freeze({
     kind: 'OpenOntologySourceNativeObjectResolverModuleV1',
-    implementation: 'OpenOntologySourceNativeCurrentFieldResolverV1',
+    implementation: at === null ? 'OpenOntologySourceNativeCurrentFieldResolverV1'
+      : 'OpenOntologySourceNativePointInTimeFieldResolverV1',
     nativeObjectMapSha256: map.nativeObjectMapSha256,
     namespace: boundNamespace,
     sourceCommitSha256: boundCommitSha256,
@@ -411,6 +499,7 @@ export function openSourceNativeCurrentFieldResolver({
     search,
   });
 }
+export { openSourceNativeRecordedFieldResolver as openSourceNativeCurrentFieldResolver };
 /**
  * Open an immediate historical field-successor Adapter. The map keeps the
  * direct supersedes edge fixed while the availability snapshot controls which

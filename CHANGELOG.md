@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add explicit retrospective point-in-time `at` queries across SDK, CLI, and
+  MCP. Bind selection, exact Evidence, semantic counterevidence, and Admission
+  reuse to one requested time and complete source cut. Preserve current and
+  immediate-successor behavior.
 - Bind native semantic Admission and cold reuse to the complete authority
   projection reconstructed from the selected source field. Reject signed
   reduced censuses and semantic drift without suppressing ordinary verification.

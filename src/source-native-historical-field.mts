@@ -95,7 +95,7 @@ function fieldEndpointKey(relativePath: string, field: SourceNativeField): strin
   return `${relativePath}\0${field.fieldSha256}`;
 }
 
-function stateClassKey(field: SourceNativeField): string {
+export function sourceNativeFieldStateSha256(field: SourceNativeField): string {
   return stableObjectSha256({
     effectiveCanonicalValue: field.canonicalValue ?? field.value,
     propositionFamilyKey: field.propositionFamilyKey ?? null,
@@ -141,7 +141,7 @@ function scopedObservations(objects: SourceNativeObject[], fieldPath: string): O
       fail('SOURCE_NATIVE_HISTORICAL_FIELD_MAP');
     }
     return [{ object, field, observedOrder, validAt: effectiveValidAt,
-      knownAt: effectiveKnownAt, validAtMs, stateClassKey: stateClassKey(field) }];
+      knownAt: effectiveKnownAt, validAtMs, stateClassKey: sourceNativeFieldStateSha256(field) }];
   }).sort(compareObservation);
 }
 

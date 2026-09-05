@@ -237,7 +237,7 @@ test('MCP profiles expose one ordinary path or one advanced path, never both', (
     ['search', 'read']);
   assert.deepEqual(
     Object.keys(SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties).sort(),
-    ['anchorValue', 'intent', 'question', 'scope'],
+    ['anchorValue', 'at', 'intent', 'question', 'scope'],
   );
   assert.deepEqual(
     SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties.scope.required,

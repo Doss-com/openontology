@@ -180,10 +180,12 @@ export function compileSourceNativeSemanticNavigation({
   sourceNativeObjectMap,
   namespace,
   rootFieldSha256,
+  at = null,
 }: {
   sourceNativeObjectMap?: SourceNativeObjectMap;
   namespace?: string;
   rootFieldSha256?: string;
+  at?: string | null;
 } = {}): SourceNativeSemanticNavigation | null {
   if (!sourceNativeObjectMap || typeof namespace !== 'string' || !namespace
     || typeof rootFieldSha256 !== 'string' || !rootFieldSha256) {
@@ -209,6 +211,7 @@ export function compileSourceNativeSemanticNavigation({
     sourceNativeObjectMap: map,
     namespace,
     rootPropositionKeys: [rootPropositionKey],
+    at,
   });
   const fieldsByProposition = new Map<string, SourceNativeField[]>();
   for (const object of map.nativeObjects) {
@@ -222,10 +225,16 @@ export function compileSourceNativeSemanticNavigation({
     }
   }
   const evidenceOffers = authorityProjection.items.map((item) => {
-    const fields = fieldsByProposition.get(item.sourceProjectionItemId) ?? [];
-    if (fields.length !== 1 || item.exactEvidenceReferences.length !== 1) {
+    if (item.exactEvidenceReferences.length !== 1) {
       fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
     }
+    const expected = item.exactEvidenceReferences[0]
+      ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
+    const fields = (fieldsByProposition.get(item.sourceProjectionItemId) ?? []).filter(({ evidence }) =>
+      evidence.relativePath === expected.sourceRef && evidence.sourceSha256 === expected.sourceSha256
+      && evidence.byteStart === expected.byteStart && evidence.byteEnd === expected.byteEnd
+      && evidence.textSha256 === expected.textSha256);
+    if (fields.length !== 1) fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
     const field = fields[0] ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
     const role = item.sourceProjectionItemId === rootPropositionKey
       ? 'answer' as const : 'counterevidence' as const;

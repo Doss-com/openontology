@@ -7,8 +7,12 @@ import type {
   ProofAuthorityRelation,
 } from './proof-authority-projection.mjs';
 import { validateSourceNativeObjectMap } from './source-native-object-map.mjs';
+import { normalizeSourceNativeHistoricalTime, resolveSourceNativeFieldAt,
+  sourceNativeFieldStateSha256 } from './source-native-historical-field.mjs';
 import type {
   SourceNativeCanonicalPropositionV2,
+  SourceNativeField,
+  SourceNativeObject,
   SourceNativeObjectMap,
 } from './source-native-object-map.mjs';
 
@@ -27,14 +31,17 @@ export interface CompileSourceNativeProofAuthorityProjectionInput {
   sourceNativeObjectMap?: SourceNativeObjectMap;
   namespace?: string;
   rootPropositionKeys?: readonly string[];
+  at?: string | null;
 }
 
 export function compileSourceNativeProofAuthorityProjection({
   sourceNativeObjectMap: mapInput,
   namespace,
   rootPropositionKeys: rootPropositionKeyInput,
+  at: atInput = null,
 }: CompileSourceNativeProofAuthorityProjectionInput = {}): ProofAuthorityProjection {
   const map = validateSourceNativeObjectMap(mapInput);
+  const at = atInput === null ? null : normalizeSourceNativeHistoricalTime(atInput);
   if (typeof namespace !== 'string' || !namespace
     || rootPropositionKeyInput !== undefined
       && (!Array.isArray(rootPropositionKeyInput)
@@ -49,6 +56,8 @@ export function compileSourceNativeProofAuthorityProjection({
     item: ProofAuthorityItem;
     fieldSha256: string;
     objectIdentitySha256: string;
+    field: SourceNativeField;
+    object: SourceNativeObject;
   }> = [];
   const relations: ProofAuthorityRelation[] = [];
   for (const object of map.nativeObjects) {
@@ -81,6 +90,8 @@ export function compileSourceNativeProofAuthorityProjection({
         },
         fieldSha256: field.fieldSha256,
         objectIdentitySha256: object.objectIdentitySha256,
+        field,
+        object,
       });
       relations.push(...proposition.relations.map((relation) => ({
         type: relation.type,
@@ -90,8 +101,40 @@ export function compileSourceNativeProofAuthorityProjection({
     }
   }
   const itemIds = new Set(bindings.map((row) => row.item.sourceProjectionItemId));
-  if (bindings.length < 1 || itemIds.size !== bindings.length) {
+  if (bindings.length < 1 || at === null && itemIds.size !== bindings.length) {
     fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_EMPTY_OR_DUPLICATE');
+  }
+  if (at !== null && itemIds.size !== bindings.length) {
+    const byKey = new Map<string, typeof bindings>();
+    for (const binding of bindings) {
+      const key = binding.item.sourceProjectionItemId;
+      const group = byKey.get(key) ?? [];
+      group.push(binding);
+      byKey.set(key, group);
+    }
+    for (const group of byKey.values()) {
+      if (group.length < 2) continue;
+      const first = group[0] ?? fail('SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS');
+      const stateSha256 = sourceNativeFieldStateSha256(first.field);
+      if (group.some((row) => row.objectIdentitySha256 !== first.objectIdentitySha256
+        || row.field.fieldPath !== first.field.fieldPath
+        || sourceNativeFieldStateSha256(row.field) !== stateSha256)) {
+        fail('SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS');
+      }
+      const observations = map.nativeObjects
+        .filter((object) => object.objectIdentitySha256 === first.objectIdentitySha256)
+        .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt)
+          || compare(left.relativePath, right.relativePath))
+        .flatMap((object) => object.fields.filter((field) => field.fieldPath === first.field.fieldPath));
+      const repeatedFields = new Set(group.map((row) => row.fieldSha256));
+      const firstIndex = observations.findIndex((field) => repeatedFields.has(field.fieldSha256));
+      const lastIndex = observations.reduce((last, field, index) =>
+        repeatedFields.has(field.fieldSha256) ? index : last, -1);
+      if (firstIndex < 0 || observations.slice(firstIndex, lastIndex + 1)
+        .some((field) => sourceNativeFieldStateSha256(field) !== stateSha256)) {
+        fail('SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS');
+      }
+    }
   }
   if (relations.some((relation) => !itemIds.has(relation.targetProjectionItemId))) {
     fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_RELATION_TARGET');
@@ -113,17 +156,62 @@ export function compileSourceNativeProofAuthorityProjection({
       }
     }
   }
-  const selectedBindings = bindings.filter((row) =>
+  let selectedBindings = bindings.filter((row) =>
     selectedIds.has(row.item.sourceProjectionItemId));
-  const selectedRelations = relations.filter((relation) =>
+  let selectedRelations = relations.filter((relation) =>
     selectedIds.has(relation.sourceProjectionItemId)
       && selectedIds.has(relation.targetProjectionItemId));
+  if (at !== null) {
+    const selectedFields = new Set<string>();
+    const visited = new Set<string>();
+    for (const binding of selectedBindings) {
+      const { object, field } = binding;
+      const key = `${object.objectIdentitySha256}\0${field.fieldPath}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const resolution = resolveSourceNativeFieldAt({ sourceNativeObjectMap: map, at,
+        query: { ...object.objectIdentity, fieldPath: field.fieldPath } });
+      if (resolution.state === 'unavailable-native-historical-field-not-yet-valid') continue;
+      if (resolution.state !== 'resolved-historical-field' || resolution.selected === null) {
+        fail('SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS');
+      }
+      const selected = resolution.selected ?? fail('SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS');
+      selectedFields.add(selected.fieldSha256);
+    }
+    selectedBindings = selectedBindings.filter((row) => selectedFields.has(row.fieldSha256));
+    const activeIds = new Set(selectedBindings.map((row) => row.item.sourceProjectionItemId));
+    if (activeIds.size !== selectedBindings.length
+      || rootPropositionKeys?.some((key) => !activeIds.has(key))) {
+      fail('SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS');
+    }
+    selectedRelations = selectedRelations.filter((relation) => activeIds.has(relation.sourceProjectionItemId)
+      && activeIds.has(relation.targetProjectionItemId));
+    selectedRelations = [...new Map(selectedRelations.map((relation) =>
+      [stableObjectSha256(relation), relation])).values()];
+    if (rootPropositionKeys !== null) {
+      const connected = new Set(rootPropositionKeys);
+      let expanded = true;
+      while (expanded) {
+        expanded = false;
+        for (const relation of selectedRelations) {
+          if (connected.has(relation.targetProjectionItemId) && !connected.has(relation.sourceProjectionItemId)) {
+            connected.add(relation.sourceProjectionItemId);
+            expanded = true;
+          }
+        }
+      }
+      selectedBindings = selectedBindings.filter((row) => connected.has(row.item.sourceProjectionItemId));
+      selectedRelations = selectedRelations.filter((relation) => connected.has(relation.sourceProjectionItemId)
+        && connected.has(relation.targetProjectionItemId));
+    }
+  }
   const sourceProjectionSha256 = stableObjectSha256({
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeSemanticProjectionInputV1',
     namespace,
     rootPropositionKeys,
     nativeObjectMapSha256: map.nativeObjectMapSha256,
+    ...(at === null ? {} : { at, temporalProfile: 'source-native-basic-retrospective-v1' }),
     bindings: selectedBindings.map((row) => ({
       sourceProjectionItemId: row.item.sourceProjectionItemId,
       fieldSha256: row.fieldSha256,

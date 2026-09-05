@@ -1,10 +1,12 @@
 /** Public read-only source-native product runtime. */
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
 import {
-  openSourceNativeCurrentFieldResolver,
+  openSourceNativeRecordedFieldResolver,
   openSourceNativeHistoricalFieldResolver,
 } from './source-native-field-resolver.mjs';
-import type { SourceNativeObjectIdentityAbsenceReceipt } from './source-native-field-resolver.mjs';
+import type { SourceNativeObjectIdentityAbsenceReceipt,
+  SourceNativeHistoricalFieldChronologyVerification } from './source-native-field-resolver.mjs';
+import { normalizeSourceNativeHistoricalTime } from './source-native-historical-field.mjs';
 import { openSourceNativeExactEvidenceSession } from './source-native-evidence-session.mjs';
 import { compileSourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
 import {
@@ -33,6 +35,7 @@ const MAXIMUM_OFFERED_REFERENCES = 1024;
 export interface ProductSearchInput {
   question: string;
   intent?: 'current' | 'next';
+  at?: string | null;
   anchorValue?: string | null;
   typedQuery?: SourceNativeFieldQuery | null;
   investigationId?: string | null;
@@ -69,6 +72,7 @@ export interface SourceNativeProductResolution extends UnknownRecord {
   searchPath?: UnknownRecord & { searchPathSha256: string; revisionSha256?: string } | null;
   navigationProposals?: UnknownRecord;
   currentFieldChronology?: SourceNativeCurrentFieldChronologyVerification | null;
+  historicalFieldChronology?: SourceNativeHistoricalFieldChronologyVerification | null;
   absenceReceipt?: SourceNativeObjectIdentityAbsenceReceipt | null;
 }
 interface OfferedEvidence extends UnknownRecord {
@@ -187,7 +191,8 @@ export {
 export type SourceNativeProductQueryPlan = ReturnType<typeof compileProductQueryPlan>;
 export interface SourceNativeProductPreparedSearch {
   question: string;
-  intent: 'current' | 'next';
+  intent: 'current' | 'next' | 'at';
+  at: string | null;
   anchorValue: string | null;
   typedQuery: SourceNativeFieldQuery | null;
   plan: SourceNativeProductQueryPlan;
@@ -233,7 +238,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
   verificationFields = {}, resultFields = {} }: {
   descriptor: Descriptor;
   objectOnt: ObjectOnt;
-  intent: 'current' | 'next';
+  intent: 'current' | 'next' | 'at';
   plan: ValidatedFieldQueryPlan & { mentionedExternalIds?: string[]; unresolvedExternalIds?: string[]; query?: SourceNativeFieldQuery | null };
   resolution?: SourceNativeProductResolution | null;
   matches?: SourceNativeProductMatch[];
@@ -253,6 +258,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
     kind: 'OpenOntologySourceNativeProductSearchResultV2' as const,
     state: stateOverride ?? productResultState(resolution?.state ?? plan.state),
     intent,
+    ...(typeof plan.at === 'string' ? { at: plan.at } : {}),
     query: plan.query,
     mentionedExternalIds: plan.mentionedExternalIds,
     unresolvedExternalIds: plan.unresolvedExternalIds,
@@ -269,6 +275,9 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
       resolutionSha256: resolution?.resultSha256 ?? null,
       navigationProposals: resolution?.navigationProposals ?? null,
       currentFieldChronology: resolution?.currentFieldChronology ?? null,
+      ...(resolution?.historicalFieldChronology === undefined ? {} : {
+        historicalFieldChronology: resolution.historicalFieldChronology,
+      }),
       absenceReceipt: resolution?.absenceReceipt ?? null,
       ...verificationFields,
     }),
@@ -363,13 +372,17 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
     offered.set(evidenceRef, offer);
   };
 
-  const prepareSearch = ({ question, intent = 'current', anchorValue = null,
-    typedQuery = null }: ProductSearchInput) => {
+  const prepareSearch = ({ question, intent: requestedIntent = 'current', anchorValue = null,
+    typedQuery = null, at: requestedAt = null }: ProductSearchInput) => {
     if (typeof question !== 'string' || !question.trim()
-      || !['current', 'next'].includes(intent)
-      || anchorValue !== null && typeof anchorValue !== 'string') {
+      || !['current', 'next'].includes(requestedIntent)
+      || anchorValue !== null && typeof anchorValue !== 'string'
+      || requestedAt !== null && (requestedIntent === 'next'
+        || typeof anchorValue === 'string' && anchorValue.trim().length > 0)) {
       fail('SOURCE_NATIVE_PRODUCT_SEARCH');
     }
+    const at = requestedAt === null ? null : normalizeSourceNativeHistoricalTime(requestedAt);
+    const intent = at === null ? requestedIntent : 'at' as const;
     const exactAnchorValue = typeof anchorValue === 'string' && anchorValue.trim()
       ? anchorValue.trim() : null;
     const plan = compileProductQueryPlan({
@@ -378,10 +391,11 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       querySchemas: descriptor.querySchemas,
       map: objectOnt.map,
       intent,
+      at,
       anchorValue: exactAnchorValue,
       typedQuery,
     });
-    return { question, intent, anchorValue: exactAnchorValue, typedQuery, plan };
+    return { question, intent, at, anchorValue: exactAnchorValue, typedQuery, plan };
   };
 
   const forgetOffers = (activityId: string | null) => {
@@ -407,7 +421,7 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
   const search = async (input: ProductSearchInput = { question: '' }) => {
     const { investigationId = null, ...searchInput } = input;
     const prepared = prepareSearch(searchInput);
-    const { question, intent, plan } = prepared;
+    const { question, intent, at, plan } = prepared;
     if (lifecycle === null && investigationId !== null) fail('SOURCE_NATIVE_PRODUCT_SEARCH');
     const startReceipt = lifecycle?.beginSearch?.(prepared, investigationId) ?? null;
     if (plan.state !== 'resolved-native-field-query'
@@ -439,9 +453,10 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       maximumSeedSourceMessages: 4,
       queryPlanner: queryPlanner({ namespace: descriptor.namespace, plan }),
     };
-    const resolver = intent === 'current'
-      ? openSourceNativeCurrentFieldResolver({
+    const resolver = intent !== 'next'
+      ? openSourceNativeRecordedFieldResolver({
         ...common,
+        at,
         sourceCatalogSha256: session.sourceCatalogSha256,
         objectIdentityCensus,
       })
@@ -520,25 +535,34 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
     };
     let semanticNavigation = null;
     let semanticProofRefusal = null;
+    let historicalSemanticCensusUnavailable = false;
     const answerReferences = references.filter((row) => row.role === 'answer');
-    if (intent === 'current' && resolution.state === 'resolved-current-field'
+    if ((resolution.state === 'resolved-current-field' || resolution.state === 'resolved-historical-field')
       && answerReferences.length === 1) {
-      semanticNavigation = compileSourceNativeSemanticNavigation({
-        sourceNativeObjectMap: objectOnt.map,
-        namespace: descriptor.namespace,
-        rootFieldSha256: answerReferences[0]?.reference.fieldSha256,
-      });
+      try {
+        semanticNavigation = compileSourceNativeSemanticNavigation({
+          sourceNativeObjectMap: objectOnt.map,
+          namespace: descriptor.namespace,
+          rootFieldSha256: answerReferences[0]?.reference.fieldSha256,
+          at,
+        });
+      } catch (error) {
+        if (at === null || !(error instanceof Error) || !('code' in error)
+          || error.code !== 'SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS') throw error;
+        historicalSemanticCensusUnavailable = true;
+      }
       semanticProofRefusal = semanticNavigation === null ? null
         : compileSourceNativeSemanticProofRefusal({ navigation: semanticNavigation });
     }
-    if (semanticProofRefusal !== null) {
+    if (semanticProofRefusal !== null || historicalSemanticCensusUnavailable) {
       const result = productResult({
         descriptor,
         objectOnt,
         intent,
         plan,
         resolution,
-        stateOverride: 'unavailable-semantic-proof-context-budget',
+        stateOverride: historicalSemanticCensusUnavailable
+          ? 'unavailable-native-historical-semantic-census' : 'unavailable-semantic-proof-context-budget',
         verificationFields: {
           ...(lifecycle?.verificationMetadata?.(resolution) ?? {}),
           semanticProofRefusal,
@@ -678,6 +702,7 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
         sourceNativeObjectMap: objectOnt.map,
         namespace: descriptor.namespace,
         rootFieldSha256: answerMatches[0]?.fieldSha256,
+        at: searchResult.at ?? null,
       });
       if (navigation === null
         || stableObjectText(navigation.authority) !== stableObjectText(semanticAuthority)) {
@@ -703,8 +728,9 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
         }),
       });
     }
-    const chronologyComplete = searchResult.intent !== 'current'
-      || searchResult.verification.currentFieldChronology?.proofDisposition === 'sufficient';
+    const chronologyComplete = searchResult.intent === 'next' || (searchResult.intent === 'at'
+      ? searchResult.verification.historicalFieldChronology?.proofDisposition === 'sufficient'
+      : searchResult.verification.currentFieldChronology?.proofDisposition === 'sufficient');
     const completeProof = chronologyComplete && searchResult.matches.length > 0
       && searchResult.matches.filter((match) => match.requiredForProof).length === context.length
       && (semanticResult?.evaluation.proofClosed ?? true);
@@ -718,6 +744,7 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       state: searchResult.state,
       answerable: completeProof,
       intent: searchResult.intent,
+      ...(searchResult.at === undefined ? {} : { at: searchResult.at }),
       query: searchResult.query,
       context: freeze(context),
       mentionedExternalIds: searchResult.mentionedExternalIds,

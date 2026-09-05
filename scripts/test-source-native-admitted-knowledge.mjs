@@ -138,6 +138,229 @@ function authorityFor(context, source = context.sources[0]) {
   });
 }
 
+function temporalSemanticInput() {
+  const input = buildSemanticInput();
+  input.nativeObjectInputs[1].fields[0].validAt = '2026-09-04T12:00:30.000Z';
+  return input;
+}
+
+function temporalQuery(at) {
+  return {
+    question: 'What was the issue status for issue-1?',
+    at,
+    typedQuery: {
+      sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+      fieldPath: 'status',
+    },
+  };
+}
+
+test('historical verification selects counterevidence by valid time, not known time', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-temporal-counterevidence-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  buildSourceNativeProduct({ artifactRoot: root, input: temporalSemanticInput() });
+  const product = openSourceNativeProductRuntime({ artifactRoot: root });
+  const early = await product.verify(temporalQuery('2026-09-04T11:59:30.000Z'));
+  assert.equal(early.answerable, true);
+  assert.equal(early.proofDisposition, 'supported');
+  assert.deepEqual(early.context.map((row) => row.exactText), ['Ready']);
+  assert.equal(early.verification.historicalFieldChronology.knownAtLimitsSelection, false);
+
+  const late = await product.verify(temporalQuery('2026-09-04T12:00:45.000Z'));
+  assert.equal(late.answerable, true);
+  assert.equal(late.proofDisposition, 'qualified');
+  assert.deepEqual(late.context.map((row) => [row.role, row.exactText]), [
+    ['answer', 'Ready'], ['counterevidence', 'Manual approval absent'],
+  ]);
+  assert.notEqual(early.verification.queryPlanSha256, late.verification.queryPlanSha256);
+  assert.notEqual(early.verification.semanticProof.proofCensusSha256,
+    late.verification.semanticProof.proofCensusSha256);
+});
+
+test('historical semantic proof preserves repeated equivalent observations without duplicate claims', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-temporal-repeat-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const input = temporalSemanticInput();
+  for (const index of [0, 1]) {
+    const relativePath = `linear/northwind/repeated-${index}.txt`;
+    input.sources.push({ ...input.sources[index], relativePath,
+      occurredAt: `2026-09-04T12:0${index + 2}:00.000Z` });
+    input.nativeObjectInputs.push({ ...structuredClone(input.nativeObjectInputs[index]), relativePath });
+  }
+  buildSourceNativeProduct({ artifactRoot: root, input });
+  const product = openSourceNativeProductRuntime({ artifactRoot: root });
+  const early = await product.verify(temporalQuery('2026-09-04T11:59:30.000Z'));
+  assert.equal(early.answerable, true);
+  assert.equal(early.proofDisposition, 'supported');
+  assert.deepEqual(early.context.map((row) => row.exactText), ['Ready']);
+  const late = await product.verify(temporalQuery('2026-09-04T12:00:45.000Z'));
+  assert.equal(late.answerable, true);
+  assert.equal(late.proofDisposition, 'qualified');
+  assert.deepEqual(late.context.map((row) => row.evidence.relativePath), [
+    'linear/northwind/repeated-0.txt', 'linear/northwind/repeated-1.txt',
+  ]);
+  assert.equal(late.verification.semanticProof.propositionCount, 2);
+  assert.equal(late.verification.semanticProof.relationCount, 1);
+  const options = { artifactRoot: root };
+  const bundle = await compileSourceNativeSemanticKnowledgeBundle({
+    options, query: temporalQuery('2026-09-04T12:00:45.000Z'),
+    proposedBy: 'historical-investigator', proposedAt: '2026-09-05T08:00:00.000Z',
+  });
+  const admission = admitBundle(bundle);
+  writeSourceNativeAdmittedKnowledge({ options, record: admission.record,
+    trustRegistry: admission.trustRegistry });
+  const cold = openSourceNativeProductWithAdmittedKnowledge(options,
+    { trustRegistry: admission.trustRegistry });
+  const reused = await cold.verify(temporalQuery('2026-09-04T12:00:45.000Z'));
+  assert.equal(reused.proofDisposition, 'qualified');
+  assert.equal(reused.verification.rawSearchExecuted, false);
+  assert.deepEqual(reused.context.map((row) => row.evidence.relativePath), [
+    'linear/northwind/repeated-0.txt', 'linear/northwind/repeated-1.txt',
+  ]);
+});
+
+test('historical semantic census refuses conflicting and nonconsecutive proposition-key reuse', async (t) => {
+  for (const mode of ['different-identity', 'different-field', 'changed-metadata', 'changed-relation', 'nonconsecutive']) {
+    await t.test(mode, async (t) => {
+      const root = mkdtempSync(join(tmpdir(), 'oont-temporal-key-collision-'));
+      t.after(() => rmSync(root, { recursive: true, force: true }));
+      const input = temporalSemanticInput();
+      if (mode === 'nonconsecutive') {
+        const middle = structuredClone(input.nativeObjectInputs[0]);
+        middle.relativePath = 'linear/northwind/middle.txt';
+        Object.assign(middle.fields[0], { value: 'Paused', validAt: '2026-09-04T12:02:00.000Z' });
+        Object.assign(middle.fields[0].canonicalProposition,
+          { propositionKey: 'issue-1-status-paused', state: 'Paused' });
+        input.sources.push({ ...input.sources[0], relativePath: middle.relativePath,
+          occurredAt: '2026-09-04T12:02:00.000Z', content: 'Paused' });
+        input.nativeObjectInputs.push(middle);
+      }
+      const repeatedIndex = mode === 'changed-relation' ? 1 : 0;
+      const repeated = structuredClone(input.nativeObjectInputs[repeatedIndex]);
+      repeated.relativePath = 'linear/northwind/repeated.txt';
+      repeated.fields[0].validAt = mode === 'nonconsecutive'
+        ? '2026-09-04T12:03:00.000Z' : '2030-01-01T00:00:00.000Z';
+      if (mode === 'different-identity') repeated.objectIdentity.externalId = 'issue-2';
+      if (mode === 'different-field') repeated.fields[0].fieldPath = 'statusAlias';
+      if (mode === 'changed-metadata') repeated.fields[0].canonicalProposition.polarity = 'negative';
+      if (mode === 'changed-relation') {
+        const target = structuredClone(input.nativeObjectInputs[0]);
+        target.relativePath = 'linear/northwind/other-target.txt';
+        target.objectIdentity.externalId = 'issue-2';
+        target.fields[0].canonicalProposition.propositionKey = 'issue-2-status-ready';
+        input.sources.push({ ...input.sources[0], relativePath: target.relativePath,
+          occurredAt: '2026-09-04T12:02:00.000Z' });
+        input.nativeObjectInputs.push(target);
+        repeated.fields[0].canonicalProposition.relations[0].targetPropositionKey = 'issue-2-status-ready';
+      }
+      input.sources.push({ ...input.sources[repeatedIndex], relativePath: repeated.relativePath,
+        occurredAt: '2026-09-04T12:03:00.000Z' });
+      input.nativeObjectInputs.push(repeated);
+      buildSourceNativeProduct({ artifactRoot: root, input });
+      const product = openSourceNativeProductRuntime({ artifactRoot: root });
+      const refused = await product.verify(temporalQuery('2026-09-04T12:03:00.000Z'));
+      assert.equal(refused.answerable, false);
+      assert.equal(refused.state, 'unavailable-native-historical-semantic-census');
+      assert.deepEqual(refused.context, []);
+    });
+  }
+});
+
+test('historical Admission cold-reuses only the exact time-bound proof', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-temporal-admission-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const options = { artifactRoot: root };
+  buildSourceNativeProduct({ ...options, input: temporalSemanticInput() });
+  const earlyQuery = temporalQuery('2026-09-04T11:59:30.000Z');
+  const lateQuery = temporalQuery('2026-09-04T12:00:45.000Z');
+  const compile = (query) => compileSourceNativeSemanticKnowledgeBundle({
+    options, query, proposedBy: 'historical-investigator',
+    proposedAt: '2026-09-05T08:00:00.000Z',
+  });
+  const earlyBundle = await compile(earlyQuery);
+  assert.equal(earlyBundle.queryBinding.intent, 'at');
+  assert.equal(earlyBundle.queryBinding.at, earlyQuery.at);
+  const earlyAdmission = admitBundle(earlyBundle);
+  const { trustRegistry } = earlyAdmission;
+  writeSourceNativeAdmittedKnowledge({ options, record: earlyAdmission.record, trustRegistry });
+
+  const openCold = () => openSourceNativeProductWithAdmittedKnowledge(options, { trustRegistry });
+  const early = await openCold().verify(earlyQuery);
+  assert.equal(early.kind, 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1');
+  assert.equal(early.at, earlyQuery.at);
+  assert.equal(early.proofDisposition, 'supported');
+  assert.equal(early.verification.rawSearchExecuted, false);
+  assert.deepEqual(early.context.map((row) => row.exactText), ['Ready']);
+
+  const differentTime = await openCold().verify(lateQuery);
+  assert.equal(differentTime.kind, 'OpenOntologySourceNativeVerificationV1');
+  assert.equal(differentTime.proofDisposition, 'qualified');
+  assert.deepEqual(differentTime.context.map((row) => row.role), ['answer', 'counterevidence']);
+  const lateBundle = await compile(lateQuery);
+  const lateAdmission = admitBundle(lateBundle, {
+    proposerKeys: earlyAdmission.proposerKeys, reviewerKeys: earlyAdmission.reviewerKeys,
+  });
+  writeSourceNativeAdmittedKnowledge({ options, record: lateAdmission.record, trustRegistry });
+  const late = await openCold().verify(lateQuery);
+  assert.equal(late.kind, 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1');
+  assert.equal(late.at, lateQuery.at);
+  assert.equal(late.proofDisposition, 'qualified');
+  assert.equal(late.verification.rawSearchExecuted, false);
+  assert.deepEqual(late.context.map((row) => row.exactText), ['Ready', 'Manual approval absent']);
+  assert.notEqual(early.verification.admissionRecordSha256, late.verification.admissionRecordSha256);
+  assert.equal((await openCold().verify(earlyQuery)).proofDisposition, 'supported');
+});
+
+test('Admission rejects a signed earlier census relabeled for a later instant', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-temporal-census-substitution-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const options = { artifactRoot: root };
+  buildSourceNativeProduct({ ...options, input: temporalSemanticInput() });
+  const compile = (at) => compileSourceNativeSemanticKnowledgeBundle({
+    options, query: temporalQuery(at), proposedBy: 'historical-investigator',
+    proposedAt: '2026-09-05T08:00:00.000Z',
+  });
+  const early = await compile('2026-09-04T11:59:30.000Z');
+  const late = await compile('2026-09-04T12:00:45.000Z');
+  const relabeled = compileSourceNativeAdmittedKnowledgeBundle({
+    ...early, queryBinding: late.queryBinding,
+  });
+  assert.equal(relabeled.proofEvaluation.proofClosed, true);
+  assert.equal(relabeled.proofEvaluation.proofDisposition, 'supported');
+  const admitted = admitBundle(relabeled);
+  assert.throws(() => writeSourceNativeAdmittedKnowledge({
+    options, record: admitted.record, trustRegistry: admitted.trustRegistry,
+  }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+});
+
+test('historical Admission requires native semantic authority, not a signer-invented projection', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-temporal-native-authority-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const context = buildContext(root);
+  const prepared = context.prepareSearch({
+    question: 'What was the issue status for issue-1?', at: '2026-09-04T12:00:00.000Z',
+  });
+  const authorityProjection = authorityFor(context);
+  const bundle = compileSourceNativeAdmittedKnowledgeBundle({
+    proposedBy: 'investigator-agent', proposedAt: '2026-09-05T08:00:00.000Z',
+    ontId: context.descriptor.ontId, namespace: context.descriptor.namespace,
+    artifactSha256: context.descriptor.artifactSha256,
+    nativeObjectMapSha256: context.objectOnt.map.nativeObjectMapSha256,
+    sourceCommitSha256: context.objectOnt.commitSha256,
+    sourceReplaySha256: context.objectOnt.replaySha256,
+    queryBinding: { ...queryBindingFor(prepared), at: prepared.at },
+    proofSufficiencyContract: contractFor(authorityProjection),
+    proofAuthorityProjection: authorityProjection,
+    propositions: [{ revisionId: 'status-r1', ...authorityProjection.items[0] }],
+    relations: [],
+  });
+  const admission = admitBundle(bundle);
+  assert.throws(() => writeSourceNativeAdmittedKnowledge({
+    options: { artifactRoot: root }, record: admission.record,
+    trustRegistry: admission.trustRegistry,
+  }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING' });
+});
+
 function contractFor(authority) {
   return compileProofSufficiencyContract({
     questionKind: 'current-issue-status',

@@ -8,6 +8,7 @@ import {
   resolveSourceNativeFieldSuccessor,
 } from './source-native-field-resolution.mjs';
 import type { SourceNativeFieldResolutionResult } from './source-native-field-resolution.mjs';
+import { normalizeSourceNativeHistoricalTime, resolveSourceNativeFieldAt } from './source-native-historical-field.mjs';
 import { openSourceNativeProductRuntime } from './source-native-product.mjs';
 import { compileProductQueryPlan } from './source-native-query-plan.mjs';
 import {
@@ -61,7 +62,8 @@ export interface SourceNativeAdmittedKnowledgeQueryBinding {
   query: SourceNativeFieldQuery & { namespace: string; externalId: string };
   queryPlanSha256: string;
   questionSha256: string;
-  intent: 'current' | 'next';
+  intent: 'current' | 'next' | 'at';
+  at?: string;
 }
 
 export interface SourceNativeAdmittedKnowledgeBundle {
@@ -211,7 +213,8 @@ export interface SourceNativeAdmittedKnowledgePolicy {
 export interface SourceNativeAdmittedKnowledgeVerificationBase {
   schemaVersion: 1;
   kind: 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1';
-  intent: 'current' | 'next';
+  intent: 'current' | 'next' | 'at';
+  at?: string;
   query: SourceNativeFieldQuery | null;
   mentionedExternalIds: readonly string[];
   unresolvedExternalIds: readonly string[];
@@ -375,11 +378,13 @@ function normalizeQueryBinding(value: unknown): SourceNativeAdmittedKnowledgeQue
   exactKeys(row, [
     'question', 'anchorValue', 'typedQuery', 'query', 'queryPlanSha256',
     'questionSha256', 'intent',
+    ...(row.intent === 'at' ? ['at'] : []),
   ],
     'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
   const question = nonempty(row.question, 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
-  const intent: 'current' | 'next' = row.intent === 'current' || row.intent === 'next'
+  const intent: 'current' | 'next' | 'at' = row.intent === 'current' || row.intent === 'next' || row.intent === 'at'
     ? row.intent : fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
+  const at = intent === 'at' ? normalizeSourceNativeHistoricalTime(row.at) : null;
   const anchorValue = row.anchorValue === null ? null
     : nonempty(row.anchorValue, 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
   const normalizeFieldQuery = (input: unknown, resolved: boolean): SourceNativeFieldQuery => {
@@ -410,6 +415,8 @@ function normalizeQueryBinding(value: unknown): SourceNativeAdmittedKnowledgeQue
   const typedQuery = row.typedQuery === null ? null : normalizeFieldQuery(row.typedQuery, false);
   const query = normalizeFieldQuery(row.query, true) as SourceNativeFieldQuery
     & { namespace: string; externalId: string };
+  if (at !== null && (anchorValue !== null || query.anchorFieldSha256 !== undefined
+    || typedQuery?.anchorFieldSha256 !== undefined)) fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
   const questionSha256 = sha256(row.questionSha256,
     'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
   if (questionSha256 !== stableObjectSha256({ question })) {
@@ -424,6 +431,7 @@ function normalizeQueryBinding(value: unknown): SourceNativeAdmittedKnowledgeQue
       'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING'),
     questionSha256,
     intent,
+    ...(at === null ? {} : { at }),
   });
 }
 
@@ -577,7 +585,7 @@ export async function compileSourceNativeSemanticKnowledgeBundle({
   });
   const context = contexts[0] ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
   const prepared = context.prepareSearch(query);
-  if (prepared.intent !== 'current' || prepared.plan.state !== 'resolved-native-field-query'
+  if (prepared.intent === 'next' || prepared.plan.state !== 'resolved-native-field-query'
     || prepared.plan.query?.externalId === undefined) {
     fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
   }
@@ -591,6 +599,7 @@ export async function compileSourceNativeSemanticKnowledgeBundle({
     sourceNativeObjectMap: context.objectOnt.map,
     namespace: context.descriptor.namespace,
     rootFieldSha256: answer.binding.fieldSha256,
+    at: prepared.at,
   });
   if (navigation === null) fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
   const exactNavigation = navigation
@@ -636,6 +645,7 @@ export async function compileSourceNativeSemanticKnowledgeBundle({
       queryPlanSha256: prepared.plan.planSha256,
       questionSha256: prepared.plan.questionSha256,
       intent: prepared.intent,
+      ...(prepared.at === null ? {} : { at: prepared.at }),
     },
     proofSufficiencyContract: material.contract,
     proofAuthorityProjection: exactNavigation.authorityProjection,
@@ -871,6 +881,7 @@ function assertSourceBinding(bundle: SourceNativeAdmittedKnowledgeBundle,
     querySchemas: context.descriptor.querySchemas,
     map: context.objectOnt.map,
     intent: binding.intent,
+    at: binding.at ?? null,
     anchorValue: binding.anchorValue,
     typedQuery: binding.typedQuery,
   });
@@ -885,7 +896,11 @@ function assertSourceBinding(bundle: SourceNativeAdmittedKnowledgeBundle,
     sourceNativeObjectMap: context.objectOnt.map,
     namespace: context.descriptor.namespace,
     rootFieldSha256: answer.fieldSha256,
+    at: binding.at ?? null,
   });
+  if (binding.intent === 'at' && expectedSemanticNavigation === null) {
+    fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SOURCE_BINDING');
+  }
   if (expectedSemanticNavigation !== null) {
     if (stableObjectText(expectedSemanticNavigation.authorityProjection)
       !== stableObjectText(bundle.proofAuthorityProjection)
@@ -955,6 +970,18 @@ function resolveBoundRevisions(bundle: SourceNativeAdmittedKnowledgeBundle,
     && object.objectIdentity.externalId === binding.query.externalId);
   const seedRelativePaths = [...new Set(scopedObjects
     .map((object) => object.relativePath))].sort(compare);
+  if (binding.intent === 'at') {
+    const resolution = resolveSourceNativeFieldAt({
+      sourceNativeObjectMap: context.objectOnt.map,
+      query: binding.query,
+      at: binding.at,
+    });
+    if (resolution.state !== 'resolved-historical-field' || resolution.selected === null) {
+      fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SCOPE');
+    }
+    const answer = resolution.selected ?? fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_SCOPE');
+    return { answer, anchor: null, scopedObjectCount: scopedObjects.length };
+  }
   if (binding.intent === 'current') {
     const resolution = resolveSourceNativeField({
       sourceNativeObjectMap: context.objectOnt.map,
@@ -1172,6 +1199,7 @@ function refusal(prepared: SourceNativeProductPreparedSearch, context: SourceNat
     state: state as 'unavailable-admitted-knowledge-ambiguous',
     answerable: false as const,
     intent: prepared.intent,
+    ...(prepared.at === null ? {} : { at: prepared.at }),
     query: prepared.plan.query,
     context: freeze([]),
     mentionedExternalIds: prepared.plan.mentionedExternalIds,
@@ -1473,6 +1501,7 @@ function openReader(context: SourceNativeProductRuntimeContext,
       && record.bundle.queryBinding.queryPlanSha256 === prepared.plan.planSha256
       && record.bundle.queryBinding.questionSha256 === prepared.plan.questionSha256
       && record.bundle.queryBinding.intent === prepared.intent
+      && (record.bundle.queryBinding.at ?? null) === prepared.at
       && record.bundle.queryBinding.question === prepared.question
       && record.bundle.queryBinding.anchorValue === prepared.anchorValue
       && stableObjectText(record.bundle.queryBinding.typedQuery)
@@ -1543,6 +1572,7 @@ function openReader(context: SourceNativeProductRuntimeContext,
       state: 'resolved-admitted-knowledge-proof-closure' as const,
       answerable: true as const,
       intent: prepared.intent,
+      ...(prepared.at === null ? {} : { at: prepared.at }),
       query: prepared.plan.query,
       context: freeze(contextRows),
       mentionedExternalIds: prepared.plan.mentionedExternalIds,

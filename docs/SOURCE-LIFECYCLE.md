@@ -87,8 +87,10 @@ commit while the mutable source branch now names the successor.
 as semantic `validAt` or `knownAt` time, which belong to field or proposition
 inputs when an Adapter supplies them. A new source cut is also not an
 Admission. Publishing the successor does not transfer old-cut knowledge
-eligibility or make the root client answer historical `at` queries. Exact
-historical opening is an operator capability outside this root walkthrough.
+eligibility. The unreleased root client's explicit `at` query selects valid
+time within its bound cut; it does not reopen a different historical source
+commit. Exact historical opening remains an operator capability outside this
+root walkthrough. See [temporal intent](../README.md#temporal-intent).
 
 The root client remains read-only. Building and advancing a cut use the
 explicit extension functions from `oont/kernel`; ordinary agents need only the

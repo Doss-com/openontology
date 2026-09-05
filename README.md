@@ -247,14 +247,35 @@ historical operation from question wording. A question that asks about a prior
 value, a date, a change, or relative ordering without a supported intent returns
 `unavailable-native-temporal-intent-not-declared` with `answerable: false`.
 
-The alpha supports one explicit historical operation: the field revision that
-immediately followed an exact anchor value.
+`next` selects the field revision that immediately followed an exact anchor
+value.
 
 ```bash
 npx oont verify ./verified-context \
   'What title immediately followed Prepare launch for task-1?' \
   --intent next
 ```
+
+`[ACTIVE-WORK]` The unreleased checkout also supports a point-in-time query:
+
+```js
+await ont.verify({
+  question: 'What was the title of task-1?',
+  at: '2026-01-15T00:00:00.000Z',
+})
+```
+
+The CLI takes the same timestamp with `--at`; MCP takes `at` on `verify` or
+advanced `search`. Use an exact UTC ISO timestamp with milliseconds. Do not
+combine it with `intent: next` or an anchor value.
+
+This selects what was valid at that instant within the bound source snapshot,
+including later-learned corrections. It does not reconstruct what was known
+then. Missing `validAt` falls back to the source observation time. Requests
+beyond the snapshot's observation horizon, before the first valid value, or
+with unresolved chronology return no context. Semantic counterevidence and
+admitted reuse are bound to the same requested time. The chronology receipt
+reports the source horizon, selected valid and known times, and fallback count.
 
 All result states are exported as `OpenOntologyResultState`. States beginning
 with `unavailable-` are normal typed refusals, not transport failures.

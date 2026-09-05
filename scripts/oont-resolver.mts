@@ -30,8 +30,8 @@ function usage(code = 2): never {
          [--source-system <name> --object-type <name> --field <path>]
          [--external-id <id>] [--anchor-value <exact-value>]
          [--at <UTC-millisecond-ISO>]
-      Find candidate References for a source-bound current field or immediate
-      next field revision. Search output is navigation only. --read returns
+      Find candidate References for a source-bound current, point-in-time, or
+      immediate next field revision. Search output is navigation only. --read returns
       the exact cited Evidence in the same process.
 
   verify <artifact-dir> <question> [--intent current|next]

@@ -160,11 +160,19 @@ const status: OpenOntologyStatus = ont.status();
 const state: OpenOntologyResultState = verification.state;
 const chronologyDisposition: 'sufficient' | 'insufficient' | undefined =
   verification.verification.currentFieldChronology?.proofDisposition;
+const historical: OpenOntologyVerificationResult = await ont.verify({
+  question: 'What was the title?', at: '2026-01-15T00:00:00.000Z',
+});
+const historicalTime: string | undefined = historical.at;
+const historicalChronology: 'sufficient' | 'insufficient' | undefined =
+  historical.verification.historicalFieldChronology?.proofDisposition;
 const exactText: string | undefined = read?.exactText;
 void query;
 void status;
 void state;
 void chronologyDisposition;
+void historicalTime;
+void historicalChronology;
 void exactText;
 // @ts-expect-error artifactRoot is required for a typed caller.
 openOntology();
@@ -384,6 +392,18 @@ openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
       && temporalRefusal?.context?.length === 0,
     temporal.status === 0 ? temporalRefusal?.state : tail(temporal.stderr));
 
+  const historical = run(bin, ['verify', ont, 'What was the title of task-1?',
+    '--at', '2026-01-15T00:00:00.000Z']);
+  let historicalResult;
+  try { historicalResult = JSON.parse(historical.stdout); } catch { historicalResult = null; }
+  check('installed point-in-time verification selects earlier exact Evidence',
+    historical.status === 0 && historicalResult?.answerable === true
+      && historicalResult?.intent === 'at'
+      && historicalResult?.at === '2026-01-15T00:00:00.000Z'
+      && historicalResult?.context?.[0]?.exactText === 'Prepare launch'
+      && historicalResult?.verification?.historicalFieldChronology?.proofDisposition === 'sufficient',
+    historical.status === 0 ? historicalResult?.state : tail(historical.stderr));
+
   const navigation = run(bin, ['search', ont, 'What is the current title of task-1?']);
   const exact = run(bin, ['search', ont, 'What is the current title of task-1?',
     '--read']);
@@ -429,7 +449,12 @@ assert.deepEqual(kernelKeys, [
     'validateSourceNativeProductResource',
     'writeSourceNativeAdmittedKnowledge',
   ].sort());
-assert.equal(result.answerable, true);`;
+assert.equal(result.answerable, true);
+const historical = await ont.verify({
+  question: 'What was the title of task-1?', at: '2026-01-15T00:00:00.000Z',
+});
+assert.equal(historical.answerable, true);
+assert.equal(historical.context[0].exactText, 'Prepare launch');`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
 

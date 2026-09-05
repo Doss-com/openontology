@@ -1167,7 +1167,7 @@ test('serves only verify over the default MCP surface', async () => {
       })}\n`);
     });
     assert.deepEqual(observed.tools, ['verify']);
-    assert.deepEqual(observed.verifyProperties, ['anchorValue', 'intent', 'question', 'scope']);
+    assert.deepEqual(observed.verifyProperties, ['anchorValue', 'at', 'intent', 'question', 'scope']);
     assert.equal(observed.verification.state, 'resolved-next-field-revision');
     assert.equal(observed.verification.answerable, true);
     assert.deepEqual(observed.verification.context.map((row) => row.exactText).sort(),

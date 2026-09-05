@@ -2,6 +2,11 @@
 export const OPENONTOLOGY_RESULT_STATES = [
   'resolved-current-field',
   'resolved-next-field-revision',
+  'resolved-historical-field',
+  'unavailable-native-historical-field-not-yet-valid',
+  'unavailable-native-historical-field-beyond-source-horizon',
+  'unavailable-native-historical-field-ambiguous',
+  'unavailable-native-historical-semantic-census',
   'unavailable-native-object-type-not-declared',
   'unavailable-native-object-type-ambiguous',
   'unavailable-native-field-not-declared',
