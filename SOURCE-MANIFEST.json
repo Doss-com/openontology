@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 85,
+  "fileCount": 87,
   "files": [
     {
       "path": ".editorconfig",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 14046,
-      "sha256": "5509aa51b06a6c65f606c52970ca93c867a67c6f7135bc1fb8b2950e51102c16"
+      "bytes": 14367,
+      "sha256": "6ed4ddf53a01ea201e1905e29f6a6b796b45fd03d87f5eebf982bf37f406ad14"
     },
     {
       "path": "SECURITY.md",
@@ -126,9 +126,19 @@
       "sha256": "ce9c2b0ae1b5739a96f2bbd034314aa5f8b212f8be62901c7e80a013fc098f59"
     },
     {
+      "path": "docs/SOURCE-LIFECYCLE.md",
+      "bytes": 4273,
+      "sha256": "67f429d68ecb221a5284b4b494982091350089e8a9c0b975432f00b0cc84502e"
+    },
+    {
       "path": "docs/STORAGE.md",
       "bytes": 3590,
       "sha256": "a164cb70b73f50674997b3e8d4b249e775f3d6d82e8f296ce5003a83ef195019"
+    },
+    {
+      "path": "examples/quickstart/source-lifecycle.mjs",
+      "bytes": 4480,
+      "sha256": "998221258fe5b47b04660347fd9c0286f8972dc00516a4cc4eac58303fc42efb"
     },
     {
       "path": "examples/quickstart/source-native-input.json",
@@ -142,8 +152,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3086,
-      "sha256": "c7f5cbef524df36de5a3b501520a567cf768870a48d1fa278bcb5aabca2c7fba"
+      "bytes": 3118,
+      "sha256": "170e47e2b20c9bcf177b95045152c096b1102c567f08a9e321808b1a2d6d7a6d"
     },
     {
       "path": "scripts/build.mjs",
@@ -157,8 +167,8 @@
     },
     {
       "path": "scripts/check-public-release.mjs",
-      "bytes": 9779,
-      "sha256": "e760dbab83f108b61f1d6547ff35d1fbbfc558db7fe72c2c4f2b1255260ef606"
+      "bytes": 9853,
+      "sha256": "a781ab1dfbf15316788014d5d07c1ecaa5ff864d6fe0752eec87b613b39264f3"
     },
     {
       "path": "scripts/clean.mjs",
@@ -182,8 +192,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 18398,
-      "sha256": "1b2ee0b9ae3d8ac608c3e2b22c6066ea94e3886de4e7b2b676e38c96c4358d1a"
+      "bytes": 21265,
+      "sha256": "9d9f3cdb50b5fec4960c4f8f0e5db67af61f4f99654384bc7f99ed69e72c8646"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -431,5 +441,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:7b2ab7372d0a9fe34478bf7744478f24aed1f65c8ae40c5461a6ae19a63cbe64"
+  "manifestSha256": "sha256:a750cf617dccb52c8e7620c693ee996d00901e2d89ef9a5d857205c1a10b94c5"
 }
