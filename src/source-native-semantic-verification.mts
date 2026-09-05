@@ -21,6 +21,7 @@ import type {
   SourceNativeField,
   SourceNativeObjectMap,
 } from './source-native-object-map.mjs';
+import { assessProofContextBudget } from './proof-context-budget.mjs';
 import { compileSourceNativeProofAuthorityProjection } from './source-native-semantic-projection.mjs';
 
 export interface SourceNativeSemanticEvidenceOffer extends ProofEvidenceReference {
@@ -74,6 +75,21 @@ export interface SourceNativeSemanticProofVerification {
   exactEvidenceReferenceCount: number;
   exactSourcesRemainAuthority: true;
   verificationSha256: string;
+}
+
+export interface SourceNativeSemanticProofRefusal {
+  schemaVersion: 1;
+  kind: 'OpenOntologySourceNativeSemanticProofRefusalV1';
+  code: 'semantic-proof-context-budget-exceeded';
+  sourceProjectionSha256: string;
+  proofCensusSha256: string;
+  observedEvidenceReferenceCount: number;
+  observedExactEvidenceBytes: number;
+  maximumEvidenceReferenceCount: 64;
+  maximumExactEvidenceBytes: 65536;
+  partialContextReturned: false;
+  exactSourcesRemainAuthority: true;
+  refusalSha256: string;
 }
 
 const SUPPORT_FAMILIES = new Set(['action', 'change', 'outcome', 'state']);
@@ -199,6 +215,36 @@ export function compileSourceNativeSemanticNavigation({
     }),
     evidenceOffers: freeze(evidenceOffers),
   });
+}
+
+export function compileSourceNativeSemanticProofRefusal({
+  navigation,
+}: {
+  navigation?: SourceNativeSemanticNavigation;
+} = {}): SourceNativeSemanticProofRefusal | null {
+  if (!navigation) fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
+  const exactNavigation = navigation
+    ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
+  const budget = assessProofContextBudget({
+    evidenceReferenceCount: exactNavigation.evidenceOffers.length,
+    exactEvidenceBytes: exactNavigation.evidenceOffers.reduce((total, offer) =>
+      total + offer.byteEnd - offer.byteStart, 0),
+  });
+  if (budget.withinBudget) return null;
+  const core = {
+    schemaVersion: 1 as const,
+    kind: 'OpenOntologySourceNativeSemanticProofRefusalV1' as const,
+    code: 'semantic-proof-context-budget-exceeded' as const,
+    sourceProjectionSha256: exactNavigation.authority.sourceProjectionSha256,
+    proofCensusSha256: exactNavigation.authority.proofCensusSha256,
+    observedEvidenceReferenceCount: budget.observedEvidenceReferenceCount,
+    observedExactEvidenceBytes: budget.observedExactEvidenceBytes,
+    maximumEvidenceReferenceCount: budget.maximumEvidenceReferenceCount,
+    maximumExactEvidenceBytes: budget.maximumExactEvidenceBytes,
+    partialContextReturned: false as const,
+    exactSourcesRemainAuthority: true as const,
+  };
+  return freeze({ ...core, refusalSha256: stableObjectSha256(core) });
 }
 
 export function evaluateSourceNativeSemanticNavigation({

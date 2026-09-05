@@ -47,7 +47,9 @@
 - **Semantic proof root** is the canonical proposition attached to the exact
   field selected by an ordinary current-field Verification. Its query-scoped
   projection contains the root and the complete inbound counterevidence
-  closure, not every semantic proposition in the namespace.
+  closure, not every semantic proposition in the namespace. Ordinary delivery
+  is bounded to 64 Exact Evidence references and 64 KiB of Exact Evidence. An
+  oversized closure is refused without partial context.
 - **Semantic knowledge bundle** is the content-bound handoff compiled from one
   successful ordinary semantic Verification. It contains the exact query
   binding, proof contract, authority census, propositions, relations, and

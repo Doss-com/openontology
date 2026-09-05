@@ -9,6 +9,7 @@ import { openSourceNativeExactEvidenceSession } from './source-native-evidence-s
 import { compileSourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
 import {
   compileSourceNativeSemanticNavigation,
+  compileSourceNativeSemanticProofRefusal,
   evaluateSourceNativeSemanticNavigation,
 } from './source-native-semantic-verification.mjs';
 import { openProductState, productSources } from './source-native-artifact.mjs';
@@ -228,6 +229,7 @@ export type SourceNativeProductLifecycleAdapterFactory = (
 ) => SourceNativeProductLifecycleAdapter | null;
 
 function productResult({ descriptor, objectOnt, intent, plan, resolution = null, matches = [],
+  stateOverride = null,
   verificationFields = {}, resultFields = {} }: {
   descriptor: Descriptor;
   objectOnt: ObjectOnt;
@@ -235,6 +237,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
   plan: ValidatedFieldQueryPlan & { mentionedExternalIds?: string[]; unresolvedExternalIds?: string[]; query?: SourceNativeFieldQuery | null };
   resolution?: SourceNativeProductResolution | null;
   matches?: SourceNativeProductMatch[];
+  stateOverride?: SourceNativeProductResultState | null;
   verificationFields?: UnknownRecord;
   resultFields?: UnknownRecord;
 }) {
@@ -248,7 +251,7 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
   const core = {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeProductSearchResultV2' as const,
-    state: productResultState(resolution?.state ?? plan.state),
+    state: stateOverride ?? productResultState(resolution?.state ?? plan.state),
     intent,
     query: plan.query,
     mentionedExternalIds: plan.mentionedExternalIds,
@@ -515,8 +518,8 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
         fieldSha256: reference.fieldSha256,
       });
     };
-    const matches = references.map(offerReference);
     let semanticNavigation = null;
+    let semanticProofRefusal = null;
     const answerReferences = references.filter((row) => row.role === 'answer');
     if (intent === 'current' && resolution.state === 'resolved-current-field'
       && answerReferences.length === 1) {
@@ -525,6 +528,28 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
         namespace: descriptor.namespace,
         rootFieldSha256: answerReferences[0]?.reference.fieldSha256,
       });
+      semanticProofRefusal = semanticNavigation === null ? null
+        : compileSourceNativeSemanticProofRefusal({ navigation: semanticNavigation });
+    }
+    if (semanticProofRefusal !== null) {
+      const result = productResult({
+        descriptor,
+        objectOnt,
+        intent,
+        plan,
+        resolution,
+        stateOverride: 'unavailable-semantic-proof-context-budget',
+        verificationFields: {
+          ...(lifecycle?.verificationMetadata?.(resolution) ?? {}),
+          semanticProofRefusal,
+        },
+        resultFields: lifecycle?.resultMetadata?.(activity) ?? {},
+      });
+      lifecycle?.bindResult?.(activity, result);
+      return result;
+    }
+    const matches = references.map(offerReference);
+    if (semanticNavigation !== null) {
       for (const offer of semanticNavigation?.evidenceOffers ?? []) {
         if (offer.role === 'answer') continue;
         const source = sourceByPath.get(offer.sourceRef)

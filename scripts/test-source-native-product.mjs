@@ -171,6 +171,90 @@ function buildSemanticVerificationInput() {
   };
 }
 
+function buildSemanticContextBudgetInput({ counterevidenceCount = 64,
+  counterevidenceValue = null } = {}) {
+  const rootValue = 'passed';
+  const businessEntityKeys = ['issue:issue-budget'];
+  const objectIdentity = {
+    home: 'ObjectDef/InstanceRef', sourceSystem: 'linear', objectType: 'issue',
+    namespace: 'northwind', externalId: 'issue-budget',
+  };
+  const root = {
+    relativePath: 'linear/northwind/issue-budget-status.txt',
+    occurredAt: '2026-09-01T10:00:00.000Z',
+    value: rootValue,
+  };
+  const exceptions = Array.from({ length: counterevidenceCount }, (_, index) => ({
+    relativePath: `linear/northwind/issue-budget-exception-${String(index).padStart(3, '0')}.txt`,
+    occurredAt: new Date(Date.parse('2026-09-01T10:01:00.000Z') + index * 1000).toISOString(),
+    value: counterevidenceValue ?? `qualification-${String(index).padStart(3, '0')}`,
+    propositionKey: `issue-budget-qualification-${String(index).padStart(3, '0')}`,
+  }));
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'northwind-semantic-context-budget',
+    namespace: 'northwind',
+    querySchemas: [{
+      sourceSystem: 'linear', objectType: 'issue', aliases: ['issue'],
+      fields: [
+        { fieldPath: 'validationStatus', aliases: ['validation status'] },
+        { fieldPath: 'validationException', aliases: ['validation exception'] },
+      ],
+    }],
+    sources: [root, ...exceptions].map(row => ({
+      relativePath: row.relativePath,
+      sourceType: 'linear',
+      occurredAt: row.occurredAt,
+      content: row.value,
+    })),
+    nativeObjectInputs: [{
+      relativePath: root.relativePath,
+      objectIdentity,
+      businessEntityKeys,
+      fields: [{
+        fieldPath: 'validationStatus', propositionFamilyKey: 'issue-validation',
+        businessEntityKeys, value: root.value,
+        validAt: root.occurredAt, knownAt: root.occurredAt,
+        canonicalProposition: {
+          kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+          propositionKey: 'issue-budget-validation-passed',
+          actorHome: 'ObjectDef/InstanceRef',
+          stateHome: 'Claim/PropositionRevision-payload',
+          actorKind: 'issue', predicate: 'has-validation-status', state: root.value,
+          dimension: 'issue-validation', canonicalRoles: ['state'],
+          modality: 'observed', polarity: 'positive', businessEntityKeys,
+          extractionAuthority: 'deterministic-source-adapter-v1', relations: [],
+        },
+      }],
+    }, ...exceptions.map(row => ({
+      relativePath: row.relativePath,
+      objectIdentity,
+      businessEntityKeys,
+      fields: [{
+        fieldPath: 'validationException',
+        propositionFamilyKey: 'issue-validation-exception',
+        businessEntityKeys, value: row.value,
+        validAt: row.occurredAt, knownAt: row.occurredAt,
+        canonicalProposition: {
+          kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+          propositionKey: row.propositionKey,
+          actorHome: 'ObjectDef/InstanceRef',
+          stateHome: 'Claim/PropositionRevision-payload',
+          actorKind: 'issue', predicate: 'has-validation-exception', state: row.value,
+          dimension: 'issue-validation-exception', canonicalRoles: ['counterevidence'],
+          modality: 'observed', polarity: 'negative', businessEntityKeys,
+          extractionAuthority: 'deterministic-source-adapter-v1',
+          relations: [{
+            kind: 'OpenOntologySourceNativePropositionRelationV1', type: 'qualifies',
+            targetPropositionKey: 'issue-budget-validation-passed',
+          }],
+        },
+      }],
+    }))],
+  };
+}
+
 test('builds, reopens, searches, reads, and verifies an immutable source-native product artifact', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-'));
   try {
@@ -350,6 +434,97 @@ test('ordinary verify closes source-native counterevidence over exact Corpus spa
     assert.equal(verified.verification.semanticProof.exactEvidenceReferenceCount, 2);
     assert.match(verified.verification.semanticProof.proofCensusSha256,
       /^sha256:[0-9a-f]{64}$/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary verify refuses a semantic closure above 64 exact Evidence units', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-semantic-unit-budget-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticContextBudgetInput() });
+    const product = openOntology({ artifactRoot: root });
+    const query = {
+      question: 'What is the current validation status for issue-budget?',
+      scope: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-budget',
+        field: 'validationStatus',
+      },
+    };
+    const search = await product.search(query);
+    assert.equal(search.state, 'unavailable-semantic-proof-context-budget');
+    assert.deepEqual(search.matches, []);
+    assert.equal(search.verification.semanticProofAuthority, undefined);
+    assert.equal(search.verification.semanticProofRefusal.kind,
+      'OpenOntologySourceNativeSemanticProofRefusalV1');
+    assert.equal(search.verification.semanticProofRefusal.code,
+      'semantic-proof-context-budget-exceeded');
+    assert.equal(search.verification.semanticProofRefusal.observedEvidenceReferenceCount, 65);
+    assert.equal(search.verification.semanticProofRefusal.maximumEvidenceReferenceCount, 64);
+
+    const verified = await product.verify(query);
+    assert.equal(verified.answerable, false);
+    assert.deepEqual(verified.context, []);
+    assert.equal(verified.proofDisposition, undefined);
+    assert.deepEqual(verified.verification.semanticProofRefusal,
+      search.verification.semanticProofRefusal);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary verify accepts exactly 64 semantic exact Evidence units', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-semantic-unit-boundary-'));
+  try {
+    buildSourceNativeProduct({
+      artifactRoot: root,
+      input: buildSemanticContextBudgetInput({ counterevidenceCount: 63 }),
+    });
+    const product = openOntology({ artifactRoot: root });
+    const verified = await product.verify({
+      question: 'What is the current validation status for issue-budget?',
+      scope: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-budget',
+        field: 'validationStatus',
+      },
+    });
+    assert.equal(verified.state, 'resolved-current-field');
+    assert.equal(verified.answerable, true);
+    assert.equal(verified.proofDisposition, 'qualified');
+    assert.equal(verified.context.length, 64);
+    assert.equal(verified.verification.semanticProof.exactEvidenceReferenceCount, 64);
+    assert.equal(verified.verification.semanticProofRefusal, undefined);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary verify refuses semantic exact Evidence above 64 KiB without truncation', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-semantic-byte-budget-'));
+  try {
+    const oversizedEvidence = 'x'.repeat(64 * 1024);
+    buildSourceNativeProduct({
+      artifactRoot: root,
+      input: buildSemanticContextBudgetInput({
+        counterevidenceCount: 1,
+        counterevidenceValue: oversizedEvidence,
+      }),
+    });
+    const product = openOntology({ artifactRoot: root });
+    const verified = await product.verify({
+      question: 'What is the current validation status for issue-budget?',
+      scope: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-budget',
+        field: 'validationStatus',
+      },
+    });
+    assert.equal(verified.state, 'unavailable-semantic-proof-context-budget');
+    assert.equal(verified.answerable, false);
+    assert.deepEqual(verified.context, []);
+    assert.equal(verified.verification.semanticProofRefusal.observedExactEvidenceBytes,
+      Buffer.byteLength('passed') + Buffer.byteLength(oversizedEvidence));
+    assert.equal(verified.verification.semanticProofRefusal.maximumExactEvidenceBytes,
+      64 * 1024);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

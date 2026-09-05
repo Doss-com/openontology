@@ -18,6 +18,7 @@ export const OPENONTOLOGY_RESULT_STATES = [
   'unavailable-native-field-successor-ambiguous',
   'unavailable-native-field-successor-not-present',
   'unavailable-incomplete-recorded-field-chronology',
+  'unavailable-semantic-proof-context-budget',
   'unavailable-exact-source',
   'verified-native-object-absent-from-bound-source-catalog',
 ] as const;

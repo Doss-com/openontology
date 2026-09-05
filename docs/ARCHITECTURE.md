@@ -77,7 +77,12 @@ action, change, outcome, or state role, ordinary root Verification expands the
 inbound counterevidence closure. Search returns references only. Verification
 reopens every exact Corpus span and closes the authoritative relation census
 before exposing `supported`, `qualified`, or `contradicted`. Broader semantic
-question planning is not implemented yet.
+question planning is not implemented yet. The ordinary path applies the same
+64-unit and 64-KiB Exact Evidence envelope used by durable reuse before it
+offers any semantic References. An over-budget closure returns a typed refusal
+with its observed counts and no partial context. This optimizes for complete,
+bounded proof. It gives up immediate answers for high-degree proof roots until
+adaptive or paginated proof delivery exists.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch contains a bounded source-native
 admitted-knowledge loop. It is not a generic early-exit hook and it does not

@@ -156,6 +156,20 @@ export interface OpenOntologySemanticProofVerification {
   exactSourcesRemainAuthority: true;
   verificationSha256: string;
 }
+export interface OpenOntologySemanticProofRefusal {
+  schemaVersion: 1;
+  kind: 'OpenOntologySourceNativeSemanticProofRefusalV1';
+  code: 'semantic-proof-context-budget-exceeded';
+  sourceProjectionSha256: string;
+  proofCensusSha256: string;
+  observedEvidenceReferenceCount: number;
+  observedExactEvidenceBytes: number;
+  maximumEvidenceReferenceCount: 64;
+  maximumExactEvidenceBytes: 65536;
+  partialContextReturned: false;
+  exactSourcesRemainAuthority: true;
+  refusalSha256: string;
+}
 export interface OpenOntologyVerificationMetadata {
   artifactSha256: string;
   nativeObjectMapSha256: string;
@@ -169,6 +183,7 @@ export interface OpenOntologyVerificationMetadata {
   absenceReceipt: OpenOntologyObjectIdentityAbsenceReceipt | null;
   semanticProofAuthority?: OpenOntologySemanticProofAuthority;
   semanticProof?: OpenOntologySemanticProofVerification;
+  semanticProofRefusal?: OpenOntologySemanticProofRefusal;
 }
 export interface OpenOntologyResultPolicy {
   navigationOnly: boolean;

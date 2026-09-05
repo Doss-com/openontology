@@ -142,7 +142,10 @@ returns a qualified or contradicted disposition. Ordinary root `verify` uses a
 selected current field as the proof root, expands its inbound counterevidence
 closure, reopens every exact Corpus span, and exposes the resulting proof
 disposition. Action, change, outcome, and state roots are supported. Broader
-semantic question planning remains active work.
+semantic question planning remains active work. Ordinary semantic closure is
+bounded to 64 exact Evidence references and 64 KiB of exact Evidence. A larger
+closure returns `unavailable-semantic-proof-context-budget` with observed and
+allowed counts. It never returns a partial proof.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
 admitted-knowledge path. A proposer and an independent reviewer sign one

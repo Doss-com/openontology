@@ -28,6 +28,10 @@ import type {
   ProofRelation,
   ProofSufficiencyEvaluation,
 } from './proof-sufficiency-evaluator.mjs';
+import {
+  assessProofContextBudget,
+  MAXIMUM_PROOF_CONTEXT_EVIDENCE_BYTES,
+} from './proof-context-budget.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
 import type {
   ProductSearchInput,
@@ -312,9 +316,8 @@ const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 const KNOWLEDGE_PREFIX = 'blobs/knowledge-ledger/admitted/';
 const DEFAULT_KNOWLEDGE_BRANCH_PREFIX = 'knowledge';
-const MAX_ADMITTED_CONTEXT_UNITS = 64;
-const MAX_ADMITTED_CONTEXT_EVIDENCE_BYTES = 64 * 1024;
-const MAX_ADMITTED_CONTEXT_ENCODED_EVIDENCE_BYTES = 64 * 1024;
+const MAX_ADMITTED_CONTEXT_ENCODED_EVIDENCE_BYTES =
+  MAXIMUM_PROOF_CONTEXT_EVIDENCE_BYTES;
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 const fail = (code: string): never => {
@@ -1025,8 +1028,10 @@ function assertProofContextBudget(bundle: SourceNativeAdmittedKnowledgeBundle,
   const exactEvidenceBytes = proofUnits.reduce((total, unit) =>
     total + unit.evidence.byteEnd - unit.evidence.byteStart, 0)
     + (anchor === null ? 0 : anchor.evidence.byteEnd - anchor.evidence.byteStart);
-  if (contextUnitCount > MAX_ADMITTED_CONTEXT_UNITS
-    || exactEvidenceBytes > MAX_ADMITTED_CONTEXT_EVIDENCE_BYTES) {
+  if (!assessProofContextBudget({
+    evidenceReferenceCount: contextUnitCount,
+    exactEvidenceBytes,
+  }).withinBudget) {
     fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_CONTEXT_BUDGET');
   }
 }
