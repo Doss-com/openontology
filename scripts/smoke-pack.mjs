@@ -44,7 +44,10 @@ function directorySnapshot(directory) {
       const child = join(path, name);
       const childRelative = relative ? `${relative}/${name}` : name;
       const stat = lstatSync(child);
-      if (stat.isDirectory()) visit(child, childRelative);
+      if (stat.isDirectory()) {
+        files.push([`${childRelative}/`, 'directory']);
+        visit(child, childRelative);
+      }
       else if (stat.isFile()) files.push([childRelative,
         createHash('sha256').update(readFileSync(child)).digest('hex')]);
       else throw new Error('Unexpected non-file in generated lifecycle output');
