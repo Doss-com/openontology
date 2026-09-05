@@ -206,6 +206,16 @@ function matchesConstraints(row: MatchableRow, obligation: ProofSufficiencyOblig
       || obligation.allowedPolarities.includes(row.polarity));
 }
 
+function matchesRequiredTargetConstraints<T extends MatchableRow>(row: T,
+  targetFamily: string,
+  obligations: readonly ProofSufficiencyObligation[]): boolean {
+  return obligations
+    .filter((obligation) => obligation.required
+      && obligation.role === 'support'
+      && obligation.propositionFamily === targetFamily)
+    .every((obligation) => matchesConstraints(row, obligation));
+}
+
 function relationMatchesCandidate<T extends MatchableRow>({
   relation,
   candidateId,
@@ -213,6 +223,7 @@ function relationMatchesCandidate<T extends MatchableRow>({
   targetId,
   rowById,
   obligation,
+  obligations,
   familyMatcher,
 }: {
   relation: { type: string };
@@ -221,6 +232,7 @@ function relationMatchesCandidate<T extends MatchableRow>({
   targetId: string;
   rowById: Map<string, T>;
   obligation: ProofSufficiencyObligation;
+  obligations: readonly ProofSufficiencyObligation[];
   familyMatcher: (row: T, family: string) => boolean;
 }): boolean {
   if (obligation.relationshipAnyOf.length > 0
@@ -234,7 +246,9 @@ function relationMatchesCandidate<T extends MatchableRow>({
   if (obligation.relationshipTargetPropositionFamily === undefined) return true;
   const related = rowById.get(outbound ? targetId : sourceId);
   return related !== undefined
-    && familyMatcher(related, obligation.relationshipTargetPropositionFamily);
+    && familyMatcher(related, obligation.relationshipTargetPropositionFamily)
+    && matchesRequiredTargetConstraints(related,
+      obligation.relationshipTargetPropositionFamily, obligations);
 }
 
 function relationView(type: string, sourceProjectionItemId: string,
@@ -320,6 +334,7 @@ export function evaluateProofSufficiencyContract({
           targetId: relation.targetRevisionId,
           rowById: propositionById,
           obligation,
+          obligations: contract.obligations,
           familyMatcher: matchesFamily,
         })));
     }
@@ -366,6 +381,7 @@ export function evaluateProofSufficiencyContract({
                 targetId: relation.targetProjectionItemId,
                 rowById: authorityById,
                 obligation,
+                obligations: contract.obligations,
                 familyMatcher: matchesAuthorityFamily,
               })))
           .map((relation) => relationView(relation.type,
@@ -380,6 +396,7 @@ export function evaluateProofSufficiencyContract({
               targetId: relation.targetRevisionId,
               rowById: propositionById,
               obligation,
+              obligations: contract.obligations,
               familyMatcher: matchesFamily,
             })))
           .map((relation) => relationView(
