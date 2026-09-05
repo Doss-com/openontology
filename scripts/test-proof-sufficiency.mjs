@@ -458,6 +458,119 @@ test('requires the configured relation direction and target family', () => {
   assert.equal(correct.proofDisposition, 'qualified');
 });
 
+test('does not close an invalidator against a proposed negative target when support requires observed positive', () => {
+  const outcome = proposition({ id: 'outcome-observed-positive', roles: ['outcome'] });
+  const proposedNegative = proposition({
+    id: 'outcome-proposed-negative', roles: ['outcome'], modality: 'proposed', polarity: 'negative',
+  });
+  const counter = proposition({ id: 'counter-1', roles: ['counterevidence'] });
+  const relation = {
+    type: 'qualifies', sourceRevisionId: 'counter-1', targetRevisionId: 'outcome-proposed-negative',
+  };
+  const authorityProjection = projection([outcome, proposedNegative, counter], [relation]);
+  const proofContract = contract([
+    obligation({
+      id: 'outcome', family: 'outcome', allowedModalities: ['observed'], allowedPolarities: ['positive'],
+    }),
+    invalidator(),
+  ], { authorityProjection });
+  const result = evaluateProofSufficiencyContract({
+    contract: proofContract,
+    propositions: [outcome, proposedNegative, counter],
+    relations: [relation],
+    authorityProjection,
+  });
+
+  assert.equal(obligationResult(result, 'outcome').state, 'closed');
+  assert.equal(obligationResult(result, 'counter').state, 'unresolved');
+  assert.equal(result.proofClosed, false);
+});
+
+test('applies every required target constraint regardless of obligation order', () => {
+  const observedPositive = proposition({ id: 'outcome-observed-positive', roles: ['outcome'] });
+  const observedNegative = proposition({
+    id: 'outcome-observed-negative', roles: ['outcome'], polarity: 'negative',
+  });
+  const proposedPositive = proposition({
+    id: 'outcome-proposed-positive', roles: ['outcome'], modality: 'proposed',
+  });
+  const counter = proposition({ id: 'counter-1', roles: ['counterevidence'] });
+  const items = [observedPositive, observedNegative, proposedPositive, counter];
+  const requiredModality = obligation({
+    id: 'outcome-modality', family: 'outcome', allowedModalities: ['observed'],
+  });
+  const requiredPolarity = obligation({
+    id: 'outcome-polarity', family: 'outcome', allowedPolarities: ['positive'],
+  });
+  const evaluate = (targetId, orderedObligations) => {
+    const relation = {
+      type: 'qualifies', sourceRevisionId: 'counter-1', targetRevisionId: targetId,
+    };
+    const authorityProjection = projection(items, [relation]);
+    const proofContract = contract(orderedObligations, { authorityProjection });
+    return evaluateProofSufficiencyContract({
+      contract: proofContract,
+      propositions: items,
+      relations: [relation],
+      authorityProjection,
+    });
+  };
+
+  for (const orderedObligations of [
+    [requiredModality, requiredPolarity],
+    [requiredPolarity, requiredModality],
+  ]) {
+    const wrongModality = evaluate(proposedPositive.revisionId, orderedObligations);
+    const wrongPolarity = evaluate(observedNegative.revisionId, orderedObligations);
+    const properPositive = evaluate(observedPositive.revisionId, orderedObligations);
+
+    assert.equal(obligationResult(wrongModality, 'counter').state, 'unresolved');
+    assert.equal(obligationResult(wrongPolarity, 'counter').state, 'unresolved');
+    assert.equal(wrongModality.projectionRelationCensus.state, 'closed');
+    assert.equal(wrongPolarity.projectionRelationCensus.state, 'closed');
+    assert.equal(properPositive.proofClosed, true);
+    assert.equal(obligationResult(properPositive, 'counter').state, 'closed');
+  }
+});
+
+test('optional target constraints do not weaken required target constraints', () => {
+  const observedPositive = proposition({ id: 'outcome-observed-positive', roles: ['outcome'] });
+  const proposedNegative = proposition({
+    id: 'outcome-proposed-negative', roles: ['outcome'], modality: 'proposed', polarity: 'negative',
+  });
+  const counter = proposition({ id: 'counter-1', roles: ['counterevidence'] });
+  const required = obligation({
+    id: 'outcome-required', family: 'outcome', allowedModalities: ['observed'],
+    allowedPolarities: ['positive'],
+  });
+  const optional = obligation({
+    id: 'outcome-optional', family: 'outcome', required: false,
+    allowedModalities: ['proposed'], allowedPolarities: ['negative'],
+  });
+  const evaluate = (targetId) => {
+    const relation = {
+      type: 'qualifies', sourceRevisionId: 'counter-1', targetRevisionId: targetId,
+    };
+    const items = [observedPositive, proposedNegative, counter];
+    const authorityProjection = projection(items, [relation]);
+    const proofContract = contract([required, optional], { authorityProjection });
+    return evaluateProofSufficiencyContract({
+      contract: proofContract,
+      propositions: items,
+      relations: [relation],
+      authorityProjection,
+    });
+  };
+
+  const properPositive = evaluate(observedPositive.revisionId);
+  const wrongTarget = evaluate(proposedNegative.revisionId);
+
+  assert.equal(properPositive.proofClosed, true);
+  assert.equal(obligationResult(properPositive, 'counter').state, 'closed');
+  assert.equal(obligationResult(wrongTarget, 'counter').state, 'unresolved');
+  assert.equal(wrongTarget.proofClosed, false);
+});
+
 test('requires every authoritative relation that disposes counterevidence', () => {
   const outcome = proposition({ id: 'outcome-1', roles: ['outcome'] });
   const counter = proposition({ id: 'counter-1', roles: ['counterevidence'] });
