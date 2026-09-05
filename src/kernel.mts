@@ -118,6 +118,7 @@ export type {
 export {
   compileSourceNativeAdmittedKnowledgeBundle,
   compileSourceNativeAdmissionRecord,
+  compileSourceNativeSemanticKnowledgeBundle,
   openSourceNativeProductWithAdmittedKnowledge,
   sourceNativeAdmissionStatement,
   sourceNativeProposalStatement,

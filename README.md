@@ -160,6 +160,10 @@ Larger proofs are refused without truncation. Exact Evidence spans must also
 round-trip through UTF-8 without changing their bound bytes. A `next`
 Verification returns the successor as `answer` and its inspected historical
 revision as `anchor`.
+One successful ordinary semantic Verification can compile its exact query
+binding, proof contract, authority census, propositions, relations, and
+evaluation into the bundle this path accepts. Independent review and Admission
+remain separate steps.
 Untrusted or invalid records are skipped in favor of ordinary verification.
 Conflicting valid bundles produce a typed refusal. Default knowledge branches
 are isolated by immutable source commit. This kernel-only path is not exposed

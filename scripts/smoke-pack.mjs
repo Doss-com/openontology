@@ -389,6 +389,7 @@ if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','ve
     'compileSourceNativeAdmissionRecord','compileSourceNativeAdmittedKnowledgeBundle',
     'compileSourceNativeCurrentFieldChronologyVerification',
     'compileSourceNativeProofAuthorityProjection',
+    'compileSourceNativeSemanticKnowledgeBundle',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',

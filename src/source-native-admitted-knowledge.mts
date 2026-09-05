@@ -43,6 +43,10 @@ import type {
   UnknownRecord,
 } from './source-native-object-map.mjs';
 import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
+import {
+  compileSourceNativeSemanticNavigation,
+  evaluateSourceNativeSemanticNavigation,
+} from './source-native-semantic-verification.mjs';
 
 export interface SourceNativeAdmittedKnowledgeQueryBinding {
   question: string;
@@ -546,6 +550,95 @@ export function validateSourceNativeAdmittedKnowledgeBundle(
   return expected;
 }
 
+export async function compileSourceNativeSemanticKnowledgeBundle({
+  options = {},
+  query: queryInput,
+  proposedBy,
+  proposedAt,
+}: {
+  options?: ProductOptions;
+  query?: ProductSearchInput;
+  proposedBy?: string;
+  proposedAt?: string;
+} = {}): Promise<SourceNativeAdmittedKnowledgeBundle> {
+  if (!queryInput || queryInput.investigationId !== undefined) {
+    fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  }
+  const query = queryInput ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const contexts: SourceNativeProductRuntimeContext[] = [];
+  const product = openSourceNativeProductRuntime(options, (context) => {
+    contexts.push(context);
+    return null;
+  });
+  const context = contexts[0] ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const prepared = context.prepareSearch(query);
+  if (prepared.intent !== 'current' || prepared.plan.state !== 'resolved-native-field-query'
+    || prepared.plan.query?.externalId === undefined) {
+    fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  }
+  const verification = await product.verify(query);
+  const answerRows = verification.context.filter((row) => row.binding.role === 'answer');
+  if (!verification.answerable || answerRows.length !== 1) {
+    fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  }
+  const answer = answerRows[0] ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const navigation = compileSourceNativeSemanticNavigation({
+    sourceNativeObjectMap: context.objectOnt.map,
+    namespace: context.descriptor.namespace,
+    rootFieldSha256: answer.binding.fieldSha256,
+  });
+  if (navigation === null) fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const exactNavigation = navigation
+    ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const material = evaluateSourceNativeSemanticNavigation({
+    navigation: exactNavigation,
+    verifiedEvidence: verification.context.map((row) => {
+      const role = row.binding.role === 'answer' ? 'answer' as const
+        : row.binding.role === 'counterevidence' ? 'counterevidence' as const
+          : fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+      return {
+        role,
+        fieldSha256: row.binding.fieldSha256,
+        sourceRef: row.evidence.relativePath,
+        sourceSha256: row.evidence.sourceSha256,
+        byteStart: row.evidence.byteStart,
+        byteEnd: row.evidence.byteEnd,
+        textSha256: row.evidence.textSha256,
+      };
+    }),
+  });
+  const semanticProof = plain(verification.verification)
+    && plain(verification.verification.semanticProof)
+    ? verification.verification.semanticProof : null;
+  if (semanticProof === null || !material.evaluation.proofClosed
+    || stableObjectText(material.verification) !== stableObjectText(semanticProof)) {
+    fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  }
+  return compileSourceNativeAdmittedKnowledgeBundle({
+    proposedBy,
+    proposedAt,
+    ontId: context.descriptor.ontId,
+    namespace: context.descriptor.namespace,
+    artifactSha256: context.descriptor.artifactSha256,
+    nativeObjectMapSha256: context.objectOnt.map.nativeObjectMapSha256,
+    sourceCommitSha256: context.objectOnt.commitSha256,
+    sourceReplaySha256: context.objectOnt.replaySha256,
+    queryBinding: {
+      question: prepared.question,
+      anchorValue: prepared.anchorValue,
+      typedQuery: prepared.typedQuery,
+      query: prepared.plan.query,
+      queryPlanSha256: prepared.plan.planSha256,
+      questionSha256: prepared.plan.questionSha256,
+      intent: prepared.intent,
+    },
+    proofSufficiencyContract: material.contract,
+    proofAuthorityProjection: exactNavigation.authorityProjection,
+    propositions: material.propositions,
+    relations: material.relations,
+  });
+}
+
 export function sourceNativeAdmissionStatement({
   bundle: bundleInput,
   issuerId,
@@ -921,10 +1014,8 @@ function admittedProofUnits(
     role: unit.role,
     evidence: unit.evidence,
     propositionSha256s: freeze([...unit.propositionSha256s].sort(compare)),
-  })).sort((left, right) => compare(
-    stableObjectText({ role: left.role, evidence: left.evidence }),
-    stableObjectText({ role: right.role, evidence: right.evidence }),
-  )));
+  })).sort((left, right) => (left.role === right.role ? 0 : left.role === 'answer' ? -1 : 1)
+    || compare(stableObjectText(left.evidence), stableObjectText(right.evidence))));
 }
 
 function assertProofContextBudget(bundle: SourceNativeAdmittedKnowledgeBundle,
@@ -1145,7 +1236,8 @@ function exactContextRows(record: SourceNativeAdmissionRecord,
     });
     rows.push(row);
   }
-  rows.sort((left, right) => compare(stableObjectText(left), stableObjectText(right)));
+  rows.sort((left, right) => (left.role === right.role ? 0 : left.role === 'answer' ? -1 : 1)
+    || compare(stableObjectText(left.evidence), stableObjectText(right.evidence)));
   if (anchor !== null) {
     const evidence = {
       sourceRef: anchor.relativePath,

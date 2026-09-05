@@ -97,8 +97,8 @@
     },
     {
       "path": "GLOSSARY.md",
-      "bytes": 6965,
-      "sha256": "7414d937fee28bf879aeb8539ead01d88dc35d3ab42109b72fa1b91063df16cc"
+      "bytes": 7259,
+      "sha256": "9b74b7275474c125c3c1f53d6fde70202ab9cf84550542466ef4f3e4a9518b5b"
     },
     {
       "path": "LICENSE",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12731,
-      "sha256": "e6fbc805e32f4cb48094edeb8174e22ce8230fe0a65378778438be32d5f5c7bd"
+      "bytes": 12979,
+      "sha256": "ba9bba43c21286551cacfecdc17cf4b6eca5a83073c5c0a6769e4cccf3e62dd9"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 11950,
-      "sha256": "a3a64698446d512a5731a514ed443a038c92124356da63b94a22b72def17b70f"
+      "bytes": 12106,
+      "sha256": "81b0ff7e68730fef5aee328688d683104868f1519bd9940d36edcb0f41568b83"
     },
     {
       "path": "docs/STORAGE.md",
@@ -182,8 +182,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 18054,
-      "sha256": "91b693942ff5d524d4d8074fa027257fd2bf15399e631b8ec3ea81ae2848fd85"
+      "bytes": 18104,
+      "sha256": "dad6237a0c35c036b70542ade1de84b956c17409ec22430268e8db14809f2e5a"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -217,8 +217,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 75869,
-      "sha256": "e04e190a19498b3291db8f2f96593e96e64e3463b1e01123ae35cfaa659bb70e"
+      "bytes": 80213,
+      "sha256": "71720aaa2eff62ebc88287ceaa1a83012080e8e721c253013a87e8db58282810"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -277,8 +277,8 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 4712,
-      "sha256": "2c765308bc2fda914e11d0d7ffd09ea86314b5abae8e41368dca412a88b5f23d"
+      "bytes": 4758,
+      "sha256": "8fcade6a9b67e96818c858b7754b28aee969aebcc47361bfc596e520d11987a4"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -322,8 +322,8 @@
     },
     {
       "path": "src/source-native-admitted-knowledge.mts",
-      "bytes": 64161,
-      "sha256": "59d89b29cc5b392987567f8727ea08015c1e16d61fccd007efbc21ea8693a3cf"
+      "bytes": 68101,
+      "sha256": "436413295e2f7e2ced8c07a921d3491c8221d6e6c566873d24129271fe08ccc6"
     },
     {
       "path": "src/source-native-artifact.mts",
@@ -397,8 +397,8 @@
     },
     {
       "path": "src/source-native-semantic-verification.mts",
-      "bytes": 12341,
-      "sha256": "d0cdf429fee16a5b736aa0c9822efa22ea3d840b4eec715b42959b439e954b5f"
+      "bytes": 12671,
+      "sha256": "a6d92afd7438e7a2b5cd0ea97011e3f5ec09f88ff3da4b66d7d28b3691feab4d"
     },
     {
       "path": "tsconfig.json",
@@ -406,5 +406,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:39c06ecac2d26889195646d7f3bc4e0ada926e3374cb78c5fe74f52eda12864b"
+  "manifestSha256": "sha256:6dbc45ad2c5a69ff9f18e09140efa957e01d087d6da0f5c52e6fa810d0c0d1aa"
 }

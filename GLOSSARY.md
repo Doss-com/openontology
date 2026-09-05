@@ -48,6 +48,10 @@
   field selected by an ordinary current-field Verification. Its query-scoped
   projection contains the root and the complete inbound counterevidence
   closure, not every semantic proposition in the namespace.
+- **Semantic knowledge bundle** is the content-bound handoff compiled from one
+  successful ordinary semantic Verification. It contains the exact query
+  binding, proof contract, authority census, propositions, relations, and
+  evaluation that an independent reviewer may admit for cold reuse.
 - **SourceProjectionAuthority** binds a proof contract to the source projection
   identity and the ProofAuthorityProjection's `proofCensusSha256`.
 - **Support** is an independently verified relationship between a material

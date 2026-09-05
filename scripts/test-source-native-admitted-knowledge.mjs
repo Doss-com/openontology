@@ -12,6 +12,7 @@ import {
   buildSourceNativeProduct,
   compileSourceNativeAdmittedKnowledgeBundle,
   compileSourceNativeAdmissionRecord,
+  compileSourceNativeSemanticKnowledgeBundle,
   openSourceNativeProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
   openProductState,
@@ -53,6 +54,62 @@ function buildInput() {
       fields: [{ fieldPath: 'status', value: 'Ready' }],
     }],
   };
+}
+
+function buildSemanticInput() {
+  const input = buildInput();
+  input.querySchemas[0].fields.push({
+    fieldPath: 'statusException', aliases: ['status exception'],
+  });
+  input.sources.push({
+    relativePath: 'linear/northwind/issue-1-exception.txt',
+    sourceType: 'linear',
+    occurredAt: '2026-09-04T12:01:00.000Z',
+    content: 'Manual approval absent',
+  });
+  input.nativeObjectInputs[0].businessEntityKeys = ['issue:issue-1'];
+  input.nativeObjectInputs[0].fields[0] = {
+    fieldPath: 'status', value: 'Ready', propositionFamilyKey: 'issue-status',
+    businessEntityKeys: ['issue:issue-1'], validAt: '2026-09-04T11:59:00.000Z',
+    knownAt: '2026-09-04T12:00:00.000Z',
+    canonicalProposition: {
+      kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+      propositionKey: 'issue-1-status-ready',
+      actorHome: 'ObjectDef/InstanceRef',
+      stateHome: 'Claim/PropositionRevision-payload',
+      actorKind: 'issue', predicate: 'has-status', state: 'Ready',
+      dimension: 'issue-status', canonicalRoles: ['state'],
+      modality: 'observed', polarity: 'positive', businessEntityKeys: ['issue:issue-1'],
+      extractionAuthority: 'deterministic-source-adapter-v1', relations: [],
+    },
+  };
+  input.nativeObjectInputs.push({
+    relativePath: 'linear/northwind/issue-1-exception.txt',
+    objectIdentity: input.nativeObjectInputs[0].objectIdentity,
+    businessEntityKeys: ['issue:issue-1'],
+    fields: [{
+      fieldPath: 'statusException', value: 'Manual approval absent',
+      propositionFamilyKey: 'issue-status-exception',
+      businessEntityKeys: ['issue:issue-1'], validAt: '2026-09-04T11:58:00.000Z',
+      knownAt: '2026-09-04T12:01:00.000Z',
+      canonicalProposition: {
+        kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+        propositionKey: 'issue-1-manual-approval-absent',
+        actorHome: 'ObjectDef/InstanceRef',
+        stateHome: 'Claim/PropositionRevision-payload',
+        actorKind: 'issue', predicate: 'has-status-exception',
+        state: 'Manual approval absent', dimension: 'issue-status-exception',
+        canonicalRoles: ['counterevidence'], modality: 'observed', polarity: 'negative',
+        businessEntityKeys: ['issue:issue-1'],
+        extractionAuthority: 'deterministic-source-adapter-v1',
+        relations: [{
+          kind: 'OpenOntologySourceNativePropositionRelationV1', type: 'qualifies',
+          targetPropositionKey: 'issue-1-status-ready',
+        }],
+      },
+    }],
+  });
+  return input;
 }
 
 function authorityFor(context, source = context.sources[0]) {
@@ -430,6 +487,51 @@ test('cold verify reuses an independently admitted proof and reinspects exact Ev
     const exactRead = await product.read({ ref: navigation.matches[0].ref });
     assert.equal(exactRead.kind, 'OpenOntologySourceNativeProductReadResultV1');
     assert.equal(exactRead.exactText, 'Ready');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary semantic verification compiles into cold admitted reuse', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-semantic-admitted-knowledge-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticInput() });
+    const query = {
+      question: 'What is the current issue status for issue-1?',
+      typedQuery: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        fieldPath: 'status',
+      },
+    };
+    const bundle = await compileSourceNativeSemanticKnowledgeBundle({
+      options: { artifactRoot: root },
+      query,
+      proposedBy: 'semantic-investigator',
+      proposedAt: '2026-09-05T08:00:00.000Z',
+    });
+    assert.equal(bundle.proofEvaluation.proofDisposition, 'qualified');
+    assert.equal(bundle.propositions.length, 2);
+    assert.equal(bundle.relations.length, 1);
+    const admitted = admitBundle(bundle);
+    writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: root },
+      record: admitted.record,
+      trustRegistry: admitted.trustRegistry,
+    });
+
+    const cold = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry: admitted.trustRegistry },
+    );
+    const verified = await cold.verify(query);
+    assert.equal(verified.kind, 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1');
+    assert.equal(verified.proofDisposition, 'qualified');
+    assert.equal(verified.verification.rawSearchExecuted, false);
+    assert.equal(verified.verification.exactSourceInspectionCount, 1);
+    assert.deepEqual(verified.context.map((row) => [row.role, row.exactText]), [
+      ['answer', 'Ready'],
+      ['counterevidence', 'Manual approval absent'],
+    ]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

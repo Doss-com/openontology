@@ -99,6 +99,8 @@ The bundle binds one Ont, immutable source commit and replay, resolved query,
 question, intent, proof contract, complete ProofAuthorityProjection,
 propositions, relations, and the original deterministic evaluation. Admission
 requires distinct Ed25519 proposer and reviewer keys with separate trust roles.
+The ordinary semantic Verification path can compile these exact materials into
+the bundle, removing manual translation without granting reviewer authority.
 The writer deterministically resolves the exact current or successor answer
 revision, requires every primary support reference to equal that revision, and
 checks every bundle Evidence reference against Corpus bytes. It rejects any

@@ -8,10 +8,13 @@ import type {
   ProofEvidenceReference,
 } from './proof-authority-projection.mjs';
 import { compileProofSufficiencyContract } from './proof-sufficiency-contract.mjs';
+import type { ProofSufficiencyContract } from './proof-sufficiency-contract.mjs';
 import {
   evaluateProofSufficiencyContract,
 } from './proof-sufficiency-evaluator.mjs';
 import type {
+  ProofProposition,
+  ProofRelation,
   ProofSufficiencyEvaluation,
 } from './proof-sufficiency-evaluator.mjs';
 import type {
@@ -205,7 +208,10 @@ export function evaluateSourceNativeSemanticNavigation({
   navigation?: SourceNativeSemanticNavigation;
   verifiedEvidence?: readonly SourceNativeVerifiedSemanticEvidence[];
 } = {}): {
+  contract: ProofSufficiencyContract;
   evaluation: ProofSufficiencyEvaluation;
+  propositions: readonly ProofProposition[];
+  relations: readonly ProofRelation[];
   verification: SourceNativeSemanticProofVerification;
 } {
   if (!navigation || !Array.isArray(verifiedEvidence)) {
@@ -244,6 +250,7 @@ export function evaluateSourceNativeSemanticNavigation({
       required: true,
       relationshipAnyOf: [],
       description: 'Every proof proposition has an exact Corpus reference.',
+      sameFamilyAsObligationId: 'answer',
     }, {
       obligationId: 'counterevidence',
       propositionFamily: 'counterevidence',
@@ -290,7 +297,10 @@ export function evaluateSourceNativeSemanticNavigation({
     exactSourcesRemainAuthority: true as const,
   };
   return freeze({
+    contract,
     evaluation,
+    propositions,
+    relations,
     verification: freeze({
       ...verificationCore,
       verificationSha256: stableObjectSha256(verificationCore),
