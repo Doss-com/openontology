@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 8958,
-      "sha256": "ae66d0930c8c0b6ddca9f0ac452c1b2c7d2f299ca2142dbef656f0c73b640f66"
+      "bytes": 9021,
+      "sha256": "736c020b0973add7b1d8d4e7444a96b3ed88f90953676ae08f4d30e8a5fda4dd"
     },
     {
       "path": "SECURITY.md",
@@ -117,8 +117,8 @@
     },
     {
       "path": "bin/oont.mts",
-      "bytes": 3171,
-      "sha256": "de14518e8928ceb9d52780319f762f4670d83fe142602204357511dba5d24325"
+      "bytes": 3286,
+      "sha256": "94c93e8b3404aeeb30dff33326f33864bc8274421d3ae7c93324984b6c10f258"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -168,7 +168,7 @@
     {
       "path": "scripts/oont-resolver.mts",
       "bytes": 8493,
-      "sha256": "6b78c4d03475388ee462ed42e12c42b4d457b5440968c9a8573af837d61821bc"
+      "sha256": "9c035f3fd14642410afa9d9b96d601495599aa294f408d8fbca55774466be66e"
     },
     {
       "path": "scripts/qualify-gcs-object-storage.mjs",
@@ -202,13 +202,13 @@
     },
     {
       "path": "scripts/test-oont-cli-help.mjs",
-      "bytes": 992,
-      "sha256": "5ac3335af75531299f158f84d8dbad6809bec6ed9c00a05bfc5cb80a8d12f313"
+      "bytes": 1259,
+      "sha256": "68a1d82931f457c15e2fe32696fe54ddac1812d70c9ad4b6f8393cda603889bc"
     },
     {
       "path": "scripts/test-product-surface-contract.mjs",
-      "bytes": 9770,
-      "sha256": "166fc510a4ca5d566eb778f42c6fb27fe7acdc86d826564aeeb1d3deb6b110da"
+      "bytes": 9771,
+      "sha256": "fa74c4b4fc01682bf4e43fcc7c96ed36bd97d4bf3a93e0aace83f04957ab5258"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -351,5 +351,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:0a3d470e3ad36948b75259011e3dc4054b46e179d9339667c7425594021bef9f"
+  "manifestSha256": "sha256:0390330176e2c98ee6f71e98385261b11fad148e6d1fcee9b78e2c883dd4bfb2"
 }

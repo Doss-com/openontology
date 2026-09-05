@@ -32,6 +32,8 @@ function usage(code = 2) {
 
 Search accepts --read to return exact Evidence in the same process.
 Serve accepts --advanced to expose search and read instead of verify.
+Run oont <command> --help for command-specific options.
+Run oont --version to print the installed package version.
 `);
   process.exit(code);
 }

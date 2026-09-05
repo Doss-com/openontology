@@ -124,7 +124,7 @@ test('retired query verbs are not compatibility aliases', () => {
 
   const resolveCommand = run(['resolver', 'resolve', './missing', 'question']);
   assert.equal(resolveCommand.status, 2);
-  assert.match(resolveCommand.stderr, /usage: oont resolver/u);
+  assert.match(resolveCommand.stderr, /usage: oont <command>/u);
 });
 
 test('SDK exposes only the locked query interface and preserves navigation before Evidence', async () => {

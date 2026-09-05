@@ -127,9 +127,10 @@ Advanced MCP exposes exactly `search` and `read`:
 oont serve ./verified-context --mcp --advanced
 ```
 
-Run `npx oont --help` for the complete public CLI. The private research compiler
-and its customer-specific compatibility commands are intentionally absent from
-this package.
+Run `npx oont --help` for the command list and
+`npx oont <command> --help` for command-specific options. The private research
+compiler and its customer-specific compatibility commands are intentionally
+absent from this package.
 
 Both `check` and `status` fail closed if safe opening detects corrupt storage or
 an invalid artifact. `check` emits a compact assertion-shaped receipt for
@@ -163,7 +164,7 @@ immediately followed an exact anchor value.
 
 ```bash
 npx oont verify ./verified-context \
-  'What title immediately followed Alpha for task-1?' \
+  'What title immediately followed Prepare launch for task-1?' \
   --intent next
 ```
 

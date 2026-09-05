@@ -13,9 +13,9 @@ const command = argv[0];
 const tokens = argv.slice(1);
 
 function usage(code = 2): never {
-  process.stderr.write(`usage: oont resolver <command>
+  process.stderr.write(`usage: oont <command>
 
-  build <input.json> --out <artifact-dir> [--backend <file-gs-or-s3-uri>]
+  resolver build <input.json> --out <artifact-dir> [--backend <file-gs-or-s3-uri>]
       Compile exact sources and Adapter-declared native objects into an
       immutable, object-storage-native Ont.
 
