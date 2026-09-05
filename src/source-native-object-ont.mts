@@ -416,10 +416,13 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
   };
   const catalog = freeze(catalogValueExact);
   const sourceIdentityByPath = new Map(sources.map((source) =>
-    [source.relativePath, source.sourceSha256]));
+    [source.relativePath, { sourceSha256: source.sourceSha256, occurredAt: source.occurredAt }]));
   if (sourceIdentityByPath.size !== sources.length
-    || map.nativeObjects.some((object) =>
-      sourceIdentityByPath.get(object.relativePath) !== object.sourceSha256)) {
+    || map.nativeObjects.some((object) => {
+      const source = sourceIdentityByPath.get(object.relativePath);
+      return source?.sourceSha256 !== object.sourceSha256
+        || source?.occurredAt !== object.occurredAt;
+    })) {
     fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
   }
   return freeze({
