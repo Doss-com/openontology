@@ -238,8 +238,10 @@ S3-compatible Adapters. Query semantics do not depend on the selected Adapter.
 `[ACTIVE-WORK]` Unpublished kernel resource primitives bind a stable source
 resource to one immutable cut, checking history ancestry and declared query
 profile. Ref-index opening can reuse a validated, ref-bound replay checkpoint.
-Exact source reads remain separate. Current query operations are unchanged, and
-ordinary product startup still performs full replay. See
+Ordinary and exact product opening now use validated checkpoints when present,
+and new source materialization publishes the checkpoint before its ref CAS.
+Opening still validates all source bytes and field spans. Current query
+operations are unchanged. See
 [Storage](STORAGE.md#kernel-resources-and-replay-checkpoints) for the implemented
 boundary and limits.
 

@@ -58,18 +58,22 @@ branch advances. It still validates descriptor and replay hashes and exact
 stored sources. Ordinary opening retains its current-ref check. These are
 kernel operator primitives, not an automatic refresh or hosted ingestion API.
 
-The object store offers opt-in checkpoint publication through
+New source-native materialization publishes a replay checkpoint through
 `compareAndSwapRefMetadataCheckpointed`. The immutable checkpoint is written
 before the ref CAS, and applies only to clean blob-only history. Assertion-bearing
 Ledger history still requires full replay. A missing checkpoint falls back to
-graph replay; a present invalid checkpoint refuses. Ref-index opening and
-resource binding use the checkpoint when present, without treating it as
-Evidence or skipping map and catalog validation.
+graph replay; a present invalid checkpoint refuses. Ref-index opening,
+resource binding, ordinary opening and exact opening use the checkpoint when
+present, without treating it as Evidence or skipping map and catalog validation.
+Ordinary opening checks the descriptor against the ref before loading source
+payloads. Exact opening uses the immutable descriptor's cut without following
+the ref. Both still inspect every source hash and field Evidence span.
 
 The checkpoint bounds metadata request count as commit history grows, not
-checkpoint bytes, memory, query work, or total cost. Ordinary and exact product
-opening still use full replay in this implementation. Checkpoint-aware serving
-startup and the complete managed update loop require further integration.
+checkpoint bytes, memory, query work, or total cost. It adds one immutable
+metadata object at publication in exchange for fewer history reads at startup.
+Source hydration remains corpus-sized. The complete managed update loop and
+provider operating limits require further qualification.
 
 ## Managed storage
 

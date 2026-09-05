@@ -630,28 +630,16 @@ function openProductArtifactState({ artifactRoot, objectBackendUri = null,
   });
   const { backend } = selectedBackend;
   const store = openObjectOntStore({ backend });
-  let objectOnt: ReturnType<typeof openSourceNativeObjectOntAtCut>['objectOnt'];
-  let replayMetadataSource: 'graph' | 'checkpoint';
-  let replayIndexCheckpointSha256: string | null;
-  let replayIndexCheckpointByteLength: number | null;
+  let selectedCut: ReturnType<typeof openSourceNativeObjectOntAtCut>;
   if (requireCurrentRef) {
-    const selectedCut = openSourceNativeObjectOntRefAtCut({
+    selectedCut = openSourceNativeObjectOntRefAtCut({
       backend,
       ontId: descriptor.ontId,
       branch: descriptor.branch,
       expectedCommitSha256: descriptor.sourceCommitSha256,
       expectedReplaySha256: descriptor.sourceReplaySha256,
-    });
-    if (selectedCut === null) {
-      fail('SOURCE_NATIVE_PRODUCT_REF');
-    }
-    const exactSelectedCut = selectedCut ?? fail('SOURCE_NATIVE_PRODUCT_REF');
-    objectOnt = exactSelectedCut.objectOnt;
-    replayMetadataSource = exactSelectedCut.replayMetadataSource;
-    replayIndexCheckpointSha256 = exactSelectedCut.replayIndexCheckpointSha256;
-    replayIndexCheckpointByteLength = exactSelectedCut.replayIndexCheckpointByteLength;
+    }) ?? fail('SOURCE_NATIVE_PRODUCT_REF');
   } else {
-    let selectedCut: ReturnType<typeof openSourceNativeObjectOntAtCut>;
     try {
       selectedCut = openSourceNativeObjectOntAtCut({
         backend,
@@ -665,11 +653,9 @@ function openProductArtifactState({ artifactRoot, objectBackendUri = null,
       }
       throw error;
     }
-    objectOnt = selectedCut.objectOnt;
-    replayMetadataSource = selectedCut.replayMetadataSource;
-    replayIndexCheckpointSha256 = selectedCut.replayIndexCheckpointSha256;
-    replayIndexCheckpointByteLength = selectedCut.replayIndexCheckpointByteLength;
   }
+  const { objectOnt, replayMetadataSource, replayIndexCheckpointSha256,
+    replayIndexCheckpointByteLength } = selectedCut;
   if (objectOnt.replaySha256 !== descriptor.sourceReplaySha256
     || objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256
     || objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256) {
