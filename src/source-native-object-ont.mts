@@ -20,6 +20,7 @@ import type { ObjectBackend } from './object-storage-backend.mjs';
 import type {
   BlobDescriptor,
   ObjectOntStore,
+  ReplayMetadataCheckpointSnapshot,
   ReplayMetadataGraph,
 } from './object-ont-store.mjs';
 
@@ -123,6 +124,10 @@ export interface OpenSourceNativeObjectOntOptions {
   ontId: string;
   commitSha256: string;
 }
+export type SourceNativeObjectOntRefIndex = Omit<ReplayMetadataCheckpointSnapshot, 'replayMetadata'> & {
+  commitOrder: string[];
+  objectOnt: SourceNativeObjectOntIndex;
+};
 interface MaterializeResult {
   map: SourceNativeObjectMap;
   catalog: SourceCatalog;
@@ -279,15 +284,19 @@ function validateManifest(manifest: unknown, ontId: string): SourceOntManifest {
   };
 }
 
-function openIndexAtCommit({ store, ontId, commitSha256 }: {
+function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
   store: ObjectOntStore; ontId: string; commitSha256: string;
+  replayMetadata?: ReplayMetadataGraph;
 }): SourceNativeObjectOntIndex {
   if (typeof ontId !== 'string' || !ontId || !SHA256.test(commitSha256 ?? '')) {
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   const commit = store.readCommit(commitSha256);
-  const replay = store.replayMetadata(commitSha256);
-  if (commit.commit.ontId !== ontId || replay.status !== 'CLEAN' || replay.conflicts.length !== 0) {
+  const replay = replayMetadata ?? store.replayMetadata(commitSha256);
+  if (commit.commit.ontId !== ontId
+    || replay.ontId !== ontId || replay.tipCommitSha256 !== commitSha256
+    || replay.status !== 'CLEAN' || replay.conflicts.length !== 0
+    || stableObjectText(commit.commit.ontManifest) !== stableObjectText(replay.manifestDescriptor)) {
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   const manifestBlob = store.readBlob(replay.manifestDescriptor, { manifest: true });
@@ -683,4 +692,25 @@ export function openSourceNativeObjectOntIndex(options: OpenSourceNativeObjectOn
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   return openIndexAtCommit({ store: openObjectOntStore({ backend }), ontId, commitSha256 });
+}
+
+/** Open one ref-bound index using only metadata authenticated by the object store. */
+export function openSourceNativeObjectOntRefIndex({ backend, ontId, branch }: {
+  backend: ObjectBackend;
+  ontId: string;
+  branch: string;
+}): SourceNativeObjectOntRefIndex | null {
+  if (!backend || typeof ontId !== 'string' || !ontId
+    || typeof branch !== 'string' || !branch) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  const store = openObjectOntStore({ backend });
+  const snapshot = store.readRefMetadataCheckpointSnapshot({ ontId, branch });
+  if (snapshot === null) return null;
+  const { replayMetadata, ...refMetadata } = snapshot;
+  const objectOnt = openIndexAtCommit({
+    store,
+    ontId,
+    commitSha256: snapshot.ref.commitSha256,
+    replayMetadata,
+  });
+  return freeze({ ...refMetadata, commitOrder: replayMetadata.commitOrder, objectOnt });
 }

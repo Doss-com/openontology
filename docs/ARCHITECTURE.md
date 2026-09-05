@@ -39,10 +39,11 @@ complete census runs before candidate retrieval for exact typed identities, so
 a certified absence does not spend a search call or create misleading
 candidate References.
 
-Managed and research runtimes attach through the bounded `oont/kernel` package
-subpath. That Interface exposes the product lifecycle hook and exact object
-primitives required by extensions, while control-plane policy remains outside
-the public package.
+The bounded `oont/kernel` package subpath is the extension Interface for managed
+and research runtimes. It exposes the product lifecycle hook and exact object
+primitives, while control-plane policy remains outside the public package.
+The Interface's availability does not establish that every managed consumer
+already uses the same pinned package.
 
 `[EXISTS]` The same kernel subpath exposes a source-agnostic proof-contract
 compiler, content-addressed ProofAuthorityProjection, and evaluator. The
@@ -164,10 +165,9 @@ capture and Admission use explicit kernel control-plane calls. The root SDK,
 CLI, and MCP remain read-only. This post-alpha kernel work has not been
 published as an alpha.3 capability.
 
-Both modes execute the same search, read, and verification Module.
-The operator control plane attaches one internal lifecycle Adapter for durable
-SearchEpisode capture and reviewed SearchPolicy reuse. It does not fork query
-semantics or create a second Resolver implementation.
+The operator lifecycle Adapter is the boundary for durable SearchEpisode capture
+and reviewed SearchPolicy reuse. Managed integration must consume this kernel
+without forking query semantics or maintaining a second Resolver implementation.
 
 The broader Terrain, Vacuum, Ledger, and Materialization lifecycle remains the
 target architecture. Automatic production connectors and hosted lifecycle
@@ -213,6 +213,14 @@ an identity from route memory.
 Canonical objects are immutable. Mutable branch refs advance with
 compare-and-swap. The same storage interface has local file, GCS, and
 S3-compatible Adapters. Query semantics do not depend on the selected Adapter.
+
+`[ACTIVE-WORK]` Unpublished kernel resource primitives bind a stable source
+resource to one immutable cut, checking history ancestry and declared query
+profile. Ref-index opening can reuse a validated, ref-bound replay checkpoint.
+Exact source reads remain separate. Current query operations are unchanged, and
+ordinary product startup still performs full replay. See
+[Storage](STORAGE.md#kernel-resources-and-replay-checkpoints) for the implemented
+boundary and limits.
 
 ## Invariants
 

@@ -23,6 +23,7 @@ import {
   materializeSourceNativeObjectOnt,
   openSourceNativeObjectOnt,
   openSourceNativeObjectOntIndex,
+  openSourceNativeObjectOntRefIndex,
 } from './source-native-object-ont.mjs';
 import { compileSourceNativeObjectMap } from './source-native-object-map.mjs';
 import { normalizeSourceNativeQuerySchemas } from './source-native-query-planner.mjs';
@@ -100,9 +101,9 @@ export interface SourceNativeProductResourceBindingReceipt extends UnknownRecord
   sourceHistoryAnchorCommitSha256: string;
   sourceCommitSha256: string;
   sourceReplaySha256: string;
-  replayMetadataSource: 'graph';
-  replayIndexCheckpointSha256: null;
-  replayIndexCheckpointByteLength: null;
+  replayMetadataSource: 'graph' | 'checkpoint';
+  replayIndexCheckpointSha256: string | null;
+  replayIndexCheckpointByteLength: number | null;
   refVersion: string;
   replayed: boolean;
   readOnly: true;
@@ -491,20 +492,6 @@ function readDescriptor(root: string): Descriptor {
   return validateDescriptor(value);
 }
 
-function readValidatedBranchSelection(store: ReturnType<typeof openObjectOntStore>, ontId: string, branch: string) {
-  const selection = store.readRefMetadata({ ontId, branch });
-  if (selection === null) return null;
-  const replay = store.replayMetadata(selection.ref.commitSha256);
-  if (replay.ontId !== ontId
-    || replay.tipCommitSha256 !== selection.ref.commitSha256
-    || replay.status !== 'CLEAN'
-    || replay.conflicts.length !== 0
-    || replay.replaySha256 !== selection.ref.replaySha256) {
-    fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
-  }
-  return { selection, replay };
-}
-
 /** Read and validate one immutable source-cut artifact descriptor. */
 export function readSourceNativeProductArtifactDescriptor({ artifactRoot }: { artifactRoot?: string } = {}): Descriptor {
   return readDescriptor(exactDirectory(artifactRoot));
@@ -580,29 +567,24 @@ export function bindSourceNativeProductResource({
     uri: resource.objectBackend,
     env: objectBackendEnv,
   });
-  const branchCut = readValidatedBranchSelection(
-    openObjectOntStore({ backend: selectedBackend.backend }),
-    resource.ontId,
-    resource.branch,
-  );
+  const branchCut = openSourceNativeObjectOntRefIndex({
+    backend: selectedBackend.backend,
+    ontId: resource.ontId,
+    branch: resource.branch,
+  });
   if (branchCut === null) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
   const selectedCut = branchCut ?? fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   if (expectedSourceCommitSha256 !== null
-    && selectedCut.selection.ref.commitSha256 !== expectedSourceCommitSha256) {
+    && selectedCut.ref.commitSha256 !== expectedSourceCommitSha256) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
-  if (!selectedCut.replay.commitOrder.includes(resource.sourceHistoryAnchorCommitSha256)) {
+  if (!selectedCut.commitOrder.includes(resource.sourceHistoryAnchorCommitSha256)) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_HISTORY');
   }
-  const objectOnt = openSourceNativeObjectOntIndex({
-    backend: selectedBackend.backend,
-    ontId: resource.ontId,
-    commitSha256: selectedCut.selection.ref.commitSha256,
-  });
-  if (objectOnt.replaySha256 !== selectedCut.replay.replaySha256
-    || objectOnt.replaySha256 !== selectedCut.selection.ref.replaySha256) {
+  const { objectOnt } = selectedCut;
+  if (objectOnt.replaySha256 !== selectedCut.ref.replaySha256) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
   assertResourceProfile(resource, objectOnt);
@@ -625,10 +607,10 @@ export function bindSourceNativeProductResource({
     sourceHistoryAnchorCommitSha256: resource.sourceHistoryAnchorCommitSha256,
     sourceCommitSha256: objectOnt.commitSha256,
     sourceReplaySha256: objectOnt.replaySha256,
-    replayMetadataSource: 'graph',
-    replayIndexCheckpointSha256: null,
-    replayIndexCheckpointByteLength: null,
-    refVersion: selectedCut.selection.version,
+    replayMetadataSource: selectedCut.replayMetadataSource,
+    replayIndexCheckpointSha256: selectedCut.replayIndexCheckpointSha256,
+    replayIndexCheckpointByteLength: selectedCut.replayIndexCheckpointByteLength,
+    refVersion: selectedCut.version,
     replayed,
     readOnly: true,
     exactSourcesRemainAuthority: true,

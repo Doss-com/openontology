@@ -376,30 +376,38 @@ openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
   `references ${navigationResult?.matches?.length ?? 0}; exact reads ${exactResult?.evidence?.length ?? 0}`);
 
   const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
+import assert from 'node:assert/strict';
 import { openOntology } from 'oont';
 import * as kernel from 'oont/kernel';
 const ont = openOntology({ artifactRoot: ${JSON.stringify(ont)} });
 const keys = Object.keys(ont).sort();
 const kernelKeys = Object.keys(kernel).sort();
 const result = await ont.verify('What is the current title of task-1?');
-if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','verify'])
-  || JSON.stringify(kernelKeys) !== JSON.stringify([
-    'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','buildSourceNativeProduct',
+assert.deepEqual(keys, ['kind','read','search','status','verify']);
+assert.deepEqual(kernelKeys, [
+    'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','SOURCE_NATIVE_PRODUCT_RESOURCE_FILE',
+    'bindSourceNativeProductResource','buildSourceNativeProduct',
     'compileProofAuthorityProjection','compileProofSufficiencyContract',
     'compileSourceNativeAdmissionRecord','compileSourceNativeAdmittedKnowledgeBundle',
     'compileSourceNativeCurrentFieldChronologyVerification',
     'compileSourceNativeProofAuthorityProjection',
     'compileSourceNativeSemanticKnowledgeBundle',
+    'createSourceNativeProductResource',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
+    'openExactProductArtifactState',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
+    'openSourceNativeObjectOntRefIndex',
     'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
-    'productSources','proofAuthorityForProjection','sourceNativeAdmissionStatement',
+    'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
+    'sourceNativeAdmissionStatement',
     'sourceNativeProposalStatement',
     'stableObjectSha256','stableObjectText','validateProofAuthorityProjection',
     'validateProofSufficiencyContract','validateSourceNativeAdmittedKnowledgeBundle',
+    'validateSourceNativeProductResource',
     'writeSourceNativeAdmittedKnowledge',
-  ]) || !result.answerable) process.exit(1);`;
+  ].sort());
+assert.equal(result.answerable, true);`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
 

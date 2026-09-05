@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 81,
+  "fileCount": 84,
   "files": [
     {
       "path": ".editorconfig",
@@ -122,13 +122,13 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 12497,
-      "sha256": "e6bb5a01d8ca8cd2e4f247b8581e9b7e5b7c6d3ec37a14aad77c55c8ac21ea7e"
+      "bytes": 13026,
+      "sha256": "1113f1823c5c826a745fd61d18c6b1e7f26851d8d79fb373b2272e5edcea6ec7"
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 1569,
-      "sha256": "fd26efa70ac45831abcd151f57b617751801d804b213a8c12fc9c349093545ea"
+      "bytes": 3267,
+      "sha256": "031b4ac51dd46e239f709172259ee40437a30ac72eec8083a8904af96746339c"
     },
     {
       "path": "examples/quickstart/source-native-input.json",
@@ -142,8 +142,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 2899,
-      "sha256": "17f6e7a3b807e2f653cb1e40a94a6a603283c132c267cce0f8345220ea09f388"
+      "bytes": 3036,
+      "sha256": "e5346e325c0ee45048e6d8d2fbe22e8b332d442ca23a60c5bb0386844c750cae"
     },
     {
       "path": "scripts/build.mjs",
@@ -182,8 +182,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 18104,
-      "sha256": "dad6237a0c35c036b70542ade1de84b956c17409ec22430268e8db14809f2e5a"
+      "bytes": 18398,
+      "sha256": "1b2ee0b9ae3d8ac608c3e2b22c6066ea94e3886de4e7b2b676e38c96c4358d1a"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -199,6 +199,11 @@
       "path": "scripts/test-gcs-object-storage-backend.mjs",
       "bytes": 8862,
       "sha256": "04d957d1cff97a0fa56ffa8676744e77f2ffd25aa4613bf48cf8104ad4539759"
+    },
+    {
+      "path": "scripts/test-object-ont-replay-checkpoint.mjs",
+      "bytes": 16372,
+      "sha256": "931383f317dc6779473b6ad6009113ef522f5c2e2d97af2fc603d5015128cd21"
     },
     {
       "path": "scripts/test-oont-cli-help.mjs",
@@ -241,6 +246,16 @@
       "sha256": "bff79d16729c66f1d2226716cdc205d236b6872202688ac1f5381371fd67de42"
     },
     {
+      "path": "scripts/test-source-native-resource-checkpoint.mjs",
+      "bytes": 3397,
+      "sha256": "994d58d0579e841fe46ab0ca592594e53cfe2831dc520410784c7046da04f623"
+    },
+    {
+      "path": "scripts/test-source-native-resource.mjs",
+      "bytes": 13234,
+      "sha256": "62c56cfb410810b3210524f063c1605158068d361c3f07bbd8019ff2d6b51fae"
+    },
+    {
       "path": "scripts/test-source-native-semantic-projection.mjs",
       "bytes": 11970,
       "sha256": "50b78c3aae65f61dc210452baf89954222ca86d202cbdee087caeb43fb2cc9a3"
@@ -277,13 +292,13 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 4758,
-      "sha256": "8fcade6a9b67e96818c858b7754b28aee969aebcc47361bfc596e520d11987a4"
+      "bytes": 5338,
+      "sha256": "ab82791bd4c535d5bb6b97fdd1ee99e85d6c9477052fd3d57894ea9324a93b76"
     },
     {
       "path": "src/object-ont-store.mts",
-      "bytes": 40637,
-      "sha256": "3a7155c422749d07138ffd0434d3f362bfae0bbebdb20d349e0a193ec62fbf13"
+      "bytes": 53975,
+      "sha256": "13b39c8ab2093b62e588d9df2ee0558437ee0400dc91bf57ab85fb6e45730a6b"
     },
     {
       "path": "src/object-storage-backend.mts",
@@ -332,8 +347,8 @@
     },
     {
       "path": "src/source-native-artifact.mts",
-      "bytes": 18057,
-      "sha256": "f480badc5663ec520b562d754dd3157461dfb4f0ab93aeaef29b147a88e6acf7"
+      "bytes": 29981,
+      "sha256": "37f78aaa751ea6ae100bbec0e0945b4339203358e2be460ca946c2e09ed18bd3"
     },
     {
       "path": "src/source-native-current-field-verification.mts",
@@ -367,8 +382,8 @@
     },
     {
       "path": "src/source-native-object-ont.mts",
-      "bytes": 27801,
-      "sha256": "8a700a0c78c67a35a101d899e35b2becac70278269863d382ebee928d6b630f9"
+      "bytes": 29117,
+      "sha256": "0c1f608ec7f7d422cb3708fffb62043939bbf47ffccfd599041bfc7122536d37"
     },
     {
       "path": "src/source-native-product-mcp.mts",
@@ -411,5 +426,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:8650aea84b91f1988b135504ce5cfd3b294c773925b0d715e54c8a355499079c"
+  "manifestSha256": "sha256:825b20f3c9d0845f9a0ac151bc28606734acccef3a4d330d815c945e837c4cbc"
 }

@@ -17,14 +17,23 @@ export type {
   SourceNativeObjectIdentityAbsenceReceipt,
 } from './source-native-product.mjs';
 export {
+  bindSourceNativeProductResource,
+  createSourceNativeProductResource,
+  openExactProductArtifactState,
   openProductState,
   productSources,
+  readSourceNativeProductArtifactDescriptor,
+  SOURCE_NATIVE_PRODUCT_RESOURCE_FILE,
+  validateSourceNativeProductResource,
 } from './source-native-artifact.mjs';
 export type {
   Descriptor,
   ObjectOnt,
   ProductOptions,
   ProductSource,
+  Resource,
+  SourceNativeProductResourceBindingReceipt,
+  SourceNativeProductResourceReceipt,
 } from './source-native-artifact.mjs';
 export {
   openSourceNativeExactEvidenceSession,
@@ -55,6 +64,12 @@ export type {
   ObjectOntStore,
   ReplayGraph,
   ReplayMetadataGraph,
+  ReplayIndexCheckpoint,
+  ReplayIndexCheckpointRead,
+  ReplayIndexCheckpointReceipt,
+  ReplayMetadataCheckpointSnapshot,
+  ReplayMetadataCheckpointWriteResult,
+  ReplayMetadataSnapshot,
 } from './object-ont-store.mjs';
 export {
   compileProofAuthorityProjection,
@@ -110,10 +125,12 @@ export type {
 } from './source-native-object-map.mjs';
 export {
   openSourceNativeObjectOntIndex,
+  openSourceNativeObjectOntRefIndex,
 } from './source-native-object-ont.mjs';
 export type {
   OpenSourceNativeObjectOntOptions,
   SourceNativeObjectOntIndex,
+  SourceNativeObjectOntRefIndex,
 } from './source-native-object-ont.mjs';
 export {
   compileSourceNativeAdmittedKnowledgeBundle,
