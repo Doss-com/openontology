@@ -212,6 +212,7 @@ export function openSourceNativeCurrentFieldResolver({
     let seedSourceMessageIds: number[] = [];
     let policyPreferredSeedSourceMessageIds: number[] = [];
     let seedSearchReceiptSha256 = null;
+    let seedSearchNetworkCalls = 0;
     let rawSeedSearchExecuted = false;
     let state = queryPlan.state;
     let currentFieldChronology: SourceNativeCurrentFieldChronologyVerification | null = null;
@@ -252,6 +253,7 @@ export function openSourceNativeCurrentFieldResolver({
         policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows
           .map((row) => row.sourceMessageId);
         seedSearchReceiptSha256 = seedSearch.receiptSha256;
+        seedSearchNetworkCalls = seedSearch.networkCalls;
         rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
         resolution = resolveSourceNativeField({
           sourceNativeObjectMap: map,
@@ -354,6 +356,7 @@ export function openSourceNativeCurrentFieldResolver({
         policyPreferredSeedSourceMessageIds,
         searchPolicyArtifactSha256: seedPolicyBinding.searchPolicyArtifactSha256,
         rawSeedSearchExecuted,
+        seedSearchNetworkCalls,
         learnedRouteUsed: learnedRouteMatchesIdentity({
           map,
           handleById,
@@ -377,7 +380,7 @@ export function openSourceNativeCurrentFieldResolver({
       candidateQuestionReads: 1,
       candidateGoldReads: 0,
       modelCalls: 0,
-      networkCalls: 0,
+      networkCalls: seedSearchNetworkCalls,
       targetLeakage: false,
       navigationOnly: true,
       exactInspectRequired: true,
@@ -492,6 +495,7 @@ export function openSourceNativeHistoricalFieldResolver({
     let policyPreferredSeedSourceMessageIds: number[] = [];
     let anchorSourceMessageIds: number[] = [];
     let seedSearchReceiptSha256 = null;
+    let seedSearchNetworkCalls = 0;
     let rawSeedSearchExecuted = false;
     let searchPath = null;
     let state = queryPlan.state;
@@ -515,6 +519,7 @@ export function openSourceNativeHistoricalFieldResolver({
       policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows
         .map((row) => row.sourceMessageId);
       seedSearchReceiptSha256 = seedSearch.receiptSha256;
+      seedSearchNetworkCalls = seedSearch.networkCalls;
       rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
       selectionLabel = [resolvedQuery.sourceSystem, resolvedQuery.objectType,
         resolvedQuery.externalId, resolvedQuery.fieldPath, 'next recorded revision']
@@ -644,6 +649,7 @@ export function openSourceNativeHistoricalFieldResolver({
         policyPreferredSeedSourceMessageIds,
         searchPolicyArtifactSha256: seedPolicyBinding.searchPolicyArtifactSha256,
         rawSeedSearchExecuted,
+        seedSearchNetworkCalls,
         learnedRouteUsed: learnedRouteMatchesIdentity({
           map,
           handleById,
@@ -666,7 +672,7 @@ export function openSourceNativeHistoricalFieldResolver({
       candidateQuestionReads: 1,
       candidateGoldReads: 0,
       modelCalls: 0,
-      networkCalls: 0,
+      networkCalls: seedSearchNetworkCalls,
       targetLeakage: false,
       navigationOnly: true,
       exactInspectRequired: true,

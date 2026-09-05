@@ -8,7 +8,12 @@ import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import { openOntology } from '../dist/src/openontology.mjs';
-import { buildSourceNativeProduct, openSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+import {
+  buildSourceNativeProduct,
+  openSourceNativeProduct,
+  openSourceNativeProductRuntime,
+} from '../dist/src/source-native-product.mjs';
+import { stableObjectSha256 } from '../dist/src/canonical-content.mjs';
 import {
   openExactProductArtifactState,
   openProductState,
@@ -260,6 +265,183 @@ function buildSemanticContextBudgetInput({ counterevidenceCount = 64,
   };
 }
 
+function hostedSeedSearchAdapter(context, {
+  declaration = 8,
+  networkCalls = 2,
+  receiptNetworkCalls = networkCalls,
+  networkCallsForQuestion = null,
+  omitReceiptNetworkCalls = false,
+  mutateReceiptHash = false,
+  delayMs = 0,
+  beforeResponse = null,
+} = {}) {
+  const { session } = context;
+  const responseFor = (question) => {
+    const observedNetworkCalls = typeof networkCallsForQuestion === 'function'
+      ? networkCallsForQuestion(question) : receiptNetworkCalls;
+    const rows = session.sourceHandles.map((handle, index) => ({
+      rank: index + 1,
+      sourceMessageId: handle.sourceMessageId,
+      relativePath: handle.relativePath,
+    }));
+    const responseCore = {
+      kind: 'OpenOntologySourceNativeSeedSearchResultV1',
+      sourceCommitSha256: session.sourceCommitSha256,
+      sourceReplaySha256: session.sourceReplaySha256,
+      sourceSearchRouteMapSha256: session.sourceSearchRouteMapSha256,
+      sourceHandleSetSha256: session.sourceHandleSetSha256,
+      query: question,
+      rows,
+    };
+    const response = { ...responseCore, resultSha256: stableObjectSha256(responseCore) };
+    const receiptCore = {
+      commitSha256: session.sourceCommitSha256,
+      replaySha256: session.sourceReplaySha256,
+      ...(omitReceiptNetworkCalls ? {} : { networkCalls: observedNetworkCalls }),
+    };
+    const receipt = {
+      ...receiptCore,
+      receiptSha256: mutateReceiptHash
+        ? stableObjectSha256({ ...receiptCore, networkCalls: observedNetworkCalls + 1 })
+        : stableObjectSha256(receiptCore),
+    };
+    return { response, receipt };
+  };
+  return {
+    kind: 'OpenOntologySourceNativeSeedSearchAdapterV1',
+    sourceCommitSha256: session.sourceCommitSha256,
+    sourceReplaySha256: session.sourceReplaySha256,
+    sourceSearchRouteMapSha256: session.sourceSearchRouteMapSha256,
+    sourceHandleSetSha256: session.sourceHandleSetSha256,
+    modelCalls: 0,
+    networkCalls: declaration,
+    search: async ({ query }) => {
+      if (typeof beforeResponse === 'function') await beforeResponse(query);
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return responseFor(query);
+    },
+  };
+}
+
+test('accounts hosted seed-search calls in current and immediate successor Resolver results', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-hosted-accounting-'));
+  const resolutions = [];
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    let runtimeContext;
+    const product = openSourceNativeProductRuntime({ artifactRoot: root }, (context) => {
+      runtimeContext = context;
+      return {
+        seedSearchAdapter: hostedSeedSearchAdapter(context, { declaration: 8, networkCalls: 2 }),
+        recordSearch: ({ resolution }) => { if (resolution) resolutions.push(resolution); },
+      };
+    });
+    assert.ok(runtimeContext);
+
+    const current = await product.search({
+      question: 'What is the current task title for task-1?',
+    });
+    assert.equal(current.state, 'resolved-current-field');
+    assert.equal(resolutions[0].networkCalls, 2);
+    assert.equal(current.verification.navigationProposals.seedSearchNetworkCalls, 2);
+
+    const next = await product.search({
+      question: 'What task title immediately followed Alpha for task-1?',
+      intent: 'next',
+    });
+    assert.equal(next.state, 'resolved-next-field-revision');
+    assert.equal(resolutions[1].networkCalls, 2);
+    assert.equal(next.verification.navigationProposals.seedSearchNetworkCalls, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects malformed or over-declared hosted seed-search network counts', async () => {
+  const cases = [
+    { declaration: -1, networkCalls: 0, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_ADAPTER' },
+    { declaration: 1.5, networkCalls: 0, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_ADAPTER' },
+    { declaration: '1', networkCalls: 0, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_ADAPTER' },
+    { declaration: 1001, networkCalls: 0, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_ADAPTER' },
+    { declaration: 4, receiptNetworkCalls: -1, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 4, receiptNetworkCalls: 1.5, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 4, receiptNetworkCalls: '1', expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+    { declaration: 4, receiptNetworkCalls: 5, expectedCode: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' },
+  ];
+  for (const adapterOptions of cases) {
+    const root = mkdtempSync(join(tmpdir(), 'oont-source-native-hosted-accounting-invalid-'));
+    try {
+      buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+      const product = openSourceNativeProductRuntime({ artifactRoot: root }, (context) => ({
+        seedSearchAdapter: hostedSeedSearchAdapter(context, adapterOptions),
+      }));
+      await assert.rejects(product.search({
+        question: 'What is the current task title for task-1?',
+      }), { code: adapterOptions.expectedCode });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('requires an explicit receipt count for a hosted seed-search declaration', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-hosted-accounting-missing-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const product = openSourceNativeProductRuntime({ artifactRoot: root }, (context) => ({
+      seedSearchAdapter: hostedSeedSearchAdapter(context, {
+        declaration: 4,
+        networkCalls: 2,
+        omitReceiptNetworkCalls: true,
+      }),
+    }));
+    await assert.rejects(product.search({
+      question: 'What is the current task title for task-1?',
+    }), { code: 'SOURCE_NATIVE_SEED_SEARCH_RESULT' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('keeps overlapping hosted seed-search counts request-local', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-hosted-accounting-overlap-'));
+  const records = [];
+  let entered = 0;
+  let release;
+  const bothSearchesEntered = new Promise((resolve) => { release = resolve; });
+  const beforeResponse = async () => {
+    entered += 1;
+    if (entered === 2) release();
+    await bothSearchesEntered;
+  };
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const product = openSourceNativeProductRuntime({ artifactRoot: root }, (context) => ({
+      seedSearchAdapter: hostedSeedSearchAdapter(context, {
+        declaration: 8,
+        networkCallsForQuestion: (question) => question.includes('Alpha') ? 5 : 2,
+        beforeResponse,
+      }),
+      recordSearch: ({ question, resolution }) => {
+        if (resolution) records.push({ question, resolution });
+      },
+    }));
+    const [current, next] = await Promise.all([
+      product.search({ question: 'What is the current task title for task-1?' }),
+      product.search({
+        question: 'What task title immediately followed Alpha for task-1?',
+        intent: 'next',
+      }),
+    ]);
+    assert.equal(current.verification.navigationProposals.seedSearchNetworkCalls, 2);
+    assert.equal(next.verification.navigationProposals.seedSearchNetworkCalls, 5);
+    assert.equal(records.find((row) => row.question.includes('current')).resolution.networkCalls, 2);
+    assert.equal(records.find((row) => row.question.includes('Alpha')).resolution.networkCalls, 5);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('builds, reopens, searches, reads, and verifies an immutable source-native product artifact', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-'));
   try {
@@ -313,6 +495,7 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     assert.equal(resolvedContext.verification.navigationProposals.state, 'raw-only');
     assert.equal(resolvedContext.verification.navigationProposals.learnedRouteUsed, false);
     assert.equal(resolvedContext.verification.navigationProposals.rawSearchExecuted, true);
+    assert.equal(resolvedContext.verification.navigationProposals.seedSearchNetworkCalls, 0);
     assert.equal(Object.hasOwn(resolvedContext, 'proofDisposition'), false);
     assert.equal(Object.hasOwn(resolvedContext, 'learning'), false);
     assert.match(resolvedContext.verificationSha256, /^sha256:[0-9a-f]{64}$/u);
@@ -352,6 +535,7 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
       intent: 'next',
     });
     assert.equal(next.state, 'resolved-next-field-revision');
+    assert.equal(next.verification.navigationProposals.seedSearchNetworkCalls, 0);
     assert.equal(next.matches.length, 2);
     assert.ok(next.verification.searchPathSha256);
     assert.equal(JSON.stringify(next).includes('Beta'), false);
@@ -599,6 +783,7 @@ test('certifies a typed object identity as absent only from the complete bound s
     assert.equal(absent.verification.navigationProposals.state, 'not-run');
     assert.equal(absent.verification.navigationProposals.rawSearchExecuted, false);
     assert.equal(absent.verification.navigationProposals.rawProposalCount, 0);
+    assert.equal(absent.verification.navigationProposals.seedSearchNetworkCalls, 0);
     assert.match(absent.verification.absenceReceipt.censusSha256, /^sha256:[0-9a-f]{64}$/u);
     assert.match(absent.verification.absenceReceipt.sourceCatalogSha256,
       /^sha256:[0-9a-f]{64}$/u);
