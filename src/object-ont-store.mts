@@ -139,6 +139,55 @@ export interface ReplayMetadataGraph {
   payloadBlobBytesValidated: boolean;
 }
 
+export interface ReplayIndexCheckpoint {
+  schemaVersion: 1;
+  kind: 'OpenOntologyObjectReplayIndexCheckpointV1';
+  replayIdentity: Record<string, unknown>;
+  manifestDescriptor: BlobDescriptor;
+  blobDescriptors: BlobDescriptor[];
+  checkpointSha256: string;
+}
+
+export interface ReplayIndexCheckpointReceipt {
+  schemaVersion: 1;
+  kind: 'OpenOntologyObjectReplayIndexCheckpointReceiptV1';
+  key: string;
+  checkpointSha256: string;
+  replaySha256: string;
+  tipCommitSha256: string;
+  bytesSha256: string;
+  byteLength: number;
+  replayed: boolean;
+}
+
+export interface ReplayIndexCheckpointRead {
+  checkpoint: ReplayIndexCheckpoint;
+  replayMetadata: ReplayMetadataGraph;
+  key: string;
+  version: string;
+  checksumSha256: string;
+  byteLength: number;
+}
+
+export interface ReplayMetadataCheckpointWriteResult {
+  ref: BranchRef;
+  version: string;
+  previousVersion?: string | null;
+  key: string;
+  replayMetadata: ReplayMetadataGraph;
+  replayMetadataSource: 'graph';
+  replayIndexCheckpointSha256: string;
+  replayIndexCheckpointByteLength: number;
+}
+
+export interface RefWriteResult {
+  ref: BranchRef;
+  version: string;
+  previousVersion?: string | null;
+  key: string;
+  [key: string]: unknown;
+}
+
 interface MergePlanBase {
   schemaVersion: 1;
   kind: 'OpenOntologyMergePlanV1';
@@ -197,15 +246,34 @@ export interface ObjectOntStore {
   merge(input: { leftCommitSha256: string; rightCommitSha256: string }): Record<string, unknown>;
   readRef(input: { ontId: string; branch: string }): RefReadResult | null;
   readRefMetadata(input: { ontId: string; branch: string }): RefReadResult | null;
-  compareAndSwapRef(input: RefUpdateInput): Record<string, unknown>;
-  compareAndSwapRefMetadata(input: RefUpdateInput): Record<string, unknown>;
+  readRefMetadataSnapshot(input: { ontId: string; branch: string }): ReplayMetadataSnapshot | null;
+  readRefMetadataCheckpointSnapshot(input: { ontId: string; branch: string }): ReplayMetadataCheckpointSnapshot | null;
+  writeReplayIndexCheckpoint(replayMetadata: ReplayMetadataGraph): ReplayIndexCheckpointReceipt;
+  readReplayIndexCheckpoint(input: {
+    ontId: string;
+    tipCommitSha256: string;
+    replaySha256: string;
+  }): ReplayIndexCheckpointRead | null;
+  compareAndSwapRef(input: RefUpdateInput): RefWriteResult;
+  compareAndSwapRefMetadata(input: RefUpdateInput): RefWriteResult;
+  compareAndSwapRefMetadataCheckpointed(input: RefUpdateInput): ReplayMetadataCheckpointWriteResult;
 }
 
-interface RefReadResult {
+export interface RefReadResult {
   ref: BranchRef;
   version: string;
   key: string;
   checksumSha256: string;
+}
+
+export interface ReplayMetadataSnapshot extends RefReadResult {
+  replayMetadata: ReplayMetadataGraph;
+}
+
+export interface ReplayMetadataCheckpointSnapshot extends ReplayMetadataSnapshot {
+  replayMetadataSource: 'graph' | 'checkpoint';
+  replayIndexCheckpointSha256: string | null;
+  replayIndexCheckpointByteLength: number | null;
 }
 
 interface RefUpdateInput {
@@ -384,6 +452,118 @@ function refKey(ontId: string, branch: string): string {
   return `refs/${validateIdentity(ontId, 'OBJECT_ONT_REF')}/${validateIdentity(branch, 'OBJECT_ONT_REF')}.json`;
 }
 
+function replayIndexKey(replaySha256: string): string {
+  return `replay-indexes/sha256/${validateSha256(
+    replaySha256,
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  ).slice(7)}.json`;
+}
+
+function validateReplayIndexCheckpoint(value: unknown, {
+  ontId,
+  tipCommitSha256,
+  replaySha256,
+}: {
+  ontId?: string;
+  tipCommitSha256?: string;
+  replaySha256?: string;
+} = {}): ReplayIndexCheckpoint {
+  exactKeys(value, [
+    'schemaVersion', 'kind', 'replayIdentity', 'manifestDescriptor',
+    'blobDescriptors', 'checkpointSha256',
+  ], 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  const checkpoint = value as ReplayIndexCheckpoint;
+  const { checkpointSha256, ...core } = checkpoint;
+  const replay = checkpoint.replayIdentity;
+  exactKeys(replay, [
+    'schemaVersion', 'kind', 'ontId', 'tipCommitSha256', 'ontManifestSha256',
+    'commitOrder', 'segmentKeys', 'blobKeys', 'assertionRows', 'conflicts',
+  ], 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  const replayRecord = replay as Record<string, unknown>;
+  const commitOrder = replayRecord.commitOrder;
+  const segmentKeys = replayRecord.segmentKeys;
+  const blobKeys = replayRecord.blobKeys;
+  const assertionRows = replayRecord.assertionRows;
+  const conflicts = replayRecord.conflicts;
+  const ontManifestSha256 = replayRecord.ontManifestSha256;
+  if (checkpoint.schemaVersion !== 1
+    || checkpoint.kind !== 'OpenOntologyObjectReplayIndexCheckpointV1'
+    || !SHA256.test(checkpointSha256 ?? '')
+    || stableObjectSha256(core) !== checkpointSha256
+    || replayRecord.schemaVersion !== 1
+    || replayRecord.kind !== 'OpenOntologyObjectReplayV1'
+    || validateIdentity(replayRecord.ontId, 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT') !== ontId
+    || replayRecord.tipCommitSha256 !== tipCommitSha256
+    || stableObjectSha256(replay) !== replaySha256
+    || typeof ontManifestSha256 !== 'string' || !SHA256.test(ontManifestSha256)
+    || !Array.isArray(commitOrder) || commitOrder.length < 1
+    || commitOrder.at(-1) !== tipCommitSha256
+    || new Set(commitOrder).size !== commitOrder.length
+    || commitOrder.some((commit) => typeof commit !== 'string' || !SHA256.test(commit))
+    || !Array.isArray(segmentKeys) || segmentKeys.length !== 0
+    || !Array.isArray(blobKeys)
+    || blobKeys.some((key) => typeof key !== 'string')
+    || stableObjectText([...blobKeys].sort(compare)) !== stableObjectText(blobKeys)
+    || !Array.isArray(assertionRows) || assertionRows.length !== 0
+    || !Array.isArray(conflicts) || conflicts.length !== 0) {
+    fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  }
+  const blobKeysValue = blobKeys as unknown[];
+  const manifestDescriptor = clone(validateBlobDescriptor(
+    checkpoint.manifestDescriptor,
+    { manifest: true },
+  ));
+  const blobDescriptors = canonicalDescriptors(
+    checkpoint.blobDescriptors,
+    (row) => validateBlobDescriptor(row),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
+  if (manifestDescriptor.storedSha256 !== ontManifestSha256
+    || stableObjectText(blobDescriptors) !== stableObjectText(checkpoint.blobDescriptors)
+    || stableObjectText(blobDescriptors.map((row) => row.key).sort(compare))
+      !== stableObjectText(blobKeysValue)) {
+    fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  }
+  return freeze(clone(checkpoint));
+}
+
+function replayMetadataFromIndexCheckpoint(checkpoint: ReplayIndexCheckpoint): ReplayMetadataGraph {
+  const replayIdentity = clone(checkpoint.replayIdentity);
+  const identity = replayIdentity as {
+    ontId: string;
+    tipCommitSha256: string;
+    ontManifestSha256: string;
+    commitOrder: string[];
+    segmentKeys: string[];
+    blobKeys: string[];
+    assertionRows: Array<{ assertionId: string; lineSha256s: string[] }>;
+    conflicts: ReplayConflict[];
+  };
+  return freeze({
+    schemaVersion: 1,
+    kind: 'OpenOntologyObjectReplayMetadataV1',
+    replayIdentity: freeze(replayIdentity),
+    ontId: identity.ontId,
+    tipCommitSha256: identity.tipCommitSha256,
+    ontManifestSha256: identity.ontManifestSha256,
+    commitOrder: freeze([...identity.commitOrder]),
+    segmentKeys: freeze([...identity.segmentKeys]),
+    blobKeys: freeze([...identity.blobKeys]),
+    assertionRows: freeze(clone(identity.assertionRows)),
+    conflicts: freeze(clone(identity.conflicts)),
+    status: 'CLEAN',
+    replaySha256: stableObjectSha256(replayIdentity),
+    manifestDescriptor: freeze(clone(checkpoint.manifestDescriptor)),
+    segmentDescriptors: freeze([]),
+    blobDescriptors: freeze(clone(checkpoint.blobDescriptors)),
+    segments: freeze([]),
+    ledgerFiles: freeze([]),
+    entries: freeze([]),
+    blobBytesLoaded: 0,
+    payloadBlobBytesValidated: false,
+  });
+}
+
 function validateRef(value: unknown, { ontId, branch }: { ontId?: string; branch?: string } = {}): BranchRef {
   const ref = value as BranchRef;
   exactKeys(value, [
@@ -537,23 +717,154 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     return freeze({ commitSha256, key, byteLength: result.bytes.length, commit });
   };
 
+  const writeReplayIndexCheckpoint = (replayMetadata: ReplayMetadataGraph): ReplayIndexCheckpointReceipt => {
+    if (replayMetadata?.kind !== 'OpenOntologyObjectReplayMetadataV1'
+      || replayMetadata.status !== 'CLEAN'
+      || !Array.isArray(replayMetadata.segmentKeys)
+      || replayMetadata.segmentKeys.length !== 0) {
+      fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_ELIGIBILITY');
+    }
+    const core = {
+      schemaVersion: 1 as const,
+      kind: 'OpenOntologyObjectReplayIndexCheckpointV1' as const,
+      replayIdentity: clone(replayMetadata.replayIdentity),
+      manifestDescriptor: clone(replayMetadata.manifestDescriptor),
+      blobDescriptors: clone(replayMetadata.blobDescriptors),
+    };
+    const checkpoint = validateReplayIndexCheckpoint({
+      ...core,
+      checkpointSha256: stableObjectSha256(core),
+    }, {
+      ontId: replayMetadata.ontId,
+      tipCommitSha256: replayMetadata.tipCommitSha256,
+      replaySha256: replayMetadata.replaySha256,
+    });
+    const bytes = Buffer.from(stableObjectText(checkpoint));
+    const key = replayIndexKey(replayMetadata.replaySha256);
+    const write = backend.putIfAbsent(key, bytes);
+    const bytesSha256 = objectBytesSha256(bytes);
+    if (write.key !== key || write.checksumSha256 !== bytesSha256 || write.byteLength !== bytes.length) {
+      fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_WRITE');
+    }
+    return freeze({
+      schemaVersion: 1,
+      kind: 'OpenOntologyObjectReplayIndexCheckpointReceiptV1',
+      key,
+      checkpointSha256: checkpoint.checkpointSha256,
+      replaySha256: replayMetadata.replaySha256,
+      tipCommitSha256: replayMetadata.tipCommitSha256,
+      bytesSha256,
+      byteLength: bytes.length,
+      replayed: write.replayed === true,
+    });
+  };
+
+  const readReplayIndexCheckpoint = ({
+    ontId,
+    tipCommitSha256,
+    replaySha256,
+  }: {
+    ontId: string;
+    tipCommitSha256: string;
+    replaySha256: string;
+  }): ReplayIndexCheckpointRead | null => {
+    const key = replayIndexKey(replaySha256);
+    if (backend.head(key) === null) return null;
+    const result = backend.get(key);
+    if (result.key !== key || result.byteLength !== result.bytes.length
+      || result.checksumSha256 !== objectBytesSha256(result.bytes)) {
+      fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ');
+    }
+    let value: unknown;
+    try { value = JSON.parse(result.bytes.toString('utf8')); } catch {
+      fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ');
+    }
+    if (!result.bytes.equals(Buffer.from(stableObjectText(value as object)))) {
+      fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ');
+    }
+    const checkpoint = validateReplayIndexCheckpoint(value, {
+      ontId,
+      tipCommitSha256,
+      replaySha256,
+    });
+    const tip = readCommit(tipCommitSha256);
+    if (tip.commit.ontId !== ontId
+      || stableObjectText(tip.commit.ontManifest)
+        !== stableObjectText(checkpoint.manifestDescriptor)) {
+      fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+    }
+    return freeze({
+      checkpoint,
+      replayMetadata: replayMetadataFromIndexCheckpoint(checkpoint),
+      key,
+      version: result.version,
+      checksumSha256: result.checksumSha256,
+      byteLength: result.bytes.length,
+    });
+  };
+
+  const readRefRecord = ({ ontId, branch }: { ontId: string; branch: string }): RefReadResult | null => {
+    const key = refKey(ontId, branch);
+    if (backend.head(key) === null) return null;
+    const result = backend.get(key);
+    let ref: unknown;
+    try { ref = JSON.parse(result.bytes.toString('utf8')); } catch { fail('OBJECT_ONT_REF_READ'); }
+    validateRef(ref, { ontId, branch });
+    if (!result.bytes.equals(Buffer.from(stableObjectText(ref as object)))) fail('OBJECT_ONT_REF_READ');
+    return freeze({
+      ref: clone(ref as BranchRef),
+      version: result.version,
+      key,
+      checksumSha256: result.checksumSha256,
+    });
+  };
+
   const readRefWith = ({ ontId, branch }: { ontId: string; branch: string }, replayReader: (
     tipCommitSha256: string,
     virtualCommits?: Map<string, CommitRecord>,
   ) => ReplayGraph | ReplayMetadataGraph): RefReadResult | null => {
-    const key = refKey(ontId, branch);
-    if (backend.head(key) === null) return null;
-    const result = backend.get(key);
-    let ref;
-    try { ref = JSON.parse(result.bytes.toString('utf8')); } catch { fail('OBJECT_ONT_REF_READ'); }
-    validateRef(ref, { ontId, branch });
-    if (!result.bytes.equals(Buffer.from(stableObjectText(ref)))) fail('OBJECT_ONT_REF_READ');
-    const replay = replayReader(ref.commitSha256);
-    if (replay.status !== ref.replayStatus || replay.replaySha256 !== ref.replaySha256) fail('OBJECT_ONT_REF_READ');
-    return freeze({ ref: clone(ref), version: result.version, key, checksumSha256: result.checksumSha256 });
+    const result = readRefRecord({ ontId, branch });
+    if (result === null) return null;
+    const replay = replayReader(result.ref.commitSha256);
+    if (replay.status !== result.ref.replayStatus || replay.replaySha256 !== result.ref.replaySha256) fail('OBJECT_ONT_REF_READ');
+    return result;
   };
   const readRef = (input: { ontId: string; branch: string }): RefReadResult | null => readRefWith(input, replayGraph);
   const readRefMetadata = (input: { ontId: string; branch: string }): RefReadResult | null => readRefWith(input, replayMetadataGraph);
+  const readRefMetadataSnapshot = (input: { ontId: string; branch: string }): ReplayMetadataSnapshot | null => {
+    let replayMetadata: ReplayMetadataGraph | null = null;
+    const result = readRefWith(input, (tipCommitSha256) => {
+      replayMetadata = replayMetadataGraph(tipCommitSha256);
+      return replayMetadata;
+    });
+    return result === null || replayMetadata === null
+      ? null
+      : freeze({ ...result, replayMetadata });
+  };
+  const readRefMetadataCheckpointSnapshot = (
+    input: { ontId: string; branch: string },
+  ): ReplayMetadataCheckpointSnapshot | null => {
+    const result = readRefRecord(input);
+    if (result === null) return null;
+    const indexed = readReplayIndexCheckpoint({
+      ontId: result.ref.ontId,
+      tipCommitSha256: result.ref.commitSha256,
+      replaySha256: result.ref.replaySha256,
+    });
+    const replayMetadata = indexed?.replayMetadata
+      ?? replayMetadataGraph(result.ref.commitSha256);
+    if (replayMetadata.status !== result.ref.replayStatus
+      || replayMetadata.replaySha256 !== result.ref.replaySha256) {
+      fail('OBJECT_ONT_REF_READ');
+    }
+    return freeze({
+      ...result,
+      replayMetadata,
+      replayMetadataSource: indexed === null ? 'graph' : 'checkpoint',
+      replayIndexCheckpointSha256: indexed?.checkpoint.checkpointSha256 ?? null,
+      replayIndexCheckpointByteLength: indexed?.byteLength ?? null,
+    });
+  };
 
   const loadGraph = (tipCommitSha256: string, virtualCommits: Map<string, CommitRecord> = new Map()): {
     commits: Map<string, CommitRecord>;
@@ -564,17 +875,27 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     const commits = new Map<string, CommitRecord>();
     const visiting = new Set<string>();
     const order: string[] = [];
-    const visit = (commitSha256: string): void => {
-      if (commits.has(commitSha256)) return;
-      if (visiting.has(commitSha256)) fail('OBJECT_ONT_COMMIT_CYCLE');
-      visiting.add(commitSha256);
-      const record = virtualCommits.get(commitSha256) ?? readCommit(commitSha256);
-      for (const parent of record.commit.parents) visit(parent);
-      visiting.delete(commitSha256);
-      commits.set(commitSha256, record);
-      order.push(commitSha256);
-    };
-    visit(tipCommitSha256);
+    const stack: Array<{ commitSha256: string; record: CommitRecord | null }> = [{
+      commitSha256: tipCommitSha256,
+      record: null,
+    }];
+    while (stack.length) {
+      const frame = stack.pop() as { commitSha256: string; record: CommitRecord | null };
+      if (frame.record !== null) {
+        visiting.delete(frame.commitSha256);
+        commits.set(frame.commitSha256, frame.record);
+        order.push(frame.commitSha256);
+        continue;
+      }
+      if (commits.has(frame.commitSha256)) continue;
+      if (visiting.has(frame.commitSha256)) fail('OBJECT_ONT_COMMIT_CYCLE');
+      visiting.add(frame.commitSha256);
+      const record = virtualCommits.get(frame.commitSha256) ?? readCommit(frame.commitSha256);
+      stack.push({ commitSha256: frame.commitSha256, record });
+      for (let index = record.commit.parents.length - 1; index >= 0; index -= 1) {
+        stack.push({ commitSha256: record.commit.parents[index], record: null });
+      }
+    }
     const ontIds = new Set([...commits.values()].map((record) => record.commit.ontId));
     if (ontIds.size !== 1) fail('OBJECT_ONT_GRAPH_SCOPE');
     return { commits, order, ontId: [...ontIds][0] };
@@ -933,7 +1254,7 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
   }, replayReader: (
     tipCommitSha256: string,
     virtualCommits?: Map<string, CommitRecord>,
-  ) => ReplayGraph | ReplayMetadataGraph): Record<string, unknown> => {
+  ) => ReplayGraph | ReplayMetadataGraph): RefWriteResult => {
     const commit = readCommit(commitSha256);
     if (commit.commit.ontId !== ontId) fail('OBJECT_ONT_REF_SCOPE');
     const replay = replayReader(commitSha256);
@@ -953,10 +1274,31 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     });
     return freeze({ ref: clone(ref), version: result.version, previousVersion: result.previousVersion, key: refKey(ontId, branch) });
   };
-  const compareAndSwapRef = (input: RefUpdateInput): Record<string, unknown> =>
+  const compareAndSwapRef = (input: RefUpdateInput): RefWriteResult =>
     compareAndSwapRefWith(input, replayGraph);
-  const compareAndSwapRefMetadata = (input: RefUpdateInput): Record<string, unknown> =>
+  const compareAndSwapRefMetadata = (input: RefUpdateInput): RefWriteResult =>
     compareAndSwapRefWith(input, replayMetadataGraph);
+  const compareAndSwapRefMetadataCheckpointed = (
+    input: RefUpdateInput,
+  ): ReplayMetadataCheckpointWriteResult => {
+    let replayMetadata: ReplayMetadataGraph | null = null;
+    let checkpoint: ReplayIndexCheckpointReceipt | null = null;
+    const ref = compareAndSwapRefWith(input, (tipCommitSha256) => {
+      replayMetadata = replayMetadataGraph(tipCommitSha256);
+      checkpoint = writeReplayIndexCheckpoint(replayMetadata as ReplayMetadataGraph);
+      return replayMetadata as ReplayMetadataGraph;
+    });
+    if (replayMetadata === null || checkpoint === null) return fail('OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+    const replayMetadataValue = replayMetadata as ReplayMetadataGraph;
+    const checkpointValue = checkpoint as ReplayIndexCheckpointReceipt;
+    return freeze({
+      ...ref,
+      replayMetadata: replayMetadataValue,
+      replayMetadataSource: 'graph',
+      replayIndexCheckpointSha256: checkpointValue.checkpointSha256,
+      replayIndexCheckpointByteLength: checkpointValue.byteLength,
+    });
+  };
 
   return freeze({
     backendCapabilities: clone(backend.capabilities),
@@ -975,7 +1317,12 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     merge,
     readRef,
     readRefMetadata,
+    readRefMetadataSnapshot,
+    readRefMetadataCheckpointSnapshot,
+    writeReplayIndexCheckpoint,
+    readReplayIndexCheckpoint,
     compareAndSwapRef,
     compareAndSwapRefMetadata,
+    compareAndSwapRefMetadataCheckpointed,
   });
 }
