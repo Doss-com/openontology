@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +9,10 @@ import { pathToFileURL } from 'node:url';
 
 import { openOntology } from '../dist/src/openontology.mjs';
 import { buildSourceNativeProduct, openSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+import {
+  openExactProductArtifactState,
+  openProductState,
+} from '../dist/src/source-native-artifact.mjs';
 
 const resolverCli = join(import.meta.dirname, '..', 'dist', 'scripts', 'oont-resolver.mjs');
 const publicCli = join(import.meta.dirname, '..', 'dist', 'bin', 'oont.mjs');
@@ -397,6 +402,41 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     await assert.rejects(reopened.read({ ref: current.matches[0].ref }), {
       code: 'SOURCE_NATIVE_PRODUCT_READ',
     });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('materialization checkpoints the source ref before product opens', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-checkpoint-'));
+  try {
+    const built = buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const ordinary = openProductState({ artifactRoot: root });
+    const exact = openExactProductArtifactState({ artifactRoot: root });
+    assert.equal(ordinary.replayMetadataSource, 'checkpoint');
+    assert.equal(exact.replayMetadataSource, 'checkpoint');
+    assert.match(ordinary.replayIndexCheckpointSha256, /^sha256:[0-9a-f]{64}$/u);
+    assert.equal(exact.replayIndexCheckpointSha256, ordinary.replayIndexCheckpointSha256);
+    assert.equal(ordinary.objectOnt.commitSha256, built.receipt.commitSha256);
+    assert.equal(exact.objectOnt.commitSha256, built.receipt.commitSha256);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('product opens fall back to graph replay when its checkpoint is absent', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-graph-fallback-'));
+  try {
+    const built = buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const key = `replay-indexes/sha256/${built.receipt.replaySha256.slice(7)}.json`;
+    const keyHash = createHash('sha256').update(key).digest('hex');
+    const checkpointPath = join(
+      root, 'objects', 'objects', keyHash.slice(0, 2), `${keyHash.slice(2)}.json`,
+    );
+    assert.equal(existsSync(checkpointPath), true);
+    rmSync(checkpointPath);
+    assert.equal(openProductState({ artifactRoot: root }).replayMetadataSource, 'graph');
+    assert.equal(openExactProductArtifactState({ artifactRoot: root }).replayMetadataSource, 'graph');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -21,8 +21,9 @@ import {
 import { openObjectOntStore } from './object-ont-store.mjs';
 import {
   materializeSourceNativeObjectOnt,
-  openSourceNativeObjectOnt,
+  openSourceNativeObjectOntAtCut,
   openSourceNativeObjectOntIndex,
+  openSourceNativeObjectOntRefAtCut,
   openSourceNativeObjectOntRefIndex,
 } from './source-native-object-ont.mjs';
 import { compileSourceNativeObjectMap } from './source-native-object-map.mjs';
@@ -629,30 +630,61 @@ function openProductArtifactState({ artifactRoot, objectBackendUri = null,
   });
   const { backend } = selectedBackend;
   const store = openObjectOntStore({ backend });
+  let objectOnt: ReturnType<typeof openSourceNativeObjectOntAtCut>['objectOnt'];
+  let replayMetadataSource: 'graph' | 'checkpoint';
+  let replayIndexCheckpointSha256: string | null;
+  let replayIndexCheckpointByteLength: number | null;
   if (requireCurrentRef) {
-    const ref = store.readRefMetadata({ ontId: descriptor.ontId, branch: descriptor.branch });
-    if (ref === null || ref.ref.commitSha256 !== descriptor.sourceCommitSha256
-      || ref.ref.replaySha256 !== descriptor.sourceReplaySha256) fail('SOURCE_NATIVE_PRODUCT_REF');
+    const selectedCut = openSourceNativeObjectOntRefAtCut({
+      backend,
+      ontId: descriptor.ontId,
+      branch: descriptor.branch,
+      expectedCommitSha256: descriptor.sourceCommitSha256,
+      expectedReplaySha256: descriptor.sourceReplaySha256,
+    });
+    if (selectedCut === null) {
+      fail('SOURCE_NATIVE_PRODUCT_REF');
+    }
+    const exactSelectedCut = selectedCut ?? fail('SOURCE_NATIVE_PRODUCT_REF');
+    objectOnt = exactSelectedCut.objectOnt;
+    replayMetadataSource = exactSelectedCut.replayMetadataSource;
+    replayIndexCheckpointSha256 = exactSelectedCut.replayIndexCheckpointSha256;
+    replayIndexCheckpointByteLength = exactSelectedCut.replayIndexCheckpointByteLength;
+  } else {
+    let selectedCut: ReturnType<typeof openSourceNativeObjectOntAtCut>;
+    try {
+      selectedCut = openSourceNativeObjectOntAtCut({
+        backend,
+        ontId: descriptor.ontId,
+        commitSha256: descriptor.sourceCommitSha256,
+        replaySha256: descriptor.sourceReplaySha256,
+      });
+    } catch (error: unknown) {
+      if (isRecord(error) && error.code === 'SOURCE_NATIVE_OBJECT_ONT_OPEN') {
+        fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
+      }
+      throw error;
+    }
+    objectOnt = selectedCut.objectOnt;
+    replayMetadataSource = selectedCut.replayMetadataSource;
+    replayIndexCheckpointSha256 = selectedCut.replayIndexCheckpointSha256;
+    replayIndexCheckpointByteLength = selectedCut.replayIndexCheckpointByteLength;
   }
-  const replay = store.replayMetadata(descriptor.sourceCommitSha256);
-  if (replay.ontId !== descriptor.ontId
-    || replay.tipCommitSha256 !== descriptor.sourceCommitSha256
-    || replay.status !== 'CLEAN'
-    || replay.conflicts.length !== 0
-    || replay.replaySha256 !== descriptor.sourceReplaySha256) {
-    fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
-  }
-  const objectOnt = openSourceNativeObjectOnt({
-    backend,
-    ontId: descriptor.ontId,
-    commitSha256: descriptor.sourceCommitSha256,
-  });
   if (objectOnt.replaySha256 !== descriptor.sourceReplaySha256
     || objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256
     || objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256) {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
-  return { descriptor, selectedBackend, backend, store, objectOnt, replayMetadataSource: 'graph' as const };
+  return {
+    descriptor,
+    selectedBackend,
+    backend,
+    store,
+    objectOnt,
+    replayMetadataSource,
+    replayIndexCheckpointSha256,
+    replayIndexCheckpointByteLength,
+  };
 }
 
 export function openProductState(options: ProductOptions = {}) {
