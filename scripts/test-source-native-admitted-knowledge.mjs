@@ -288,6 +288,170 @@ function createAdmittedFixture(root, {
   };
 }
 
+test('admitted opening preserves lifecycle extensions and status on a reuse hit', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-lifecycle-extension-'));
+  try {
+    const { question, trustRegistry } = createAdmittedFixture(root);
+    let factoryCalls = 0;
+    const product = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry },
+      (context) => {
+        factoryCalls += 1;
+        assert.equal(typeof context.prepareSearch, 'function');
+        return {
+          methods: { lifecycleProbe: () => 'preserved' },
+          status: () => ({ lifecycleState: 'ready' }),
+        };
+      },
+    );
+    assert.equal(factoryCalls, 1);
+    assert.equal(product.lifecycleProbe(), 'preserved');
+    const status = product.status();
+    assert.equal(status.lifecycleState, 'ready');
+    assert.equal(status.admittedKnowledge.state, 'ready');
+    const verification = await product.verify({ question });
+    assert.equal(verification.state, 'resolved-admitted-knowledge-proof-closure');
+    assert.equal(verification.verification.rawSearchCalls, 0);
+    const navigation = await product.search({ question });
+    assert.equal(navigation.kind, 'OpenOntologySourceNativeProductSearchResultV2');
+    assert.equal((await product.read({ ref: navigation.matches[0].ref })).exactText, 'Ready');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('admitted opening invokes lifecycle hooks on an ordinary verification miss', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-lifecycle-miss-'));
+  try {
+    const { trustRegistry } = createAdmittedFixture(root);
+    let beginSearchCalls = 0;
+    let recordSearchCalls = 0;
+    let verificationResultCalls = 0;
+    const product = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry },
+      () => ({
+        beginSearch: () => {
+          beginSearchCalls += 1;
+          return { lifecycleActivity: 'fresh' };
+        },
+        recordSearch: () => {
+          recordSearchCalls += 1;
+          return { lifecycleRecord: 'fresh' };
+        },
+        verificationResult: () => {
+          verificationResultCalls += 1;
+          return { lifecycleVerification: 'fresh' };
+        },
+      }),
+    );
+    const verification = await product.verify({
+      question: 'Please tell me the current issue status for issue-1.',
+    });
+    assert.equal(verification.kind, 'OpenOntologySourceNativeVerificationV1');
+    assert.equal(verification.state, 'resolved-current-field');
+    assert.equal(verification.answerable, true);
+    assert.equal(verification.lifecycleVerification, 'fresh');
+    assert.equal(beginSearchCalls, 1);
+    assert.equal(recordSearchCalls, 1);
+    assert.equal(verificationResultCalls, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an explicit investigation bypasses admitted reuse and records fresh work', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-lifecycle-investigation-'));
+  try {
+    const { question, trustRegistry } = createAdmittedFixture(root);
+    let beginSearchCalls = 0;
+    let recordSearchCalls = 0;
+    let verificationResultCalls = 0;
+    const product = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry },
+      () => ({
+        beginSearch: (_prepared, investigationId) => {
+          beginSearchCalls += 1;
+          assert.equal(investigationId, 'investigation-1');
+          return { lifecycleActivity: investigationId };
+        },
+        recordSearch: () => {
+          recordSearchCalls += 1;
+          return { lifecycleRecord: 'investigation-1' };
+        },
+        verificationResult: () => {
+          verificationResultCalls += 1;
+          return { lifecycleVerification: 'investigation-1' };
+        },
+      }),
+    );
+    const verification = await product.verify({
+      question,
+      investigationId: 'investigation-1',
+    });
+    assert.equal(verification.kind, 'OpenOntologySourceNativeVerificationV1');
+    assert.equal(verification.state, 'resolved-current-field');
+    assert.equal(verification.answerable, true);
+    assert.equal(verification.verification.navigationProposals.rawSearchExecuted, true);
+    assert.equal(verification.lifecycleVerification, 'investigation-1');
+    assert.equal(beginSearchCalls, 1);
+    assert.equal(recordSearchCalls, 1);
+    assert.equal(verificationResultCalls, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('admitted opening rejects a nonfunction lifecycle factory', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-lifecycle-invalid-factory-'));
+  try {
+    const { trustRegistry } = createAdmittedFixture(root);
+    assert.throws(() => openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry },
+      { notAFactory: true },
+    ), { code: 'SOURCE_NATIVE_PRODUCT_LIFECYCLE_ADAPTER' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('reviewer revocation falls back to ordinary lifecycle verification', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-lifecycle-revoked-reviewer-'));
+  try {
+    const { question, trustRegistry } = createAdmittedFixture(root);
+    let beginSearchCalls = 0;
+    let recordSearchCalls = 0;
+    const revokedTrustRegistry = trustRegistry.filter((entry) => entry.roles.includes('proposer'));
+    const product = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: root },
+      { trustRegistry: revokedTrustRegistry },
+      () => ({
+        beginSearch: () => {
+          beginSearchCalls += 1;
+          return null;
+        },
+        recordSearch: () => {
+          recordSearchCalls += 1;
+          return null;
+        },
+      }),
+    );
+    const verification = await product.verify({ question });
+    assert.equal(verification.kind, 'OpenOntologySourceNativeVerificationV1');
+    assert.equal(verification.state, 'resolved-current-field');
+    assert.equal(verification.answerable, true);
+    assert.equal(verification.verification.navigationProposals.rawSearchExecuted, true);
+    assert.equal(product.status().admittedKnowledge.state, 'degraded');
+    assert.equal(beginSearchCalls, 1);
+    assert.equal(recordSearchCalls, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function createEvidenceAdmission(root, {
   content,
   proposedBy = 'evidence-budget-investigator',

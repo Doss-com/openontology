@@ -36,6 +36,7 @@ import type { ProductOptions } from './source-native-artifact.mjs';
 import type {
   ProductSearchInput,
   SourceNativeProductPreparedSearch,
+  SourceNativeProductLifecycleAdapterFactory,
   SourceNativeProductReadResult,
   SourceNativeProductRuntimeContext,
   SourceNativeProductSearchResult,
@@ -1602,7 +1603,11 @@ export function openSourceNativeProductWithAdmittedKnowledge(
     trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
     knowledgeBranch?: string;
   },
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
 ): SourceNativeAdmittedKnowledgeProduct {
+  if (createLifecycleAdapter !== null && typeof createLifecycleAdapter !== 'function') {
+    fail('SOURCE_NATIVE_PRODUCT_LIFECYCLE_ADAPTER');
+  }
   const {
     trustRegistry: trustInput,
     knowledgeBranch: knowledgeBranchInput,
@@ -1610,7 +1615,7 @@ export function openSourceNativeProductWithAdmittedKnowledge(
   let context: SourceNativeProductRuntimeContext | null = null;
   const product = openSourceNativeProductRuntime(options, (runtimeContext) => {
     context = runtimeContext;
-    return null;
+    return createLifecycleAdapter?.(runtimeContext) ?? null;
   });
   const capturedContext = context as SourceNativeProductRuntimeContext | null;
   const exactContext: SourceNativeProductRuntimeContext = capturedContext
@@ -1618,7 +1623,8 @@ export function openSourceNativeProductWithAdmittedKnowledge(
   const knowledgeBranch = knowledgeBranchFor(exactContext.objectOnt.commitSha256,
     knowledgeBranchInput);
   const reader = openReader(exactContext, trustInput, knowledgeBranch);
-  return Object.freeze({
+  return freeze({
+    ...product,
     kind: 'OpenOntologySourceNativeAdmittedKnowledgeProductV1' as const,
     verify: async (input: ProductSearchInput = { question: '' }) => {
       const { investigationId = null, ...searchInput } = input;
