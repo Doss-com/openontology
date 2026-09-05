@@ -13,6 +13,7 @@ import {
   normalizeCanonicalObjectBackendUri,
   openCanonicalObjectBackend,
 } from './canonical-object-backend.mjs';
+import type { CanonicalObjectBackendEnvironment } from './canonical-object-backend.mjs';
 import {
   objectBytesSha256,
   stableObjectSha256,
@@ -113,7 +114,7 @@ export interface SourceNativeProductResourceBindingReceipt extends UnknownRecord
 export interface ProductOptions {
   artifactRoot?: string;
   objectBackendUri?: string | null;
-  objectBackendEnv?: NodeJS.ProcessEnv;
+  objectBackendEnv?: CanonicalObjectBackendEnvironment;
 }
 interface NormalizedSource extends SourceNativeSourceInput {
   relativePath: string;
@@ -308,7 +309,7 @@ function productBackendDescriptor(root: string, canonicalUri: string): string {
     ? `./${OBJECTS_DIRECTORY}` : canonicalUri;
 }
 
-function selectProductBackend({ root, descriptorBackend = null, requestedUri = null, env = process.env }: { root: string; descriptorBackend?: string | null; requestedUri?: string | null; env?: NodeJS.ProcessEnv }) {
+function selectProductBackend({ root, descriptorBackend = null, requestedUri = null, env = process.env }: { root: string; descriptorBackend?: string | null; requestedUri?: string | null; env?: CanonicalObjectBackendEnvironment }) {
   const localUri = pathToFileURL(join(root, OBJECTS_DIRECTORY)).href;
   const configuredUri = requestedUri ?? (descriptorBackend === `./${OBJECTS_DIRECTORY}`
     || descriptorBackend === null ? localUri : descriptorBackend);
@@ -501,13 +502,13 @@ export function readSourceNativeProductArtifactDescriptor({ artifactRoot }: { ar
 interface ResourceCreateOptions {
   artifactRoot?: string;
   resourceRoot?: string;
-  objectBackendEnv?: NodeJS.ProcessEnv;
+  objectBackendEnv?: CanonicalObjectBackendEnvironment;
 }
 interface ResourceBindOptions {
   resourceRoot?: string;
   artifactRoot?: string;
   expectedSourceCommitSha256?: string | null;
-  objectBackendEnv?: NodeJS.ProcessEnv;
+  objectBackendEnv?: CanonicalObjectBackendEnvironment;
 }
 
 export function createSourceNativeProductResource({
