@@ -165,19 +165,69 @@ openOntology();
   openSourceNativeExactEvidenceSession,
   openSourceNativeObjectOntIndex,
   openSourceNativeProductRuntime,
+  openSourceNativeProductWithAdmittedKnowledge,
   stableObjectSha256,
   type ExactSessionOptions,
   type OpenSourceNativeObjectOntOptions,
   type ProofSufficiencyContract,
   type ProofSufficiencyEvaluation,
+  type SourceNativeAdmittedKnowledgeProduct,
+  type SourceNativeAdmittedKnowledgeContext,
+  type SourceNativeAdmittedKnowledgeLedgerStatus,
+  type SourceNativeAdmittedKnowledgeVerificationResult,
+  type SourceNativeAdmittedProofBinding,
+  type SourceNativeAdmissionTrustEntry,
+  type SourceNativeAdmissionTrustRole,
   type SourceNativeProductRuntimeContext,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
 const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProductRuntime;
+const openAdmitted: typeof openSourceNativeProductWithAdmittedKnowledge =
+  openSourceNativeProductWithAdmittedKnowledge;
 const context: SourceNativeProductRuntimeContext | null = null;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
+const trustRole: SourceNativeAdmissionTrustRole = 'reviewer';
+const trustEntry: SourceNativeAdmissionTrustEntry = {
+  issuerId: 'reviewer',
+  publicKeyPem: '-----BEGIN PUBLIC KEY-----fixture-----END PUBLIC KEY-----',
+  roles: [trustRole],
+};
+const admittedProduct: SourceNativeAdmittedKnowledgeProduct | null = null;
+const admittedResult: SourceNativeAdmittedKnowledgeVerificationResult | null = null;
+const admittedContext: SourceNativeAdmittedKnowledgeContext | null = null;
+const admittedLedgerStatus: SourceNativeAdmittedKnowledgeLedgerStatus | null = null;
+const admittedProofBinding: SourceNativeAdmittedProofBinding | null = null;
+const inspectAdmitted = (result: SourceNativeAdmittedKnowledgeVerificationResult,
+  status: ReturnType<SourceNativeAdmittedKnowledgeProduct['status']>) => {
+  if (result.kind === 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1') {
+    if (result.answerable) {
+      const recordSha256: string = result.verification.admissionRecordSha256;
+      const disposition: string = result.proofDisposition;
+      const role: 'answer' | 'counterevidence' | 'anchor' | undefined =
+        result.context[0]?.role;
+      const first = result.context[0];
+      const proofUnitSha256: string | undefined =
+        first !== undefined && first.role !== 'anchor'
+          ? first.binding.proofUnitSha256 : undefined;
+      if (first !== undefined && first.role !== 'anchor') {
+        // @ts-expect-error per-proposition labels and hashes are not returned
+        const propositionSha256 = first.binding.propositionSha256;
+        void propositionSha256;
+      }
+      void recordSha256;
+      void disposition;
+      void role;
+      void proofUnitSha256;
+    } else {
+      const refusalCode: string = result.refusal.code;
+      void refusalCode;
+    }
+  }
+  const activeAdmissionCount: number = status.admittedKnowledge.activeAdmissionRecordCount;
+  void activeAdmissionCount;
+};
 const proofContract: ProofSufficiencyContract = compileProofSufficiencyContract({
   questionKind: 'fixture-state',
   obligations: [{
@@ -222,9 +272,17 @@ const proofEvaluation: ProofSufficiencyEvaluation = evaluateProofSufficiencyCont
 });
 void digest;
 void openRuntime;
+void openAdmitted;
 void context;
 void exactOptions;
 void indexOptions;
+void trustEntry;
+void admittedProduct;
+void admittedResult;
+void admittedContext;
+void admittedLedgerStatus;
+void admittedProofBinding;
+void inspectAdmitted;
 void proofEvaluation;
 // @ts-expect-error Proof contracts are immutable after compilation.
 proofContract.obligations.push({});
@@ -318,12 +376,16 @@ if (JSON.stringify(keys) !== JSON.stringify(['kind','read','search','status','ve
   || JSON.stringify(kernelKeys) !== JSON.stringify([
     'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','buildSourceNativeProduct',
     'compileProofAuthorityProjection','compileProofSufficiencyContract',
+    'compileSourceNativeAdmissionRecord','compileSourceNativeAdmittedKnowledgeBundle',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
-    'openSourceNativeProductRuntime','productSources','proofAuthorityForProjection',
+    'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
+    'productSources','proofAuthorityForProjection','sourceNativeAdmissionStatement',
+    'sourceNativeProposalStatement',
     'stableObjectSha256','stableObjectText','validateProofAuthorityProjection',
-    'validateProofSufficiencyContract',
+    'validateProofSufficiencyContract','validateSourceNativeAdmittedKnowledgeBundle',
+    'writeSourceNativeAdmittedKnowledge',
   ]) || !result.answerable) process.exit(1);`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));

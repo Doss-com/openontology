@@ -104,9 +104,30 @@ that attach a governed lifecycle Adapter. Ordinary applications should use the
 root `oont` client. TypeScript extension authors compile against the supported
 Node 24 type surface.
 
-The kernel subpath exposes product opening, exact source inspection, canonical
-object replay, and hashing. It does not expose Admission, review, activation,
-or other private control-plane logic.
+The published alpha.3 kernel exposes product opening, exact source inspection,
+canonical object replay, hashing, and deterministic proof-sufficiency
+evaluation.
+
+`[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
+admitted-knowledge path. A proposer and an independent reviewer sign one
+content-bound proof bundle using role-scoped Ed25519 keys. A cold reader accepts
+it only for the identical Ont, source cut, resolved query and answer revision,
+proof contract, and authority census. Every Evidence reference is checked
+against Corpus bytes when admitted, every included proposition must participate
+in a required proof obligation, and every returned role is derived from that
+obligation. Exact bytes are reopened before reuse. Returned bindings contain
+fixed content hashes instead of proposer-authored semantic labels. Repeated
+proposition citations over the same role and Evidence span return one bound
+Proof unit. Reusable context is limited to 64 Proof units and 64 KiB of Exact
+Evidence, plus 64 KiB of JSON-encoded Evidence text, including a `next` anchor.
+Larger proofs are refused without truncation. Exact Evidence spans must also
+round-trip through UTF-8 without changing their bound bytes. A `next`
+Verification returns the successor as `answer` and its inspected historical
+revision as `anchor`.
+Untrusted or invalid records are skipped in favor of ordinary verification.
+Conflicting valid bundles produce a typed refusal. Default knowledge branches
+are isolated by immutable source commit. This kernel-only path is not exposed
+by the root client and has not been published as an alpha.3 capability.
 
 ## CLI
 

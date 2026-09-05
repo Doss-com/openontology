@@ -31,6 +31,9 @@
   `unresolved` after every required obligation and authoritative census is
   evaluated. A complete contradiction is answerable as `contradicted`; it is
   not converted into positive support.
+- **Proof unit** is one returned proof role joined to one Exact Evidence span.
+  Its fixed hash commits to every proposition that cites that same role and
+  span, so repeated citations do not repeat Evidence in agent context.
 - **ProofAuthorityProjection** is the canonical item, exact Evidence-reference,
   and relation census derived from one immutable semantic projection.
 - **SourceProjectionAuthority** binds a proof contract to the source projection
@@ -68,6 +71,20 @@ unresolved.
 - **Resolver** is an internal Module that proposes candidate References or a
   typed refusal. It does not own truth.
 - **Ledger** stores independently admitted semantic or procedural knowledge.
+- **Admission** is an authenticated, independently reviewed decision to make one
+  content-bound knowledge bundle eligible for later reuse. Admission does not
+  replace Terrain authority. Proposer and reviewer authority are separate trust
+  roles. Every admitted proposition must participate in a required proof
+  obligation; returned Evidence roles come from that obligation, and returned
+  provenance uses fixed content hashes rather than proposer-authored labels.
+  Reusable context is bounded to 64 Proof units, 64 KiB of raw Exact Evidence,
+  and 64 KiB of JSON-encoded Evidence text, including a `next` anchor.
+  Oversized Admissions are refused, never truncated. Internally valid but
+  ineligible records remain addressable structural history so a bounded
+  correction can supersede them. Supersession is explicit and non-transitive;
+  a correction must name every active conflicting Admission it displaces.
+  Corrections append a signed superseding Admission; they do not delete prior
+  records.
 - **Materialization** is a disposable derived index or projection.
 - **Adapter** is a concrete implementation of a storage, source, or Resolver
   interface.

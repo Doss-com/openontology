@@ -40,15 +40,83 @@ It does not turn those references into Evidence. A product reader must still
 reopen the pinned source projection and inspect the exact Corpus bytes before a
 Verification can use the result.
 
-`[ACTIVE-WORK]` This branch does not yet contain a generic admitted-knowledge
-reader or a validated pre-verification reuse path. The ordinary `verify` path
-does not exit early from kernel evaluation. That connection belongs only after
-the reader can reopen Admission, revalidate projection authority, and reinspect
-the exact Corpus bytes bound by the result.
+`[ACTIVE-WORK]` The post-alpha kernel branch contains a bounded source-native
+admitted-knowledge loop. It is not a generic early-exit hook and it does not
+change the root client. The loop is:
+
+```text
+investigation proof
+  -> content-bound bundle
+  -> proposer signature
+  -> independent reviewer Admission
+  -> immutable knowledge branch
+  -> cold query-bound replay
+  -> deterministic proof re-evaluation
+  -> exact Corpus reinspection
+  -> compact verified context
+```
+
+The bundle binds one Ont, immutable source commit and replay, resolved query,
+question, intent, proof contract, complete ProofAuthorityProjection,
+propositions, relations, and the original deterministic evaluation. Admission
+requires distinct Ed25519 proposer and reviewer keys with separate trust roles.
+The writer deterministically resolves the exact current or successor answer
+revision, requires every primary support reference to equal that revision, and
+checks every bundle Evidence reference against Corpus bytes. It rejects any
+proposition that does not participate in a required proof obligation. The cold
+reader derives each returned role from the evaluated obligation instead of a
+proposition label. Returned proof bindings expose fixed content hashes, not
+proposer-authored semantic strings or the full proof-evaluation payload. A
+`next` result reinspects and returns the successor as `answer` and the historical
+revision as `anchor`. Multiple reviewers of the same bundle count as agreement.
+Distinct active bundles for the same exact query refuse as ambiguous.
+Corrections append a signed Admission that names the older Admission records it
+supersedes; history remains immutable.
+
+Equal proof roles over the same Exact Evidence span compile into one returned
+Proof unit. Its fixed hash commits to the complete sorted proposition-hash set.
+The reusable context path admits at most 64 Proof units and 64 KiB of Exact
+Evidence, including a `next` anchor. It separately limits the JSON-encoded
+Evidence text to 64 KiB, so control characters cannot expand the text payload
+without bound. The complete Verification also contains fixed proof receipts and
+source identifiers; 64 KiB is not a total-JSON-size claim. The writer refuses
+larger bundles without truncation. A cold reader applies the same limits to
+existing or directly planted records, marks violations as degraded Ledger
+state, and preserves the ordinary verification path. Oversized records remain
+available as structural history, so a later bounded correction can supersede
+them without making their context reusable. Structural history requires an
+internally valid immutable record, not current source or delivery eligibility.
+Only records that also pass current source binding, context budgets, and trust
+authentication can enter active reuse. Supersession is explicit and
+non-transitive. A correction that leaves two distinct active bundles preserves
+the disagreement as a typed ambiguity. This optimizes for bounded verified agent
+context. It gives up fast-path reuse for sprawling proofs until adaptive or
+paginated proof delivery is implemented.
+
+Exact Evidence spans must decode as UTF-8 and round-trip to the same bytes bound
+by `textSha256`. A span that splits a multi-byte code point is invalid Evidence,
+not lossy `exactText`.
+
+Bundle compilation remains source-context-neutral. Durable write is the reuse
+eligibility gate because it is the first operation that can rebind the proof to
+the concrete Corpus and, for `next`, include the resolved anchor. A compiled or
+signed bundle that has not passed that gate is not active admitted knowledge.
+
+At cold open, the reader authenticates each record and rechecks source and query
+binding. Untrusted, malformed, stale, or invalid records are excluded and
+reported as degraded ledger state, so they cannot suppress ordinary exact
+verification. A matching valid record still has to pass deterministic proof
+evaluation and reopen the exact Corpus bytes. The learned bundle routes proof;
+it never becomes Evidence authority.
+
+The default knowledge branch includes the immutable source-commit identity.
+Advancing an Ont on a shared backend creates a new knowledge branch for the new
+source cut instead of wedging or silently reusing prior-cut knowledge.
 
 The ordinary query runtime does not write learning state. Source-grounded
-capture, independent review, and later policy reuse are developed in a separate
-operator control plane. That control plane does not ship in this public alpha.
+capture and Admission use explicit kernel control-plane calls. The root SDK,
+CLI, and MCP remain read-only. This post-alpha kernel work has not been
+published as an alpha.3 capability.
 
 Both modes execute the same search, read, and verification Module.
 The operator control plane attaches one internal lifecycle Adapter for durable
@@ -58,6 +126,10 @@ semantics or create a second Resolver implementation.
 The broader Terrain, Vacuum, Ledger, and Materialization lifecycle remains the
 target architecture. Automatic production connectors and hosted lifecycle
 management are not part of this alpha.
+
+`[FUTURE]` Adaptive or paginated proof delivery can extend the bounded reuse
+path without silently dropping Evidence. The current implementation refuses a
+proof that cannot be returned completely within one bounded Verification.
 
 ## Query path
 

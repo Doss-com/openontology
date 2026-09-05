@@ -52,7 +52,7 @@
     "build": "node scripts/build.mjs",
     "check:source-native-product": "node scripts/test-product-surface-contract.mjs && node scripts/test-oont-cli-help.mjs && node --test scripts/test-source-native-product.mjs scripts/test-source-native-field-resolution.mjs && node scripts/test-source-native-object-map.mjs && node scripts/test-source-native-query-planner.mjs",
     "check:canonical-object-backend": "node --test scripts/test-canonical-content.mjs scripts/test-canonical-object-backend.mjs scripts/test-gcs-object-storage-backend.mjs",
-    "check:kernel": "node --test scripts/test-proof-sufficiency.mjs",
+    "check:kernel": "node --test scripts/test-proof-sufficiency.mjs scripts/test-source-native-admitted-knowledge.mjs",
     "check:package-import-closure": "node scripts/check-package-import-closure.mjs",
     "check:public-release": "node scripts/check-public-release.mjs",
     "manifest:update": "node scripts/update-source-manifest.mjs",
