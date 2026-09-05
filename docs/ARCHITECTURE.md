@@ -34,7 +34,10 @@ are zero. An exact typed identity with zero census occurrences returns
 hashed absence receipt binding the identity, census, catalog, source-handle
 set, and source count. The result remains `answerable: false` because it proves
 catalog-scoped absence, not a positive field value. Any incomplete Adapter cut
-falls back to an ordinary typed refusal and cannot issue this receipt.
+falls back to the ordinary retrieval path and cannot issue this receipt. The
+complete census runs before candidate retrieval for exact typed identities, so
+a certified absence does not spend a search call or create misleading
+candidate References.
 
 Managed and research runtimes attach through the bounded `oont/kernel` package
 subpath. That Interface exposes the product lifecycle hook and exact object

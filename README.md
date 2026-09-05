@@ -103,7 +103,8 @@ failure-free source catalog returns
 not answerable and contains no Evidence. Its hashed absence receipt binds the
 identity, complete identity census, source catalog, source-handle set, and
 source count. The receipt explicitly does not authorize a claim of world-wide
-absence. Any adapter failure disables this certification.
+absence. The complete census resolves this case before retrieval. Any adapter
+failure disables the certification and preserves the ordinary retrieval path.
 
 `verify` answers a question against one Ont. `check` validates the Ont itself.
 

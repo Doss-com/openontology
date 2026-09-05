@@ -24,6 +24,7 @@ import type {
   ValidatedFieldQueryPlan,
 } from './source-native-resolver-support.mjs';
 import type { SourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
+import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 import {
   validateSourceNativeObjectIdentityCensus as validateObjectIdentityCensus,
 } from './source-native-identity-census.mjs';
@@ -70,6 +71,55 @@ export interface SourceNativeObjectIdentityAbsenceReceipt {
   networkCalls: 0;
   targetLeakage: false;
   receiptSha256: string;
+}
+
+function compileObjectIdentityAbsenceReceipt({
+  map,
+  census,
+  query,
+  namespace,
+  sourceCatalogSha256,
+  sourceHandleSetSha256,
+}: {
+  map: SourceNativeObjectMap;
+  census: SourceNativeObjectIdentityCensus | null;
+  query: SourceNativeFieldQuery;
+  namespace: string;
+  sourceCatalogSha256: string | null;
+  sourceHandleSetSha256: string;
+}): SourceNativeObjectIdentityAbsenceReceipt | null {
+  if (query.externalId === undefined || census === null) return null;
+  const matches = (row: { sourceSystem: string; objectType: string; externalId: string }) =>
+    row.sourceSystem === query.sourceSystem
+    && row.objectType === query.objectType
+    && row.externalId === query.externalId;
+  const censusContainsIdentity = census.objectIdentities.some(matches);
+  const mapContainsIdentity = map.nativeObjects.some((row) =>
+    row.objectIdentity.namespace === namespace && matches(row.objectIdentity));
+  if (censusContainsIdentity || mapContainsIdentity) return null;
+  const catalogSha256 = sourceCatalogSha256
+    ?? fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING');
+  const core: Omit<SourceNativeObjectIdentityAbsenceReceipt, 'receiptSha256'> = {
+    schema: 1,
+    kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1',
+    namespace,
+    objectIdentity: freeze({
+      sourceSystem: query.sourceSystem,
+      objectType: query.objectType,
+      externalId: query.externalId,
+    }),
+    censusSha256: census.censusSha256,
+    sourceCatalogSha256: catalogSha256,
+    sourceHandleSetSha256,
+    sourceCount: census.sourceCount,
+    exactOccurrenceCount: 0,
+    authority: 'complete-strict-object-identity-census-over-bound-source-catalog',
+    worldAbsenceAuthorized: false,
+    modelCalls: 0,
+    networkCalls: 0,
+    targetLeakage: false,
+  };
+  return freeze({ ...core, receiptSha256: stableObjectSha256(core) });
 }
 
 /**
@@ -137,7 +187,10 @@ export function openSourceNativeCurrentFieldResolver({
       || objectIdentityCensus.namespace !== boundNamespace
       || objectIdentityCensus.sourceCatalogSha256 !== sourceCatalogSha256
       || objectIdentityCensus.sourceHandleSetSha256 !== sourceHandleSetSha256
-      || objectIdentityCensus.sourceCount !== sourceHandles.length)) {
+      || objectIdentityCensus.sourceCount !== sourceHandles.length
+      || map.mappedSourceCount !== map.sourceCount
+      || map.unsupportedSourceCount !== 0
+      || map.parseFailureCount !== 0)) {
     fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING');
   }
   const search = async ({ question, maximumSourceMessages = 64 }: {
@@ -167,115 +220,97 @@ export function openSourceNativeCurrentFieldResolver({
     let selectionLabel = 'unresolved source-native current field';
     if (queryPlan.state === 'resolved-native-field-query' && queryPlan.query !== null) {
       const resolvedQuery = queryPlan.query;
-      const bindingSha256 = queryBindingSha256('current', resolvedQuery);
-      const seedSearch = await runSeedSearch({
-        adapter: seedSearchAdapter,
-        question: askedQuestion,
-        limit: Math.min(maximumSeedSourceMessages, maximumSourceMessages),
-        maximumSeedSourceMessages,
-        sourceCommitSha256: boundCommitSha256,
-        sourceReplaySha256: boundReplaySha256,
-        sourceSearchRouteMapSha256: boundRouteMapSha256,
-        sourceHandleSetSha256,
-        handleById,
-        queryBindingSha256: bindingSha256,
-      });
-      seedSourceMessageIds = seedSearch.rows.map((row) => row.sourceMessageId);
-      policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows
-        .map((row) => row.sourceMessageId);
-      seedSearchReceiptSha256 = seedSearch.receiptSha256;
-      rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
-      resolution = resolveSourceNativeField({
-        sourceNativeObjectMap: map,
-        seedRelativePaths: seedSearch.traversalRows.map((row) => row.relativePath),
-        query: resolvedQuery,
-      });
-      state = resolution.state;
-      const identity = resolution.query;
-      selectionLabel = [identity.sourceSystem, identity.objectType, identity.externalId, identity.fieldPath]
+      selectionLabel = [resolvedQuery.sourceSystem, resolvedQuery.objectType,
+        resolvedQuery.externalId, resolvedQuery.fieldPath]
         .filter((value) => value !== undefined).join(' ');
-      if (resolution.state === 'resolved-current-field' && resolution.current !== null
-        && resolution.current !== undefined) {
-        currentFieldChronology = compileSourceNativeCurrentFieldChronologyVerification({
-          sourceNativeObjectMap: map,
-          resolution,
+      absenceReceipt = compileObjectIdentityAbsenceReceipt({
+        map,
+        census: objectIdentityCensus,
+        query: resolvedQuery,
+        namespace: boundNamespace,
+        sourceCatalogSha256,
+        sourceHandleSetSha256,
+      });
+      if (absenceReceipt !== null) {
+        state = 'verified-native-object-absent-from-bound-source-catalog';
+        absenceAuthorized = true;
+      } else {
+        const bindingSha256 = queryBindingSha256('current', resolvedQuery);
+        const seedSearch = await runSeedSearch({
+          adapter: seedSearchAdapter,
+          question: askedQuestion,
+          limit: Math.min(maximumSeedSourceMessages, maximumSourceMessages),
+          maximumSeedSourceMessages,
           sourceCommitSha256: boundCommitSha256,
           sourceReplaySha256: boundReplaySha256,
-          sourceCatalogSha256,
-          sourceHandles,
+          sourceSearchRouteMapSha256: boundRouteMapSha256,
+          sourceHandleSetSha256,
+          handleById,
+          queryBindingSha256: bindingSha256,
         });
-        if (currentFieldChronology.proofDisposition === 'insufficient') {
-          state = 'unavailable-incomplete-recorded-field-chronology';
-        } else {
-          const currentHandle = handleByPath.get(resolution.current.relativePath)
-            ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE');
-          const suppressedSourceMessageIds = resolution.suppressedRelativePaths.map((relativePath: string) => {
-            const handle = handleByPath.get(relativePath);
-            return (handle ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE')).sourceMessageId;
-          }).sort((left: number, right: number) => left - right);
-          const unitCore = {
-            schema: 1,
-            kind: 'OpenOntologySourceNativeCurrentFieldEvidenceUnitV1',
-            selectionLabel,
-            representativeSourceMessageId: currentHandle.sourceMessageId,
-            referenceSourceMessageIds: freeze([currentHandle.sourceMessageId]),
-            evidenceReferenceCount: 1,
-            exactEvidenceReferences: freeze([freeze({
-              sourceMessageId: currentHandle.sourceMessageId,
-              relativePath: resolution.current.relativePath,
-              sourceSha256: resolution.current.evidence.sourceSha256,
-              byteStart: resolution.current.evidence.byteStart,
-              byteEnd: resolution.current.evidence.byteEnd,
-              textSha256: resolution.current.evidence.textSha256,
-              fieldSha256: resolution.current.fieldSha256,
-              fieldPath: resolution.query.fieldPath,
-              propositionFamilyKey: resolution.query.fieldPath,
-              businessEntityKeys: freeze([]),
-            })]),
-            exactEvidenceReferenceCount: 1,
-            suppressedSourceMessageIds: freeze(suppressedSourceMessageIds),
-            revisionClosureCount: resolution.revisionClosureCount,
-            revisionClosureSha256: resolution.revisionClosureSha256,
-            currentFieldChronologyVerificationSha256: currentFieldChronology.verificationSha256,
-            currentFieldSha256: resolution.current.fieldSha256,
-            navigationOnly: true,
-            exactInspectRequired: true,
-            exactSourcesRemainAuthority: true,
-          };
-          evidenceUnits = [freeze({ ...unitCore, evidenceUnitSha256: stableObjectSha256(unitCore) })];
-          selectedSourceMessageIds = [currentHandle.sourceMessageId];
-          allReferenceSourceMessageIds = [currentHandle.sourceMessageId];
-        }
-      } else if (resolvedQuery.externalId !== undefined && objectIdentityCensus !== null) {
-        const censusRow = objectIdentityCensus.objectIdentities.find((row) =>
-          row.sourceSystem === resolvedQuery.sourceSystem
-          && row.objectType === resolvedQuery.objectType
-          && row.externalId === resolvedQuery.externalId);
-        if (censusRow === undefined) {
-          state = 'verified-native-object-absent-from-bound-source-catalog';
-          absenceAuthorized = true;
-          const absenceCore: Omit<SourceNativeObjectIdentityAbsenceReceipt, 'receiptSha256'> = {
-            schema: 1,
-            kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1',
-            namespace: boundNamespace,
-            objectIdentity: freeze({
-              sourceSystem: resolvedQuery.sourceSystem,
-              objectType: resolvedQuery.objectType,
-              externalId: resolvedQuery.externalId,
-            }),
-            censusSha256: objectIdentityCensus.censusSha256,
-            sourceCatalogSha256: sourceCatalogSha256
-              ?? fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING'),
-            sourceHandleSetSha256,
-            sourceCount: objectIdentityCensus.sourceCount,
-            exactOccurrenceCount: 0,
-            authority: 'complete-strict-object-identity-census-over-bound-source-catalog',
-            worldAbsenceAuthorized: false,
-            modelCalls: 0,
-            networkCalls: 0,
-            targetLeakage: false,
-          };
-          absenceReceipt = freeze({ ...absenceCore, receiptSha256: stableObjectSha256(absenceCore) });
+        seedSourceMessageIds = seedSearch.rows.map((row) => row.sourceMessageId);
+        policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows
+          .map((row) => row.sourceMessageId);
+        seedSearchReceiptSha256 = seedSearch.receiptSha256;
+        rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
+        resolution = resolveSourceNativeField({
+          sourceNativeObjectMap: map,
+          seedRelativePaths: seedSearch.traversalRows.map((row) => row.relativePath),
+          query: resolvedQuery,
+        });
+        state = resolution.state;
+        if (resolution.state === 'resolved-current-field' && resolution.current !== null
+          && resolution.current !== undefined) {
+          currentFieldChronology = compileSourceNativeCurrentFieldChronologyVerification({
+            sourceNativeObjectMap: map,
+            resolution,
+            sourceCommitSha256: boundCommitSha256,
+            sourceReplaySha256: boundReplaySha256,
+            sourceCatalogSha256,
+            sourceHandles,
+          });
+          if (currentFieldChronology.proofDisposition === 'insufficient') {
+            state = 'unavailable-incomplete-recorded-field-chronology';
+          } else {
+            const currentHandle = handleByPath.get(resolution.current.relativePath)
+              ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE');
+            const suppressedSourceMessageIds = resolution.suppressedRelativePaths.map((relativePath: string) => {
+              const handle = handleByPath.get(relativePath);
+              return (handle ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE')).sourceMessageId;
+            }).sort((left: number, right: number) => left - right);
+            const unitCore = {
+              schema: 1,
+              kind: 'OpenOntologySourceNativeCurrentFieldEvidenceUnitV1',
+              selectionLabel,
+              representativeSourceMessageId: currentHandle.sourceMessageId,
+              referenceSourceMessageIds: freeze([currentHandle.sourceMessageId]),
+              evidenceReferenceCount: 1,
+              exactEvidenceReferences: freeze([freeze({
+                sourceMessageId: currentHandle.sourceMessageId,
+                relativePath: resolution.current.relativePath,
+                sourceSha256: resolution.current.evidence.sourceSha256,
+                byteStart: resolution.current.evidence.byteStart,
+                byteEnd: resolution.current.evidence.byteEnd,
+                textSha256: resolution.current.evidence.textSha256,
+                fieldSha256: resolution.current.fieldSha256,
+                fieldPath: resolution.query.fieldPath,
+                propositionFamilyKey: resolution.query.fieldPath,
+                businessEntityKeys: freeze([]),
+              })]),
+              exactEvidenceReferenceCount: 1,
+              suppressedSourceMessageIds: freeze(suppressedSourceMessageIds),
+              revisionClosureCount: resolution.revisionClosureCount,
+              revisionClosureSha256: resolution.revisionClosureSha256,
+              currentFieldChronologyVerificationSha256: currentFieldChronology.verificationSha256,
+              currentFieldSha256: resolution.current.fieldSha256,
+              navigationOnly: true,
+              exactInspectRequired: true,
+              exactSourcesRemainAuthority: true,
+            };
+            evidenceUnits = [freeze({ ...unitCore, evidenceUnitSha256: stableObjectSha256(unitCore) })];
+            selectedSourceMessageIds = [currentHandle.sourceMessageId];
+            allReferenceSourceMessageIds = [currentHandle.sourceMessageId];
+          }
         }
       }
     }

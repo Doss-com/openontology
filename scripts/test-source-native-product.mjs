@@ -266,6 +266,9 @@ test('certifies a typed object identity as absent only from the complete bound s
     assert.equal(absent.verification.absenceReceipt.worldAbsenceAuthorized, false);
     assert.equal(absent.verification.absenceReceipt.modelCalls, 0);
     assert.equal(absent.verification.absenceReceipt.networkCalls, 0);
+    assert.equal(absent.verification.navigationProposals.state, 'not-run');
+    assert.equal(absent.verification.navigationProposals.rawSearchExecuted, false);
+    assert.equal(absent.verification.navigationProposals.rawProposalCount, 0);
     assert.match(absent.verification.absenceReceipt.censusSha256, /^sha256:[0-9a-f]{64}$/u);
     assert.match(absent.verification.absenceReceipt.sourceCatalogSha256,
       /^sha256:[0-9a-f]{64}$/u);

@@ -612,9 +612,14 @@ test('a different typed scope cannot reuse admitted context', async () => {
         fieldPath: 'status',
       },
     });
+    assert.equal(verification.state,
+      'verified-native-object-absent-from-bound-source-catalog');
     assert.equal(verification.answerable, false);
     assert.deepEqual(verification.context, []);
-    assert.equal(verification.verification.navigationProposals.rawSearchExecuted, true);
+    assert.equal(verification.verification.navigationProposals.rawSearchExecuted, false);
+    assert.equal(verification.verification.navigationProposals.state, 'not-run');
+    assert.equal(verification.verification.absenceReceipt.objectIdentity.externalId, 'issue-2');
+    assert.equal(verification.verification.absenceReceipt.worldAbsenceAuthorized, false);
     assert.notEqual(verification.verification.admissionRecordSha256, record.recordSha256);
   } finally {
     rmSync(root, { recursive: true, force: true });
