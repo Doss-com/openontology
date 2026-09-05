@@ -44,6 +44,10 @@
   `contradicts` edge from one counterevidence proposition to another canonical
   proposition in the same namespace projection. The edge is navigation and
   proof-census data; its endpoint source spans remain Evidence.
+- **Semantic proof root** is the canonical proposition attached to the exact
+  field selected by an ordinary current-field Verification. Its query-scoped
+  projection contains the root and the complete inbound counterevidence
+  closure, not every semantic proposition in the namespace.
 - **SourceProjectionAuthority** binds a proof contract to the source projection
   identity and the ProofAuthorityProjection's `proofCensusSha256`.
 - **Support** is an independently verified relationship between a material

@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 79,
+  "fileCount": 80,
   "files": [
     {
       "path": ".editorconfig",
@@ -97,8 +97,8 @@
     },
     {
       "path": "GLOSSARY.md",
-      "bytes": 6679,
-      "sha256": "5db52a2032651adb07f58ef8406ff4036d0319968a9e5ef505d540263251d940"
+      "bytes": 6965,
+      "sha256": "7414d937fee28bf879aeb8539ead01d88dc35d3ab42109b72fa1b91063df16cc"
     },
     {
       "path": "LICENSE",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12480,
-      "sha256": "4b69bea7732bc2c30fb5ed4e34873260abecb18f2d7f2c43aa10988f15568f17"
+      "bytes": 12731,
+      "sha256": "e6fbc805e32f4cb48094edeb8174e22ce8230fe0a65378778438be32d5f5c7bd"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 11648,
-      "sha256": "89842efd49c169304c6d5e1899221e716f6e23e78b7858ce46199e8d4707e361"
+      "bytes": 11950,
+      "sha256": "a3a64698446d512a5731a514ed443a038c92124356da63b94a22b72def17b70f"
     },
     {
       "path": "docs/STORAGE.md",
@@ -232,8 +232,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 30380,
-      "sha256": "2287d8d531f72cbbf51484b55e9bc2bf57d9a4455f389707e2c7438dfbee294b"
+      "bytes": 35811,
+      "sha256": "6781acc89ba11e0ce2889cb83cecd3d3b175cc7bc12826051c17a0b8d8989b12"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -242,8 +242,8 @@
     },
     {
       "path": "scripts/test-source-native-semantic-projection.mjs",
-      "bytes": 11035,
-      "sha256": "b78b64c24f3fdacd76f83b304a8b79cb0262249feeed31283df48443ee5d3a17"
+      "bytes": 11970,
+      "sha256": "50b78c3aae65f61dc210452baf89954222ca86d202cbdee087caeb43fb2cc9a3"
     },
     {
       "path": "scripts/update-source-manifest.mjs",
@@ -292,8 +292,8 @@
     },
     {
       "path": "src/openontology.mts",
-      "bytes": 12389,
-      "sha256": "2b1cc1d14a21d4648e1b049c01c533b7a1c3c63692c8e39ede934a99461a2300"
+      "bytes": 13674,
+      "sha256": "0011895ff03f2779038271c6a5a97b8ffed19862b595c286561b2583b5e3a570"
     },
     {
       "path": "src/product-result-state.mts",
@@ -372,8 +372,8 @@
     },
     {
       "path": "src/source-native-product.mts",
-      "bytes": 28586,
-      "sha256": "cf74bf6bc707b1f4fd8f5b12b6bea828703b436ea415682edd18b08ac6149d54"
+      "bytes": 32257,
+      "sha256": "ffb70b4e2bc1196913aa383b5c31aa4fe058726fc6d3f1b82907b3f5f15a3249"
     },
     {
       "path": "src/source-native-query-plan.mts",
@@ -392,8 +392,13 @@
     },
     {
       "path": "src/source-native-semantic-projection.mts",
-      "bytes": 4200,
-      "sha256": "b79c5e9c3b84467fb1aa96350dfc93107df6016e0130c202534cd966b9eede3c"
+      "bytes": 5801,
+      "sha256": "14d2af2c5b7ddd3137e000cdca6b6088cca4d66d2836948a2b3bbd4b8469bbc0"
+    },
+    {
+      "path": "src/source-native-semantic-verification.mts",
+      "bytes": 12341,
+      "sha256": "d0cdf429fee16a5b736aa0c9822efa22ea3d840b4eec715b42959b439e954b5f"
     },
     {
       "path": "tsconfig.json",
@@ -401,5 +406,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:468c8572578e1962ff4fd6f3f605573d670fc9f8c88ba2e6e6a69ad67bf32e3b"
+  "manifestSha256": "sha256:39c06ecac2d26889195646d7f3bc4e0ada926e3374cb78c5fe74f52eda12864b"
 }

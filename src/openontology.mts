@@ -126,6 +126,36 @@ export interface OpenOntologyObjectIdentityAbsenceReceipt {
   targetLeakage: false;
   receiptSha256: string;
 }
+export interface OpenOntologySemanticProofAuthority {
+  schemaVersion: 1;
+  kind: 'OpenOntologySourceNativeSemanticProofAuthorityV1';
+  rootPropositionKey: string;
+  supportPropositionFamily: 'action' | 'change' | 'outcome' | 'state';
+  sourceProjectionSha256: string;
+  proofCensusSha256: string;
+  propositionCount: number;
+  relationCount: number;
+  exactEvidenceReferenceCount: number;
+  exactInspectRequired: true;
+  exactSourcesRemainAuthority: true;
+  authoritySha256: string;
+}
+export interface OpenOntologySemanticProofVerification {
+  schemaVersion: 1;
+  kind: 'OpenOntologySourceNativeSemanticProofVerificationV1';
+  rootPropositionKey: string;
+  supportPropositionFamily: 'action' | 'change' | 'outcome' | 'state';
+  sourceProjectionSha256: string;
+  proofCensusSha256: string;
+  proofContractSha256: string;
+  proofClosed: boolean;
+  proofDisposition: 'contradicted' | 'qualified' | 'supported' | 'unresolved';
+  propositionCount: number;
+  relationCount: number;
+  exactEvidenceReferenceCount: number;
+  exactSourcesRemainAuthority: true;
+  verificationSha256: string;
+}
 export interface OpenOntologyVerificationMetadata {
   artifactSha256: string;
   nativeObjectMapSha256: string;
@@ -137,6 +167,8 @@ export interface OpenOntologyVerificationMetadata {
   navigationProposals: Record<string, unknown> | null;
   currentFieldChronology: OpenOntologyCurrentFieldChronologyVerification | null;
   absenceReceipt: OpenOntologyObjectIdentityAbsenceReceipt | null;
+  semanticProofAuthority?: OpenOntologySemanticProofAuthority;
+  semanticProof?: OpenOntologySemanticProofVerification;
 }
 export interface OpenOntologyResultPolicy {
   navigationOnly: boolean;
@@ -204,6 +236,7 @@ export interface OpenOntologyVerificationResult {
   kind: 'OpenOntologySourceNativeVerificationV1';
   state: OpenOntologyResultState;
   answerable: boolean;
+  proofDisposition?: 'contradicted' | 'qualified' | 'supported' | 'unresolved';
   intent: 'current' | 'next';
   query: OpenOntologyResolvedQuery | null;
   context: Array<{

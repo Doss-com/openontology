@@ -266,3 +266,27 @@ test('rejects a relation whose target is outside the namespace projection', () =
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('binds a root proposition to its inbound counterevidence closure', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-semantic-root-'));
+  try {
+    const map = buildFixture(root, { withCounterevidence: true }).objectOnt.map;
+    const projection = compileSourceNativeProofAuthorityProjection({
+      sourceNativeObjectMap: map,
+      namespace: 'northwind',
+      rootPropositionKeys: ['issue-1-validation-passed'],
+    });
+
+    assert.deepEqual(projection.items.map((item) => item.sourceProjectionItemId), [
+      'issue-1-payment-unreviewed',
+      'issue-1-validation-passed',
+    ]);
+    assert.throws(() => compileSourceNativeProofAuthorityProjection({
+      sourceNativeObjectMap: map,
+      namespace: 'northwind',
+      rootPropositionKeys: ['missing-proposition'],
+    }), { code: 'SOURCE_NATIVE_SEMANTIC_PROJECTION_ROOT' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

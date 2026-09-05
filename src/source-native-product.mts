@@ -1,5 +1,5 @@
 /** Public read-only source-native product runtime. */
-import { objectBytesSha256, stableObjectSha256 } from './canonical-content.mjs';
+import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
 import {
   openSourceNativeCurrentFieldResolver,
   openSourceNativeHistoricalFieldResolver,
@@ -7,6 +7,10 @@ import {
 import type { SourceNativeObjectIdentityAbsenceReceipt } from './source-native-field-resolver.mjs';
 import { openSourceNativeExactEvidenceSession } from './source-native-evidence-session.mjs';
 import { compileSourceNativeObjectIdentityCensus } from './source-native-identity-census.mjs';
+import {
+  compileSourceNativeSemanticNavigation,
+  evaluateSourceNativeSemanticNavigation,
+} from './source-native-semantic-verification.mjs';
 import { openProductState, productSources } from './source-native-artifact.mjs';
 import { compileProductQueryPlan, queryPlanner } from './source-native-query-plan.mjs';
 import { OPENONTOLOGY_RESULT_STATES } from './product-result-state.mjs';
@@ -474,7 +478,10 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
         },
       });
     }
-    const matches = references.map(({ role, reference }) => {
+    const offerReference = ({ role, reference }: {
+      role: string;
+      reference: EvidenceReference;
+    }): SourceNativeProductMatch => {
       const source = sourceById.get(reference.sourceMessageId);
       if (!source || source.relativePath !== reference.relativePath) {
         fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
@@ -507,7 +514,37 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
         sourceSha256: reference.sourceSha256,
         fieldSha256: reference.fieldSha256,
       });
-    });
+    };
+    const matches = references.map(offerReference);
+    let semanticNavigation = null;
+    const answerReferences = references.filter((row) => row.role === 'answer');
+    if (intent === 'current' && resolution.state === 'resolved-current-field'
+      && answerReferences.length === 1) {
+      semanticNavigation = compileSourceNativeSemanticNavigation({
+        sourceNativeObjectMap: objectOnt.map,
+        namespace: descriptor.namespace,
+        rootFieldSha256: answerReferences[0]?.reference.fieldSha256,
+      });
+      for (const offer of semanticNavigation?.evidenceOffers ?? []) {
+        if (offer.role === 'answer') continue;
+        const source = sourceByPath.get(offer.sourceRef)
+          ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+        matches.push(offerReference({
+          role: offer.role,
+          reference: {
+            sourceMessageId: source.sourceMessageId,
+            relativePath: offer.sourceRef,
+            sourceSha256: offer.sourceSha256,
+            byteStart: offer.byteStart,
+            byteEnd: offer.byteEnd,
+            textSha256: offer.textSha256,
+            fieldSha256: offer.fieldSha256,
+            fieldPath: offer.fieldPath,
+            propositionFamilyKey: offer.propositionFamilyKey,
+          },
+        }));
+      }
+    }
     const result = productResult({
       descriptor,
       objectOnt,
@@ -515,7 +552,12 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       plan,
       resolution,
       matches,
-      verificationFields: lifecycle?.verificationMetadata?.(resolution) ?? {},
+      verificationFields: {
+        ...(lifecycle?.verificationMetadata?.(resolution) ?? {}),
+        ...(semanticNavigation === null ? {} : {
+          semanticProofAuthority: semanticNavigation.authority,
+        }),
+      },
       resultFields: lifecycle?.resultMetadata?.(activity) ?? {},
     });
     lifecycle?.bindResult?.(activity, result);
@@ -599,10 +641,52 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       evidence: row.evidence,
       binding: row.binding,
     }));
+    let semanticResult = null;
+    const semanticAuthority = (searchResult.verification as UnknownRecord)
+      .semanticProofAuthority;
+    if (semanticAuthority !== undefined) {
+      const answerMatches = searchResult.matches.filter((match) => match.role === 'answer');
+      if (answerMatches.length !== 1 || !isRecord(semanticAuthority)) {
+        fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
+      }
+      const navigation = compileSourceNativeSemanticNavigation({
+        sourceNativeObjectMap: objectOnt.map,
+        namespace: descriptor.namespace,
+        rootFieldSha256: answerMatches[0]?.fieldSha256,
+      });
+      if (navigation === null
+        || stableObjectText(navigation.authority) !== stableObjectText(semanticAuthority)) {
+        fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_AUTHORITY');
+      }
+      const exactNavigation = navigation
+        ?? fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_AUTHORITY');
+      semanticResult = evaluateSourceNativeSemanticNavigation({
+        navigation: exactNavigation,
+        verifiedEvidence: reads.map((row) => {
+          const role = row.binding.role === 'answer' ? 'answer' as const
+            : row.binding.role === 'counterevidence' ? 'counterevidence' as const
+              : fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_EVIDENCE');
+          return {
+            role,
+            fieldSha256: row.binding.fieldSha256,
+            sourceRef: row.evidence.relativePath,
+            sourceSha256: row.evidence.sourceSha256,
+            byteStart: row.evidence.byteStart,
+            byteEnd: row.evidence.byteEnd,
+            textSha256: row.evidence.textSha256,
+          };
+        }),
+      });
+    }
     const chronologyComplete = searchResult.intent !== 'current'
       || searchResult.verification.currentFieldChronology?.proofDisposition === 'sufficient';
     const completeProof = chronologyComplete && searchResult.matches.length > 0
-      && searchResult.matches.filter((match) => match.requiredForProof).length === context.length;
+      && searchResult.matches.filter((match) => match.requiredForProof).length === context.length
+      && (semanticResult?.evaluation.proofClosed ?? true);
+    const verification = freeze({
+      ...searchResult.verification,
+      ...(semanticResult === null ? {} : { semanticProof: semanticResult.verification }),
+    });
     const core = {
       schemaVersion: 1,
       kind: 'OpenOntologySourceNativeVerificationV1' as const,
@@ -614,8 +698,11 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       mentionedExternalIds: searchResult.mentionedExternalIds,
       unresolvedExternalIds: searchResult.unresolvedExternalIds,
       availableFields: searchResult.availableFields,
-      verification: searchResult.verification,
+      verification,
       policy: searchResult.policy,
+      ...(semanticResult === null ? {} : {
+        proofDisposition: semanticResult.evaluation.proofDisposition,
+      }),
       ...(lifecycle?.verificationResult?.({ searchResult, reads, completeProof }) ?? {}),
     };
     return freeze({ ...core, verificationSha256: stableObjectSha256(core) });

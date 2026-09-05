@@ -94,6 +94,83 @@ function buildAdversarialChronologyInput() {
   };
 }
 
+function buildSemanticVerificationInput() {
+  const status = 'passed';
+  const exception = 'payment evidence remained unreviewed';
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'northwind-semantic-verification',
+    namespace: 'northwind',
+    querySchemas: [{
+      sourceSystem: 'linear', objectType: 'issue', aliases: ['issue'],
+      fields: [
+        { fieldPath: 'validationStatus', aliases: ['validation status'] },
+        { fieldPath: 'validationException', aliases: ['validation exception'] },
+      ],
+    }],
+    sources: [{
+      relativePath: 'linear/northwind/issue-1-status.txt', sourceType: 'linear',
+      occurredAt: '2026-09-01T10:00:00.000Z', content: `Validation status: ${status}.`,
+    }, {
+      relativePath: 'linear/northwind/issue-1-exception.txt', sourceType: 'linear',
+      occurredAt: '2026-09-01T10:01:00.000Z', content: `Exception: ${exception}.`,
+    }],
+    nativeObjectInputs: [{
+      relativePath: 'linear/northwind/issue-1-status.txt',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef', sourceSystem: 'linear', objectType: 'issue',
+        namespace: 'northwind', externalId: 'issue-1',
+      },
+      businessEntityKeys: ['issue:issue-1'],
+      fields: [{
+        fieldPath: 'validationStatus', propositionFamilyKey: 'issue-validation',
+        businessEntityKeys: ['issue:issue-1'], value: status,
+        validAt: '2026-09-01T09:59:00.000Z', knownAt: '2026-09-01T10:00:00.000Z',
+        canonicalProposition: {
+          kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+          propositionKey: 'issue-1-validation-passed',
+          actorHome: 'ObjectDef/InstanceRef',
+          stateHome: 'Claim/PropositionRevision-payload',
+          actorKind: 'issue', predicate: 'has-validation-status', state: status,
+          dimension: 'issue-validation', canonicalRoles: ['state'],
+          modality: 'observed', polarity: 'positive',
+          businessEntityKeys: ['issue:issue-1'],
+          extractionAuthority: 'deterministic-source-adapter-v1', relations: [],
+        },
+      }],
+    }, {
+      relativePath: 'linear/northwind/issue-1-exception.txt',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef', sourceSystem: 'linear', objectType: 'issue',
+        namespace: 'northwind', externalId: 'issue-1',
+      },
+      businessEntityKeys: ['issue:issue-1'],
+      fields: [{
+        fieldPath: 'validationException',
+        propositionFamilyKey: 'issue-validation-exception',
+        businessEntityKeys: ['issue:issue-1'], value: exception,
+        validAt: '2026-09-01T09:58:00.000Z', knownAt: '2026-09-01T10:01:00.000Z',
+        canonicalProposition: {
+          kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+          propositionKey: 'issue-1-payment-unreviewed',
+          actorHome: 'ObjectDef/InstanceRef',
+          stateHome: 'Claim/PropositionRevision-payload',
+          actorKind: 'issue', predicate: 'has-validation-exception', state: exception,
+          dimension: 'issue-validation-exception', canonicalRoles: ['counterevidence'],
+          modality: 'observed', polarity: 'negative',
+          businessEntityKeys: ['issue:issue-1'],
+          extractionAuthority: 'deterministic-source-adapter-v1',
+          relations: [{
+            kind: 'OpenOntologySourceNativePropositionRelationV1', type: 'qualifies',
+            targetPropositionKey: 'issue-1-validation-passed',
+          }],
+        },
+      }],
+    }],
+  };
+}
+
 test('builds, reopens, searches, reads, and verifies an immutable source-native product artifact', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-'));
   try {
@@ -147,6 +224,7 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     assert.equal(resolvedContext.verification.navigationProposals.state, 'raw-only');
     assert.equal(resolvedContext.verification.navigationProposals.learnedRouteUsed, false);
     assert.equal(resolvedContext.verification.navigationProposals.rawSearchExecuted, true);
+    assert.equal(Object.hasOwn(resolvedContext, 'proofDisposition'), false);
     assert.equal(Object.hasOwn(resolvedContext, 'learning'), false);
     assert.match(resolvedContext.verificationSha256, /^sha256:[0-9a-f]{64}$/u);
 
@@ -235,6 +313,43 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     await assert.rejects(reopened.read({ ref: current.matches[0].ref }), {
       code: 'SOURCE_NATIVE_PRODUCT_READ',
     });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary verify closes source-native counterevidence over exact Corpus spans', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-semantic-verify-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSemanticVerificationInput() });
+    const product = openOntology({ artifactRoot: root });
+    const query = {
+      question: 'What is the current validation status for issue-1?',
+      scope: {
+        sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-1',
+        field: 'validationStatus',
+      },
+    };
+    const search = await product.search(query);
+    assert.deepEqual(search.matches.map((match) => match.role), ['answer', 'counterevidence']);
+    assert.equal(JSON.stringify(search).includes('payment evidence remained unreviewed'), false);
+    assert.equal(search.verification.semanticProofAuthority.propositionCount, 2);
+    assert.equal(search.verification.semanticProofAuthority.relationCount, 1);
+    assert.equal(Object.hasOwn(search.verification, 'semanticProof'), false);
+
+    const verified = await product.verify(query);
+    assert.equal(verified.answerable, true);
+    assert.equal(verified.proofDisposition, 'qualified');
+    assert.deepEqual(verified.context.map((row) => [row.role, row.exactText]), [
+      ['answer', 'passed'],
+      ['counterevidence', 'payment evidence remained unreviewed'],
+    ]);
+    assert.equal(verified.verification.semanticProof.proofClosed, true);
+    assert.equal(verified.verification.semanticProof.propositionCount, 2);
+    assert.equal(verified.verification.semanticProof.relationCount, 1);
+    assert.equal(verified.verification.semanticProof.exactEvidenceReferenceCount, 2);
+    assert.match(verified.verification.semanticProof.proofCensusSha256,
+      /^sha256:[0-9a-f]{64}$/u);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

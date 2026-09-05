@@ -138,8 +138,11 @@ known time, and its exact source span in one source-native map. This projection
 compiler is implemented and tamper-tested. Counterevidence can carry typed
 `qualifies` and `contradicts` relations to proposition identities in the same
 namespace; the proof evaluator closes the exact relation census before it
-returns a qualified or contradicted disposition. Ordinary root `verify`
-integration remains active work.
+returns a qualified or contradicted disposition. Ordinary root `verify` uses a
+selected current field as the proof root, expands its inbound counterevidence
+closure, reopens every exact Corpus span, and exposes the resulting proof
+disposition. Action, change, outcome, and state roots are supported. Broader
+semantic question planning remains active work.
 
 `[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
 admitted-knowledge path. A proposer and an independent reviewer sign one

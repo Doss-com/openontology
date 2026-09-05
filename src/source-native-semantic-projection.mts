@@ -17,6 +17,8 @@ const fail = (code: string): never => {
   error.code = code;
   throw error;
 };
+const compare = (left: unknown, right: unknown): number =>
+  Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 const isV2 = (value: unknown): value is SourceNativeCanonicalPropositionV2 =>
   value !== null && typeof value === 'object'
   && (value as { kind?: unknown }).kind === 'OpenOntologySourceNativeCanonicalPropositionV2';
@@ -24,16 +26,25 @@ const isV2 = (value: unknown): value is SourceNativeCanonicalPropositionV2 =>
 export interface CompileSourceNativeProofAuthorityProjectionInput {
   sourceNativeObjectMap?: SourceNativeObjectMap;
   namespace?: string;
+  rootPropositionKeys?: readonly string[];
 }
 
 export function compileSourceNativeProofAuthorityProjection({
   sourceNativeObjectMap: mapInput,
   namespace,
+  rootPropositionKeys: rootPropositionKeyInput,
 }: CompileSourceNativeProofAuthorityProjectionInput = {}): ProofAuthorityProjection {
   const map = validateSourceNativeObjectMap(mapInput);
-  if (typeof namespace !== 'string' || !namespace) {
+  if (typeof namespace !== 'string' || !namespace
+    || rootPropositionKeyInput !== undefined
+      && (!Array.isArray(rootPropositionKeyInput)
+        || rootPropositionKeyInput.length < 1
+        || rootPropositionKeyInput.some((key) => typeof key !== 'string' || !key)
+        || new Set(rootPropositionKeyInput).size !== rootPropositionKeyInput.length)) {
     fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_INPUT');
   }
+  const rootPropositionKeys = rootPropositionKeyInput === undefined ? null
+    : [...rootPropositionKeyInput].sort(compare);
   const bindings: Array<{
     item: ProofAuthorityItem;
     fieldSha256: string;
@@ -85,12 +96,35 @@ export function compileSourceNativeProofAuthorityProjection({
   if (relations.some((relation) => !itemIds.has(relation.targetProjectionItemId))) {
     fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_RELATION_TARGET');
   }
+  const selectedIds = rootPropositionKeys === null ? itemIds : new Set(rootPropositionKeys);
+  if (rootPropositionKeys?.some((key) => !itemIds.has(key))) {
+    fail('SOURCE_NATIVE_SEMANTIC_PROJECTION_ROOT');
+  }
+  if (rootPropositionKeys !== null) {
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const relation of relations) {
+        if (selectedIds.has(relation.targetProjectionItemId)
+          && !selectedIds.has(relation.sourceProjectionItemId)) {
+          selectedIds.add(relation.sourceProjectionItemId);
+          expanded = true;
+        }
+      }
+    }
+  }
+  const selectedBindings = bindings.filter((row) =>
+    selectedIds.has(row.item.sourceProjectionItemId));
+  const selectedRelations = relations.filter((relation) =>
+    selectedIds.has(relation.sourceProjectionItemId)
+      && selectedIds.has(relation.targetProjectionItemId));
   const sourceProjectionSha256 = stableObjectSha256({
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeSemanticProjectionInputV1',
     namespace,
+    rootPropositionKeys,
     nativeObjectMapSha256: map.nativeObjectMapSha256,
-    bindings: bindings.map((row) => ({
+    bindings: selectedBindings.map((row) => ({
       sourceProjectionItemId: row.item.sourceProjectionItemId,
       fieldSha256: row.fieldSha256,
       objectIdentitySha256: row.objectIdentitySha256,
@@ -99,7 +133,7 @@ export function compileSourceNativeProofAuthorityProjection({
   return compileProofAuthorityProjection({
     sourceProjectionKind: 'OpenOntologySourceNativeSemanticProjectionV1',
     sourceProjectionSha256,
-    items: bindings.map((row) => row.item),
-    relations,
+    items: selectedBindings.map((row) => row.item),
+    relations: selectedRelations,
   });
 }
