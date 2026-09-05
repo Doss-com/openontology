@@ -612,7 +612,7 @@ function compileObject(input: ExactObjectInput, source: SourceNativeSource): Sou
   return freeze({ ...core, nativeObjectSha256: stableObjectSha256(core) });
 }
 
-function compileFieldRevisions(objects: SourceNativeObject[]): SourceNativeFieldRevision[] {
+export function compileFieldRevisions(objects: SourceNativeObject[]): SourceNativeFieldRevision[] {
   const groups = new Map<string, Array<{
     object: SourceNativeObject; field: SourceNativeField; occurredAtMs: number;
   }>>();
