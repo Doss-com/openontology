@@ -157,17 +157,17 @@ corresponding half-open UTF-8 byte span and `textSha256`. `canonicalValue` is
 optional comparison metadata for revision grouping. It never replaces the
 source-exact `value` returned by `read` or verification.
 
-Use canonical UTC timestamps such as
-`2026-01-01T00:00:00.000Z` for `occurredAt`, and the same form for optional
-`validAt` or `knownAt`. Repeated observations use separate source and object
-rows with the same identity. A changed exact value at the same `occurredAt`
-refuses the build, because chronology is ambiguous.
+For reliable Adapter output, `occurredAt` must use a canonical UTC timestamp
+such as `2026-01-01T00:00:00.000Z`; use the same form for optional `validAt`
+or `knownAt`. Repeated observations use separate source and object rows with
+the same identity. A changed canonical value at the same `occurredAt` refuses
+the build, because chronology is ambiguous. Exact presentation changes with
+the same `canonicalValue` do not create a revision.
 
 The query schema's source system, object type, aliases, and field paths must
 agree with the native object inputs. The builder validates the two declarations
 independently, so a mismatched profile can build but cannot answer the missing
-field. Keep the declarations aligned. Unknown optional properties are retained
-only where the runtime contract accepts them; they are not validation helpers.
+field. Keep the declarations aligned.
 
 Every supplied source path must be mapped by at least one native object. This
 is completeness of the supplied corpus, not proof that an upstream system had

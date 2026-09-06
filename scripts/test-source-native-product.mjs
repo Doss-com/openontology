@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -661,36 +661,13 @@ test('materialization checkpoints the source ref before product opens', () => {
 test('accepts the documented minimal Adapter envelope and verifies its exact field', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-authoring-minimal-'));
   try {
-    const input = {
-      schemaVersion: 1,
-      kind: 'OpenOntologySourceNativeBuildInputV1',
-      ontId: 'status-demo',
-      namespace: 'demo',
-      querySchemas: [{
-        sourceSystem: 'tracker',
-        objectType: 'ticket',
-        aliases: ['ticket'],
-        fields: [{ fieldPath: 'status', aliases: ['status'] }],
-      }],
-      sources: [{
-        sourceType: 'tracker',
-        relativePath: 'tracker/demo/t-1.txt',
-        occurredAt: '2026-01-01T00:00:00.000Z',
-        content: 'Ticket T-1 status: open',
-        sourceSha256: 'sha256:a1aefc2657e92b4f9740cd2d0a395d12a91cdd34e34517c78b48455cfb91ee62',
-      }],
-      nativeObjectInputs: [{
-        relativePath: 'tracker/demo/t-1.txt',
-        objectIdentity: {
-          home: 'ObjectDef/InstanceRef',
-          sourceSystem: 'tracker',
-          objectType: 'ticket',
-          namespace: 'demo',
-          externalId: 'T-1',
-        },
-        fields: [{ fieldPath: 'status', value: 'open', codeUnitStart: 19 }],
-      }],
-    };
+    const docs = readFileSync(join(import.meta.dirname, '..', 'docs', 'SOURCE-LIFECYCLE.md'), 'utf8');
+    const fence = '```json\n';
+    const start = docs.indexOf(fence);
+    assert.ok(start >= 0, 'documented JSON example is present');
+    const end = docs.indexOf('\n```', start + fence.length);
+    assert.ok(end > start, 'documented JSON example is closed');
+    const input = JSON.parse(docs.slice(start + fence.length, end));
     buildSourceNativeProduct({ artifactRoot: root, input });
     const state = openProductState({ artifactRoot: root });
     assert.equal(state.descriptor.branch, 'main');
@@ -708,7 +685,7 @@ test('requires explicit repeated-text selection and preserves exact values besid
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-authoring-spans-'));
   const ambiguousRoot = mkdtempSync(join(tmpdir(), 'oont-source-native-authoring-ambiguous-'));
   try {
-    const firstContent = '🧪 status: open | previous status: open';
+    const firstContent = '𐍈 status: open | previous status: open';
     const firstCodeUnitStart = firstContent.lastIndexOf('open');
     const secondContent = 'Ticket T-2 status: OPEN';
     const input = {
@@ -795,6 +772,17 @@ test('scopes completeness to the supplied corpus and disables proof after Adapte
     });
     assert.equal(incomplete.state, 'unavailable-incomplete-recorded-field-chronology');
     assert.equal(incomplete.verification.currentFieldChronology.proofDisposition, 'insufficient');
+    const unprovableAbsence = await openSourceNativeProduct({ artifactRoot: diagnosticRoot }).verify({
+      question: 'What is the current task title?',
+      typedQuery: {
+        sourceSystem: 'clickup', objectType: 'task', externalId: 'task-999', fieldPath: 'title',
+      },
+    });
+    assert.equal(unprovableAbsence.state, 'unavailable-native-object-not-seeded');
+    assert.equal(unprovableAbsence.answerable, false);
+    assert.deepEqual(unprovableAbsence.context, []);
+    assert.equal(unprovableAbsence.verification.absenceReceipt, null);
+    assert.deepEqual(unprovableAbsence.verification.evidenceUnits ?? [], []);
 
     buildSourceNativeProduct({ artifactRoot: absenceRoot, input: buildInput() });
     const absent = await openSourceNativeProduct({ artifactRoot: absenceRoot }).verify({
@@ -813,6 +801,7 @@ test('scopes completeness to the supplied corpus and disables proof after Adapte
 
 test('requires query schema and native field profiles to remain aligned', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-source-native-authoring-profile-'));
+  const missingNativeFieldRoot = mkdtempSync(join(tmpdir(), 'oont-source-native-authoring-native-field-'));
   try {
     const input = buildInput();
     input.querySchemas[0].fields = [{ fieldPath: 'owner', aliases: ['owner'] }];
@@ -823,8 +812,22 @@ test('requires query schema and native field profiles to remain aligned', async 
     assert.equal(result.state, 'unavailable-native-field-not-declared');
     assert.equal(result.answerable, false);
     assert.deepEqual(result.context, []);
+
+    const missingNativeField = buildInput();
+    missingNativeField.nativeObjectInputs = missingNativeField.nativeObjectInputs.map((object) => ({
+      ...object,
+      fields: object.fields.map((field) => ({ ...field, fieldPath: 'owner' })),
+    }));
+    buildSourceNativeProduct({ artifactRoot: missingNativeFieldRoot, input: missingNativeField });
+    const missingNativeFieldResult = await openSourceNativeProduct({ artifactRoot: missingNativeFieldRoot }).verify({
+      question: 'What is the current task title for task-1?',
+    });
+    assert.equal(missingNativeFieldResult.state, 'unavailable-native-field-not-present');
+    assert.equal(missingNativeFieldResult.answerable, false);
+    assert.deepEqual(missingNativeFieldResult.context, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
+    rmSync(missingNativeFieldRoot, { recursive: true, force: true });
   }
 });
 

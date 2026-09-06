@@ -132,8 +132,8 @@
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
-      "bytes": 8405,
-      "sha256": "21b610707ba60c6ac45c28f56cf2a65adb07227c0ea0111dfe2089a8cba5480b"
+      "bytes": 8404,
+      "sha256": "963b738581b835e9d578ec26f7e1e86fb093a3905cb30b5a3ed188ca2bc4282a"
     },
     {
       "path": "docs/STORAGE.md",
@@ -312,8 +312,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 64384,
-      "sha256": "8b4bbab932ccd6a069c3a9b4013ef61e0542408e25edcbad5d56d31be1907be5"
+      "bytes": 65385,
+      "sha256": "01918480614c7fa690c0ea9ebb933d60404cc540bd2fd9a5eeb6e1ac6da14900"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:bb41941690336be8c05a0a45d70ffe071dfab0dffa168ec4d5f9c065909a0333"
+  "manifestSha256": "sha256:509f030055f514c3d8d228b67edaae03c9290158ceba7ad20400dcb7804d1d1a"
 }
