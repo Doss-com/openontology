@@ -18,6 +18,7 @@ import { runSourceNativeProductMcp } from '../dist/src/source-native-product-mcp
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const publicCli = join(repositoryRoot, 'dist', 'bin', 'oont.mjs');
 const AT = '2026-02-15T00:00:00.000Z';
+const TITLE_AT = '2026-01-15T00:00:00.000Z';
 const CLI_SCOPE = [
   '--source-system', 'clickup',
   '--object-type', 'task',
@@ -67,6 +68,66 @@ function buildInput() {
   };
 }
 
+function titleParityRow({ relativePath, occurredAt, externalId, title, status, body = '' }) {
+  const content = `Title: ${title}\nStatus: ${status}. ${body}`;
+  return {
+    source: { relativePath, sourceType: 'clickup', occurredAt, content },
+    nativeObjectInput: {
+      relativePath,
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        namespace: 'acme',
+        externalId,
+      },
+      fields: [
+        { fieldPath: 'title', value: title, codeUnitStart: content.indexOf(title) },
+        { fieldPath: 'status', value: status, codeUnitStart: content.indexOf(status),
+          validAt: occurredAt, knownAt: occurredAt },
+      ],
+    },
+  };
+}
+
+function buildTitleParityInput() {
+  const rows = [
+    titleParityRow({
+      relativePath: 'clickup/acme/task-1-r1.md',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      externalId: 'task-1', title: 'Legacy review', status: 'Ready',
+    }),
+    titleParityRow({
+      relativePath: 'clickup/acme/task-1-r2.md',
+      occurredAt: '2026-02-01T00:00:00.000Z',
+      externalId: 'task-1', title: 'Renamed review', status: 'Done',
+    }),
+    titleParityRow({
+      relativePath: 'clickup/acme/task-2.md',
+      occurredAt: '2026-02-02T00:00:00.000Z',
+      externalId: 'task-2', title: 'Dependency cleanup', status: 'Blocked',
+      body: 'Legacy review appears in this dependency note.',
+    }),
+  ];
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'historical-title-surfaces',
+    namespace: 'acme',
+    querySchemas: [{
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      aliases: ['task'],
+      fields: [
+        { fieldPath: 'title', aliases: ['title'] },
+        { fieldPath: 'status', aliases: ['status'] },
+      ],
+    }],
+    sources: rows.map(({ source }) => source),
+    nativeObjectInputs: rows.map(({ nativeObjectInput }) => nativeObjectInput),
+  };
+}
+
 function query(overrides = {}) {
   return {
     question: 'What is the task title for task-1?',
@@ -80,10 +141,10 @@ function query(overrides = {}) {
   };
 }
 
-function buildFixture() {
-  const root = mkdtempSync(join(tmpdir(), 'oont-historical-surfaces-'));
+function buildFixture(input = buildInput(), prefix = 'oont-historical-surfaces-') {
+  const root = mkdtempSync(join(tmpdir(), prefix));
   try {
-    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    buildSourceNativeProduct({ artifactRoot: root, input });
     return root;
   } catch (error) {
     rmSync(root, { recursive: true, force: true });
@@ -158,6 +219,238 @@ test('SDK historical selection returns the earlier exact value while current sta
     ]);
     assert.equal(cliHistorical.status, 0, cliHistorical.stderr);
     assert.equal(JSON.parse(cliHistorical.stdout).context[0].exactText, 'Beta');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('title-only current and historical queries keep SDK, CLI and MCP on one identity', async () => {
+  const root = buildFixture(buildTitleParityInput(), 'oont-historical-title-surfaces-');
+  const currentQuestion = 'What is the current status of the task titled "Legacy review"?';
+  const historicalQuestion = 'What was the status of the task titled "Legacy review"?';
+  try {
+    const client = openOntology({ artifactRoot: root });
+    const sdkCurrent = await client.verify(currentQuestion);
+    assert.equal(sdkCurrent.state, 'resolved-current-field');
+    assert.equal(sdkCurrent.answerable, true);
+    assert.equal(sdkCurrent.query.externalId, 'task-1');
+    assert.equal(sdkCurrent.context[0].exactText, 'Done');
+    assert.equal(sdkCurrent.context[0].binding.externalId, 'task-1');
+
+    const sdkHistorical = await client.verify({ question: historicalQuestion, at: TITLE_AT });
+    assert.equal(sdkHistorical.state, 'resolved-historical-field');
+    assert.equal(sdkHistorical.answerable, true);
+    assert.equal(sdkHistorical.query.externalId, 'task-1');
+    assert.equal(sdkHistorical.context[0].exactText, 'Ready');
+    assert.equal(sdkHistorical.context[0].binding.externalId, 'task-1');
+
+    const renamedHistorical = await client.verify({
+      question: 'What was the status of the task titled "Renamed review"?', at: TITLE_AT,
+    });
+    assert.equal(renamedHistorical.state, 'resolved-historical-field');
+    assert.equal(renamedHistorical.answerable, true);
+    assert.equal(renamedHistorical.context[0].exactText, 'Ready');
+    assert.equal(renamedHistorical.context[0].binding.externalId, 'task-1');
+
+    const cliCurrent = runCli(['verify', root, currentQuestion]);
+    assert.equal(cliCurrent.status, 0, cliCurrent.stderr);
+    const cliCurrentResult = JSON.parse(cliCurrent.stdout);
+    assert.equal(cliCurrentResult.state, 'resolved-current-field');
+    assert.equal(cliCurrentResult.answerable, true);
+    assert.equal(cliCurrentResult.query.externalId, 'task-1');
+    assert.equal(cliCurrentResult.context[0].exactText, 'Done');
+    assert.equal(cliCurrentResult.context[0].binding.externalId, 'task-1');
+
+    const cliHistorical = runCli(['verify', root, historicalQuestion, '--at', TITLE_AT]);
+    assert.equal(cliHistorical.status, 0, cliHistorical.stderr);
+    const cliHistoricalResult = JSON.parse(cliHistorical.stdout);
+    assert.equal(cliHistoricalResult.state, 'resolved-historical-field');
+    assert.equal(cliHistoricalResult.answerable, true);
+    assert.equal(cliHistoricalResult.query.externalId, 'task-1');
+    assert.equal(cliHistoricalResult.context[0].exactText, 'Ready');
+    assert.equal(cliHistoricalResult.context[0].binding.externalId, 'task-1');
+
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const outputLines = createInterface({ input: output });
+    const server = runSourceNativeProductMcp(openSourceNativeProduct({ artifactRoot: root }), {
+      input, output, profile: 'advanced',
+    });
+    try {
+      await mcpCall(input, outputLines, {
+        jsonrpc: '2.0', id: 1, method: 'initialize',
+        params: { protocolVersion: '2024-11-05' },
+      });
+      const mcpCurrentResponse = await mcpCall(input, outputLines, {
+        jsonrpc: '2.0', id: 2, method: 'tools/call',
+        params: { name: 'search', arguments: { question: currentQuestion } },
+      });
+      const mcpCurrent = JSON.parse(mcpCurrentResponse.result.content[0].text);
+      assert.equal(mcpCurrent.state, 'resolved-current-field');
+      assert.equal(mcpCurrent.query.externalId, 'task-1');
+      assert.equal(mcpCurrent.matches.length, 1);
+      const mcpCurrentReadResponse = await mcpCall(input, outputLines, {
+        jsonrpc: '2.0', id: 3, method: 'tools/call',
+        params: { name: 'read', arguments: { ref: mcpCurrent.matches[0].ref } },
+      });
+      const mcpCurrentRead = JSON.parse(mcpCurrentReadResponse.result.content[0].text);
+      assert.equal(mcpCurrentRead.exactText, 'Done');
+      assert.equal(mcpCurrentRead.binding.externalId, 'task-1');
+
+      const mcpHistoricalResponse = await mcpCall(input, outputLines, {
+        jsonrpc: '2.0', id: 4, method: 'tools/call',
+        params: { name: 'search', arguments: { question: historicalQuestion, at: TITLE_AT } },
+      });
+      const mcpHistorical = JSON.parse(mcpHistoricalResponse.result.content[0].text);
+      assert.equal(mcpHistorical.state, 'resolved-historical-field');
+      assert.equal(mcpHistorical.query.externalId, 'task-1');
+      assert.equal(mcpHistorical.at, TITLE_AT);
+      assert.equal(mcpHistorical.matches.length, 1);
+      const mcpHistoricalReadResponse = await mcpCall(input, outputLines, {
+        jsonrpc: '2.0', id: 5, method: 'tools/call',
+        params: { name: 'read', arguments: { ref: mcpHistorical.matches[0].ref } },
+      });
+      const mcpHistoricalRead = JSON.parse(mcpHistoricalReadResponse.result.content[0].text);
+      assert.equal(mcpHistoricalRead.exactText, 'Ready');
+      assert.equal(mcpHistoricalRead.binding.externalId, 'task-1');
+    } finally {
+      server.close();
+      outputLines.close();
+      input.end();
+      output.end();
+    }
+
+    const verifyInput = new PassThrough();
+    const verifyOutput = new PassThrough();
+    const verifyOutputLines = createInterface({ input: verifyOutput });
+    const verifyServer = runSourceNativeProductMcp(
+      openSourceNativeProduct({ artifactRoot: root }),
+      { input: verifyInput, output: verifyOutput },
+    );
+    try {
+      await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 6, method: 'initialize',
+        params: { protocolVersion: '2024-11-05' },
+      });
+      const verifiedCurrentResponse = await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 7, method: 'tools/call',
+        params: { name: 'verify', arguments: { question: currentQuestion } },
+      });
+      const verifiedCurrent = JSON.parse(verifiedCurrentResponse.result.content[0].text);
+      assert.equal(verifiedCurrent.state, 'resolved-current-field');
+      assert.equal(verifiedCurrent.answerable, true);
+      assert.equal(verifiedCurrent.query.externalId, 'task-1');
+      assert.equal(verifiedCurrent.context[0].exactText, 'Done');
+      assert.equal(verifiedCurrent.context[0].binding.externalId, 'task-1');
+
+      const verifiedHistoricalResponse = await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 8, method: 'tools/call',
+        params: {
+          name: 'verify', arguments: { question: historicalQuestion, at: TITLE_AT },
+        },
+      });
+      const verifiedHistorical = JSON.parse(verifiedHistoricalResponse.result.content[0].text);
+      assert.equal(verifiedHistorical.state, 'resolved-historical-field');
+      assert.equal(verifiedHistorical.answerable, true);
+      assert.equal(verifiedHistorical.at, TITLE_AT);
+      assert.equal(verifiedHistorical.query.externalId, 'task-1');
+      assert.equal(verifiedHistorical.context[0].exactText, 'Ready');
+      assert.equal(verifiedHistorical.context[0].binding.externalId, 'task-1');
+    } finally {
+      verifyServer.close();
+      verifyOutputLines.close();
+      verifyInput.end();
+      verifyOutput.end();
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('title-only unknown and wrong-namespace refusals match across SDK, CLI and MCP', async () => {
+  const root = buildFixture(buildTitleParityInput(), 'oont-historical-title-refusal-');
+  const questions = [
+    'For other, what is the current status of the task titled "Legacy review"?',
+    'What is the current status of the task titled "No such task"?',
+  ];
+  try {
+    const client = openOntology({ artifactRoot: root });
+    const sdkResults = await Promise.all(questions.map((question) => client.verify(question)));
+    assert.deepEqual(sdkResults.map((result) => result.state), [
+      'unavailable-native-object-identifier-not-declared',
+      'unavailable-native-object-identifier-not-declared',
+    ]);
+    for (const result of sdkResults) {
+      assert.equal(result.answerable, false);
+      assert.deepEqual(result.context, []);
+    }
+
+    const cliResults = questions.map((question) => {
+      const result = runCli(['verify', root, question]);
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout);
+    });
+    assert.deepEqual(cliResults.map((result) => result.state), sdkResults.map((result) => result.state));
+    for (const result of cliResults) {
+      assert.equal(result.answerable, false);
+      assert.deepEqual(result.context, []);
+    }
+
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const outputLines = createInterface({ input: output });
+    const server = runSourceNativeProductMcp(openSourceNativeProduct({ artifactRoot: root }), {
+      input, output, profile: 'advanced',
+    });
+    try {
+      await mcpCall(input, outputLines, {
+        jsonrpc: '2.0', id: 10, method: 'initialize',
+        params: { protocolVersion: '2024-11-05' },
+      });
+      for (const [index, question] of questions.entries()) {
+        const response = await mcpCall(input, outputLines, {
+          jsonrpc: '2.0', id: 11 + index, method: 'tools/call',
+          params: { name: 'search', arguments: { question } },
+        });
+        const result = JSON.parse(response.result.content[0].text);
+        assert.equal(result.state, sdkResults[index].state);
+        assert.equal(result.matches.length, 0);
+      }
+    } finally {
+      server.close();
+      outputLines.close();
+      input.end();
+      output.end();
+    }
+
+    const verifyInput = new PassThrough();
+    const verifyOutput = new PassThrough();
+    const verifyOutputLines = createInterface({ input: verifyOutput });
+    const verifyServer = runSourceNativeProductMcp(
+      openSourceNativeProduct({ artifactRoot: root }),
+      { input: verifyInput, output: verifyOutput },
+    );
+    try {
+      await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 20, method: 'initialize',
+        params: { protocolVersion: '2024-11-05' },
+      });
+      for (const [index, question] of questions.entries()) {
+        const response = await mcpCall(verifyInput, verifyOutputLines, {
+          jsonrpc: '2.0', id: 21 + index, method: 'tools/call',
+          params: { name: 'verify', arguments: { question } },
+        });
+        const result = JSON.parse(response.result.content[0].text);
+        assert.equal(result.state, sdkResults[index].state);
+        assert.equal(result.answerable, false);
+        assert.deepEqual(result.context, []);
+      }
+    } finally {
+      verifyServer.close();
+      verifyOutputLines.close();
+      verifyInput.end();
+      verifyOutput.end();
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
