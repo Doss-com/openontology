@@ -6,7 +6,7 @@ import {
 import type { SourceNativeAdmissionTrustEntry } from './admission-authentication.mjs';
 import { openProductState } from './source-native-artifact.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
-import type { BlobDescriptor, ReplayMetadataGraph } from './object-ont-store.mjs';
+import type { BlobDescriptor, ReplayMetadataGraph, ReplayMetadataSnapshot } from './object-ont-store.mjs';
 import {
   assertSemanticConstructionBound, validateSourceNativeSemanticConstruction,
 } from './source-native-semantic-construction.mjs';
@@ -336,9 +336,21 @@ interface SourceNativeConstructionLedgerSnapshot {
   records: readonly SourceNativeConstructionRecordDisposition[];
 }
 
+interface SourceNativeConstructionSelectedSnapshot extends SourceNativeConstructionLedgerSnapshot {
+  selectedRecord: SourceNativeConstructionAdmissionRecord | null;
+  selectedDisposition: SourceNativeConstructionRecordDisposition | null;
+  knowledgeSnapshot: ReplayMetadataSnapshot;
+  sourceSnapshot: ReplayMetadataSnapshot;
+}
+
 interface ConstructionLedgerReader {
   read(): SourceNativeConstructionLedger;
   readSnapshot(): SourceNativeConstructionLedgerSnapshot;
+  readSnapshotAt(input: {
+    commitSha256: string;
+    replaySha256: string;
+    recordSha256: string;
+  }): SourceNativeConstructionSelectedSnapshot;
 }
 
 /** Internal source/trust-pinned reader. Returned records are navigation, not Evidence. */
@@ -353,11 +365,28 @@ export function createConstructionLedgerReader(
 
   function evaluate(collectRecords: true): SourceNativeConstructionLedgerSnapshot;
   function evaluate(collectRecords: false): SourceNativeConstructionLedger;
-  function evaluate(collectRecords: boolean): SourceNativeConstructionLedger | SourceNativeConstructionLedgerSnapshot {
+  function evaluate(collectRecords: true, selected: {
+    replay: ReplayMetadataGraph;
+    commitSha256: string;
+    replaySha256: string;
+    recordSha256: string;
+    knowledgeSnapshot: ReplayMetadataSnapshot;
+    sourceSnapshot: ReplayMetadataSnapshot;
+  }): SourceNativeConstructionSelectedSnapshot;
+  function evaluate(collectRecords: boolean, selected: {
+    replay: ReplayMetadataGraph;
+    commitSha256: string;
+    replaySha256: string;
+    recordSha256: string;
+    knowledgeSnapshot: ReplayMetadataSnapshot;
+    sourceSnapshot: ReplayMetadataSnapshot;
+  } | null = null): SourceNativeConstructionLedger | SourceNativeConstructionLedgerSnapshot
+    | SourceNativeConstructionSelectedSnapshot {
     let commitSha256: string | null = null;
     let replaySha256: string | null = null;
     const structural = new Map<string, SourceNativeConstructionAdmissionRecord>();
     const bound: SourceNativeConstructionAdmissionRecord[] = [];
+    let selectedRecord: SourceNativeConstructionAdmissionRecord | null = null;
     const dispositions = collectRecords
       ? new Map<string, MutableSourceNativeConstructionRecordDisposition>() : null;
     const dispositionKey = (recordSha256: string): string => `record:${recordSha256}`;
@@ -376,18 +405,20 @@ export function createConstructionLedgerReader(
       }
     }
     try {
-      const snapshot = context.store.readRefMetadataSnapshot({ ontId: context.descriptor.ontId, branch });
+      const snapshot = selected?.knowledgeSnapshot
+        ?? context.store.readRefMetadataSnapshot({ ontId: context.descriptor.ontId, branch });
       if (snapshot === null && lastAcceptedCommitSha256 !== null) fail('MISSING');
-      if (snapshot) {
-        assertReplay(context, snapshot.replayMetadata);
+      const replay = selected?.replay ?? snapshot?.replayMetadata ?? null;
+      if (snapshot && replay) {
+        assertReplay(context, replay);
         if (lastAcceptedCommitSha256 !== null
           && !snapshot.replayMetadata.commitOrder.includes(lastAcceptedCommitSha256)) {
           fail('ROLLBACK');
         }
-        commitSha256 = snapshot.ref.commitSha256;
-        replaySha256 = snapshot.ref.replaySha256;
+        commitSha256 = selected?.commitSha256 ?? snapshot.ref.commitSha256;
+        replaySha256 = selected?.replaySha256 ?? snapshot.ref.replaySha256;
         lastAcceptedCommitSha256 = snapshot.ref.commitSha256;
-        for (const descriptor of snapshot.replayMetadata.blobDescriptors.filter((item) => item.logicalPath.startsWith(PREFIX))) {
+        for (const descriptor of replay.blobDescriptors.filter((item) => item.logicalPath.startsWith(PREFIX))) {
           const disposition: MutableSourceNativeConstructionRecordDisposition | undefined = collectRecords ? {
             blobSha256: descriptor.storedSha256,
             recordSha256: null,
@@ -416,6 +447,7 @@ export function createConstructionLedgerReader(
             authenticate(record, registry);
             assertSemanticConstructionBound(record.construction, context);
             bound.push(record);
+            if (selected?.recordSha256 === record.recordSha256) selectedRecord = record;
           } catch (error) {
             invalid(error, disposition, 'ineligible', GENERIC_INELIGIBLE_ERROR_CODE);
           }
@@ -535,13 +567,55 @@ export function createConstructionLedgerReader(
           };
         })
         .sort((a, b) => compare(a.blobSha256, b.blobSha256));
+      if (selected) {
+        const selectedDisposition = recordStates.find((item) =>
+          item.recordSha256 === selected.recordSha256) ?? (() => {
+          const descriptor = selected.replay.blobDescriptors.find((item) =>
+            item.logicalPath === recordPath(selected.recordSha256));
+          return descriptor === undefined ? undefined
+            : recordStates.find((item) => item.blobSha256 === descriptor.storedSha256);
+        })() ?? null;
+        return freeze({ ledger, records: recordStates, selectedRecord,
+          selectedDisposition, knowledgeSnapshot: selected.knowledgeSnapshot,
+          sourceSnapshot: selected.sourceSnapshot });
+      }
       return freeze({ ledger, records: recordStates });
     }
     return ledger;
   }
   const readSnapshot = (): SourceNativeConstructionLedgerSnapshot => evaluate(true);
   const read = (): SourceNativeConstructionLedger => evaluate(false);
-  return Object.freeze({ read, readSnapshot });
+  const readSnapshotAt = (input: {
+    commitSha256: string;
+    replaySha256: string;
+    recordSha256: string;
+  }): SourceNativeConstructionSelectedSnapshot => {
+    if (!SHA256.test(input.commitSha256) || !SHA256.test(input.replaySha256)
+      || !SHA256.test(input.recordSha256)) fail('HASH');
+    const knowledgeSnapshot = context.store.readRefMetadataSnapshot({
+      ontId: context.descriptor.ontId, branch,
+    });
+    if (knowledgeSnapshot === null) fail('MISSING');
+    assertReplay(context, knowledgeSnapshot.replayMetadata);
+    if (!knowledgeSnapshot.replayMetadata.commitOrder.includes(input.commitSha256)) fail('BRANCH');
+    const replay = context.store.replayMetadata(input.commitSha256);
+    if (replay.status !== 'CLEAN' || replay.ontId !== context.descriptor.ontId
+      || replay.replaySha256 !== input.replaySha256) fail('BRANCH');
+    assertReplay(context, replay);
+    const sourceSnapshot = context.store.readRefMetadataSnapshot({
+      ontId: context.descriptor.ontId, branch: context.descriptor.branch,
+    });
+    if (sourceSnapshot === null) fail('MISSING');
+    assertReplay(context, sourceSnapshot.replayMetadata);
+    if (!sourceSnapshot.replayMetadata.commitOrder.includes(context.objectOnt.commitSha256)) fail('BRANCH');
+    const value = evaluate(true, {
+      replay, commitSha256: input.commitSha256, replaySha256: input.replaySha256,
+      recordSha256: input.recordSha256, knowledgeSnapshot, sourceSnapshot,
+    });
+    if (value.selectedRecord === null && value.selectedDisposition === null) fail('RECORD');
+    return value;
+  };
+  return Object.freeze({ read, readSnapshot, readSnapshotAt });
 }
 
 /** Fresh source/trust-bound snapshot. Returned records are navigation, not Evidence. */

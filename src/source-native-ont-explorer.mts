@@ -1,7 +1,7 @@
 /** Bounded, metadata-only graph pages over one source-native Ont snapshot. */
 import { createPublicKey, randomUUID } from 'node:crypto';
-import { stableObjectSha256, stableObjectText } from './canonical-content.mjs';
-import { openProductState } from './source-native-artifact.mjs';
+import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
+import { openExactProductArtifactState, openProductState } from './source-native-artifact.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
 import { admissionTrustRegistry } from './admission-authentication.mjs';
 import { createConstructionLedgerReader } from './source-native-construction-admission.mjs';
@@ -28,6 +28,12 @@ const STATES = new Set(['invalid', 'ineligible', 'superseded', 'conflicting', 'a
 export interface SourceNativeOntExplorerConfiguration {
   trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
   knowledgeBranch?: string;
+}
+
+export interface SourceNativeOntExplorerHistoricalConfiguration
+  extends SourceNativeOntExplorerConfiguration {
+  snapshot: SourceNativeOntExplorerBinding;
+  recordSha256: string;
 }
 
 export interface SourceNativeOntExplorerBinding {
@@ -101,6 +107,7 @@ export interface SourceNativeOntExplorerNode {
     nativeObjectSha256: string;
     evidence: SourceNativeSemanticWitness['evidence'];
   };
+  readRef?: string;
 }
 
 export type SourceNativeOntExplorerEdgeKind =
@@ -144,6 +151,8 @@ interface ExplorerPageBase {
   coverage: SourceNativeOntExplorerNativeCoverage;
   ledger: SourceNativeOntExplorerLedgerSummary;
   projectionSha256: string;
+  historicalSnapshot?: true;
+  currentNavigationEligible?: false;
 }
 
 export interface SourceNativeOntExplorerNodesInput {
@@ -207,6 +216,34 @@ export interface SourceNativeOntExplorerStatusResult extends ExplorerPageBase {
   activeRecordCount: number | null;
 }
 
+export interface SourceNativeOntExplorerReadResult {
+  schemaVersion: 1;
+  kind: 'OpenOntologySourceNativeOntExplorerReadV1';
+  ref: string;
+  historicalSnapshot: true;
+  currentNavigationEligible: false;
+  exactText: string;
+  evidence: SourceNativeSemanticWitness['evidence'];
+  selectedBinding: SourceNativeOntExplorerBinding;
+  binding: {
+    kind: 'OpenOntologySourceNativeOntExplorerPassageBindingV1';
+    conceptId: string;
+    roles: readonly string[];
+    nativeObject: SourceNativeObjectIdentity;
+    nativeObjectSha256: string;
+    constructionSha256: string;
+    admissionRecordSha256: string;
+    sourceCommitSha256: string;
+    sourceReplaySha256: string;
+    knowledgeBranch: string;
+    knowledgeCommitSha256: string;
+    knowledgeReplaySha256: string;
+    navigationOnly: true;
+    exactSourcesRemainAuthority: true;
+  };
+  receiptSha256: string;
+}
+
 export interface SourceNativeOntExplorer {
   nodes(input?: SourceNativeOntExplorerNodesInput): SourceNativeOntExplorerNodesResult;
   edges(input?: SourceNativeOntExplorerEdgesInput): SourceNativeOntExplorerEdgesResult;
@@ -214,13 +251,25 @@ export interface SourceNativeOntExplorer {
   status(): SourceNativeOntExplorerStatusResult;
 }
 
+export interface SourceNativeOntExplorerHistorical extends SourceNativeOntExplorer {
+  read(input: { ref: string }): SourceNativeOntExplorerReadResult;
+}
+
 type Snapshot = ReturnType<ReturnType<typeof createConstructionLedgerReader>['readSnapshot']>;
+type SelectedSnapshot = ReturnType<ReturnType<typeof createConstructionLedgerReader>['readSnapshotAt']>;
 
 interface Observation {
-  snapshot: Snapshot;
+  snapshot: Snapshot | SelectedSnapshot;
   binding: SourceNativeOntExplorerBinding;
   projectionSha256: string;
   availability: 'ready' | 'unavailable';
+  historicalSnapshot: boolean;
+  selectedRecord: SourceNativeConstructionAdmissionRecord | null;
+  selectedDisposition: Snapshot['records'][number] | null;
+  knowledgeVersion: string | null;
+  knowledgeChecksumSha256: string | null;
+  sourceVersion: string | null;
+  sourceChecksumSha256: string | null;
 }
 
 interface CursorState {
@@ -247,6 +296,20 @@ interface GraphModel {
   nodes: readonly InternalNode[];
   edges: readonly SourceNativeOntExplorerEdge[];
   nodeById: ReadonlyMap<string, InternalNode>;
+  passages: ReadonlyMap<string, { record: SourceNativeConstructionAdmissionRecord; witness: SourceNativeSemanticWitness }>;
+}
+
+interface SelectedConfiguration {
+  snapshot: SourceNativeOntExplorerBinding;
+  recordSha256: string;
+}
+
+interface OfferedRead {
+  ref: string;
+  nodeId: string;
+  projectionSha256: string;
+  recordSha256: string;
+  witness: SourceNativeSemanticWitness;
 }
 
 const compare = (left: string, right: string): number =>
@@ -284,6 +347,41 @@ function text(value: unknown, max = 256): string {
 function hash(value: unknown): string {
   if (typeof value !== 'string' || !HASH.test(value)) fail('INPUT');
   return value;
+}
+
+const BINDING_KEYS = [
+  'kind', 'ontId', 'namespace', 'artifactSha256', 'sourceCommitSha256',
+  'sourceReplaySha256', 'sourceCatalogSha256', 'nativeObjectMapSha256',
+  'knowledgeBranch', 'knowledgeCommitSha256', 'knowledgeReplaySha256',
+  'reviewerConfigurationSha256',
+] as const;
+
+function explorerBinding(value: unknown): SourceNativeOntExplorerBinding {
+  const input = record(value, BINDING_KEYS);
+  if (Reflect.ownKeys(input).length !== BINDING_KEYS.length
+    || input.kind !== 'OpenOntologySourceNativeOntExplorerBindingV1') fail('INPUT');
+  const knowledgeCommitSha256 = input.knowledgeCommitSha256;
+  const knowledgeReplaySha256 = input.knowledgeReplaySha256;
+  if (knowledgeCommitSha256 !== null) hash(knowledgeCommitSha256);
+  if (knowledgeReplaySha256 !== null) hash(knowledgeReplaySha256);
+  return freeze({
+    kind: 'OpenOntologySourceNativeOntExplorerBindingV1',
+    ontId: text(input.ontId), namespace: text(input.namespace),
+    artifactSha256: hash(input.artifactSha256),
+    sourceCommitSha256: hash(input.sourceCommitSha256),
+    sourceReplaySha256: hash(input.sourceReplaySha256),
+    sourceCatalogSha256: hash(input.sourceCatalogSha256),
+    nativeObjectMapSha256: hash(input.nativeObjectMapSha256),
+    knowledgeBranch: text(input.knowledgeBranch),
+    knowledgeCommitSha256: knowledgeCommitSha256 as string | null,
+    knowledgeReplaySha256: knowledgeReplaySha256 as string | null,
+    reviewerConfigurationSha256: hash(input.reviewerConfigurationSha256),
+  });
+}
+
+function sameBinding(left: SourceNativeOntExplorerBinding,
+  right: SourceNativeOntExplorerBinding): boolean {
+  return stableObjectText(left) === stableObjectText(right);
 }
 
 function pageLimit(value: unknown, fallback: number, maximum: number): number {
@@ -395,15 +493,34 @@ function historyUnavailable(ledger: SourceNativeConstructionLedger): boolean {
 }
 
 function observe(state: ReturnType<typeof openProductState>, reader: ReturnType<typeof createConstructionLedgerReader>,
-  reviewerSha256: string): Observation {
-  const snapshot = reader.readSnapshot();
+  reviewerSha256: string, selected: SelectedConfiguration | null = null): Observation {
+  const snapshot = selected === null ? reader.readSnapshot() : (() => {
+    const requested = selected.snapshot;
+    if (requested.knowledgeCommitSha256 === null || requested.knowledgeReplaySha256 === null) {
+      fail('BINDING');
+    }
+    return reader.readSnapshotAt({ recordSha256: selected.recordSha256,
+      commitSha256: requested.knowledgeCommitSha256,
+      replaySha256: requested.knowledgeReplaySha256 });
+  })();
   const binding = sourceBinding(state, snapshot.ledger, reviewerSha256);
+  if (selected !== null && !sameBinding(binding, selected.snapshot)) fail('BINDING');
+  const selectedSnapshot = selected === null ? null : snapshot as SelectedSnapshot;
   const projectionSha256 = stableObjectSha256({ binding,
     ledger: { state: snapshot.ledger.state, diagnosticCodes: snapshot.ledger.diagnosticCodes,
       activeRecordSha256s: snapshot.ledger.activeRecords.map((item) => item.recordSha256).sort(compare) },
     records: snapshot.records });
+  const historicalSnapshot = selected !== null;
   return { snapshot, binding, projectionSha256,
-    availability: historyUnavailable(snapshot.ledger) ? 'unavailable' : 'ready' };
+    availability: historyUnavailable(snapshot.ledger) ? 'unavailable' : 'ready',
+    historicalSnapshot,
+    selectedRecord: selectedSnapshot?.selectedRecord ?? null,
+    selectedDisposition: selectedSnapshot?.selectedDisposition ?? null,
+    knowledgeVersion: selectedSnapshot?.knowledgeSnapshot.version ?? null,
+    knowledgeChecksumSha256: selectedSnapshot?.knowledgeSnapshot.checksumSha256 ?? null,
+    sourceVersion: selectedSnapshot?.sourceSnapshot.version ?? null,
+    sourceChecksumSha256: selectedSnapshot?.sourceSnapshot.checksumSha256 ?? null,
+  };
 }
 
 function base(observation: Observation, state: ReturnType<typeof openProductState>): ExplorerPageBase {
@@ -416,6 +533,9 @@ function base(observation: Observation, state: ReturnType<typeof openProductStat
     authority: { scope: 'whole-ont', accessMode: 'trusted-whole-ont-kernel' },
     coverage: nativeCoverage(state), ledger: summary(observation.snapshot.ledger),
     projectionSha256: observation.projectionSha256,
+    ...(observation.historicalSnapshot ? {
+      historicalSnapshot: true as const, currentNavigationEligible: false as const,
+    } : {}),
   };
 }
 
@@ -442,14 +562,16 @@ function page<T>(input: {
   method: CursorState['method']; filter: unknown; projectionSha256: string; cursor: string | null;
   limit: number; items: readonly T[]; base: ExplorerPageBase; key: 'nodes' | 'edges' | 'records';
   cursors: Map<string, CursorState>; prefix: Record<string, unknown>;
+  project?: (item: T) => T;
 }): { items: readonly T[]; nextCursor: string | null } {
   const filterSha256 = stableObjectSha256(input.filter);
   const offset = cursorFor(input.cursors, input.method, filterSha256, input.projectionSha256, input.cursor);
   if (offset > input.items.length) fail('CURSOR_STALE');
   let selected = [...input.items.slice(offset, offset + input.limit)];
+  const project = input.project ?? ((item: T): T => item);
   let nextCursor: string | null = offset + selected.length < input.items.length ? randomUUID() : null;
   const fits = () => {
-    const output = { ...input.base, [input.key]: selected,
+    const output = { ...input.base, [input.key]: selected.map(project),
       ...input.prefix, totalCount: input.items.length, returnedCount: selected.length, nextCursor };
     return Buffer.byteLength(stableObjectText(output));
   };
@@ -465,7 +587,7 @@ function page<T>(input: {
   } else {
     nextCursor = null;
   }
-  return { items: freeze(selected), nextCursor };
+  return { items: freeze(selected.map(project)), nextCursor };
 }
 
 function objectDefNodeId(sourceCommitSha256: string, constructionSha256: string, objectDefId: string): string {
@@ -482,11 +604,13 @@ function edgeId(edge: Omit<SourceNativeOntExplorerEdge, 'id'>): string {
   return `edge:${stableObjectSha256(identity)}`;
 }
 
-function graph(state: ReturnType<typeof openProductState>, ledger: SourceNativeConstructionLedger): GraphModel {
+function graph(state: ReturnType<typeof openProductState>, ledger: SourceNativeConstructionLedger,
+  selectedRecord: SourceNativeConstructionAdmissionRecord | null = null): GraphModel {
   const nativeObjects = new Map<string, SourceNativeObject>(
     state.objectOnt.map.nativeObjects.map((object) => [object.nativeObjectSha256, object]));
   const nodes = new Map<string, InternalNode>();
   const edges = new Map<string, SourceNativeOntExplorerEdge>();
+  const passages = new Map<string, { record: SourceNativeConstructionAdmissionRecord; witness: SourceNativeSemanticWitness }>();
   const addNode = (item: InternalNode): void => { if (!nodes.has(item.node.id)) nodes.set(item.node.id, item); };
   const addEdge = (item: Omit<SourceNativeOntExplorerEdge, 'id'>): void => {
     const id = edgeId(item);
@@ -500,17 +624,20 @@ function graph(state: ReturnType<typeof openProductState>, ledger: SourceNativeC
     scope: { sourceSystem: object.objectIdentity.sourceSystem, objectType: object.objectIdentity.objectType } });
   }
   const representatives = new Map<string, SourceNativeConstructionAdmissionRecord>();
-  for (const recordValue of [...ledger.activeRecords].sort((left, right) => compare(left.recordSha256, right.recordSha256))) {
+  const graphRecords = selectedRecord === null ? ledger.activeRecords : [selectedRecord];
+  for (const recordValue of [...graphRecords].sort((left, right) => compare(left.recordSha256, right.recordSha256))) {
     if (!representatives.has(recordValue.construction.constructionSha256)) {
       representatives.set(recordValue.construction.constructionSha256, recordValue);
     }
   }
-  const witnessNode = (witness: SourceNativeSemanticWitness): string => {
+  const witnessNode = (witness: SourceNativeSemanticWitness,
+    recordValue: SourceNativeConstructionAdmissionRecord): string => {
     const object = nativeObjects.get(witness.nativeObjectSha256) ?? fail('BINDING');
     const id = passageNodeId(state.objectOnt.commitSha256, witness);
     addNode({ node: { id, kind: 'passage', label: `passage:${witness.evidence.textSha256}`, state: 'active',
       passage: { nativeObjectSha256: object.nativeObjectSha256, evidence: witness.evidence } },
     scope: { sourceSystem: object.objectIdentity.sourceSystem, objectType: object.objectIdentity.objectType } });
+    passages.set(id, { record: recordValue, witness });
     const nativeId = nativeNodeId(state.objectOnt.commitSha256, object.nativeObjectSha256);
     addEdge({ kind: 'native-observation', role: 'native-observation', from: id, to: nativeId });
     return id;
@@ -531,11 +658,11 @@ function graph(state: ReturnType<typeof openProductState>, ledger: SourceNativeC
           .filter((identity): identity is SourceNativeObjectIdentity => identity !== undefined)
           .map((identity) => ({ sourceSystem: identity.sourceSystem, objectType: identity.objectType })),
         aliases: objectDef.aliases.map((alias) => ({ value: alias.value, sourceSystem: alias.sourceSystem })) } });
-      const namePassage = witnessNode(objectDef.source);
+      const namePassage = witnessNode(objectDef.source, recordValue);
       addEdge({ kind: 'name-witness', role: 'name-witness', from: id, to: namePassage,
         constructionSha256: construction.constructionSha256, admissionRecordSha256: recordValue.recordSha256 });
       for (const alias of objectDef.aliases) {
-        const aliasPassage = witnessNode(alias.source);
+        const aliasPassage = witnessNode(alias.source, recordValue);
         addEdge({ kind: 'alias-witness', role: 'alias-witness', from: id, to: aliasPassage,
           constructionSha256: construction.constructionSha256, admissionRecordSha256: recordValue.recordSha256 });
       }
@@ -543,14 +670,14 @@ function graph(state: ReturnType<typeof openProductState>, ledger: SourceNativeC
     for (const claim of construction.claims) {
       const objectDef = objectDefs.get(claim.about) ?? fail('BINDING');
       const objectDefId = objectDefNodeId(state.objectOnt.commitSha256, construction.constructionSha256, objectDef.id);
-      const passage = witnessNode(claim.source);
+      const passage = witnessNode(claim.source, recordValue);
       addEdge({ kind: 'claim', role: 'claim', from: passage, to: objectDefId, claimId: claim.id,
         about: claim.about, predicate: claim.predicate, constructionSha256: construction.constructionSha256,
         admissionRecordSha256: recordValue.recordSha256, evidence: claim.source.evidence });
     }
   }
   return { nodes: [...nodes.values()].sort((left, right) => compare(left.node.id, right.node.id)),
-    edges: [...edges.values()].sort((left, right) => compare(left.id, right.id)), nodeById: nodes };
+    edges: [...edges.values()].sort((left, right) => compare(left.id, right.id)), nodeById: nodes, passages };
 }
 
 function matchesScope(item: InternalNode, selectedScope: { sourceSystem: string; objectType?: string } | null): boolean {
@@ -571,20 +698,118 @@ function matchesTerm(item: InternalNode, term: string,
     && (selectedScope === null || alias.sourceSystem === selectedScope.sourceSystem));
 }
 
-export function openSourceNativeOntExplorer(options: ProductOptions = {}, configuration: SourceNativeOntExplorerConfiguration): SourceNativeOntExplorer {
-  const config = record(configuration, ['trustRegistry', 'knowledgeBranch']);
+function witnessContext(recordValue: SourceNativeConstructionAdmissionRecord,
+  witness: SourceNativeSemanticWitness): { conceptId: string; roles: readonly string[] } {
+  const rolesByConcept = new Map<string, Set<string>>();
+  const same = (candidate: SourceNativeSemanticWitness): boolean =>
+    stableObjectText(candidate) === stableObjectText(witness);
+  for (const object of recordValue.construction.objectDefs) {
+    if (same(object.source)) {
+      const roles = rolesByConcept.get(object.id) ?? new Set<string>();
+      roles.add('name');
+      rolesByConcept.set(object.id, roles);
+    }
+    for (const alias of object.aliases) {
+      if (!same(alias.source)) continue;
+      const roles = rolesByConcept.get(object.id) ?? new Set<string>();
+      roles.add('alias');
+      rolesByConcept.set(object.id, roles);
+    }
+  }
+  for (const claim of recordValue.construction.claims) {
+    if (!same(claim.source)) continue;
+    const roles = rolesByConcept.get(claim.about) ?? new Set<string>();
+    roles.add(claim.predicate);
+    rolesByConcept.set(claim.about, roles);
+  }
+  const concepts = [...rolesByConcept.keys()].sort(compare);
+  const conceptId = concepts[0] ?? fail('BINDING');
+  return { conceptId, roles: [...(rolesByConcept.get(conceptId) ?? [])].sort(compare) };
+}
+
+export function openSourceNativeOntExplorer(
+  options: ProductOptions,
+  configuration: SourceNativeOntExplorerHistoricalConfiguration,
+): SourceNativeOntExplorerHistorical;
+export function openSourceNativeOntExplorer(
+  options: ProductOptions,
+  configuration: SourceNativeOntExplorerConfiguration,
+): SourceNativeOntExplorer;
+export function openSourceNativeOntExplorer(
+  options: ProductOptions = {},
+  configuration: SourceNativeOntExplorerConfiguration,
+): SourceNativeOntExplorer | SourceNativeOntExplorerHistorical {
+  const config = record(configuration, ['trustRegistry', 'knowledgeBranch', 'snapshot', 'recordSha256']);
   if (!Array.isArray(config.trustRegistry)) fail('INPUT');
   const trustRegistry = config.trustRegistry as readonly SourceNativeAdmissionTrustEntry[];
   admissionTrustRegistry(trustRegistry);
   const reviewerSha256 = reviewerConfigurationSha256(trustRegistry);
-  const state = openProductState(options);
-  const knowledgeBranch = config.knowledgeBranch === undefined ? undefined : text(config.knowledgeBranch);
+  const hasSnapshot = config.snapshot !== undefined;
+  const hasRecord = config.recordSha256 !== undefined;
+  if (hasSnapshot !== hasRecord) fail('INPUT');
+  const selected = hasSnapshot && hasRecord ? {
+    snapshot: explorerBinding(config.snapshot), recordSha256: hash(config.recordSha256),
+  } : null;
+  if (selected !== null && config.knowledgeBranch !== undefined
+    && text(config.knowledgeBranch) !== selected.snapshot.knowledgeBranch) fail('BINDING');
+  const state = selected === null ? openProductState(options) : openExactProductArtifactState(options);
+  const knowledgeBranch = selected?.snapshot.knowledgeBranch
+    ?? (config.knowledgeBranch === undefined ? undefined : text(config.knowledgeBranch));
   const reader = createConstructionLedgerReader(state, trustRegistry, knowledgeBranch);
   const cursors = new Map<string, CursorState>();
+  const offered = new Map<string, OfferedRead>();
+  const offeredByNode = new Map<string, string>();
+
+  if (selected !== null) {
+    if (reviewerSha256 !== selected.snapshot.reviewerConfigurationSha256
+      || state.descriptor.ontId !== selected.snapshot.ontId
+      || state.descriptor.namespace !== selected.snapshot.namespace
+      || state.descriptor.artifactSha256 !== selected.snapshot.artifactSha256
+      || state.objectOnt.commitSha256 !== selected.snapshot.sourceCommitSha256
+      || state.objectOnt.replaySha256 !== selected.snapshot.sourceReplaySha256
+      || state.objectOnt.catalog.sourceCatalogSha256 !== selected.snapshot.sourceCatalogSha256
+      || state.objectOnt.map.nativeObjectMapSha256 !== selected.snapshot.nativeObjectMapSha256
+      || selected.snapshot.knowledgeCommitSha256 === null
+      || selected.snapshot.knowledgeReplaySha256 === null) fail('BINDING');
+  }
+
+  const offerRead = (nodeId: string, passage: { record: SourceNativeConstructionAdmissionRecord;
+    witness: SourceNativeSemanticWitness }, projectionSha256: string): string => {
+    const priorRef = offeredByNode.get(nodeId);
+    const prior = priorRef === undefined ? undefined : offered.get(priorRef);
+    if (prior && prior.projectionSha256 === projectionSha256
+      && prior.recordSha256 === passage.record.recordSha256) return prior.ref;
+    if (offered.size >= 1024) {
+      const first = offered.keys().next().value;
+      if (first !== undefined) {
+        const evicted = offered.get(first);
+        if (evicted) offeredByNode.delete(evicted.nodeId);
+        offered.delete(first);
+      }
+    }
+    const ref = `explorer:${randomUUID()}`;
+    offered.set(ref, { ref, nodeId, projectionSha256, recordSha256: passage.record.recordSha256,
+      witness: passage.witness });
+    offeredByNode.set(nodeId, ref);
+    return ref;
+  };
+
+  const observeForOperation = (): Observation => {
+    try {
+      return observe(state, reader, reviewerSha256, selected);
+    } catch (error) {
+      if (selected !== null) {
+        cursors.clear();
+        offered.clear();
+        offeredByNode.clear();
+      }
+      throw error;
+    }
+  };
 
   const nodes = (input?: SourceNativeOntExplorerNodesInput): SourceNativeOntExplorerNodesResult => {
     const normalizedInput = normalizeNodesInput(input);
-    const observation = observe(state, reader, reviewerSha256);
+    const observation = observeForOperation();
     const common = base(observation, state);
     const filter = { term: normalizedInput.term, scope: normalizedInput.scope,
       focusId: normalizedInput.focusId, ids: normalizedInput.ids };
@@ -595,16 +820,17 @@ export function openSourceNativeOntExplorer(options: ProductOptions = {}, config
       return freeze({ ...common, kind: 'OpenOntologySourceNativeOntExplorerNodesV1' as const, filter,
         nodes: [], totalCount: null, returnedCount: 0, nextCursor: null });
     }
-    const model = graph(state, observation.snapshot.ledger);
-    let selected = [...model.nodes];
+    if (selected !== null && observation.selectedRecord === null) fail('RECORD');
+    const model = graph(state, observation.snapshot.ledger, observation.selectedRecord);
+    let selectedNodes = [...model.nodes];
     if (normalizedInput.term !== null) {
-      selected = selected.filter((item) => matchesTerm(item, normalizedInput.term!, normalizedInput.scope));
+      selectedNodes = selectedNodes.filter((item) => matchesTerm(item, normalizedInput.term!, normalizedInput.scope));
     } else if (normalizedInput.scope !== null) {
-      selected = selected.filter((item) => matchesScope(item, normalizedInput.scope));
+      selectedNodes = selectedNodes.filter((item) => matchesScope(item, normalizedInput.scope));
     } else if (normalizedInput.ids !== null) {
       const wanted = new Set(normalizedInput.ids);
       if (normalizedInput.ids.some((id) => !model.nodeById.has(id))) fail('NODE_ID');
-      selected = selected.filter((item) => wanted.has(item.node.id));
+      selectedNodes = selectedNodes.filter((item) => wanted.has(item.node.id));
     } else if (normalizedInput.focusId !== null) {
       if (!model.nodeById.has(normalizedInput.focusId)) fail('FOCUS');
       const adjacent = new Set([normalizedInput.focusId]);
@@ -612,20 +838,25 @@ export function openSourceNativeOntExplorer(options: ProductOptions = {}, config
         if (edge.from === normalizedInput.focusId) adjacent.add(edge.to);
         if (edge.to === normalizedInput.focusId) adjacent.add(edge.from);
       }
-      selected = selected.filter((item) => adjacent.has(item.node.id));
+      selectedNodes = selectedNodes.filter((item) => adjacent.has(item.node.id));
     }
     const result = page({ method: 'nodes', filter: cursorFilter, projectionSha256: observation.projectionSha256,
-      cursor: normalizedInput.cursor, limit: normalizedInput.limit, items: selected.map((item) => item.node),
-      base: common, key: 'nodes', cursors,
+      cursor: normalizedInput.cursor, limit: normalizedInput.limit,
+      items: selectedNodes.map((item) => item.node), base: common, key: 'nodes', cursors,
+      project: selected === null ? undefined : (item) => {
+        if (item.kind !== 'passage') return item;
+        const passage = model.passages.get(item.id) ?? fail('BINDING');
+        return { ...item, readRef: offerRead(item.id, passage, observation.projectionSha256) };
+      },
       prefix: { kind: 'OpenOntologySourceNativeOntExplorerNodesV1', filter } });
     return freeze({ ...common, kind: 'OpenOntologySourceNativeOntExplorerNodesV1' as const, filter,
-      nodes: result.items, totalCount: selected.length, returnedCount: result.items.length,
+      nodes: result.items, totalCount: selectedNodes.length, returnedCount: result.items.length,
       nextCursor: result.nextCursor, projectionSha256: observation.projectionSha256 });
   };
 
   const edges = (input?: SourceNativeOntExplorerEdgesInput): SourceNativeOntExplorerEdgesResult => {
     const normalizedInput = normalizeEdgesInput(input);
-    const observation = observe(state, reader, reviewerSha256);
+    const observation = observeForOperation();
     const common = base(observation, state);
     const filter = { focusId: normalizedInput.focusId };
     if (observation.availability === 'unavailable') {
@@ -633,24 +864,25 @@ export function openSourceNativeOntExplorer(options: ProductOptions = {}, config
       return freeze({ ...common, kind: 'OpenOntologySourceNativeOntExplorerEdgesV1' as const, filter,
         edges: [], totalCount: null, returnedCount: 0, nextCursor: null });
     }
-    const model = graph(state, observation.snapshot.ledger);
-    let selected = [...model.edges];
+    if (selected !== null && observation.selectedRecord === null) fail('RECORD');
+    const model = graph(state, observation.snapshot.ledger, observation.selectedRecord);
+    let selectedEdges = [...model.edges];
     if (normalizedInput.focusId !== null) {
       if (!model.nodeById.has(normalizedInput.focusId)) fail('FOCUS');
-      selected = selected.filter((edge) => edge.from === normalizedInput.focusId || edge.to === normalizedInput.focusId);
+      selectedEdges = selectedEdges.filter((edge) => edge.from === normalizedInput.focusId || edge.to === normalizedInput.focusId);
     }
     const result = page({ method: 'edges', filter, projectionSha256: observation.projectionSha256,
-      cursor: normalizedInput.cursor, limit: normalizedInput.limit, items: selected,
+      cursor: normalizedInput.cursor, limit: normalizedInput.limit, items: selectedEdges,
       base: common, key: 'edges', cursors,
       prefix: { kind: 'OpenOntologySourceNativeOntExplorerEdgesV1', filter } });
     return freeze({ ...common, kind: 'OpenOntologySourceNativeOntExplorerEdgesV1' as const, filter,
-      edges: result.items, totalCount: selected.length, returnedCount: result.items.length,
+      edges: result.items, totalCount: selectedEdges.length, returnedCount: result.items.length,
       nextCursor: result.nextCursor, projectionSha256: observation.projectionSha256 });
   };
 
   const records = (input?: SourceNativeOntExplorerRecordsInput): SourceNativeOntExplorerRecordsResult => {
     const normalizedInput = normalizeRecordsInput(input);
-    const observation = observe(state, reader, reviewerSha256);
+    const observation = observeForOperation();
     const common = base(observation, state);
     const filter = { constructionSha256: normalizedInput.constructionSha256, state: normalizedInput.state };
     if (observation.availability === 'unavailable') {
@@ -658,18 +890,23 @@ export function openSourceNativeOntExplorer(options: ProductOptions = {}, config
       return freeze({ ...common, kind: 'OpenOntologySourceNativeOntExplorerRecordsV1' as const, filter,
         records: [], totalCount: null, returnedCount: 0, nextCursor: null });
     }
-    const activeByRecord = new Map(observation.snapshot.ledger.activeRecords.map((item) => [item.recordSha256, item]));
-    const selected = observation.snapshot.records.filter((item) =>
-      (normalizedInput.constructionSha256 === null || item.constructionSha256 === normalizedInput.constructionSha256)
+    const knownByRecord = new Map(observation.snapshot.ledger.activeRecords.map((item) => [item.recordSha256, item]));
+    if (observation.selectedRecord !== null) {
+      knownByRecord.set(observation.selectedRecord.recordSha256, observation.selectedRecord);
+    }
+    const selectedRecords = observation.snapshot.records.filter((item) =>
+      (selected === null || item.recordSha256 === selected.recordSha256
+        || item.blobSha256 === observation.selectedDisposition?.blobSha256)
+      && (normalizedInput.constructionSha256 === null || item.constructionSha256 === normalizedInput.constructionSha256)
       && (normalizedInput.state === null || item.state === normalizedInput.state));
-    const projected = selected.map((item): SourceNativeOntExplorerRecord => ({
+    const projected = selectedRecords.map((item): SourceNativeOntExplorerRecord => ({
       schemaVersion: 1, kind: 'OpenOntologySourceNativeOntExplorerRecordV1', blobSha256: item.blobSha256,
       recordSha256: item.recordSha256, constructionSha256: item.constructionSha256, state: item.state,
       reasonCodes: item.reasonCodes, supersedesRecordSha256s: item.supersedesRecordSha256s,
       supersededByRecordSha256s: item.supersededByRecordSha256s,
       conflictingObjectDefIds: item.conflictingObjectDefIds,
       constructionCoverage: item.recordSha256 === null ? null
-        : activeByRecord.get(item.recordSha256) ? constructionCoverage(activeByRecord.get(item.recordSha256)!) : null,
+        : knownByRecord.get(item.recordSha256) ? constructionCoverage(knownByRecord.get(item.recordSha256)!) : null,
     }));
     const result = page({ method: 'records', filter, projectionSha256: observation.projectionSha256,
       cursor: normalizedInput.cursor, limit: normalizedInput.limit, items: projected,
@@ -681,7 +918,7 @@ export function openSourceNativeOntExplorer(options: ProductOptions = {}, config
   };
 
   const status = (): SourceNativeOntExplorerStatusResult => {
-    const observation = observe(state, reader, reviewerSha256);
+    const observation = observeForOperation();
     const common = base(observation, state);
     if (observation.availability === 'unavailable') cursors.clear();
     return freeze({ ...common, kind: 'OpenOntologySourceNativeOntExplorerStatusV1' as const,
@@ -691,5 +928,70 @@ export function openSourceNativeOntExplorer(options: ProductOptions = {}, config
         ? null : observation.snapshot.ledger.activeRecords.length });
   };
 
-  return freeze({ nodes, edges, records, status });
+  const read = (input: { ref: string }): SourceNativeOntExplorerReadResult => {
+    if (selected === null) fail('REFERENCE');
+    const value = record(input, ['ref']);
+    const ref = text(value.ref, 512);
+    if (!ref.startsWith('explorer:')) fail('REFERENCE');
+    const offeredRead = offered.get(ref);
+    if (!offeredRead) fail('REFERENCE');
+    const before = observeForOperation();
+    if (before.availability === 'unavailable' || before.selectedRecord === null
+      || before.selectedRecord.recordSha256 !== offeredRead.recordSha256
+      || before.projectionSha256 !== offeredRead.projectionSha256) fail('REFERENCE_STALE');
+    const reference = offeredRead.witness.evidence;
+    const object = state.objectOnt.map.nativeObjects.find((item) =>
+      item.nativeObjectSha256 === offeredRead.witness.nativeObjectSha256) ?? fail('BINDING');
+    const source = state.objectOnt.sources.find((item) => item.relativePath === reference.sourceRef)
+      ?? fail('BINDING');
+    const bytes = Buffer.from(source.content);
+    const exact = bytes.subarray(reference.byteStart, reference.byteEnd);
+    const exactText = exact.toString('utf8');
+    if (object.objectIdentity.namespace !== state.descriptor.namespace
+      || object.relativePath !== reference.sourceRef || object.sourceSha256 !== reference.sourceSha256
+      || source.sourceSha256 !== reference.sourceSha256 || objectBytesSha256(bytes) !== reference.sourceSha256
+      || reference.byteStart < 0 || reference.byteEnd > bytes.length
+      || reference.byteEnd <= reference.byteStart || reference.byteEnd - reference.byteStart > 64 * 1024
+      || objectBytesSha256(exact) !== reference.textSha256 || !Buffer.from(exactText).equals(exact)
+      || !object.fields.some((field) => field.evidence.relativePath === reference.sourceRef
+        && field.evidence.sourceSha256 === reference.sourceSha256
+        && field.evidence.byteStart <= reference.byteStart
+        && field.evidence.byteEnd >= reference.byteEnd)) fail('EVIDENCE');
+    const context = witnessContext(before.selectedRecord, offeredRead.witness);
+    const knowledgeCommitSha256 = before.binding.knowledgeCommitSha256 ?? fail('BINDING');
+    const knowledgeReplaySha256 = before.binding.knowledgeReplaySha256 ?? fail('BINDING');
+    const core = {
+      schemaVersion: 1 as const,
+      kind: 'OpenOntologySourceNativeOntExplorerReadV1' as const,
+      ref,
+      historicalSnapshot: true as const,
+      currentNavigationEligible: false as const,
+      exactText,
+      evidence: reference,
+      selectedBinding: before.binding,
+      binding: {
+        kind: 'OpenOntologySourceNativeOntExplorerPassageBindingV1' as const,
+        conceptId: context.conceptId, roles: context.roles,
+        nativeObject: object.objectIdentity, nativeObjectSha256: object.nativeObjectSha256,
+        constructionSha256: before.selectedRecord.construction.constructionSha256,
+        admissionRecordSha256: before.selectedRecord.recordSha256,
+        sourceCommitSha256: before.binding.sourceCommitSha256,
+        sourceReplaySha256: before.binding.sourceReplaySha256,
+        knowledgeBranch: before.binding.knowledgeBranch,
+        knowledgeCommitSha256,
+        knowledgeReplaySha256,
+        navigationOnly: true as const, exactSourcesRemainAuthority: true as const,
+      },
+    };
+    const after = observeForOperation();
+    if (after.availability === 'unavailable' || after.projectionSha256 !== before.projectionSha256
+      || after.knowledgeVersion !== before.knowledgeVersion
+      || after.knowledgeChecksumSha256 !== before.knowledgeChecksumSha256
+      || after.sourceVersion !== before.sourceVersion
+      || after.sourceChecksumSha256 !== before.sourceChecksumSha256) fail('REFERENCE_STALE');
+    return freeze({ ...core, receiptSha256: stableObjectSha256(core) });
+  };
+
+  return selected === null ? freeze({ nodes, edges, records, status })
+    : freeze({ nodes, edges, records, status, read });
 }

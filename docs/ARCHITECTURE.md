@@ -408,12 +408,15 @@ Edge identity excludes the selected reviewer-agreement representative.
 Status and unavailable metadata retain bounded diagnostic and conflict lists with
 explicit totals and truncation flags.
 Upstream freshness is unknown in this primitive, and its whole-Ont operator
-configuration is not an HTTP or browser authorization boundary. It does not
-expose source text, exact read References, historical exact inspection, trust
-keys, or a new root SDK, CLI, or MCP operation. Missing or rewound knowledge
-history returns unavailable with no cached graph or record items and clears
-session cursors; source-only Onts still expose native identity nodes and
-coverage.
+configuration is not an HTTP or browser authorization boundary. Current views
+do not expose source text or exact read References. An explicitly selected
+record binding can page its historical projection and read an offered exact
+passage, marked `currentNavigationEligible: false`; source and knowledge
+history, reviewer trust, and the original source cut are revalidated before
+each read. Trust keys and a new root SDK, CLI, or MCP operation remain out of
+scope. Missing or rewound knowledge history returns unavailable with no cached
+graph or record items and clears session cursors; source-only Onts still expose
+native identity nodes and coverage.
 
 `[ACTIVE-WORK]` The unpublished kernel now composes construction discovery with
 the existing admitted-knowledge client through

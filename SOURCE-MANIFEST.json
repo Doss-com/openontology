@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 32804,
-      "sha256": "9e6bdd983e7fa89f67300152f2e29c86cfff6f9839eac87e21226c3d3b4402f6"
+      "bytes": 33065,
+      "sha256": "d8c25b5de981e80a8cf7a75d3f4d3f8c6a4407ce21c2b597569e9b8d1c905fe8"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -307,8 +307,8 @@
     },
     {
       "path": "scripts/test-source-native-ont-explorer.mjs",
-      "bytes": 27055,
-      "sha256": "7699a1e3178f1e07e9cf2010c0688e78ce33ba661007fb60ded6efd7ea677fb1"
+      "bytes": 33385,
+      "sha256": "98425c9ceed472e3114c4a03f574beade40215a40ccdde7a71e6399ae9590c3b"
     },
     {
       "path": "scripts/test-source-native-point-in-time.mjs",
@@ -392,8 +392,8 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 8286,
-      "sha256": "ff2944b91248587118d69a140d8f04d272266b65476abb49415f41105261c6aa"
+      "bytes": 8410,
+      "sha256": "37884c9c49a69d23e30954aafd5000200c204692ec7d6b1db7409ccc21034b23"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -452,8 +452,8 @@
     },
     {
       "path": "src/source-native-construction-admission.mts",
-      "bytes": 28370,
-      "sha256": "9c5df3177938c1236a69e4f5a103e15121c2c393e40bc9a0b8449c5a26eb5e63"
+      "bytes": 32030,
+      "sha256": "d40a35d6911d8a38e551a8d6f600adc94f6ee81c71f76157a73e578c9ec1518f"
     },
     {
       "path": "src/source-native-construction-navigation.mts",
@@ -507,8 +507,8 @@
     },
     {
       "path": "src/source-native-ont-explorer.mts",
-      "bytes": 33918,
-      "sha256": "df6f1315ad571fc538bf4747a34d1d2e5725e19a345f2895ce1c830fd4241426"
+      "bytes": 48647,
+      "sha256": "61f4500d967c6fda418bf30c79a4e0773b0c864197930c84708357deb9e1b8f2"
     },
     {
       "path": "src/source-native-product-mcp.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:eb2181f4d236c76074c32e9c33a1475d21d62376bfbb6b98624629a56318e0b3"
+  "manifestSha256": "sha256:ff6cb178cd5b98282b0dfdbdf5749f8dbaa08138080cbb30b7b4de4fb7d22d39"
 }

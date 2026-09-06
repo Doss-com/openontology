@@ -447,3 +447,108 @@ test('unknown and unsupported explorer inputs refuse before page projection', (t
   assert.throws(() => explorer.edges({ focusId: 'not-a-node' }), { code: 'SOURCE_NATIVE_EXPLORER_FOCUS' });
   assert.equal('read' in explorer, false);
 });
+
+test('a selected record opens bounded historical pages and exact offered passages', (t) => {
+  const f = fixture(t, { protectedHistory: true, names: ['HistoricalConcept'] });
+  const admission = f.admit(f.compile(f.baseInput([{ id: 'historical', name: 'HistoricalConcept' }])));
+  f.write(admission);
+  const current = f.open();
+  const currentRecords = current.records({ limit: 64 });
+  const selected = currentRecords.records.find((item) => item.recordSha256 === admission.recordSha256);
+  assert(selected);
+  assert.equal('read' in current, false);
+
+  const history = f.open({ ...f.configuration, snapshot: currentRecords.binding,
+    recordSha256: selected.recordSha256 });
+  const nodePages = allPages(() => history.nodes({ limit: 7 }),
+    (cursor) => history.nodes({ limit: 7, cursor }), 'nodes');
+  const edgePages = allPages(() => history.edges({ limit: 11 }),
+    (cursor) => history.edges({ limit: 11, cursor }), 'edges');
+  const recordPages = allPages(() => history.records({ limit: 1 }),
+    (cursor) => history.records({ limit: 1, cursor }), 'records');
+  assert(nodePages.items.length === nodePages.first.totalCount);
+  assert(edgePages.items.length === edgePages.first.totalCount);
+  assert(recordPages.items.length === recordPages.first.totalCount);
+  assert.equal(nodePages.first.historicalSnapshot, true);
+  assert.equal(nodePages.first.currentNavigationEligible, false);
+  assert.equal(recordPages.items.length, 1);
+  assert.equal(recordPages.items[0].recordSha256, admission.recordSha256);
+  assert.equal(history.status().currentNavigationEligible, false);
+  const passage = nodePages.items.find((item) => item.kind === 'passage');
+  assert(passage?.readRef);
+  const exact = history.read({ ref: passage.readRef });
+  assert.equal(exact.historicalSnapshot, true);
+  assert.equal(exact.currentNavigationEligible, false);
+  assert.equal(exact.evidence.sourceRef, 'docs/guide.txt');
+  assert.equal(exact.exactText, f.sourceByPath.get('docs/guide.txt').content);
+  assert.equal(exact.binding.admissionRecordSha256, admission.recordSha256);
+  assert.equal(exact.binding.nativeObjectSha256, passage.passage.nativeObjectSha256);
+  assert.equal(exact.binding.navigationOnly, true);
+  assert.equal(exact.binding.exactSourcesRemainAuthority, true);
+  assert.equal(exact.receiptSha256, kernel.stableObjectSha256({ ...exact, receiptSha256: undefined }));
+
+  const successor = f.admit(f.compile(f.baseInput([{ id: 'successor', name: 'HistoricalConcept' }])), { day: 4 });
+  f.write(successor);
+  assert.doesNotThrow(() => history.read({ ref: passage.readRef }));
+});
+
+test('historical selection rejects incomplete bindings and preserves safe refusals', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const admission = f.admit();
+  f.write(admission);
+  const current = f.open();
+  const page = current.records({ limit: 64 });
+  const selected = page.records.find((item) => item.recordSha256 === admission.recordSha256);
+  assert(selected);
+  assert.throws(() => f.open({ ...f.configuration, recordSha256: admission.recordSha256 }),
+    { code: 'SOURCE_NATIVE_EXPLORER_INPUT' });
+  assert.throws(() => f.open({ ...f.configuration, snapshot: page.binding }),
+    { code: 'SOURCE_NATIVE_EXPLORER_INPUT' });
+  const wrongRecord = `sha256:${'0'.repeat(64)}`;
+  assert.throws(() => f.open({ ...f.configuration, snapshot: page.binding, recordSha256: wrongRecord }).nodes(),
+    { code: 'CONSTRUCTION_ADMISSION_RECORD' });
+  const wrongSource = { ...page.binding, sourceCommitSha256: `sha256:${'f'.repeat(64)}` };
+  assert.throws(() => f.open({ ...f.configuration, snapshot: wrongSource,
+    recordSha256: selected.recordSha256 }), { code: 'SOURCE_NATIVE_EXPLORER_BINDING' });
+  const wrongReviewer = { ...f.configuration, trustRegistry: f.trustRegistry.slice(1),
+    snapshot: page.binding, recordSha256: selected.recordSha256 };
+  assert.throws(() => f.open(wrongReviewer), { code: 'SOURCE_NATIVE_EXPLORER_BINDING' });
+});
+
+test('conflicting and superseded records remain inspectable only through explicit history', (t) => {
+  const f = fixture(t, { protectedHistory: true, names: ['Correctable', 'Alternate', 'CorrectableNow'] });
+  const original = f.admit(f.compile(f.baseInput([{ id: 'correctable', name: 'Correctable' }])));
+  const alternate = f.admit(f.compile(f.baseInput([{ id: 'correctable', name: 'Alternate' }])), { day: 4 });
+  f.write(original); f.write(alternate);
+  const conflict = f.open();
+  const conflictRecords = conflict.records({ state: 'conflicting', limit: 64 });
+  assert.equal(conflictRecords.totalCount, 2);
+  const conflictHistory = f.open({ ...f.configuration, snapshot: conflictRecords.binding,
+    recordSha256: original.recordSha256 });
+  const conflictNodes = conflictHistory.nodes({ term: 'Correctable', limit: 64 });
+  assert.equal(conflictNodes.historicalSnapshot, true);
+  assert.equal(conflictNodes.currentNavigationEligible, false);
+  assert(conflictNodes.nodes.some((node) => node.kind === 'object-def'
+    && node.objectDef?.id === 'correctable'));
+  assert.equal(conflictHistory.records({ limit: 64 }).records[0].state, 'conflicting');
+  const conflictAllNodes = conflictHistory.nodes({ limit: 64 });
+  assert(conflictAllNodes.nodes.some((node) => node.kind === 'passage' && node.readRef));
+
+  const correction = f.admit(f.compile(f.baseInput([{ id: 'correctable', name: 'CorrectableNow' }])), {
+    day: 5, targets: [original.recordSha256, alternate.recordSha256] });
+  f.write(correction);
+  const corrected = f.open();
+  const superseded = corrected.records({ state: 'superseded', limit: 64 });
+  assert.equal(superseded.totalCount, 2);
+  const historical = f.open({ ...f.configuration, snapshot: superseded.binding,
+    recordSha256: original.recordSha256 });
+  const oldNodes = historical.nodes({ term: 'Correctable', limit: 64 });
+  assert(oldNodes.nodes.some((node) => node.kind === 'object-def'
+    && node.objectDef?.name === 'Correctable'));
+  assert.equal(historical.nodes({ term: 'CorrectableNow', limit: 64 }).totalCount, 0);
+  assert.equal(historical.records({ limit: 64 }).records[0].state, 'superseded');
+  const passage = historical.nodes({ limit: 64 }).nodes.find((node) => node.kind === 'passage');
+  assert(passage?.readRef);
+  assert.equal(historical.read({ ref: passage.readRef }).binding.admissionRecordSha256,
+    original.recordSha256);
+});
