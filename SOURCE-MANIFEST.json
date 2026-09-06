@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 6091,
-      "sha256": "49f8ac76c7d200b759fac5099e519ac9f22eca53ad85aae6b8a551ea9f0b6cc4"
+      "bytes": 6249,
+      "sha256": "2831d3df96a34286a31372f62a6f9bab632f686471438dc251512f272043ce84"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -122,13 +122,13 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 28660,
-      "sha256": "14ef01150e3b5ad1f34c06c98d6888fa66e8d81a9c37be2448447459779c38f9"
+      "bytes": 29063,
+      "sha256": "200c68f5fbcc17590b890bcdcf6f42bbbfb933f952f8dc2481d3d79e5fd71fcd"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
-      "bytes": 23748,
-      "sha256": "5d4ea1d5bb8004933bb4f50dbafbaf9f8e7dd267e34c6cc83c35791c1fdc89c6"
+      "bytes": 24138,
+      "sha256": "ee0902810e00c705c5f2499a3548b3f7bd2455cc5aaad5221addfc605b6de9e6"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 34466,
-      "sha256": "a654f5df3bd030a509a2c85a598bdbd53092488b8a669dba27741a44d1e3bf9d"
+      "bytes": 37082,
+      "sha256": "424923d52bdb5f0408e36e113efa69e484ce81c7fbb3c59903ff7193cba27b12"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -267,8 +267,8 @@
     },
     {
       "path": "scripts/test-source-native-construction-navigation.mjs",
-      "bytes": 20213,
-      "sha256": "1ebc8cc750f4f869f39b8177413751d1c90b07cceedb9b311a5e06c5cf19c2cd"
+      "bytes": 24722,
+      "sha256": "b79e3bffe05e611d9be8585f3a4590f9263527a9d5c3eeb8f94da2c68fafd7c6"
     },
     {
       "path": "scripts/test-source-native-construction-review.mjs",
@@ -447,8 +447,8 @@
     },
     {
       "path": "src/source-native-construction-navigation.mts",
-      "bytes": 15432,
-      "sha256": "d924cd1fc4bab14dae171dc4f0ff38a2952c67be8532449f9f8b9d874c6d7def"
+      "bytes": 15501,
+      "sha256": "69b757a58839894fec2151c2107d557ef039ef876c93701990e600e5eaec5b4c"
     },
     {
       "path": "src/source-native-construction-review.mts",
@@ -541,5 +541,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:8b4b6960543c89c6070569a709f3e7782aefc8bd6f61f37a4a549b05b78f8576"
+  "manifestSha256": "sha256:88266fc309acca38164807102c2139d45d4afc3f1dd7a5da5dfa8f4b3151510b"
 }

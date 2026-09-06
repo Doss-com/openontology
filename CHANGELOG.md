@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make repeated concept names browsable through bounded metadata pages while
+  preserving distinct identities, exact reads and explicit factual verification.
 - Add a bounded full-source construction review session with complete per-item
   decisions and exact quotation checks. Results remain unsigned and cannot
   grant Admission; independent semantic judgment remains external.

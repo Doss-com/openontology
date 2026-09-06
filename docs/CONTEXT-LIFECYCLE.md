@@ -417,9 +417,10 @@ const found = await ont.search({
   scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
   limit: 20,
 });
-// found.totalMatches counts passages. found.matches contains no passage text.
-if (found.state !== 'resolved-construction-navigation') {
-  throw new Error(found.state); // Surface ambiguity or unavailability to the caller.
+// Totals describe the full result; matches and concepts describe this page.
+// Both resolved and ambiguous results can be inspected without merging identities.
+if (found.state === 'unavailable-construction-navigation' || found.state === 'no-construction-match') {
+  throw new Error(found.state);
 }
 const selected = found.matches.find(match => match.nativeObject.externalId === 'CT-17');
 if (!selected) throw new Error('Requested ClickupTask is not in this page');
@@ -441,8 +442,12 @@ than overwritten. The retained Ont is useful for inspecting the storage layout;
 the discarded ephemeral keys are not a production review setup.
 
 Search matches a complete preferred name or declared alias, not an arbitrary
-question. Ambiguous concept IDs require `conceptId` or narrower scope and return
-no passage refs until resolved. Empty results do not prove absence. Reads are
+question. Distinct concept IDs remain ambiguous, but their metadata and exact
+passage handles are browsable. Use `conceptId` or narrower scope to select one,
+or follow `nextCursor` to inspect more candidates. Even a page with one concept
+remains ambiguous if the full result contains several. The example selects a
+known `ClickupTask` identity explicitly; an unfamiliar target requires inspecting
+and comparing candidates first. Empty results do not prove absence. Reads are
 exact source passages, but their `mentions` or `defines` interpretation remains
 navigation. Only the later native-field Verification closes factual proof.
 

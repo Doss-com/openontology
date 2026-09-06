@@ -377,11 +377,14 @@ alias scopes participate and equal-name concept IDs remain ambiguous. This is
 declared vocabulary lookup, not fuzzy matching or arbitrary semantic question
 planning.
 
-Search returns metadata-only passage references, concept choices, a full match
-count and opaque page cursors. Identical concept/native-object/span witnesses
+Search returns metadata-only passage references, page-local concept summaries,
+full concept and match counts, and opaque page cursors. Identical concept/native-object/span witnesses
 share one reference with their attachment roles. Multiple reviewer signatures
 on the same construction do not duplicate the projection. Different matching
-concept IDs return ambiguity and no passage refs until explicitly narrowed.
+concept IDs remain ambiguous but expose their individual passage references
+for inspection. Browsing alternatives does not merge their identities or
+select a factual subject. `conceptId` or narrower scope can still restrict the
+result. State depends on the full match set, even when a page shows one concept.
 No match is not absence proof. A degraded ledger with no eligible matches is
 reported as unavailable rather than ordinary no-match.
 
@@ -396,9 +399,11 @@ descendant returns, with a process-local floor in legacy profiles and durable
 history protection in protected profiles. Source and trust changes require a
 new opening. Existing pinned readers disclose their original source cut.
 
-Pages default to 20 passage refs and permit 1..64. At most 64 ambiguous concept
-choices are returned; larger sets require narrower scope rather than a partial
-choice list. Cursors bind the query and active construction projection, and
+Pages default to 20 passage refs and permit 1..64. Concept summaries contain
+only the ID/name pairs represented on that page. Follow `nextCursor` to enumerate
+the complete match set, including when more than 64 concepts share a name.
+Metadata is ordered by concept ID and then witness hash, not relevance or
+recency. Cursors bind the query and active construction projection, and
 cannot cross clients. The client retains at most 128 cursors and 1,024 offered
 refs with oldest-first eviction. Reads remain bounded to the compiler's 64 KiB
 passage limit. These limits do not establish a total ledger-size or latency SLO.

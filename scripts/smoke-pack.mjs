@@ -266,10 +266,14 @@ const inspectConstructionClient = async (ont: SourceNativeConstructionProduct) =
   const result = await ont.search({ term: 'allocation mismatch', scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' } });
   if (result.kind === 'OpenOntologyConstructionSearchResultV1') {
     const total: number = result.totalMatches;
+    const concepts: number = result.totalConcepts;
+    const pageConceptId: string | undefined = result.concepts[0]?.id;
+    if (result.nextCursor) await ont.search({ term: 'allocation mismatch',
+      scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' }, cursor: result.nextCursor });
     const proof: false | undefined = result.matches[0]?.requiredForProof;
     // @ts-expect-error navigation matches do not pretend to be verified fields
     const field: string | undefined = result.matches[0]?.fieldSha256;
-    void total; void proof; void field;
+    void total; void concepts; void pageConceptId; void proof; void field;
   }
   const read = await ont.read({ ref: 'example' });
   if (read.kind === 'OpenOntologyConstructionReadResultV1') {
@@ -620,10 +624,49 @@ const cold = kernel.readSourceNativeConstructionLedger({ options, trustRegistry 
 assert.equal(cold.navigationOnly, true);
 assert.equal(cold.state, 'ready');
 assert.deepEqual(cold.activeRecords, [record]);
-assert.equal(kernel.readSourceNativeConstructionLedger({ options, trustRegistry: trustRegistry.slice(0, 1) }).activeRecords.length, 0);`;
+assert.equal(kernel.readSourceNativeConstructionLedger({ options, trustRegistry: trustRegistry.slice(0, 1) }).activeRecords.length, 0);
+// Synthetic signed records exercise navigation mechanics, not semantic quality.
+for (const [start, count] of [[0, 64], [64, 1]]) {
+  const candidate = kernel.compileSourceNativeSemanticConstruction({ options, input: {
+    proposedBy: 'constructor', proposedAt: '2026-09-01T00:00:00.000Z', method: 'authored',
+    objectDefs: Array.from({ length: count }, (_, index) => ({ kind: 'ObjectDef',
+      id: 'repeated-label-' + (start + index), name: field.value, source: witness, aliases: [] })),
+    claims: [], coverage: [{ sourceRef, sourceSha256: span.sourceSha256, disposition: 'examined' }],
+  } });
+  const proposalStatement = kernel.sourceNativeConstructionProposalStatement({ construction: candidate });
+  const statement = kernel.sourceNativeConstructionAdmissionStatement({ construction: candidate,
+    issuerId: 'reviewer', admittedAt: '2026-09-02T00:00:00.000Z' });
+  const record = kernel.compileSourceNativeConstructionAdmissionRecord({ construction: candidate,
+    proposalStatement, statement, proposalSignatureBase64: signature(proposalStatement, proposer),
+    signatureBase64: signature(statement, reviewer) });
+  kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry, record });
+}
+const browser = kernel.openSourceNativeProductWithConstruction(options, { trustRegistry });
+let cursor;
+const seen = new Set();
+do {
+  const page = await browser.search({ term: field.value, limit: 7, ...(cursor ? { cursor } : {}) });
+  assert.equal(page.state, 'ambiguous-construction-navigation');
+  assert.equal(page.totalConcepts, 66);
+  assert.equal(page.totalMatches, 66);
+  assert(page.matches.length > 0 && page.matches.length <= 7);
+  assert.deepEqual(page.concepts.map(concept => concept.id), page.matches.map(match => match.conceptId));
+  for (const match of page.matches) {
+    assert.equal(match.requiredForProof, false);
+    assert.equal('exactText' in match, false);
+    assert.equal(seen.has(match.conceptId), false);
+    seen.add(match.conceptId);
+    const passage = await browser.read({ ref: match.ref });
+    assert.equal(passage.binding.conceptId, match.conceptId);
+    assert.equal(passage.exactText, field.value);
+    assert.equal('proofDisposition' in passage, false);
+  }
+  cursor = page.nextCursor;
+} while (cursor);
+assert.equal(seen.size, 66);`;
   const constructionSmoke = run(process.execPath, ['--input-type=module', '--eval', constructionProgram], { cwd: consumer });
-  check('installed construction Admission cold-replays and respects reviewer revocation',
-    constructionSmoke.status === 0, tail(constructionSmoke.stderr));
+  check('installed construction Admission and repeated-name paging stay source-bound',
+    constructionSmoke.status === 0, tail(constructionSmoke.stderr, 20));
 
   const lifecycleExample = join(packageRoot, 'examples', 'quickstart', 'source-lifecycle.mjs');
   const lifecycleGuide = join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md');
