@@ -97,3 +97,87 @@ root walkthrough. See [temporal intent](../README.md#temporal-intent).
 The root client remains read-only. Building and advancing a cut use the
 explicit extension functions from `oont/kernel`; ordinary agents need only the
 root `verify` path.
+
+## Authoring Adapter input
+
+`buildSourceNativeProduct` accepts one JSON-compatible Adapter envelope. The
+following is a complete minimal input. The supplied source hash is the SHA-256
+of the exact UTF-8 bytes of `content`, and `codeUnitStart` is the JavaScript
+UTF-16 index of the exact field value.
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "OpenOntologySourceNativeBuildInputV1",
+  "ontId": "status-demo",
+  "namespace": "demo",
+  "querySchemas": [
+    {
+      "sourceSystem": "tracker",
+      "objectType": "ticket",
+      "aliases": ["ticket"],
+      "fields": [{"fieldPath": "status", "aliases": ["status"]}]
+    }
+  ],
+  "sources": [{
+    "sourceType": "tracker",
+    "relativePath": "tracker/demo/t-1.txt",
+    "occurredAt": "2026-01-01T00:00:00.000Z",
+    "content": "Ticket T-1 status: open",
+    "sourceSha256": "sha256:a1aefc2657e92b4f9740cd2d0a395d12a91cdd34e34517c78b48455cfb91ee62"
+  }],
+  "nativeObjectInputs": [{
+    "relativePath": "tracker/demo/t-1.txt",
+    "objectIdentity": {
+      "home": "ObjectDef/InstanceRef",
+      "sourceSystem": "tracker",
+      "objectType": "ticket",
+      "namespace": "demo",
+      "externalId": "T-1"
+    },
+    "fields": [{"fieldPath": "status", "value": "open", "codeUnitStart": 19}]
+  }]
+}
+```
+
+Top-level `schemaVersion`, `kind`, `ontId`, `namespace`, `querySchemas`,
+`sources`, and `nativeObjectInputs` are required. `branch` is optional and
+defaults to `main`. Each source requires a nonempty `sourceType`, logical
+`relativePath`, canonical UTC `occurredAt`, and nonempty exact `content`. The first
+path segment must equal `sourceType`, for example `tracker/...`. A supplied
+`sourceSha256` must be `sha256:` followed by 64 lowercase hexadecimal digits
+over the source's UTF-8 bytes; the builder computes it when omitted.
+
+Each native object maps one source path and requires an
+`ObjectDef/InstanceRef` identity, with `sourceSystem`, `objectType`,
+`externalId`, and the build `namespace`. Each field requires a `fieldPath` and
+nonempty source-exact `value`. Use `codeUnitStart` when the value can repeat;
+omitting it is only safe when the value occurs once. The compiler emits the
+corresponding half-open UTF-8 byte span and `textSha256`. `canonicalValue` is
+optional comparison metadata for revision grouping. It never replaces the
+source-exact `value` returned by `read` or verification.
+
+`occurredAt` must use a canonical UTC timestamp
+such as `2026-01-01T00:00:00.000Z`; use the same form for optional `validAt`
+or `knownAt`. Repeated observations use separate source and object rows with
+the same identity. A changed canonical value at the same `occurredAt` refuses
+the build, because chronology is ambiguous. Changing only exact presentation
+while retaining the same `canonicalValue` does not create a revision.
+
+The query schema's source system, object type, aliases, and field paths must
+agree with the native object inputs. The builder validates the two declarations
+independently, so a mismatched profile can build but cannot answer the missing
+field. Keep the declarations aligned.
+
+Every supplied source path must be mapped by at least one native object. This
+is completeness of the supplied corpus, not proof that an upstream system had
+no other records. An explicit nonempty `adapterDiagnostics` array records
+conversion problems and disables complete chronology and absence proof. An
+absence receipt is therefore only scoped to the complete, supplied source
+catalog, and never authorizes world absence.
+
+The lifecycle example claims a new output root before writing child artifacts.
+An existing root fails with `SOURCE_LIFECYCLE_OUTPUT_EXISTS` and is not removed
+or altered. TypeScript authoring types for this envelope are not currently a
+supported package export. Treat this JSON contract and runtime diagnostics as
+the authoring boundary until that separate type-surface follow-up is complete.

@@ -600,19 +600,24 @@ import { pathToFileURL } from 'node:url';
 import { openOntology } from 'oont';
 import { buildSourceNativeProduct, openProductState } from 'oont/kernel';
 const root = ${JSON.stringify(consumer)};
-const input = JSON.parse(readFileSync(${JSON.stringify(inputPath)}, 'utf8'));
+const guide = readFileSync(${JSON.stringify(join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md'))}, 'utf8');
+const input = JSON.parse(guide.match(/\\x60{3}json\\n([\\s\\S]*?)\\n\\x60{3}/u)[1]);
 const objectBackendUri = pathToFileURL(join(root, 'conditional-objects')).href;
 const build = (name, input, expectedSourceVersion) => buildSourceNativeProduct({
   artifactRoot: join(root, name), objectBackendUri, input, expectedSourceVersion,
 });
 const initial = build('conditional-initial', input, null);
+const initialResult = await openOntology({ artifactRoot: join(root, 'conditional-initial') })
+  .verify('What is the current status of ticket T-1?');
+assert.equal(initialResult.answerable, true);
+assert.equal(initialResult.context[0].exactText, 'open');
 const changed = structuredClone(input);
-const relativePath = 'tracker/demo/task-1-2026-03-01.txt';
+const relativePath = 'tracker/demo/t-1-2026-03-01.txt';
 changed.sources.push({ relativePath, sourceType: 'tracker',
-  occurredAt: '2026-03-01T00:00:00.000Z', content: 'Keep context current' });
+  occurredAt: '2026-03-01T00:00:00.000Z', content: 'Ticket T-1 status: closed' });
 changed.nativeObjectInputs.push({ relativePath,
   objectIdentity: structuredClone(input.nativeObjectInputs[0].objectIdentity),
-  fields: [{ fieldPath: 'title', value: 'Keep context current' }] });
+  fields: [{ fieldPath: 'status', value: 'closed' }] });
 const winner = build('conditional-winner', changed, initial.receipt.refVersion);
 const state = openProductState({ artifactRoot: join(root, 'conditional-winner') });
 const route = { ontId: input.ontId, branch: input.branch ?? 'main' };
@@ -626,11 +631,11 @@ assert.equal(replayed.receipt.replayed, true);
 assert.equal(replayed.receipt.refVersion, winner.receipt.refVersion);
 assert.equal(replayed.receipt.commitSha256, winner.receipt.commitSha256);
 const result = await openOntology({ artifactRoot: join(root, 'conditional-winner') })
-  .verify('What is the current title of task-1?');
-assert.equal(result.context[0].exactText, 'Keep context current');
+  .verify('What is the current status of ticket T-1?');
+assert.equal(result.context[0].exactText, 'closed');
 assert.equal(result.verification.sourceCommitSha256, winner.receipt.commitSha256);`;
   const publication = run(process.execPath, ['--input-type=module', '--eval', publicationProgram], { cwd: consumer });
-  check('installed builder rejects delayed publication and preserves identical retry',
+  check('installed authoring example and conditional publication preserve exact context',
     publication.status === 0, tail(publication.stderr, 20));
 
   const constructionProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
