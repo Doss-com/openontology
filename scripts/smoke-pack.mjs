@@ -179,6 +179,8 @@ void historicalChronology;
 void exactText;
 // @ts-expect-error artifactRoot is required for a typed caller.
 openOntology();
+// @ts-expect-error source publication preconditions are not query options.
+openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
 `);
   const compiler = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
   const typedConsumer = run(process.execPath, [
@@ -196,6 +198,7 @@ openOntology();
 
   const kernelContractPath = join(consumer, 'kernel-contract.mts');
   writeFileSync(kernelContractPath, `import {
+  buildSourceNativeProduct,
   compileProofSufficiencyContract,
   compileSourceNativeCurrentFieldChronologyVerification,
   compileSourceNativeSemanticConstruction,
@@ -232,6 +235,13 @@ openOntology();
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
+const buildWithVersion = (input: unknown, expectedSourceVersion: string | null | undefined) =>
+  buildSourceNativeProduct({ artifactRoot: './new-cut', input, expectedSourceVersion });
+void buildWithVersion;
+// @ts-expect-error source versions are opaque strings, never numeric generations.
+buildSourceNativeProduct({ artifactRoot: './new-cut', expectedSourceVersion: 1 });
+// @ts-expect-error source publication preconditions are not runtime opening options.
+openSourceNativeProductRuntime({ artifactRoot: './fixture', expectedSourceVersion: null });
 const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProductRuntime;
 const openAdmitted: typeof openSourceNativeProductWithAdmittedKnowledge =
   openSourceNativeProductWithAdmittedKnowledge;
@@ -581,6 +591,47 @@ assert.equal(historical.answerable, true);
 assert.equal(historical.context[0].exactText, 'Prepare launch');`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
+
+  const publicationProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { openOntology } from 'oont';
+import { buildSourceNativeProduct, openProductState } from 'oont/kernel';
+const root = ${JSON.stringify(consumer)};
+const input = JSON.parse(readFileSync(${JSON.stringify(inputPath)}, 'utf8'));
+const objectBackendUri = pathToFileURL(join(root, 'conditional-objects')).href;
+const build = (name, input, expectedSourceVersion) => buildSourceNativeProduct({
+  artifactRoot: join(root, name), objectBackendUri, input, expectedSourceVersion,
+});
+const initial = build('conditional-initial', input, null);
+const changed = structuredClone(input);
+const relativePath = 'tracker/demo/task-1-2026-03-01.txt';
+changed.sources.push({ relativePath, sourceType: 'tracker',
+  occurredAt: '2026-03-01T00:00:00.000Z', content: 'Keep context current' });
+changed.nativeObjectInputs.push({ relativePath,
+  objectIdentity: structuredClone(input.nativeObjectInputs[0].objectIdentity),
+  fields: [{ fieldPath: 'title', value: 'Keep context current' }] });
+const winner = build('conditional-winner', changed, initial.receipt.refVersion);
+const state = openProductState({ artifactRoot: join(root, 'conditional-winner') });
+const route = { ontId: input.ontId, branch: input.branch ?? 'main' };
+const before = state.store.readRefMetadata(route);
+assert.throws(() => build('conditional-delayed', input, initial.receipt.refVersion),
+  { code: 'SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT' });
+assert.equal(existsSync(join(root, 'conditional-delayed', 'source-native.json')), false);
+assert.deepEqual(state.store.readRefMetadata(route), before);
+const replayed = build('conditional-retry', changed, initial.receipt.refVersion);
+assert.equal(replayed.receipt.replayed, true);
+assert.equal(replayed.receipt.refVersion, winner.receipt.refVersion);
+assert.equal(replayed.receipt.commitSha256, winner.receipt.commitSha256);
+const result = await openOntology({ artifactRoot: join(root, 'conditional-winner') })
+  .verify('What is the current title of task-1?');
+assert.equal(result.context[0].exactText, 'Keep context current');
+assert.equal(result.verification.sourceCommitSha256, winner.receipt.commitSha256);`;
+  const publication = run(process.execPath, ['--input-type=module', '--eval', publicationProgram], { cwd: consumer });
+  check('installed builder rejects delayed publication and preserves identical retry',
+    publication.status === 0, tail(publication.stderr, 20));
 
   const constructionProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
 import assert from 'node:assert/strict';

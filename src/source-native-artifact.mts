@@ -744,7 +744,15 @@ export function productSources(objectOnt: ObjectOnt): ProductSource[] {
 
 export function buildSourceNativeProduct({ artifactRoot, input, objectBackendUri = null,
   historyBackendUri = null,
-  objectBackendEnv = process.env }: ProductOptions & { input?: unknown } = {}) {
+  expectedSourceVersion,
+  objectBackendEnv = process.env }: ProductOptions & {
+    input?: unknown;
+    expectedSourceVersion?: string | null;
+  } = {}) {
+  if (expectedSourceVersion !== undefined && expectedSourceVersion !== null
+    && (typeof expectedSourceVersion !== 'string' || !expectedSourceVersion)) {
+    fail('SOURCE_NATIVE_PRODUCT_SOURCE_VERSION');
+  }
   const root = exactDirectory(artifactRoot, { create: true });
   const normalized = validateBuildInput(input);
   const expectedMap = compileSourceNativeObjectMap({
@@ -770,16 +778,18 @@ export function buildSourceNativeProduct({ artifactRoot, input, objectBackendUri
   });
   const { backend } = selectedBackend;
   const selectedHistory = selectHistoryBackend(existingDescriptor, historyBackendUri, objectBackendEnv, selectedBackend.uri);
-  const current = openObjectOntStore({ backend, historyBackend: selectedHistory?.backend }).readRefMetadata({
-    ontId: normalized.ontId,
-    branch: normalized.branch,
-  });
+  const expectedVersion = expectedSourceVersion === undefined
+    ? openObjectOntStore({ backend, historyBackend: selectedHistory?.backend }).readRefMetadata({
+      ontId: normalized.ontId,
+      branch: normalized.branch,
+    })?.version ?? null
+    : expectedSourceVersion;
   const built = materializeSourceNativeObjectOnt({
     backend,
     historyBackend: selectedHistory?.backend,
     ontId: normalized.ontId,
     branch: normalized.branch,
-    expectedVersion: current === null ? null : current.version,
+    expectedVersion,
     sources: normalized.sources,
     nativeObjectInputs: normalized.nativeObjectInputs,
     adapterDiagnostics: normalized.adapterDiagnostics,

@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 6903,
-      "sha256": "da0100778074d7af2ba0b00b290f41a6a6ca0d971f9aa858f232e3a3b1a301be"
+      "bytes": 7134,
+      "sha256": "077e1ae27ecafc31350d5e80c0325db80405faaef632c6b31945fb92de35f61e"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 7829,
-      "sha256": "9a24ebefb3627f5de9d2a53e6e9d52a053cbb8028db64b3d13ead31312f8329b"
+      "bytes": 9659,
+      "sha256": "6b7151f5e13dc3518d6134678860cf366a9ed2751466a3de977a0b21f7157142"
     },
     {
       "path": "examples/quickstart/semantic-map.mjs",
@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 38631,
-      "sha256": "53615e53caf3f3fd055efc0cea4fc67e70f3fac20a6d1aac56a33f5caed3e296"
+      "bytes": 42011,
+      "sha256": "527c4150b45c2617cbcf9d4916ca9a712f5716fc4ed6f9a63e6a3111974d5e03"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -297,8 +297,8 @@
     },
     {
       "path": "scripts/test-source-native-history.mjs",
-      "bytes": 11110,
-      "sha256": "ec9bcbdd312223ffcbe8c3fc6a18ad7c1bf64f672b8d52d82cc5f1810861aa7a"
+      "bytes": 14780,
+      "sha256": "7db2d33b1c4a38210c0e474716a3b6ca409e7bdc121980d2ebe327eddb93c446"
     },
     {
       "path": "scripts/test-source-native-object-map.mjs",
@@ -322,8 +322,8 @@
     },
     {
       "path": "scripts/test-source-native-resource-checkpoint.mjs",
-      "bytes": 3397,
-      "sha256": "994d58d0579e841fe46ab0ca592594e53cfe2831dc520410784c7046da04f623"
+      "bytes": 7655,
+      "sha256": "11ad2d68dacad87a3742b006054a7da279323a137c5a065e4d3fa0748d7a3cf5"
     },
     {
       "path": "scripts/test-source-native-resource.mjs",
@@ -442,8 +442,8 @@
     },
     {
       "path": "src/source-native-artifact.mts",
-      "bytes": 33411,
-      "sha256": "78812738a1d1f8bad110f6f568487a35c6fa55c707072d633d979ca0e55145a4"
+      "bytes": 33754,
+      "sha256": "f72f959eaf5d795f234db39b200964ae4f5152390e7b3f92fe5184ae9b07e266"
     },
     {
       "path": "src/source-native-construction-admission.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:33736d5fd8f6412e187db4284f9401476e565a0f4a81410c1f8d6c17917edee9"
+  "manifestSha256": "sha256:d653d617d51b88635cf63d917f2d538af0510c5a6a2d3cf52d0ac0dcd9c7503a"
 }

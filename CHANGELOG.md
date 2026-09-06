@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add an optional source-version precondition to the kernel builder. Delayed
+  changed publications refuse without advancing the winning source head;
+  identical-content retries remain idempotent. Root query options are unchanged.
 - Refuse disagreement between a question's declared identity/profile/field and
   structured scope. Preserve scope-only queries and disambiguation among
   matching declared candidates across SDK, CLI and MCP. Version the planner

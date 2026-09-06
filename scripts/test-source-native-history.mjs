@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -52,18 +52,32 @@ test('protected source binding refuses a raw rewind after restart and recovers t
     const resourceRoot = join(root, 'resource');
     const first = buildSourceNativeProduct({
       artifactRoot: firstRoot, input: input(['Alpha']), objectBackendUri, historyBackendUri,
+      expectedSourceVersion: null,
     });
     const initial = openObjectOntStore({ backend, historyBackend }).readRefMetadata(route);
     createSourceNativeProductResource({ artifactRoot: firstRoot, resourceRoot });
     const second = buildSourceNativeProduct({
       artifactRoot: join(root, 'second'), input: input(['Alpha', 'Beta']),
-      objectBackendUri, historyBackendUri,
+      objectBackendUri, historyBackendUri, expectedSourceVersion: initial.version,
     });
     assert.notEqual(first.receipt.commitSha256, second.receipt.commitSha256);
     const current = openObjectOntStore({ backend, historyBackend }).readRefMetadata(route);
     backend.compareAndSwap(current.key, {
       expectedVersion: current.version, bytes: Buffer.from(stableObjectText(initial.ref)),
     });
+    const rewound = backend.get(current.key);
+    for (const [name, values, expectedSourceVersion] of [
+      ['identical-rewind', ['Alpha'], rewound.version],
+      ['identical-accepted', ['Alpha', 'Beta'], null],
+      ['changed', ['Alpha', 'Beta', 'Gamma'], rewound.version],
+    ]) {
+      const artifactRoot = join(root, name);
+      assert.throws(() => buildSourceNativeProduct({ artifactRoot, input: input(values),
+        objectBackendUri, historyBackendUri, expectedSourceVersion }),
+      { code: 'OBJECT_ONT_HISTORY_MISMATCH' });
+      assert.equal(existsSync(join(artifactRoot, 'source-native.json')), false);
+      assert.deepEqual(backend.get(current.key), rewound);
+    }
     assert.throws(() => bindSourceNativeProductResource({
       resourceRoot, artifactRoot: join(root, 'must-not-bind-old-current'),
     }), error => /^OBJECT_ONT_HISTORY_/u.test(error.code));
@@ -81,6 +95,57 @@ test('protected source binding refuses a raw rewind after restart and recovers t
       resourceRoot, artifactRoot: join(root, 'recovered-current'),
     });
     assert.equal(recovered.sourceCommitSha256, second.receipt.commitSha256);
+    const advanced = buildSourceNativeProduct({
+      artifactRoot: join(root, 'after-recovery'), input: input(['Alpha', 'Beta', 'Gamma']),
+      objectBackendUri, historyBackendUri,
+      expectedSourceVersion: coldStore.readRefMetadata(route).version,
+    });
+    assert.notEqual(advanced.receipt.commitSha256, second.receipt.commitSha256);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('explicit source versions do not bypass pending or corrupt protected history', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-version-history-'));
+  try {
+    const objectBackendUri = pathToFileURL(join(root, 'data')).href;
+    const historyBackendUri = pathToFileURL(join(root, 'history')).href;
+    const backend = openCanonicalObjectBackend({ uri: objectBackendUri }).backend;
+    const historyBackend = openCanonicalObjectBackend({ uri: historyBackendUri }).backend;
+    const built = buildSourceNativeProduct({ artifactRoot: join(root, 'initial'),
+      input: input(['Alpha']), objectBackendUri, historyBackendUri, expectedSourceVersion: null });
+    const route = { ontId: 'protected-history', branch: 'main' };
+    const store = openObjectOntStore({ backend, historyBackend });
+    const before = store.readRefMetadata(route);
+    const interrupted = openObjectOntStore({ historyBackend, backend: {
+      ...backend,
+      compareAndSwap() { throw Object.assign(new Error('Simulated publication failure'),
+        { code: 'OBJECT_BACKEND_PRECONDITION' }); },
+    } });
+    assert.throws(() => interrupted.compareAndSwapRefMetadataCheckpointed({
+      ...route, expectedVersion: before.version, commitSha256: built.receipt.commitSha256,
+    }));
+    const build = (name, expectedSourceVersion) => buildSourceNativeProduct({
+      artifactRoot: join(root, name), input: input(['Alpha']), objectBackendUri,
+      historyBackendUri, expectedSourceVersion,
+    });
+    for (const [index, version] of [null, before.version].entries()) {
+      assert.throws(() => build(`pending-${index}`, version), { code: 'OBJECT_ONT_HISTORY_PENDING' });
+      assert.equal(existsSync(join(root, `pending-${index}`, 'source-native.json')), false);
+    }
+    assert.equal(backend.head(before.key).version, before.version);
+    store.recoverRefHistory(route);
+    const current = store.readRefMetadata(route);
+    assert.equal(build('recovered', current.version).receipt.replayed, true);
+    const historyKey = 'ref-history/protected-history/main.json';
+    historyBackend.compareAndSwap(historyKey, {
+      expectedVersion: historyBackend.head(historyKey).version,
+      bytes: Buffer.from('{"corrupt":true}'),
+    });
+    assert.throws(() => build('corrupt', current.version), { code: 'OBJECT_ONT_HISTORY_CORRUPT' });
+    assert.equal(existsSync(join(root, 'corrupt', 'source-native.json')), false);
+    assert.equal(backend.head(current.key).version, current.version);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

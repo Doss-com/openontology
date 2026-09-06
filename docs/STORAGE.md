@@ -60,6 +60,37 @@ retained receipt. IAM, backup retention and deployment-specific recovery still
 require operational qualification. Protected publication adds conditional writes
 and reachable-object metadata checks in exchange for cold-start continuity.
 
+## Conditional source publication
+
+`[ACTIVE-WORK]` The unpublished kernel builder accepts optional
+`expectedSourceVersion`. A delayed worker can bind a changed publication to the
+source ref it previously observed, instead of treating the newest ref as its
+base when it eventually finishes.
+
+- Omitted or `undefined` preserves manual-build behavior: the builder reads
+  the latest ref version before materialization.
+- A nonempty string is an opaque backend version from `receipt.refVersion` or
+  a history-aware store's `readRefMetadata`, not a source commit hash or numeric
+  generation. A changed target requires that exact current version.
+- `null` permits an initial publication only when no source ref exists.
+- An identical current map and source catalog always retain the existing
+  idempotent replay behavior, including with a stale string or `null`. No new
+  commit or ref version is published in that case.
+
+A stale changed target returns `SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT`. The
+caller must reconcile its intended input and source base before trying again;
+blindly substituting the latest version defeats the precondition. Empty strings
+and non-string/non-null values return `SOURCE_NATIVE_PRODUCT_SOURCE_VERSION`
+before an output directory is created. Protected-history pending, corruption
+and rewind checks still apply, even to identical-content replay.
+
+Use a separate descriptor directory for each changed cut. A rejected
+publication may leave that directory and unreferenced immutable blobs or
+metadata, but cannot publish its descriptor or advance the winning source head.
+The precondition is not stored in the descriptor and is not a root query option.
+It does not prove the input is a fresh or complete observation of Terrain;
+source-checkpoint ordering and background reconciliation remain operator work.
+
 ## Local file
 
 The local backend is the default and requires no credentials. Use it for local
