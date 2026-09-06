@@ -277,8 +277,8 @@
     },
     {
       "path": "scripts/test-source-native-construction-review.mjs",
-      "bytes": 21694,
-      "sha256": "5c212aca68dfed325ee16a817f9878b4d8e736a7093f26026fcad2e2e396cbfb"
+      "bytes": 24195,
+      "sha256": "28c464dbdc267521ade83406177e837483019b24f0d99ceb946b2eb89549f058"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -457,8 +457,8 @@
     },
     {
       "path": "src/source-native-construction-review.mts",
-      "bytes": 10263,
-      "sha256": "a7460281792501e37976c808926bb342d9f5b939f4071123c2ceb0af3aa26a88"
+      "bytes": 11641,
+      "sha256": "a4112c220edb795a6d2333619e7060e3cb5c5208d6929da1e9b295bc84f7dac6"
     },
     {
       "path": "src/source-native-current-field-verification.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:96b5186716924fa733da70ba47893c5a078d22062c88c75aeeda8336f4303ec6"
+  "manifestSha256": "sha256:07ca85c43d6ca3ca86422e51a7985e268035c416f598adf2e9b750a916f11dd6"
 }
