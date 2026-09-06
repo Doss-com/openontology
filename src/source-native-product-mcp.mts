@@ -4,23 +4,19 @@ import type { UnknownRecord } from './source-native-object-map.mjs';
 import type {
   ProductSearchInput,
 } from './source-native-product.mjs';
-import type { SourceNativeConstructionSearchInput } from './source-native-construction-navigation.mjs';
+import type {
+  SourceNativeConstructionProduct,
+  SourceNativeConstructionSearchInput,
+} from './source-native-construction-navigation.mjs';
 import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 
 export interface ProductTransport {
-  kind: 'OpenOntologySourceNativeProductV2' | 'OpenOntologySourceNativeAdmittedKnowledgeProductV1'
-    | 'OpenOntologySourceNativeConstructionProductV1';
-  verify(input: ProductSearchInput): Promise<unknown>;
-  search(input: ProductSearchInput | SourceNativeConstructionSearchInput): Promise<unknown>;
-  read(input: { ref: string }): Promise<unknown>;
-}
-interface OrdinaryProductTransport {
   kind: 'OpenOntologySourceNativeProductV2' | 'OpenOntologySourceNativeAdmittedKnowledgeProductV1';
-  verify(input?: ProductSearchInput): Promise<unknown>;
-  search(input?: ProductSearchInput): Promise<unknown>;
+  verify(input: ProductSearchInput): Promise<unknown>;
+  search(input: ProductSearchInput): Promise<unknown>;
   read(input: { ref: string }): Promise<unknown>;
 }
-type CompatibleProductTransport = ProductTransport | OrdinaryProductTransport;
+type McpProduct = ProductTransport | Pick<SourceNativeConstructionProduct, keyof ProductTransport>;
 interface JsonRpcResponse { jsonrpc: '2.0'; id: unknown; result?: unknown; error?: UnknownRecord }
 
 const fail = (code: string): never => {
@@ -252,9 +248,8 @@ function constructionSearchArguments(value: unknown): SourceNativeConstructionSe
   };
 }
 
-function advancedSearchArguments(value: unknown, constructionProduct: boolean):
+function constructionAdvancedSearchArguments(value: unknown):
   ProductSearchInput | SourceNativeConstructionSearchInput {
-  if (!constructionProduct) return queryArguments(value);
   const args = exactArguments(value, [
     'question', 'intent', 'at', 'anchorValue', 'scope',
     'term', 'conceptId', 'limit', 'cursor',
@@ -291,7 +286,7 @@ function errorResult(error: unknown): UnknownRecord {
   };
 }
 
-export function createSourceNativeProductMcpHandler(product: CompatibleProductTransport, {
+export function createSourceNativeProductMcpHandler(product: McpProduct, {
   profile = 'verify',
 }: { profile?: 'verify' | 'advanced' } = {}) {
   const constructionProduct = product?.kind === 'OpenOntologySourceNativeConstructionProductV1';
@@ -332,7 +327,7 @@ export function createSourceNativeProductMcpHandler(product: CompatibleProductTr
           ));
         } else if (profile === 'advanced' && params.name === 'search') {
           response.result = result(await (product.kind === 'OpenOntologySourceNativeConstructionProductV1'
-            ? product.search(advancedSearchArguments(params.arguments, true))
+            ? product.search(constructionAdvancedSearchArguments(params.arguments))
             : product.search(queryArguments(params.arguments))));
         } else if (profile === 'advanced' && params.name === 'read') {
           const args = readArguments(params.arguments, constructionProduct);
@@ -351,7 +346,7 @@ export function createSourceNativeProductMcpHandler(product: CompatibleProductTr
   return Object.freeze({ tools, handle });
 }
 
-export function runSourceNativeProductMcp(product: CompatibleProductTransport, {
+export function runSourceNativeProductMcp(product: McpProduct, {
   input = process.stdin,
   output = process.stdout,
   profile = 'verify',
