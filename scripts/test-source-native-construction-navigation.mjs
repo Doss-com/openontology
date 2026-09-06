@@ -122,14 +122,40 @@ test('same-name distinct concepts stay ambiguous until explicitly selected', asy
   input.claims.forEach(claim => { claim.about = 'another-definition'; });
   f.write(f.record(f.compile(input)));
   const ont = f.open();
-  const ambiguous = await ont.search({ term: 'AllocationException' });
+  const ambiguous = await ont.search({ term: 'AllocationException', limit: 2 });
   assert.equal(ambiguous.state, 'ambiguous-construction-navigation');
-  assert.deepEqual(ambiguous.concepts.map(item => item.id), ['allocation-exception', 'another-definition']);
-  assert.deepEqual(ambiguous.matches, []);
+  assert.equal(ambiguous.totalConcepts, 2);
+  assert.equal(ambiguous.totalMatches, 6);
+  assert.deepEqual(ambiguous.concepts.map(item => item.id), ['allocation-exception']);
+  assert.equal(ambiguous.matches.length, 2);
+  assert(ambiguous.matches.every(item => item.conceptId === 'allocation-exception'));
+  const firstRead = await ont.read({ ref: ambiguous.matches[0].ref });
+  assert.equal(firstRead.binding.conceptId, 'allocation-exception');
+  const secondPage = await ont.search({ term: 'AllocationException', limit: 4, cursor: ambiguous.nextCursor });
+  assert.equal(secondPage.state, 'ambiguous-construction-navigation');
+  assert.deepEqual(secondPage.concepts.map(item => item.id), ['allocation-exception', 'another-definition']);
+  const otherMatch = secondPage.matches.find(item => item.conceptId === 'another-definition');
+  assert(otherMatch);
+  const secondRead = await ont.read({ ref: otherMatch.ref });
+  assert.equal(secondRead.binding.conceptId, 'another-definition');
+  assert.equal((await ont.verify({ question: 'What is the current status?' })).answerable, false);
   const selected = await ont.search({ term: 'AllocationException', conceptId: 'another-definition' });
   assert.equal(selected.state, 'resolved-construction-navigation');
   assert(selected.matches.every(item => item.conceptId === 'another-definition'));
   assert.equal((await ont.search({ term: 'not that name', conceptId: 'another-definition' })).totalConcepts, 0);
+});
+
+test('reopening preserves deterministic metadata order while refs remain session-owned', async t => {
+  const f = fixture(t); f.write(f.record());
+  const input = clone(f.input); input.objectDefs[0].id = 'another-definition';
+  input.claims.forEach(claim => { claim.about = 'another-definition'; });
+  f.write(f.record(f.compile(input)));
+  const a = await f.open().search({ term: 'AllocationException', limit: 4 });
+  const b = await f.open().search({ term: 'AllocationException', limit: 4 });
+  const metadata = page => ({ state: page.state, concepts: page.concepts,
+    matches: page.matches.map(({ ref, ...match }) => match) });
+  assert.deepEqual(metadata(a), metadata(b));
+  assert.notDeepEqual(a.matches.map(item => item.ref), b.matches.map(item => item.ref));
 });
 
 test('same-proposal multi-reviewer agreement does not duplicate passages', async t => {
@@ -222,7 +248,7 @@ test('offered references have a bounded FIFO lifetime independent of source elig
   assert.equal((await ont.search({ term: 'AllocationException' })).totalMatches, 71);
 });
 
-test('concept summary overflow is unavailable instead of offering an incomplete disambiguation', async t => {
+test('more than 64 concepts remain ambiguous and fully pageable with bounded summaries', async t => {
   const f = fixture(t);
   for (const [start, count] of [[0, 64], [64, 1]]) {
     const input = clone(f.input);
@@ -231,14 +257,20 @@ test('concept summary overflow is unavailable instead of offering an incomplete 
     f.write(f.record(f.compile(input)));
   }
   const ont = f.open();
-  const all = await ont.search({ term: 'AllocationException' });
-  assert.equal(all.state, 'unavailable-construction-navigation');
-  assert.equal(all.totalConcepts, 65);
-  assert.equal(all.totalMatches, 65);
-  assert.deepEqual(all.concepts, []);
-  assert.deepEqual(all.matches, []);
-  assert.equal(all.nextCursor, null);
-  assert.equal(all.absenceProven, false);
+  let cursor; const seen = [];
+  do {
+    const page = await ont.search({ term: 'AllocationException', limit: 17, ...(cursor ? { cursor } : {}) });
+    assert.equal(page.state, 'ambiguous-construction-navigation');
+    assert.equal(page.totalConcepts, 65);
+    assert.equal(page.totalMatches, 65);
+    assert(page.concepts.length <= 64);
+    assert(page.matches.length <= 17);
+    assert(page.matches.every(match => !('exactText' in match)));
+    seen.push(...page.matches.map(match => `${match.conceptId}:${match.relativePath}`));
+    cursor = page.nextCursor;
+  } while (cursor);
+  assert.equal(new Set(seen).size, 65);
+  assert.equal(seen.length, 65);
   const selected = await ont.search({ term: 'AllocationException', conceptId: 'concept-64' });
   assert.equal(selected.state, 'resolved-construction-navigation');
   assert.equal(selected.totalMatches, 1);

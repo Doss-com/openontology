@@ -79,6 +79,7 @@ export interface SourceNativeConstructionReadResult {
 interface Passage {
   record: SourceNativeConstructionAdmissionRecord;
   conceptId: string;
+  name: string;
   source: SourceNativeSemanticWitness;
   object: SourceNativeObject;
   roles: SourceNativeConstructionAttachmentRole[];
@@ -181,7 +182,9 @@ export function openSourceNativeProductWithConstruction(options: ProductOptions 
           if (scope && (object.objectIdentity.sourceSystem !== scope.sourceSystem
             || scope.objectType !== undefined && object.objectIdentity.objectType !== scope.objectType)) return;
           const key = stableObjectSha256(source);
-          const passage = passages.get(key) ?? { record, conceptId: definition.id, source, object, roles: [] };
+          const passage = passages.get(key) ?? {
+            record, conceptId: definition.id, name: definition.name, source, object, roles: [],
+          };
           if (!passage.roles.includes(role)) passage.roles.push(role);
           passages.set(key, passage);
         };
@@ -194,13 +197,14 @@ export function openSourceNativeProductWithConstruction(options: ProductOptions 
       }
     }
     concepts.sort((a, b) => compare(a.id, b.id));
-    const totalMatches = concepts.reduce((count, concept) => count + concept.passages.length, 0);
-    const state: SourceNativeConstructionSearchResult['state'] = concepts.length > 64 ? 'unavailable-construction-navigation'
-      : concepts.length > 1 ? 'ambiguous-construction-navigation'
-        : concepts.length === 1 ? 'resolved-construction-navigation'
-          : ledger.state === 'degraded' ? 'unavailable-construction-navigation' : 'no-construction-match';
-    const selected = concepts.length === 1 ? concepts[0]?.passages ?? [] : [];
-    const matches = selected.slice(offset, offset + limit).map((passage): SourceNativeConstructionMatch => {
+    const allPassages = concepts.flatMap((concept) => concept.passages);
+    const totalMatches = allPassages.length;
+    const state: SourceNativeConstructionSearchResult['state'] = concepts.length > 1
+      ? 'ambiguous-construction-navigation'
+      : concepts.length === 1 ? 'resolved-construction-navigation'
+        : ledger.state === 'degraded' ? 'unavailable-construction-navigation' : 'no-construction-match';
+    const selected = allPassages.slice(offset, offset + limit);
+    const matches = selected.map((passage): SourceNativeConstructionMatch => {
       const ref = `construction:${randomUUID()}`;
       remember(offered, ref, freeze(passage), 1024);
       const source = sources.get(passage.source.evidence.sourceRef) ?? fail('BINDING');
@@ -209,12 +213,21 @@ export function openSourceNativeProductWithConstruction(options: ProductOptions 
         roles: passage.roles, requiredForProof: false };
     });
     let nextCursor: string | null = null;
-    if (selected.length > offset + limit) {
+    if (allPassages.length > offset + limit) {
       nextCursor = `construction-page:${randomUUID()}`;
       remember(cursors, nextCursor, { querySha256, projectionSha256, offset: offset + limit }, 128);
     }
+    const pageConceptKeys = new Set<string>();
+    const pageConcepts: { id: string; name: string }[] = [];
+    for (const passage of selected) {
+      const key = stableObjectSha256({ id: passage.conceptId, name: passage.name });
+      if (!pageConceptKeys.has(key)) {
+        pageConceptKeys.add(key);
+        pageConcepts.push({ id: passage.conceptId, name: passage.name });
+      }
+    }
     const core = { schemaVersion: 1 as const, kind: 'OpenOntologyConstructionSearchResultV1' as const,
-      state, query: { term, scope, conceptId }, concepts: concepts.length > 64 ? [] : concepts.map(({ id, name }) => ({ id, name })),
+      state, query: { term, scope, conceptId }, concepts: pageConcepts,
       totalConcepts: concepts.length, totalMatches, matches, nextCursor, projectionSha256,
       sourceCommitSha256: context.objectOnt.commitSha256, sourceReplaySha256: context.objectOnt.replaySha256,
       ledger: summary(ledger), absenceProven: false as const,
