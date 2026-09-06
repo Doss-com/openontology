@@ -310,16 +310,16 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     plannerSchemaSha256 = stableObjectSha256(querySchemas);
   }
   if (query !== null) {
-    const mention = query.externalId === undefined
+    const mention = query.externalId === undefined || declaredTitle.normalizedTitle !== null
       ? mentionedExternalId(scanQuestion, map, namespace, query)
       : { value: query.externalId, candidates: [], unresolvedExternalIds: [] };
-    const externalId = mention.value;
+    const externalId = query.externalId ?? mention.value;
     mentionedExternalIds = mention.candidates;
     unresolvedExternalIds = mention.unresolvedExternalIds;
-    if (externalId === EXTERNAL_ID_COLLISION) {
+    if (mention.value === EXTERNAL_ID_COLLISION) {
       state = 'unavailable-native-object-identifier-not-declared';
       query = null;
-    } else if (externalId === EXTERNAL_ID_MULTIPLE) {
+    } else if (mention.value === EXTERNAL_ID_MULTIPLE) {
       state = 'unavailable-native-multiple-object-identifiers';
       query = null;
     } else {

@@ -104,6 +104,20 @@ test('a declared title binds the intended identity and preserves exact proof', a
     assert.equal(typedReplay.state, 'resolved-current-field');
     assert.equal(typedReplay.answerable, true);
     assert.equal(typedReplay.verification.queryPlanSha256, result.verification.queryPlanSha256);
+
+    const visibleId = await product.verify({
+      question: 'What is the current status of task-1 titled "Quarterly status review"?',
+    });
+    const typedVisibleId = await product.verify({
+      question: 'What is the current status of task-1 titled "Quarterly status review"?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(visibleId.state, 'resolved-current-field');
+    assert.equal(typedVisibleId.state, 'resolved-current-field');
+    assert.deepEqual(visibleId.mentionedExternalIds, ['task-1']);
+    assert.deepEqual(typedVisibleId.mentionedExternalIds, ['task-1']);
+    assert.equal(typedVisibleId.verification.queryPlanSha256,
+      visibleId.verification.queryPlanSha256);
   });
 });
 
@@ -228,6 +242,20 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
     });
     assert.equal(typedConflict.state, 'unavailable-native-multiple-object-identifiers');
     assert.equal(typedConflict.answerable, false);
+
+    const typedKnownConflict = await product.verify({
+      question: 'What is the current status of task-2 titled "Quarterly status review"?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(typedKnownConflict.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(typedKnownConflict.answerable, false);
+
+    const typedUnknownConflict = await product.verify({
+      question: 'What is the current status of task-999 titled "Quarterly status review"?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(typedUnknownConflict.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(typedUnknownConflict.answerable, false);
   });
 });
 
