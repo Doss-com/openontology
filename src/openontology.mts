@@ -8,6 +8,7 @@ import {
 } from './source-native-product.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
 import type { OpenOntologyResultState as ResultState } from './product-result-state.mjs';
+import type { GcsRequestObserver } from './gcs-object-storage-backend.mjs';
 
 export interface OpenOntologyScopeInput {
   sourceSystem: string;
@@ -37,7 +38,7 @@ interface OpenOntologyQuery {
 }
 export interface OpenOntologyReferenceInput { ref: string }
 export type OpenOntologyBackendEnvironment = Readonly<Record<
-  string, string | (() => string) | null | undefined
+  string, string | (() => string) | GcsRequestObserver | null | undefined
 >>;
 export interface OpenOntologyOptions {
   artifactRoot: string;

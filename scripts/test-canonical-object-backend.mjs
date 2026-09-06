@@ -86,6 +86,25 @@ test('gs URI preserves a scoped prefix and accepts a renewable token provider', 
   assert.equal('accessTokenProvider' in selected.capabilities, false);
 });
 
+test('gs URI accepts a programmatic request observer and rejects non-callback configuration', () => {
+  const observeRequest = () => {};
+  const selected = openCanonicalObjectBackend({
+    uri: 'gs://customer-ontology',
+    env: {
+      OONT_GCS_ACCESS_TOKEN: 'fixture-token',
+      OONT_GCS_REQUEST_OBSERVER: observeRequest,
+    },
+  });
+  assert.equal(selected.capabilities.backend, 'gcs');
+  assert.throws(() => openCanonicalObjectBackend({
+    uri: 'gs://customer-ontology',
+    env: {
+      OONT_GCS_ACCESS_TOKEN: 'fixture-token',
+      OONT_GCS_REQUEST_OBSERVER: 'not-a-callback',
+    },
+  }), { code: 'CANONICAL_OBJECT_BACKEND_URI' });
+});
+
 test('canonical backend URI never accepts embedded credentials or configuration query text', () => {
   for (const uri of [
     's3://access:secret@customer-ontology',

@@ -2,6 +2,7 @@
 import { fileURLToPath } from 'node:url';
 import type { ObjectBackend, ObjectBackendCapabilities } from './object-storage-backend.mjs';
 import { openGcsObjectBackend } from './gcs-object-storage-backend.mjs';
+import type { GcsRequestObserver } from './gcs-object-storage-backend.mjs';
 import { openFileObjectBackend } from './object-storage-backend.mjs';
 import { openS3ObjectBackend } from './s3-object-storage-backend.mjs';
 
@@ -14,7 +15,7 @@ export interface CanonicalObjectBackendSelection {
 import type { OpenOntologyBackendEnvironment } from './openontology.mjs';
 export type CanonicalObjectBackendEnvironment = OpenOntologyBackendEnvironment;
 
-type BackendEnvironmentValue = string | (() => string) | null | undefined;
+type BackendEnvironmentValue = string | (() => string) | GcsRequestObserver | null | undefined;
 
 const optionalText = (value: BackendEnvironmentValue): string | undefined => {
   if (value === undefined || value === null) return undefined;
@@ -24,7 +25,13 @@ const optionalText = (value: BackendEnvironmentValue): string | undefined => {
 
 const optionalProvider = (value: BackendEnvironmentValue): (() => string) | null => {
   if (value === undefined || value === null) return null;
-  if (typeof value === 'function') return value;
+  if (typeof value === 'function') return value as () => string;
+  return fail('CANONICAL_OBJECT_BACKEND_URI');
+};
+
+const optionalObserver = (value: BackendEnvironmentValue): GcsRequestObserver | null => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'function') return value as GcsRequestObserver;
   return fail('CANONICAL_OBJECT_BACKEND_URI');
 };
 
@@ -103,6 +110,7 @@ export function openCanonicalObjectBackend({
       accessToken: optionalText(env.OONT_GCS_ACCESS_TOKEN) ?? null,
       accessTokenProvider: optionalProvider(env.OONT_GCS_ACCESS_TOKEN_PROVIDER),
       endpoint: optionalText(env.OONT_GCS_ENDPOINT) ?? 'https://storage.googleapis.com',
+      observeRequest: optionalObserver(env.OONT_GCS_REQUEST_OBSERVER),
     });
   } else return fail('CANONICAL_OBJECT_BACKEND_URI');
   return Object.freeze({
