@@ -131,7 +131,10 @@ failure disables the certification and preserves the ordinary retrieval path.
 
 `search` and `read` are the advanced path. Search returns navigation References,
 not Evidence. Read accepts a Reference offered by the same open client and
-returns exact authorized bytes with a receipt.
+returns exact authorized bytes with a receipt. Wait for the search response
+before passing one of its References to `read`. This applies to advanced MCP
+too: do not guess a Reference or send a dependent read before search returns.
+Independent reads of already-issued References can run concurrently.
 
 ### Managed extension Interface
 
@@ -255,6 +258,25 @@ oont verify ./verified-context \
 Scope narrows authority. It cannot make missing proof answerable. Its names are
 case-sensitive, so `clickup` and `ClickUp` are not interchangeable. Omit scope
 when you do not know the declared profile.
+
+An opaque ID alone may not identify an object type. If your Adapter declares
+`task` objects with IDs such as `W-17`, ask for "the current title of task W-17"
+or provide the exact scope:
+
+```js
+await ont.verify({
+  question: 'What is the current title of W-17?',
+  scope: {
+    sourceSystem: 'tracker',
+    objectType: 'task',
+    externalId: 'W-17',
+    field: 'title',
+  },
+})
+```
+
+Without a declared object type, this request returns
+`unavailable-native-object-type-not-declared`, not an absence finding.
 
 ### Declared titles
 
