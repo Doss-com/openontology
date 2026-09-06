@@ -543,6 +543,73 @@ test('one open client adopts independently admitted knowledge on its next verify
   assert.equal(product.status().admittedKnowledge.commitSha256, write.commitSha256);
 });
 
+test('title-bound verification preserves counterevidence through warm and cold Admission reuse', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-title-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const options = { artifactRoot: root };
+  const input = buildSemanticInput();
+  input.querySchemas[0].fields.push({ fieldPath: 'title', aliases: ['title'] });
+  for (const observation of input.nativeObjectInputs) {
+    const source = input.sources.find((row) => row.relativePath === observation.relativePath);
+    source.content = `Title: Release review\n${source.content}`;
+    for (const field of observation.fields) field.codeUnitStart = source.content.indexOf(field.value);
+    observation.fields.push({ fieldPath: 'title', value: 'Release review', codeUnitStart: 7 });
+  }
+  input.sources.push({
+    relativePath: 'linear/northwind/issue-2.txt', sourceType: 'linear',
+    occurredAt: '2026-09-04T12:02:00.000Z',
+    content: 'Title: Release review dependency\nStatus: Blocked',
+  });
+  input.nativeObjectInputs.push({
+    relativePath: 'linear/northwind/issue-2.txt',
+    objectIdentity: { ...input.nativeObjectInputs[0].objectIdentity, externalId: 'issue-2' },
+    fields: [
+      { fieldPath: 'title', value: 'Release review dependency', codeUnitStart: 7 },
+      { fieldPath: 'status', value: 'Blocked',
+        codeUnitStart: input.sources.at(-1).content.indexOf('Blocked') },
+    ],
+  });
+  buildSourceNativeProduct({ ...options, input });
+  const query = { question: 'For northwind, what is the current status of the issue titled "Release review"?' };
+  const fresh = await openSourceNativeProductRuntime(options).verify(query);
+  assert.equal(fresh.answerable, true);
+  assert.equal(fresh.query.externalId, 'issue-1');
+  assert.equal(fresh.proofDisposition, 'qualified');
+  assert.deepEqual(fresh.context.map((row) => row.exactText), ['Ready', 'Manual approval absent']);
+  const bundle = await compileSourceNativeSemanticKnowledgeBundle({
+    options, query, proposedBy: 'title-investigator', proposedAt: '2026-09-05T08:00:00.000Z',
+  });
+  const admission = admitBundle(bundle);
+  const warm = openSourceNativeProductWithAdmittedKnowledge(options,
+    { trustRegistry: admission.trustRegistry });
+  assert.notEqual((await warm.verify(query)).state, 'resolved-admitted-knowledge-proof-closure');
+  writeSourceNativeAdmittedKnowledge({ options, ...admission });
+  const cold = openSourceNativeProductWithAdmittedKnowledge(options,
+    { trustRegistry: admission.trustRegistry });
+  for (const product of [warm, cold]) {
+    const reused = await product.verify(query);
+    assert.equal(reused.state, 'resolved-admitted-knowledge-proof-closure');
+    assert.equal(reused.proofDisposition, 'qualified');
+    assert.deepEqual(reused.context.map(({ role, exactText, evidence }) => ({ role, exactText, evidence })),
+      fresh.context.map(({ role, exactText, evidence }) => ({ role, exactText, evidence })));
+    assert.equal(reused.verification.queryPlanSha256, fresh.verification.queryPlanSha256);
+    assert.equal(reused.verification.sourceCommitSha256, fresh.verification.sourceCommitSha256);
+    assert.equal(reused.verification.rawSearchExecuted, false);
+    // Inspection counts batched calls, not the number of source documents.
+    assert.equal(reused.verification.exactSourceInspectionCount, 1);
+    assert.equal(new Set(reused.context.map((row) => row.evidence.relativePath)).size, 2);
+    for (const question of [
+      query.question.replace('northwind', 'other'),
+      query.question.replace('"Release review"', '"Unknown review"'),
+    ]) {
+      const refused = await product.verify({ question });
+      assert.equal(refused.answerable, false);
+      assert.deepEqual(refused.context, []);
+      assert.notEqual(refused.state, 'resolved-admitted-knowledge-proof-closure');
+    }
+  }
+});
+
 test('unchanged warm knowledge reads its ref once without replaying history', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-reads-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -408,6 +408,26 @@ openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
     historical.status === 0 ? historicalResult?.state : tail(historical.stderr));
 
   const navigation = run(bin, ['search', ont, 'What is the current title of task-1?']);
+  const titleRequests = [
+    ['verify', ont, 'What is the current title of the task named "Prepare launch"?'],
+    ['verify', ont, 'What was the title of the task named "Ship verified context"?',
+      '--at', '2026-01-15T00:00:00.000Z'],
+    ['verify', ont, 'What is the current title of the task named "Unknown task"?'],
+  ].map((args) => {
+    const result = run(bin, args);
+    try { return { exit: result.status, value: JSON.parse(result.stdout) }; }
+    catch { return { exit: result.status, value: null }; }
+  });
+  check('installed declared-title queries preserve chronology and refuse unknown names',
+    titleRequests.every((result) => result.exit === 0)
+      && titleRequests[0].value?.query?.externalId === 'task-1'
+      && titleRequests[0].value?.context?.[0]?.exactText === 'Ship verified context'
+      && titleRequests[1].value?.query?.externalId === 'task-1'
+      && titleRequests[1].value?.context?.[0]?.exactText === 'Prepare launch'
+      && titleRequests[2].value?.answerable === false
+      && titleRequests[2].value?.context?.length === 0,
+    titleRequests.map((result) => result.value?.state ?? 'invalid response').join(', '));
+
   const exact = run(bin, ['search', ont, 'What is the current title of task-1?',
     '--read']);
   let navigationResult;

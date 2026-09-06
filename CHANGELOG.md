@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bind quoted declared titles through the complete scoped native identity map.
+  Preserve exact Evidence, counterevidence, historical selection and Admission
+  reuse; refuse unknown or ambiguous names and conflicting identity qualifiers.
 - Add explicit retrospective point-in-time `at` queries across SDK, CLI, and
   MCP. Bind selection, exact Evidence, semantic counterevidence, and Admission
   reuse to one requested time and complete source cut. Preserve current and

@@ -62,6 +62,18 @@ primitives, while control-plane policy remains outside the public package.
 The Interface's availability does not establish that every managed consumer
 already uses the same pinned package.
 
+`[EXISTS]` The unpublished planner binds one quoted `titled` or `named` literal
+against declared title fields in the complete native map. Names select one
+identity within source system, object type and namespace; repeated observations
+of one identity are not collisions. Missing coverage, unknown names, collisions
+and explicit ID conflicts refuse. Literal contents do not supply field aliases,
+IDs or temporal intent. Recorded names are aliases across the source cut, not
+assertions about the name at a requested time. Existing chronology, semantic
+proof, Admission and exact reads still apply. The changed planner identity
+changes query-plan hashes; prior-plan Admissions are not silently reused under
+the new planner. Their signed bytes remain history and ordinary verification
+remains available.
+
 Seed-search Adapters may declare up to 1,000 logical network operations per
 search, with zero model calls. Hosted receipts must report actual operations
 within that declaration. Current and immediate-successor results expose the

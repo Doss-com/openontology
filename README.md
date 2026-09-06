@@ -240,6 +240,25 @@ oont verify ./verified-context \
 
 Scope narrows authority. It cannot make missing proof answerable.
 
+### Declared titles
+
+`[ACTIVE-WORK]` In the unreleased checkout, a source Adapter that declares
+complete `title` coverage can also identify an object by a quoted name:
+
+```js
+await ont.verify('What is the current status of the task titled "Release review"?')
+```
+
+Use one `titled "..."` or `named "..."` clause. Matching normalizes Unicode,
+case and whitespace, but preserves punctuation. Body mentions do not count.
+Unknown names, duplicate names on different identities, incomplete title
+coverage and conflicting explicit IDs return no context. An optional leading
+`For <namespace>,` must match the opened Ont's namespace.
+
+Recorded titles are aliases over the bound source snapshot. An earlier name
+can identify the same object; the requested field still follows current or
+explicit historical chronology. Name matching never replaces exact Evidence.
+
 ## Temporal intent
 
 `current` is the default intent. OpenOntology does not silently infer a
