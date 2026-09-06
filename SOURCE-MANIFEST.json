@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 18464,
-      "sha256": "ec13dceee7f27ecd9de4eff41add59fda06266ec83017fc435b539e7b77bf11e"
+      "bytes": 18565,
+      "sha256": "5caad2d33580eee9ca32544b87f5b19beab1bd850e269ea9470dc497d9b0c387"
     },
     {
       "path": "SECURITY.md",
@@ -132,8 +132,8 @@
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
-      "bytes": 4529,
-      "sha256": "d338d254392f6e5d4b49751d050b4a21817b29b864b625d68786e3a7db395c57"
+      "bytes": 8405,
+      "sha256": "21b610707ba60c6ac45c28f56cf2a65adb07227c0ea0111dfe2089a8cba5480b"
     },
     {
       "path": "docs/STORAGE.md",
@@ -312,8 +312,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 56606,
-      "sha256": "5eadfa67dcf3e035f90f8de3b9d555732685eb06587d8623757e7e16a67b9b7d"
+      "bytes": 64384,
+      "sha256": "8b4bbab932ccd6a069c3a9b4013ef61e0542408e25edcbad5d56d31be1907be5"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:33736d5fd8f6412e187db4284f9401476e565a0f4a81410c1f8d6c17917edee9"
+  "manifestSha256": "sha256:bb41941690336be8c05a0a45d70ffe071dfab0dffa168ec4d5f9c065909a0333"
 }
