@@ -196,6 +196,7 @@ test('revoked reviewer excludes but preserves structural history and allows a tr
   f.write(correction, { trustRegistry });
   const cold = f.read({ trustRegistry });
   assert.equal(cold.invalidRecordCount, 1);
+  assert.equal(cold.supersededRecordCount, 1);
   assert.deepEqual(cold.activeRecords, [correction]);
   assert.equal(cold.activeRecords[0].construction.objectDefs[0].aliases.length, 0);
 });
@@ -296,6 +297,7 @@ test('cold rebind excludes self-consistently rehashed false bytes, but allows co
   f.write(correction);
   assert.deepEqual(f.read().activeRecords, [correction]);
   assert.equal(f.read().invalidRecordCount, 1);
+  assert.equal(f.read().supersededRecordCount, 1);
 });
 
 test('correction cannot target a structurally valid record from another binding', (t) => {

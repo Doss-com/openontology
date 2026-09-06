@@ -343,7 +343,7 @@ export function readSourceNativeConstructionLedger({
   return freeze({ schemaVersion: 1, kind: 'OpenOntologySourceNativeConstructionLedgerV1',
     branch, commitSha256, replaySha256, structuralRecordCount: structural.size,
     eligibleRecordCount: eligible.length,
-    supersededRecordCount: eligible.filter((record) => superseded.has(record.recordSha256)).length,
+    supersededRecordCount: superseded.size,
     conflictingRecordCount, invalidRecordCount, conflictingObjectDefIds, activeRecords,
     diagnosticCodes: [...diagnostics].sort(compare), state: diagnostics.size > 0 ? 'degraded' : 'ready',
     navigationOnly: true, exactSourcesRemainAuthority: true });
