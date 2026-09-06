@@ -202,13 +202,13 @@
     },
     {
       "path": "scripts/test-canonical-object-backend.mjs",
-      "bytes": 4296,
-      "sha256": "02814004a63d2b29140c1deeed2156004853128a4004462ccba1cc65286afa9f"
+      "bytes": 6454,
+      "sha256": "661c6d1705a19140bcc4a8f5d4f64b7bb1185b2918c66146dff6d9b1552fc372"
     },
     {
       "path": "scripts/test-gcs-object-storage-backend.mjs",
-      "bytes": 16539,
-      "sha256": "28c8e18ab3a257a7780ccb7f2d8e7b0e2a20e9c265fb2f62e026d909ede34440"
+      "bytes": 28528,
+      "sha256": "dd4e8277fc27fcf6dd71cf96536b49508b3cd93e78caf13b9d59a4037c9376b7"
     },
     {
       "path": "scripts/test-object-ont-history.mjs",
@@ -327,13 +327,13 @@
     },
     {
       "path": "src/canonical-object-backend.mts",
-      "bytes": 5043,
-      "sha256": "b1953ebccc589bbcc0f2730198d7b22e4a59b03498f35e07265b36939f6db7da"
+      "bytes": 5497,
+      "sha256": "ca8a4866a66476f788c046639a4e17712c343e1148ad028328d74b05e4f908f1"
     },
     {
       "path": "src/gcs-object-storage-backend.mts",
-      "bytes": 20814,
-      "sha256": "3a5d7186cb13e19676caf6dff8f352278814d394b5a931358cba86825963bbc5"
+      "bytes": 25331,
+      "sha256": "ca8b107031277b17da67707d433f27b27d031d9c9e604b31f3ee279f69f96421"
     },
     {
       "path": "src/kernel.mts",
@@ -352,8 +352,8 @@
     },
     {
       "path": "src/openontology.mts",
-      "bytes": 16280,
-      "sha256": "a6fd82df5000baf63edbe72809202401834e4de26b515a0b0a60894ba053e86d"
+      "bytes": 16377,
+      "sha256": "9ccfa7f57703b5ff225472e0d1a08f42fd0b9a470421081b2256c2d914b80831"
     },
     {
       "path": "src/product-result-state.mts",
@@ -476,5 +476,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:d7eee3ecc9f50f24b2f5e7917b119ed7dc5ce963991f4ceae08bbf0311bd1ee5"
+  "manifestSha256": "sha256:91f8894fcb29db3cacab29a33b531a0e1fcdec2e547275b2911b6aa237328598"
 }
