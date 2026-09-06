@@ -188,6 +188,20 @@ export interface RefWriteResult {
   [key: string]: unknown;
 }
 
+export interface RefHistoryReceipt {
+  schemaVersion: 1;
+  kind: 'OpenOntologyRefHistoryReceiptV1';
+  operation: 'INITIALIZE' | 'RECOVER';
+  ontId: string;
+  branch: string;
+  acceptedRef: BranchRef | null;
+  pending: null;
+  historyKey: string;
+  historyVersion: string;
+  historySha256: string;
+  replayed: boolean;
+}
+
 interface MergePlanBase {
   schemaVersion: 1;
   kind: 'OpenOntologyMergePlanV1';
@@ -244,6 +258,7 @@ export interface ObjectOntStore {
   replayMetadata(tipCommitSha256: string): ReplayMetadataGraph;
   planMerge(input: { leftCommitSha256: string; rightCommitSha256: string }): MergePlan;
   merge(input: { leftCommitSha256: string; rightCommitSha256: string }): Record<string, unknown>;
+  readRefHead(input: { ontId: string; branch: string }): RefReadResult | null;
   readRef(input: { ontId: string; branch: string }): RefReadResult | null;
   readRefMetadata(input: { ontId: string; branch: string }): RefReadResult | null;
   readRefMetadataSnapshot(input: { ontId: string; branch: string }): ReplayMetadataSnapshot | null;
@@ -257,6 +272,13 @@ export interface ObjectOntStore {
   compareAndSwapRef(input: RefUpdateInput): RefWriteResult;
   compareAndSwapRefMetadata(input: RefUpdateInput): RefWriteResult;
   compareAndSwapRefMetadataCheckpointed(input: RefUpdateInput): ReplayMetadataCheckpointWriteResult;
+  initializeRefHistory(input: {
+    ontId: string;
+    branch: string;
+    expectedCommitSha256: string;
+    expectedReplaySha256: string;
+  }): RefHistoryReceipt;
+  recoverRefHistory(input: { ontId: string; branch: string }): RefHistoryReceipt;
 }
 
 export interface RefReadResult {
@@ -578,6 +600,97 @@ function validateRef(value: unknown, { ontId, branch }: { ontId?: string; branch
   return ref;
 }
 
+interface RefHistoryPending {
+  schemaVersion: 1;
+  kind: 'OpenOntologyRefHistoryPendingV1';
+  baseRef: BranchRef | null;
+  baseVersion: string | null;
+  targetRef: BranchRef;
+}
+
+interface RefHistoryRecord {
+  schemaVersion: 1;
+  kind: 'OpenOntologyRefHistoryV1';
+  ontId: string;
+  branch: string;
+  acceptedRef: BranchRef | null;
+  pending: RefHistoryPending | null;
+  historySha256: string;
+}
+
+function refHistoryKey(ontId: string, branch: string): string {
+  return `ref-history/${validateIdentity(ontId, 'OBJECT_ONT_HISTORY')}/${validateIdentity(branch, 'OBJECT_ONT_HISTORY')}.json`;
+}
+
+function sameRef(left: BranchRef | null, right: BranchRef | null): boolean {
+  return stableObjectText(left) === stableObjectText(right);
+}
+
+function historyCore(value: RefHistoryRecord): Omit<RefHistoryRecord, 'historySha256'> {
+  const { historySha256: _historySha256, ...core } = value;
+  return core;
+}
+
+function makeRefHistory({
+  ontId,
+  branch,
+  acceptedRef,
+  pending,
+}: {
+  ontId: string;
+  branch: string;
+  acceptedRef: BranchRef | null;
+  pending: RefHistoryPending | null;
+}): RefHistoryRecord {
+  const core = {
+    schemaVersion: 1 as const,
+    kind: 'OpenOntologyRefHistoryV1' as const,
+    ontId,
+    branch,
+    acceptedRef: acceptedRef === null ? null : clone(acceptedRef),
+    pending: pending === null ? null : clone(pending),
+  };
+  return {
+    ...core,
+    historySha256: stableObjectSha256(core),
+  };
+}
+
+function validateRefHistory(value: unknown, { ontId, branch }: {
+  ontId: string;
+  branch: string;
+}): RefHistoryRecord {
+  exactKeys(value, [
+    'schemaVersion', 'kind', 'ontId', 'branch', 'acceptedRef', 'pending', 'historySha256',
+  ], 'OBJECT_ONT_HISTORY_CORRUPT');
+  const record = value as RefHistoryRecord;
+  if (record.schemaVersion !== 1 || record.kind !== 'OpenOntologyRefHistoryV1'
+    || record.ontId !== ontId || record.branch !== branch
+    || !SHA256.test(record.historySha256 ?? '')
+    || stableObjectSha256(historyCore(record)) !== record.historySha256) {
+    fail('OBJECT_ONT_HISTORY_CORRUPT');
+  }
+  if (record.acceptedRef !== null) {
+    try { validateRef(record.acceptedRef, { ontId, branch }); } catch { fail('OBJECT_ONT_HISTORY_CORRUPT'); }
+  }
+  if (record.acceptedRef === null && record.pending === null) fail('OBJECT_ONT_HISTORY_CORRUPT');
+  if (record.pending !== null) {
+    const pending = record.pending;
+    try {
+      exactKeys(pending, ['schemaVersion', 'kind', 'baseRef', 'baseVersion', 'targetRef'], 'OBJECT_ONT_HISTORY_CORRUPT');
+      if (pending.schemaVersion !== 1 || pending.kind !== 'OpenOntologyRefHistoryPendingV1'
+        || (pending.baseRef === null && pending.baseVersion !== null)
+        || (pending.baseRef !== null && (typeof pending.baseVersion !== 'string' || pending.baseVersion.length === 0))) {
+        fail('OBJECT_ONT_HISTORY_CORRUPT');
+      }
+      if (pending.baseRef !== null) validateRef(pending.baseRef, { ontId, branch });
+      validateRef(pending.targetRef, { ontId, branch });
+      if (!sameRef(record.acceptedRef, pending.baseRef)) fail('OBJECT_ONT_HISTORY_CORRUPT');
+    } catch { fail('OBJECT_ONT_HISTORY_CORRUPT'); }
+  }
+  return freeze(clone(record));
+}
+
 function readBackendBytes(backend: ObjectBackend, key: string, expectedSha256: string, code: string): ObjectReadResult {
   const result = backend.get(key);
   if (result.checksumSha256 !== expectedSha256 || objectBytesSha256(result.bytes) !== expectedSha256) fail(code);
@@ -588,10 +701,20 @@ function conflictOrder(left: ReplayConflict, right: ReplayConflict): number {
   return compare(left.type, right.type) || compare(left.identity, right.identity);
 }
 
-export function openObjectOntStore({ backend: backendInput }: { backend?: ObjectBackend } = {}): ObjectOntStore {
+export function openObjectOntStore({
+  backend: backendInput,
+  historyBackend: historyBackendInput,
+}: { backend?: ObjectBackend; historyBackend?: ObjectBackend } = {}): ObjectOntStore {
   if (!backendInput || typeof backendInput.get !== 'function' || typeof backendInput.putIfAbsent !== 'function'
     || typeof backendInput.compareAndSwap !== 'function' || typeof backendInput.head !== 'function') return fail('OBJECT_ONT_BACKEND');
   const backend = backendInput;
+  const historyBackend: ObjectBackend | null = historyBackendInput === undefined
+    ? null
+    : (!historyBackendInput || typeof historyBackendInput.get !== 'function'
+      || typeof historyBackendInput.putIfAbsent !== 'function'
+      || typeof historyBackendInput.compareAndSwap !== 'function'
+      || typeof historyBackendInput.head !== 'function'
+      ? fail('OBJECT_ONT_HISTORY_BACKEND') : historyBackendInput);
 
   const putAssertionSegment = ({ logicalPath, jsonlBytes }: {
     logicalPath: string;
@@ -819,14 +942,96 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     });
   };
 
+  const readRefHistoryRecord = ({ ontId, branch }: { ontId: string; branch: string }): {
+    record: RefHistoryRecord;
+    version: string;
+    key: string;
+    checksumSha256: string;
+  } | null => {
+    if (historyBackend === null) return null;
+    const key = refHistoryKey(ontId, branch);
+    const head = historyBackend.head(key);
+    if (head === null) return null;
+    const result = historyBackend.get(key);
+    if (result.key !== key || result.version !== head.version || result.checksumSha256 !== head.checksumSha256) {
+      fail('OBJECT_ONT_HISTORY_CONFLICT');
+    }
+    if (result.byteLength !== result.bytes.length || result.checksumSha256 !== objectBytesSha256(result.bytes)) {
+      fail('OBJECT_ONT_HISTORY_CORRUPT');
+    }
+    let value: unknown;
+    try { value = JSON.parse(result.bytes.toString('utf8')); } catch { fail('OBJECT_ONT_HISTORY_CORRUPT'); }
+    if (!result.bytes.equals(Buffer.from(stableObjectText(value as object)))) fail('OBJECT_ONT_HISTORY_CORRUPT');
+    const record = validateRefHistory(value, { ontId, branch });
+    return freeze({ record, version: result.version, key, checksumSha256: result.checksumSha256 });
+  };
+
+  const writeRefHistoryRecord = (
+    record: RefHistoryRecord,
+    expectedVersion: string | null,
+  ): { record: RefHistoryRecord; version: string; key: string; checksumSha256: string } => {
+    if (historyBackend === null) return fail('OBJECT_ONT_HISTORY_BACKEND');
+    const key = refHistoryKey(record.ontId, record.branch);
+    const bytes = Buffer.from(stableObjectText(record));
+    const result = historyBackend.compareAndSwap(key, { expectedVersion, bytes });
+    if (result.key !== key || result.byteLength !== bytes.length
+      || result.checksumSha256 !== objectBytesSha256(bytes)) fail('OBJECT_ONT_HISTORY_WRITE');
+    return freeze({ record: clone(record), version: result.version, key, checksumSha256: result.checksumSha256 });
+  };
+
+  const historyObservationsEqual = (
+    left: ReturnType<typeof readRefHistoryRecord>,
+    right: ReturnType<typeof readRefHistoryRecord>,
+  ): boolean => left === null
+    ? right === null
+    : right !== null && left.version === right.version && left.checksumSha256 === right.checksumSha256;
+
+  const readProtectedRefState = ({ ontId, branch }: { ontId: string; branch: string }): {
+    ref: RefReadResult | null;
+    history: ReturnType<typeof readRefHistoryRecord>;
+  } => {
+    if (historyBackend === null) return { ref: readRefRecord({ ontId, branch }), history: null };
+    const before = readRefHistoryRecord({ ontId, branch });
+    const ref = readRefRecord({ ontId, branch });
+    const after = readRefHistoryRecord({ ontId, branch });
+    if (!historyObservationsEqual(before, after)) fail('OBJECT_ONT_HISTORY_CONFLICT');
+    const history = after;
+    if (history === null) {
+      if (ref !== null) fail('OBJECT_ONT_HISTORY_MISSING');
+      return { ref: null, history: null };
+    }
+    if (history.record.pending !== null) fail('OBJECT_ONT_HISTORY_PENDING');
+    if (history.record.acceptedRef === null) {
+      if (ref !== null) fail('OBJECT_ONT_HISTORY_MISMATCH');
+      return { ref: null, history };
+    }
+    if (ref === null || !sameRef(ref.ref, history.record.acceptedRef)) fail('OBJECT_ONT_HISTORY_MISMATCH');
+    return { ref, history };
+  };
+
+  const readRefHead = ({ ontId, branch }: { ontId: string; branch: string }): RefReadResult | null =>
+    historyBackend === null ? readRefRecord({ ontId, branch }) : readProtectedRefState({ ontId, branch }).ref;
+
+  const assertProtectedRefUnchanged = (
+    input: { ontId: string; branch: string },
+    initial: RefReadResult,
+  ): void => {
+    if (historyBackend === null) return;
+    const current = readProtectedRefState(input).ref;
+    if (current === null || current.version !== initial.version || !sameRef(current.ref, initial.ref)) {
+      fail('OBJECT_ONT_HISTORY_CONFLICT');
+    }
+  };
+
   const readRefWith = ({ ontId, branch }: { ontId: string; branch: string }, replayReader: (
     tipCommitSha256: string,
     virtualCommits?: Map<string, CommitRecord>,
   ) => ReplayGraph | ReplayMetadataGraph): RefReadResult | null => {
-    const result = readRefRecord({ ontId, branch });
+    const result = readRefHead({ ontId, branch });
     if (result === null) return null;
     const replay = replayReader(result.ref.commitSha256);
     if (replay.status !== result.ref.replayStatus || replay.replaySha256 !== result.ref.replaySha256) fail('OBJECT_ONT_REF_READ');
+    assertProtectedRefUnchanged({ ontId, branch }, result);
     return result;
   };
   const readRef = (input: { ontId: string; branch: string }): RefReadResult | null => readRefWith(input, replayGraph);
@@ -844,7 +1049,7 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
   const readRefMetadataCheckpointSnapshot = (
     input: { ontId: string; branch: string },
   ): ReplayMetadataCheckpointSnapshot | null => {
-    const result = readRefRecord(input);
+    const result = readRefHead(input);
     if (result === null) return null;
     const indexed = readReplayIndexCheckpoint({
       ontId: result.ref.ontId,
@@ -857,6 +1062,7 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
       || replayMetadata.replaySha256 !== result.ref.replaySha256) {
       fail('OBJECT_ONT_REF_READ');
     }
+    assertProtectedRefUnchanged(input, result);
     return freeze({
       ...result,
       replayMetadata,
@@ -1239,6 +1445,203 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     return freeze({ plan, receipt, commitSha256: receipt.commitSha256 });
   };
 
+  const historyReceipt = (
+    operation: RefHistoryReceipt['operation'],
+    written: ReturnType<typeof writeRefHistoryRecord>,
+    replayed = false,
+  ): RefHistoryReceipt => freeze({
+    schemaVersion: 1,
+    kind: 'OpenOntologyRefHistoryReceiptV1',
+    operation,
+    ontId: written.record.ontId,
+    branch: written.record.branch,
+    acceptedRef: written.record.acceptedRef === null ? null : clone(written.record.acceptedRef),
+    pending: null,
+    historyKey: written.key,
+    historyVersion: written.version,
+    historySha256: written.record.historySha256,
+    replayed,
+  });
+
+  const validateHistoryTarget = (targetRef: BranchRef): ReplayMetadataGraph => {
+    let replay: ReplayMetadataGraph | null = null;
+    try { replay = replayMetadataGraph(targetRef.commitSha256); } catch { fail('OBJECT_ONT_HISTORY_TARGET'); }
+    if (replay === null) fail('OBJECT_ONT_HISTORY_TARGET');
+    const validatedReplay = replay as ReplayMetadataGraph;
+    if (validatedReplay.ontId !== targetRef.ontId
+      || validatedReplay.status !== targetRef.replayStatus || validatedReplay.replaySha256 !== targetRef.replaySha256) {
+      fail('OBJECT_ONT_HISTORY_TARGET');
+    }
+    const manifestHead = backend.head(validatedReplay.manifestDescriptor.key);
+    if (manifestHead === null || manifestHead.checksumSha256 !== validatedReplay.manifestDescriptor.storedSha256
+      || manifestHead.byteLength !== validatedReplay.manifestDescriptor.byteLength) fail('OBJECT_ONT_HISTORY_TARGET');
+    for (const descriptor of validatedReplay.blobDescriptors) {
+      const head = backend.head(descriptor.key);
+      if (head === null || head.checksumSha256 !== descriptor.storedSha256
+        || head.byteLength !== descriptor.byteLength) fail('OBJECT_ONT_HISTORY_TARGET');
+    }
+    for (const descriptor of validatedReplay.segmentDescriptors) {
+      const head = backend.head(descriptor.key);
+      if (head === null || head.checksumSha256 !== descriptor.storedSha256
+        || head.byteLength !== descriptor.storedByteLength) fail('OBJECT_ONT_HISTORY_TARGET');
+    }
+    return validatedReplay;
+  };
+
+  const initializeRefHistory = ({
+    ontId,
+    branch,
+    expectedCommitSha256,
+    expectedReplaySha256,
+  }: {
+    ontId: string;
+    branch: string;
+    expectedCommitSha256: string;
+    expectedReplaySha256: string;
+  }): RefHistoryReceipt => {
+    if (historyBackend === null) fail('OBJECT_ONT_HISTORY_BACKEND');
+    validateIdentity(ontId, 'OBJECT_ONT_HISTORY');
+    validateIdentity(branch, 'OBJECT_ONT_HISTORY');
+    validateSha256(expectedCommitSha256, 'OBJECT_ONT_HISTORY_INITIALIZE');
+    validateSha256(expectedReplaySha256, 'OBJECT_ONT_HISTORY_INITIALIZE');
+    const before = readRefRecord({ ontId, branch });
+    if (before === null || before.ref.commitSha256 !== expectedCommitSha256
+      || before.ref.replaySha256 !== expectedReplaySha256) {
+      fail('OBJECT_ONT_HISTORY_INITIALIZE');
+    }
+    const enrolledRef = before as RefReadResult;
+    validateHistoryTarget(enrolledRef.ref);
+    const existing = readRefHistoryRecord({ ontId, branch });
+    if (existing !== null) {
+      if (existing.record.pending !== null || !sameRef(existing.record.acceptedRef, enrolledRef.ref)) {
+        fail('OBJECT_ONT_HISTORY_INITIALIZE');
+      }
+      return historyReceipt('INITIALIZE', existing, true);
+    }
+    const accepted = makeRefHistory({
+      ontId,
+      branch,
+      acceptedRef: enrolledRef.ref,
+      pending: null,
+    });
+    const written = writeRefHistoryRecord(accepted, null);
+    const after = readRefRecord({ ontId, branch });
+    if (after === null || after.version !== enrolledRef.version || !sameRef(after.ref, enrolledRef.ref)) {
+      fail('OBJECT_ONT_HISTORY_ENROLLMENT_RACE');
+    }
+    return historyReceipt('INITIALIZE', written);
+  };
+
+  const recoverRefHistory = ({ ontId, branch }: { ontId: string; branch: string }): RefHistoryReceipt => {
+    if (historyBackend === null) fail('OBJECT_ONT_HISTORY_BACKEND');
+    const history = readRefHistoryRecord({ ontId, branch });
+    if (history === null) fail('OBJECT_ONT_HISTORY_MISSING');
+    const establishedHistory = history as NonNullable<typeof history>;
+    const acceptedRef = establishedHistory.record.acceptedRef;
+    const pending = establishedHistory.record.pending;
+    const targetRef = pending?.targetRef ?? acceptedRef;
+    if (targetRef === null) {
+      const current = readRefRecord({ ontId, branch });
+      if (current !== null) fail('OBJECT_ONT_HISTORY_MISMATCH');
+      return historyReceipt('RECOVER', establishedHistory, true);
+    }
+    const targetReplay = validateHistoryTarget(targetRef);
+    if (acceptedRef !== null && !targetReplay.commitOrder.includes(acceptedRef.commitSha256)) {
+      fail('OBJECT_ONT_HISTORY_CORRUPT');
+    }
+    const current = readRefRecord({ ontId, branch });
+
+    if (pending !== null) {
+      if (current !== null && sameRef(current.ref, targetRef)) {
+        const accepted = makeRefHistory({ ontId, branch, acceptedRef: targetRef, pending: null });
+        return historyReceipt('RECOVER', writeRefHistoryRecord(accepted, establishedHistory.version));
+      }
+      const baseMatches = current === null
+        || sameRef(current.ref, pending.baseRef);
+      if (!baseMatches) fail('OBJECT_ONT_HISTORY_CONFLICT');
+      const targetBytes = Buffer.from(stableObjectText(targetRef));
+      const dataWrite = backend.compareAndSwap(refKey(ontId, branch), {
+        expectedVersion: current?.version ?? null,
+        bytes: targetBytes,
+      });
+      if (dataWrite.key !== refKey(ontId, branch) || dataWrite.byteLength !== targetBytes.length
+        || dataWrite.checksumSha256 !== objectBytesSha256(targetBytes)) fail('OBJECT_ONT_REF_WRITE');
+      const accepted = makeRefHistory({ ontId, branch, acceptedRef: targetRef, pending: null });
+      return historyReceipt('RECOVER', writeRefHistoryRecord(accepted, establishedHistory.version));
+    }
+
+    if (current !== null && sameRef(current.ref, targetRef)) return historyReceipt('RECOVER', establishedHistory, true);
+    if (current !== null) {
+      let currentReplay: ReplayMetadataGraph | null = null;
+      try { currentReplay = replayMetadataGraph(current.ref.commitSha256); } catch { fail('OBJECT_ONT_HISTORY_CONFLICT'); }
+      if (currentReplay === null) fail('OBJECT_ONT_HISTORY_CONFLICT');
+      const validatedCurrentReplay = currentReplay as ReplayMetadataGraph;
+      if (validatedCurrentReplay.status !== current.ref.replayStatus
+        || validatedCurrentReplay.replaySha256 !== current.ref.replaySha256
+        || !validateHistoryTarget(targetRef).commitOrder.includes(current.ref.commitSha256)) {
+        fail('OBJECT_ONT_HISTORY_CONFLICT');
+      }
+    }
+    const targetBytes = Buffer.from(stableObjectText(targetRef));
+    const dataWrite = backend.compareAndSwap(refKey(ontId, branch), {
+      expectedVersion: current?.version ?? null,
+      bytes: targetBytes,
+    });
+    if (dataWrite.key !== refKey(ontId, branch) || dataWrite.byteLength !== targetBytes.length
+      || dataWrite.checksumSha256 !== objectBytesSha256(targetBytes)) fail('OBJECT_ONT_REF_WRITE');
+    return historyReceipt('RECOVER', establishedHistory);
+  };
+
+  const publishProtectedRef = ({
+    ontId,
+    branch,
+    expectedVersion,
+    ref,
+    replay,
+  }: {
+    ontId: string;
+    branch: string;
+    expectedVersion: string | null;
+    ref: BranchRef;
+    replay: ReplayGraph | ReplayMetadataGraph;
+  }): RefWriteResult => {
+    if (historyBackend === null) return fail('OBJECT_ONT_HISTORY_BACKEND');
+    const state = readProtectedRefState({ ontId, branch });
+    const current = state.ref;
+    if ((current?.version ?? null) !== expectedVersion) fail('OBJECT_BACKEND_PRECONDITION');
+    if (current !== null && !replay.commitOrder.includes(current.ref.commitSha256)) fail('OBJECT_ONT_REF_ROLLBACK');
+    const history = state.history;
+    const pending = {
+      schemaVersion: 1 as const,
+      kind: 'OpenOntologyRefHistoryPendingV1' as const,
+      baseRef: current === null ? null : clone(current.ref),
+      baseVersion: current?.version ?? null,
+      targetRef: clone(ref),
+    } satisfies RefHistoryPending;
+    const reserved = makeRefHistory({
+      ontId,
+      branch,
+      acceptedRef: history?.record.acceptedRef ?? null,
+      pending,
+    });
+    const reservation = writeRefHistoryRecord(reserved, history?.version ?? null);
+    const targetBytes = Buffer.from(stableObjectText(ref));
+    const dataWrite = backend.compareAndSwap(refKey(ontId, branch), {
+      expectedVersion: current?.version ?? null,
+      bytes: targetBytes,
+    });
+    if (dataWrite.key !== refKey(ontId, branch) || dataWrite.byteLength !== targetBytes.length
+      || dataWrite.checksumSha256 !== objectBytesSha256(targetBytes)) fail('OBJECT_ONT_REF_WRITE');
+    const accepted = makeRefHistory({ ontId, branch, acceptedRef: ref, pending: null });
+    writeRefHistoryRecord(accepted, reservation.version);
+    return freeze({
+      ref: clone(ref),
+      version: dataWrite.version,
+      previousVersion: dataWrite.previousVersion,
+      key: refKey(ontId, branch),
+    });
+  };
+
   const compareAndSwapRefWith = ({
     ontId,
     branch,
@@ -1259,11 +1662,6 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     if (commit.commit.ontId !== ontId) fail('OBJECT_ONT_REF_SCOPE');
     const replay = replayReader(commitSha256);
     if (replay.status === 'CONFLICT' && allowConflicts !== true) fail('OBJECT_ONT_REF_CONFLICT');
-    const current = readRefRecord({ ontId, branch });
-    if (current !== null && expectedVersion === current.version
-      && !replay.commitOrder.includes(current.ref.commitSha256)) {
-      fail('OBJECT_ONT_REF_ROLLBACK');
-    }
     const ref = validateRef({
       schemaVersion: 1,
       kind: 'OpenOntologyBranchRefV1',
@@ -1273,6 +1671,20 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
       replayStatus: replay.status,
       replaySha256: replay.replaySha256,
     }, { ontId, branch });
+    if (historyBackend !== null) {
+      return publishProtectedRef({
+        ontId,
+        branch,
+        expectedVersion: expectedVersion ?? null,
+        ref,
+        replay,
+      });
+    }
+    const current = readRefRecord({ ontId, branch });
+    if (current !== null && expectedVersion === current.version
+      && !replay.commitOrder.includes(current.ref.commitSha256)) {
+      fail('OBJECT_ONT_REF_ROLLBACK');
+    }
     const result = backend.compareAndSwap(refKey(ontId, branch), {
       expectedVersion,
       bytes: Buffer.from(stableObjectText(ref)),
@@ -1320,6 +1732,7 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     replayMetadata: (tipCommitSha256: string): ReplayMetadataGraph => replayMetadataGraph(tipCommitSha256),
     planMerge,
     merge,
+    readRefHead,
     readRef,
     readRefMetadata,
     readRefMetadataSnapshot,
@@ -1329,5 +1742,7 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     compareAndSwapRef,
     compareAndSwapRefMetadata,
     compareAndSwapRefMetadataCheckpointed,
+    initializeRefHistory,
+    recoverRefHistory,
   });
 }
