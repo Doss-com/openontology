@@ -34,6 +34,7 @@
   "files": [
     "dist/",
     "docs/ARCHITECTURE.md",
+    "docs/CONTEXT-LIFECYCLE.md",
     "docs/STORAGE.md",
     "docs/SOURCE-LIFECYCLE.md",
     "examples/quickstart/",

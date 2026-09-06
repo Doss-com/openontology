@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 95,
+  "fileCount": 96,
   "files": [
     {
       "path": ".editorconfig",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 16115,
-      "sha256": "8f871fb41639dc399b648770ea625c9cac05ba4c10a7bdda0db2808fc893017a"
+      "bytes": 16279,
+      "sha256": "c7d5b984ec59005ad904747b46eb51bb759971ff64b10096cfeffc6145b11941"
     },
     {
       "path": "SECURITY.md",
@@ -126,9 +126,14 @@
       "sha256": "2791b8c63552f3b7b6dd2dabec491c904802242f2682097ba83de6b0748159f7"
     },
     {
+      "path": "docs/CONTEXT-LIFECYCLE.md",
+      "bytes": 19507,
+      "sha256": "7d99e9f4720ca921610b1f528840219fb7210d0f08c641bfd8e07cb1d47bbf84"
+    },
+    {
       "path": "docs/SOURCE-LIFECYCLE.md",
-      "bytes": 4423,
-      "sha256": "9f9ea8af6df55efe62763c68d0a424d98dcc82c62258ea617227ca877e7bbeba"
+      "bytes": 4529,
+      "sha256": "d338d254392f6e5d4b49751d050b4a21817b29b864b625d68786e3a7db395c57"
     },
     {
       "path": "docs/STORAGE.md",
@@ -152,8 +157,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3380,
-      "sha256": "80490418169da0c20e8fdaaba3cbb3e39632aed9bdd9550845bf89f9eac77cad"
+      "bytes": 3413,
+      "sha256": "b5dc442637c8772ad6e73713a6b7b2c33fabbae4272991144f2d8a23156241e7"
     },
     {
       "path": "scripts/build.mjs",
@@ -481,5 +486,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:3f08759afbbc924992056526a7f2098c9cca79927154acfa1b81f0b30efa0299"
+  "manifestSha256": "sha256:bcf743ef02d4588d0311bec85121c137f4f46bce8c29ec63d6527da43d1143a1"
 }

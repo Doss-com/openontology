@@ -14,6 +14,9 @@ release. Its package metadata still reads `0.3.0-alpha.3`; use the source revisi
 and tarball checksum to identify a development build. It is suitable for local
 experimentation with explicit Adapter input, not a managed hosted service.
 
+Start with [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md), a
+`ClickupTask` walkthrough from source observation to verified context and reviewed reuse.
+
 Technical references: [Architecture](docs/ARCHITECTURE.md),
 [Storage](docs/STORAGE.md), and [Glossary](GLOSSARY.md).
 

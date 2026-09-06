@@ -1,5 +1,7 @@
 # Installed source lifecycle walkthrough
 
+For the conceptual walkthrough and diagrams, read [The life of context in an Ont](CONTEXT-LIFECYCLE.md).
+
 This walkthrough uses the installed `oont` package to build one deterministic
 source cut, query its exact context, publish an immutable successor cut, and
 show why a root client refuses to open the stale descriptor. It is an operator
