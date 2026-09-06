@@ -262,8 +262,8 @@
     },
     {
       "path": "scripts/test-source-native-construction-admission.mjs",
-      "bytes": 28403,
-      "sha256": "4b259e9f8e05d6ae3a9062fabee914a5a53a0d5ce32e5eb05af4f0fbd3db3aad"
+      "bytes": 35829,
+      "sha256": "4179bf13119b6a157b7b69c78d7770d65a08bfcec7d090a6de01083321e5b40e"
     },
     {
       "path": "scripts/test-source-native-construction-mcp.mjs",
@@ -447,8 +447,8 @@
     },
     {
       "path": "src/source-native-construction-admission.mts",
-      "bytes": 18836,
-      "sha256": "042f1347a67768d5da76cdf96ff850ee518474c4a99e42dfc11a5b603dd93aa6"
+      "bytes": 26161,
+      "sha256": "d63ff4391f724b83e014c7a85b50ca55857a73c19c8f498559aaabe3301c7a4d"
     },
     {
       "path": "src/source-native-construction-navigation.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:681baafe821cc5d5c60a17dc485b8eae0baea31a57f46072415e4949990ab47b"
+  "manifestSha256": "sha256:f185bcbe22fed7b24dd72177933fb39abe1a7ce42a7858d8a9dc011c327a1c16"
 }

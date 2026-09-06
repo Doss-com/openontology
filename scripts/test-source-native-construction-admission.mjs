@@ -460,6 +460,134 @@ test('internal reader pins trust independently of later trust input mutation', (
   assert.deepEqual(retained.activeRecords, [record]);
 });
 
+test('readSnapshot exposes active agreement, correction and conflict states without raw records', (t) => {
+  const f = fixture(t);
+  const agreement = f.admit();
+  const agreementBySecondReviewer = f.admit(agreement.construction, { issuerId: 'reviewer-two' });
+  f.write(agreement); f.write(agreementBySecondReviewer);
+  let snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  assert.equal(snapshot.ledger.activeRecords.length, 2);
+  assert.equal(snapshot.records.length, 2);
+  assert.deepEqual(snapshot.records.map((record) => record.state), ['active', 'active']);
+  assert(snapshot.records.every((record) => record.recordSha256 && record.blobSha256.startsWith('sha256:')));
+  assert(snapshot.records.every((record) => !('construction' in record) && !('statement' in record)));
+
+  const correction = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(4), targets: [agreement.recordSha256, agreementBySecondReviewer.recordSha256] });
+  f.write(correction);
+  snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  const corrected = snapshot.records.find((record) => record.recordSha256 === correction.recordSha256);
+  assert.equal(corrected?.state, 'active');
+  for (const target of [agreement, agreementBySecondReviewer]) {
+    const disposition = snapshot.records.find((record) => record.recordSha256 === target.recordSha256);
+    assert.equal(disposition?.state, 'superseded');
+    assert.deepEqual(disposition?.supersededByRecordSha256s, [correction.recordSha256]);
+  }
+
+  const conflict = f.admit(changed(f, { name: 'allocation mismatch' }), { admittedAt: at(5) });
+  f.write(conflict);
+  snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  const conflicting = snapshot.records.filter((record) => record.state === 'conflicting');
+  assert.equal(conflicting.length, 2);
+  assert(conflicting.every((record) => record.conflictingObjectDefIds.includes('allocation-exception')));
+  assert(conflicting.every((record) => record.conflictingRecordSha256s.length === 1));
+  assert.equal(snapshot.ledger.conflictingRecordCount, 2);
+});
+
+test('readSnapshot keeps ineligible history distinct from supersession and source binding', (t) => {
+  const f = fixture(t);
+  const original = f.admit(); f.write(original);
+  const revoked = f.read({ trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'reviewer') });
+  assert.equal(revoked.activeRecords.length, 0);
+  const revokedSnapshot = createConstructionLedgerReader(f.state,
+    f.trust.filter((entry) => entry.issuerId !== 'reviewer')).readSnapshot();
+  const revokedRecord = revokedSnapshot.records.find((record) => record.recordSha256 === original.recordSha256);
+  assert.equal(revokedRecord?.state, 'ineligible');
+  assert(revokedRecord?.reasonCodes.includes('SOURCE_NATIVE_ADMISSION_AUTHENTICATION'));
+  assert.deepEqual(revokedRecord?.supersededByRecordSha256s, []);
+
+  const correction = f.admit(changed(f, { noAlias: true }), {
+    issuerId: 'reviewer-two', admittedAt: at(4), targets: [original.recordSha256] });
+  f.write(correction, { trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'reviewer') });
+  const correctedSnapshot = createConstructionLedgerReader(f.state,
+    f.trust.filter((entry) => entry.issuerId !== 'reviewer')).readSnapshot();
+  const ineligibleTarget = correctedSnapshot.records.find((record) => record.recordSha256 === original.recordSha256);
+  assert.equal(ineligibleTarget?.state, 'ineligible');
+  assert.deepEqual(ineligibleTarget?.supersededByRecordSha256s, [correction.recordSha256]);
+  assert.equal(correctedSnapshot.records.find((record) => record.recordSha256 === correction.recordSha256)?.state, 'active');
+
+  const foreignConstruction = clone(changed(f, { id: 'foreign' }));
+  foreignConstruction.sourceBinding.namespace = 'other-namespace';
+  const { constructionSha256: _hash, ...foreignCore } = foreignConstruction;
+  foreignConstruction.constructionSha256 = kernel.stableObjectSha256(foreignCore);
+  const foreignRecord = f.admit(foreignConstruction);
+  const blob = f.plant(foreignRecord);
+  const bindingSnapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  const bindingRecord = bindingSnapshot.records.find((record) => record.blobSha256 === blob.storedSha256);
+  assert.equal(bindingRecord?.state, 'ineligible');
+  assert(bindingRecord?.reasonCodes.includes('SEMANTIC_CONSTRUCTION_BINDING'));
+});
+
+test('readSnapshot uses the blob identity for malformed records without exposing untrusted fields', (t) => {
+  const f = fixture(t);
+  const original = f.admit(); f.write(original);
+  const malformed = clone(f.admit(changed(f, { id: 'malformed' })));
+  malformed.kind = 'UnknownFutureRecordV99';
+  const blob = f.plant(malformed, pathFor(malformed.recordSha256));
+  const snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  const disposition = snapshot.records.find((record) => record.blobSha256 === blob.storedSha256);
+  assert.equal(disposition?.state, 'invalid');
+  assert.equal(disposition?.recordSha256, null);
+  assert.equal(disposition?.constructionSha256, null);
+  assert(disposition?.reasonCodes.includes('CONSTRUCTION_ADMISSION_RECORD'));
+  assert.equal('construction' in disposition, false);
+  assert.deepEqual(snapshot.ledger.activeRecords, [original]);
+});
+
+test('readSnapshot returns no cached records for missing or rewound history and recovers at a descendant', (t) => {
+  const f = fixture(t);
+  const original = f.admit(); f.write(original);
+  const earlier = f.state.store.readRefMetadataSnapshot(f.route);
+  const sourceStore = f.state.store;
+  let forcedSnapshot = undefined;
+  const reader = createConstructionLedgerReader({ ...f.state,
+    store: { ...sourceStore, readRefMetadataSnapshot: (input) => forcedSnapshot === undefined
+      ? sourceStore.readRefMetadataSnapshot(input) : forcedSnapshot },
+  }, f.trust);
+  assert.equal(reader.readSnapshot().records.length, 1);
+  const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
+  f.write(correction);
+  assert.equal(reader.readSnapshot().records.length, 2);
+  forcedSnapshot = null;
+  const missing = reader.readSnapshot();
+  assert.equal(missing.ledger.state, 'degraded');
+  assert.deepEqual(missing.records, []);
+  forcedSnapshot = earlier;
+  const rewound = reader.readSnapshot();
+  assert.equal(rewound.ledger.state, 'degraded');
+  assert.deepEqual(rewound.records, []);
+  assert(rewound.ledger.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_ROLLBACK'));
+  const successor = f.admit(changed(f, { id: 'successor' }), { admittedAt: at(5) });
+  f.write(successor);
+  forcedSnapshot = undefined;
+  const recovered = reader.readSnapshot();
+  assert.equal(recovered.ledger.state, 'ready');
+  assert.deepEqual(recovered.records.map((record) => record.recordSha256).sort(),
+    [original.recordSha256, correction.recordSha256, successor.recordSha256].sort());
+});
+
+test('readSnapshot projects the same ledger as read and the one-shot API', (t) => {
+  const f = fixture(t);
+  const original = f.admit(); f.write(original);
+  const reader = createConstructionLedgerReader(f.state, f.trust);
+  const snapshot = reader.readSnapshot();
+  assert.deepEqual(snapshot.ledger, reader.read());
+  assert.deepEqual(snapshot.ledger, f.read());
+  assert.deepEqual(snapshot.ledger, kernel.readSourceNativeConstructionLedger({
+    options: f.options, trustRegistry: f.trust,
+  }));
+});
+
 test('one-shot construction ledger API remains source-bound and unchanged', (t) => {
   const f = fixture(t);
   const record = f.admit();
