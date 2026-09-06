@@ -138,7 +138,18 @@ test('same-name distinct concepts stay ambiguous until explicitly selected', asy
   assert(otherMatch);
   const secondRead = await ont.read({ ref: otherMatch.ref });
   assert.equal(secondRead.binding.conceptId, 'another-definition');
-  assert.equal((await ont.verify({ question: 'What is the current status?' })).answerable, false);
+  const unboundQuery = { question: 'What is the current status?', typedQuery: {
+    sourceSystem: 'clickup', objectType: 'ClickupTask', fieldPath: 'status' } };
+  assert.equal((await ont.verify(unboundQuery)).answerable, false);
+  const candidatePage = await ont.search({ term: 'AllocationException', conceptId: 'another-definition',
+    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' } });
+  const candidate = candidatePage.matches.find(item => item.nativeObject.externalId === 'CT-17');
+  assert(candidate);
+  const candidateRead = await ont.read({ ref: candidate.ref });
+  const verified = await ont.verify({ ...unboundQuery, typedQuery: {
+    ...unboundQuery.typedQuery, externalId: candidateRead.binding.nativeObject.externalId } });
+  assert.equal(verified.answerable, true);
+  assert.equal(verified.context[0].exactText, 'open');
   const selected = await ont.search({ term: 'AllocationException', conceptId: 'another-definition' });
   assert.equal(selected.state, 'resolved-construction-navigation');
   assert(selected.matches.every(item => item.conceptId === 'another-definition'));
@@ -190,6 +201,33 @@ test('a warm client adopts new Admission and corrections invalidate offered pass
   const next = await ont.search({ term: 'AllocationException' });
   assert.equal(next.totalMatches, 2);
   assert.equal(next.ledger.supersededRecordCount, 1);
+});
+
+test('an ambiguous correction invalidates only the changed record and cursor', async t => {
+  const f = fixture(t);
+  const firstRecord = f.record(); f.write(firstRecord);
+  const secondInput = clone(f.input); secondInput.objectDefs[0].id = 'another-definition';
+  secondInput.claims.forEach(claim => { claim.about = 'another-definition'; });
+  const secondRecord = f.record(f.compile(secondInput)); f.write(secondRecord);
+  const ont = f.open();
+  const first = await ont.search({ term: 'AllocationException', limit: 1 });
+  assert.equal(first.state, 'ambiguous-construction-navigation');
+  assert.equal(first.totalConcepts, 2);
+  assert.equal(first.totalMatches, 6);
+  const secondPage = await ont.search({ term: 'AllocationException', limit: 4, cursor: first.nextCursor });
+  const unchanged = secondPage.matches.find(item => item.conceptId === 'another-definition');
+  assert(unchanged);
+  const correctedInput = clone(f.input);
+  correctedInput.claims = correctedInput.claims.filter(claim => claim.id !== 'mention-1');
+  f.write(f.record(f.compile(correctedInput), { day: 4, targets: [firstRecord.recordSha256] }));
+  await assert.rejects(ont.read({ ref: first.matches[0].ref }), { code: 'CONSTRUCTION_NAVIGATION_REFERENCE_INELIGIBLE' });
+  await assert.rejects(ont.search({ term: 'AllocationException', limit: 1, cursor: first.nextCursor }), { code: 'CONSTRUCTION_NAVIGATION_CURSOR_STALE' });
+  const unchangedRead = await ont.read({ ref: unchanged.ref });
+  assert.equal(unchangedRead.binding.conceptId, 'another-definition');
+  const current = await ont.search({ term: 'AllocationException' });
+  assert.equal(current.state, 'ambiguous-construction-navigation');
+  assert.equal(current.totalConcepts, 2);
+  assert.equal(current.totalMatches, 5);
 });
 
 test('trust changes require reopen and revoked reviewer yields no construction refs', async t => {

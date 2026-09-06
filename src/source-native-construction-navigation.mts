@@ -79,7 +79,6 @@ export interface SourceNativeConstructionReadResult {
 interface Passage {
   record: SourceNativeConstructionAdmissionRecord;
   conceptId: string;
-  name: string;
   source: SourceNativeSemanticWitness;
   object: SourceNativeObject;
   roles: SourceNativeConstructionAttachmentRole[];
@@ -182,9 +181,7 @@ export function openSourceNativeProductWithConstruction(options: ProductOptions 
           if (scope && (object.objectIdentity.sourceSystem !== scope.sourceSystem
             || scope.objectType !== undefined && object.objectIdentity.objectType !== scope.objectType)) return;
           const key = stableObjectSha256(source);
-          const passage = passages.get(key) ?? {
-            record, conceptId: definition.id, name: definition.name, source, object, roles: [],
-          };
+          const passage = passages.get(key) ?? { record, conceptId: definition.id, source, object, roles: [] };
           if (!passage.roles.includes(role)) passage.roles.push(role);
           passages.set(key, passage);
         };
@@ -217,15 +214,9 @@ export function openSourceNativeProductWithConstruction(options: ProductOptions 
       nextCursor = `construction-page:${randomUUID()}`;
       remember(cursors, nextCursor, { querySha256, projectionSha256, offset: offset + limit }, 128);
     }
-    const pageConceptKeys = new Set<string>();
-    const pageConcepts: { id: string; name: string }[] = [];
-    for (const passage of selected) {
-      const key = stableObjectSha256({ id: passage.conceptId, name: passage.name });
-      if (!pageConceptKeys.has(key)) {
-        pageConceptKeys.add(key);
-        pageConcepts.push({ id: passage.conceptId, name: passage.name });
-      }
-    }
+    const visibleConceptIds = new Set(selected.map((passage) => passage.conceptId));
+    const pageConcepts = concepts.filter((concept) => visibleConceptIds.has(concept.id))
+      .map(({ id, name }) => ({ id, name }));
     const core = { schemaVersion: 1 as const, kind: 'OpenOntologyConstructionSearchResultV1' as const,
       state, query: { term, scope, conceptId }, concepts: pageConcepts,
       totalConcepts: concepts.length, totalMatches, matches, nextCursor, projectionSha256,
