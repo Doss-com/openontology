@@ -676,8 +676,16 @@ test('warm correction replaces old reuse and a ref rewind cannot resurrect it', 
   assert.deepEqual(reused.verification.supersededAdmissionRecordSha256s, [record.recordSha256]);
   const refInput = { ontId: bundle.ontId, branch: write.branch };
   let head = context.store.readRefMetadata(refInput);
-  context.store.compareAndSwapRefMetadata({ ...refInput, expectedVersion: head.version,
-    commitSha256: write.commitSha256 });
+  const rewoundReplay = context.store.replayMetadata(write.commitSha256);
+  context.backend.compareAndSwap(head.key, {
+    expectedVersion: head.version,
+    bytes: Buffer.from(stableObjectText({
+      ...head.ref,
+      commitSha256: write.commitSha256,
+      replayStatus: rewoundReplay.status,
+      replaySha256: rewoundReplay.replaySha256,
+    })),
+  });
   const rewound = await product.verify(query);
   assert.equal(rewound.state, 'resolved-current-field');
   assert.equal(rewound.answerable, true);
@@ -691,6 +699,38 @@ test('warm correction replaces old reuse and a ref rewind cannot resurrect it', 
   assert.equal((await product.verify(query)).verification.admissionRecordSha256,
     correction.record.recordSha256);
   assert.equal(product.status().admittedKnowledge.state, 'ready');
+});
+
+test('rejects a current-version knowledge rewind and cold reopen retains correction', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-cold-continuity-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const fixture = createAdmittedFixture(root);
+  const correction = admitBundle(fixture.bundle, {
+    proposerKeys: fixture.proposerKeys,
+    reviewerKeys: fixture.reviewerKeys,
+    admittedAt: '2026-09-05T08:10:00.000Z',
+    supersedesRecordSha256s: [fixture.record.recordSha256],
+  });
+  const corrected = writeSourceNativeAdmittedKnowledge({
+    options: { artifactRoot: root },
+    ...correction,
+  });
+  const refInput = { ontId: fixture.bundle.ontId, branch: fixture.write.branch };
+  const head = fixture.context.store.readRefMetadata(refInput);
+  assert.equal(head.ref.commitSha256, corrected.commitSha256);
+  assert.throws(() => fixture.context.store.compareAndSwapRefMetadata({
+    ...refInput,
+    expectedVersion: head.version,
+    commitSha256: fixture.write.commitSha256,
+  }), { code: 'OBJECT_ONT_REF_ROLLBACK' });
+  const cold = openSourceNativeProductWithAdmittedKnowledge(
+    { artifactRoot: root },
+    { trustRegistry: fixture.trustRegistry },
+  );
+  const reused = await cold.verify({ question: fixture.question });
+  assert.equal(reused.answerable, true);
+  assert.equal(reused.verification.admissionRecordSha256, correction.record.recordSha256);
+  assert.equal(cold.status().admittedKnowledge.commitSha256, corrected.commitSha256);
 });
 
 test('unreadable or corrupt knowledge disables cached reuse and recovers when repaired', async (t) => {

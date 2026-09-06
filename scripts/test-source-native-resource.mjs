@@ -198,6 +198,41 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
   }
 });
 
+test('rejects a current-version source rewind before a cold bind can serve it', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-resource-continuity-'));
+  try {
+    const initialRoot = join(root, 'initial');
+    const resourceRoot = join(root, 'resource');
+    const backendUri = pathToFileURL(join(initialRoot, 'objects')).href;
+    const first = buildSourceNativeProduct({ artifactRoot: initialRoot, input: input() });
+    createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
+    const second = buildSourceNativeProduct({
+      artifactRoot: join(root, 'successor'),
+      input: input(['Alpha', 'Beta', 'Gamma']),
+      objectBackendUri: backendUri,
+    });
+    const backend = openCanonicalObjectBackend({ uri: backendUri }).backend;
+    const store = openObjectOntStore({ backend });
+    const current = store.readRefMetadata({ ontId: first.receipt.ontId, branch: 'main' });
+    assert.equal(current.ref.commitSha256, second.receipt.commitSha256);
+    assert.throws(() => store.compareAndSwapRefMetadata({
+      ontId: first.receipt.ontId,
+      branch: 'main',
+      expectedVersion: current.version,
+      commitSha256: first.receipt.commitSha256,
+    }), { code: 'OBJECT_ONT_REF_ROLLBACK' });
+    const coldRoot = join(root, 'cold');
+    const binding = bindSourceNativeProductResource({
+      resourceRoot,
+      artifactRoot: coldRoot,
+    });
+    assert.equal(binding.sourceCommitSha256, second.receipt.commitSha256);
+    assert.equal(await currentValue(coldRoot), 'Gamma');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('rejects profile expansion and identity drift before binding output', () => {
   for (const drift of ['field', 'namespace', 'source-system', 'object-type']) {
     const root = mkdtempSync(join(tmpdir(), `oont-source-native-resource-${drift}-`));
@@ -282,11 +317,15 @@ test('rejects tampering, backend identity changes, ancestry gaps, and missing re
       objectBackendUri: backendUri,
     });
     const current = store.readRefMetadata({ ontId: first.receipt.ontId, branch: 'main' });
-    store.compareAndSwapRefMetadata({
-      ontId: first.receipt.ontId,
-      branch: 'main',
+    const unrelatedReplay = store.replayMetadata(unrelated.receipt.commitSha256);
+    backend.compareAndSwap(current.key, {
       expectedVersion: current.version,
-      commitSha256: unrelated.receipt.commitSha256,
+      bytes: Buffer.from(stableObjectText({
+        ...current.ref,
+        commitSha256: unrelated.receipt.commitSha256,
+        replayStatus: unrelatedReplay.status,
+        replaySha256: unrelatedReplay.replaySha256,
+      })),
     });
     assert.throws(() => bindSourceNativeProductResource({
       resourceRoot,

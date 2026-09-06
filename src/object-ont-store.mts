@@ -1259,6 +1259,11 @@ export function openObjectOntStore({ backend: backendInput }: { backend?: Object
     if (commit.commit.ontId !== ontId) fail('OBJECT_ONT_REF_SCOPE');
     const replay = replayReader(commitSha256);
     if (replay.status === 'CONFLICT' && allowConflicts !== true) fail('OBJECT_ONT_REF_CONFLICT');
+    const current = readRefRecord({ ontId, branch });
+    if (current !== null && expectedVersion === current.version
+      && !replay.commitOrder.includes(current.ref.commitSha256)) {
+      fail('OBJECT_ONT_REF_ROLLBACK');
+    }
     const ref = validateRef({
       schemaVersion: 1,
       kind: 'OpenOntologyBranchRefV1',
