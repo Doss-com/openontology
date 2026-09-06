@@ -125,12 +125,18 @@ function mutateThenThrowBackend(raw, { casAt = [], keyPrefix = null } = {}) {
   };
 }
 
-function readBoundaryBackend(raw, { mutateOnGet = false, disappearOnGet = false, corrupt = null } = {}) {
+function readBoundaryBackend(raw, {
+  mutateOnGet = false,
+  disappearOnGet = false,
+  throwCode = null,
+  corrupt = null,
+} = {}) {
   let armed = true;
   return {
     capabilities: raw.capabilities,
     head: (...args) => raw.head(...args),
     get(key, options) {
+      if (throwCode) backendError(throwCode);
       if (mutateOnGet && armed) {
         armed = false;
         const current = raw.get(key);
@@ -348,6 +354,25 @@ test('protected data and history observations distinguish drift from same-versio
   assert.throws(() => corruptedHistory.readRefHead({ ontId: 'history-observation', branch: 'main' }), {
     code: 'OBJECT_ONT_HISTORY_CORRUPT',
   });
+
+  for (const throwCode of ['OBJECT_BACKEND_NOT_FOUND', 'OBJECT_BACKEND_CORRUPT', 'OBJECT_BACKEND_TIMEOUT']) {
+    const thrownData = openObjectOntStore({
+      backend: readBoundaryBackend(data, { throwCode }), historyBackend: history,
+    });
+    assert.throws(() => thrownData.readRefHead({ ontId: 'history-observation', branch: 'main' }), {
+      code: throwCode === 'OBJECT_BACKEND_NOT_FOUND'
+        ? 'OBJECT_ONT_HISTORY_CONFLICT'
+        : throwCode === 'OBJECT_BACKEND_CORRUPT' ? 'OBJECT_ONT_HISTORY_CORRUPT' : throwCode,
+    });
+    const thrownHistory = openObjectOntStore({
+      backend: data, historyBackend: readBoundaryBackend(history, { throwCode }),
+    });
+    assert.throws(() => thrownHistory.readRefHead({ ontId: 'history-observation', branch: 'main' }), {
+      code: throwCode === 'OBJECT_BACKEND_NOT_FOUND'
+        ? 'OBJECT_ONT_HISTORY_CONFLICT'
+        : throwCode === 'OBJECT_BACKEND_CORRUPT' ? 'OBJECT_ONT_HISTORY_CORRUPT' : throwCode,
+    });
+  }
 
   const disappearedData = openObjectOntStore({
     backend: readBoundaryBackend(data, { mutateOnGet: true, disappearOnGet: true }),
@@ -715,4 +740,51 @@ test('mutate-then-throw CAS boundaries recover without aborting the reservation'
     assert.equal(clean.readRefHead({ ontId: 'history-uncertain-recovery-finalization', branch: 'main' }).ref.commitSha256,
       fixture.second.commitSha256);
   }
+});
+
+test('a concurrent original writer cannot advance while recovery finalizes a pending target', () => {
+  const data = openMemoryObjectBackend();
+  const history = openMemoryObjectBackend();
+  const base = openObjectOntStore({ backend: data, historyBackend: history });
+  const manifest = manifestFor(base);
+  const first = commitFor(base, manifest, 'history-concurrent-recovery');
+  const second = commitFor(base, manifest, 'history-concurrent-recovery', [first.commitSha256]);
+  const third = commitFor(base, manifest, 'history-concurrent-recovery', [second.commitSha256]);
+  const firstResult = base.compareAndSwapRefMetadata({
+    ontId: 'history-concurrent-recovery', branch: 'main', commitSha256: first.commitSha256,
+  });
+  const failed = openObjectOntStore({
+    backend: faultBackend(data, { failCasAt: [1], keyPrefix: 'refs/' }), historyBackend: history,
+  });
+  assert.throws(() => failed.compareAndSwapRefMetadata({
+    ontId: 'history-concurrent-recovery', branch: 'main',
+    expectedVersion: firstResult.version, commitSha256: second.commitSha256,
+  }), { code: 'OBJECT_BACKEND_PRECONDITION' });
+
+  const originalWriter = openObjectOntStore({ backend: data, historyBackend: history });
+  let writerError = null;
+  const racingHistory = {
+    capabilities: history.capabilities,
+    head: (...args) => history.head(...args),
+    get: (...args) => history.get(...args),
+    putIfAbsent: (...args) => history.putIfAbsent(...args),
+    compareAndSwap(key, options) {
+      if (key === 'ref-history/history-concurrent-recovery/main.json') {
+        try {
+          originalWriter.compareAndSwapRefMetadata({
+            ontId: 'history-concurrent-recovery', branch: 'main',
+            expectedVersion: firstResult.version, commitSha256: third.commitSha256,
+          });
+        } catch (error) {
+          writerError = error;
+        }
+      }
+      return history.compareAndSwap(key, options);
+    },
+  };
+  const recovery = openObjectOntStore({ backend: data, historyBackend: racingHistory });
+  recovery.recoverRefHistory({ ontId: 'history-concurrent-recovery', branch: 'main' });
+  assert.equal(writerError?.code, 'OBJECT_ONT_HISTORY_PENDING');
+  assert.equal(recovery.readRefHead({ ontId: 'history-concurrent-recovery', branch: 'main' }).ref.commitSha256,
+    second.commitSha256);
 });

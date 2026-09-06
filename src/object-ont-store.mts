@@ -314,6 +314,15 @@ const fail = (code: string): never => {
   error.code = code;
   throw error;
 };
+function mapProtectedReadError(error: unknown): never {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code : undefined;
+  if (code === 'OBJECT_BACKEND_NOT_FOUND' || code === 'OBJECT_BACKEND_PRECONDITION') {
+    fail('OBJECT_ONT_HISTORY_CONFLICT');
+  }
+  if (code === 'OBJECT_BACKEND_CORRUPT') fail('OBJECT_ONT_HISTORY_CORRUPT');
+  throw error;
+}
 const freeze = <T,>(value: T): T => {
   if (ArrayBuffer.isView(value)) return value;
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -932,7 +941,7 @@ export function openObjectOntStore({
     if (head === null) return null;
     let result: ObjectReadResult | null = null;
     try { result = backend.get(key); } catch (error) {
-      if (historyBackend !== null) fail('OBJECT_ONT_HISTORY_CONFLICT');
+      if (historyBackend !== null) mapProtectedReadError(error);
       throw error;
     }
     if (result === null) fail('OBJECT_ONT_HISTORY_CONFLICT');
@@ -976,7 +985,7 @@ export function openObjectOntStore({
     const head = historyBackend.head(key);
     if (head === null) return null;
     let result: ObjectReadResult | null = null;
-    try { result = historyBackend.get(key); } catch { fail('OBJECT_ONT_HISTORY_CONFLICT'); }
+    try { result = historyBackend.get(key); } catch (error) { mapProtectedReadError(error); }
     if (result === null) fail('OBJECT_ONT_HISTORY_CONFLICT');
     const validatedResult = result as ObjectReadResult;
     if (validatedResult.version !== head.version) {
