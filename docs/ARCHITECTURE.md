@@ -219,8 +219,9 @@ Advancing an Ont on a shared backend creates a new knowledge branch for the new
 source cut instead of wedging or silently reusing prior-cut knowledge.
 
 `[EXISTS]` An open admitted-knowledge client checks its knowledge ref before each
-ordinary `verify`. An unchanged ref costs one metadata read; it does not replay
-history or reload the source corpus. A changed ref loads a validated snapshot,
+ordinary `verify`. An unchanged ref uses bounded ref metadata reads; it does not
+replay history or reload the source corpus. Protected profiles also validate the
+accepted-history record around that observation. A changed ref loads a validated snapshot,
 rechecks Admission and supersession, then selects that snapshot for the request.
 Independent Admission can therefore help the same running client on its next
 verification. Exact Evidence is still inspected on every reuse. Source and trust
@@ -232,7 +233,9 @@ reports degraded state while ordinary exact verification remains available.
 A repaired snapshot can recover. The running reader remembers its last accepted
 knowledge commit and requires later snapshots to contain that ancestry, so a
 rewound ref cannot silently restore a superseded Admission. This floor is
-process-local, not durable rollback protection across restarts. Trust changes
+process-local for legacy profiles. The unpublished V2 protected profile also
+checks independently stored accepted history across restarts, and requires
+explicit exact-target recovery for a pending or rewound ref. Trust changes
 require reopening the client. Changed snapshots still replay metadata and
 validate records; incremental large-ledger refresh is not implemented.
 

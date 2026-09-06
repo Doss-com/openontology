@@ -25,6 +25,8 @@ import {
   writeSourceNativeAdmittedKnowledge,
 } from '../dist/src/kernel.mjs';
 import { objectBytesSha256 } from '../dist/src/canonical-content.mjs';
+import { openCanonicalObjectBackend } from '../dist/src/canonical-object-backend.mjs';
+import { openObjectOntStore } from '../dist/src/object-ont-store.mjs';
 
 function buildInput() {
   return {
@@ -401,9 +403,9 @@ function contractFor(authority) {
   });
 }
 
-function buildContext(root) {
+function buildContext(root, buildOptions = {}) {
   let context;
-  buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+  buildSourceNativeProduct({ artifactRoot: root, input: buildInput(), ...buildOptions });
   openSourceNativeProductRuntime({ artifactRoot: root }, (value) => {
     context = value;
     return null;
@@ -467,8 +469,9 @@ function queryBindingFor(prepared) {
 function createAdmittedFixture(root, {
   question = 'What is the current issue status for issue-1?',
   evidence = (value) => value,
+  buildOptions = {},
 } = {}) {
-  const context = buildContext(root);
+  const context = buildContext(root, buildOptions);
   const prepared = context.prepareSearch({ question });
   const initialAuthority = authorityFor(context);
   const initialItem = initialAuthority.items[0];
@@ -610,7 +613,60 @@ test('title-bound verification preserves counterevidence through warm and cold A
   }
 });
 
-test('unchanged warm knowledge reads its ref once without replaying history', async (t) => {
+test('warm cached knowledge requires intact protected history even when its data ref is unchanged', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-protected-warm-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const historyBackendUri = pathToFileURL(join(root, 'history')).href;
+  const fixture = createAdmittedFixture(root, { buildOptions: { historyBackendUri } });
+  const { product, context, bundle, write, question } = fixture;
+  assert.equal((await product.verify({ question })).state, 'resolved-admitted-knowledge-proof-closure');
+  const receipt = context.store.recoverRefHistory({ ontId: bundle.ontId, branch: write.branch });
+  const historyBackend = openCanonicalObjectBackend({ uri: historyBackendUri }).backend;
+  const accepted = historyBackend.get(receipt.historyKey);
+  const corrupt = historyBackend.compareAndSwap(receipt.historyKey, {
+    expectedVersion: accepted.version, bytes: Buffer.from('corrupt protected history'),
+  });
+  const fallback = await product.verify({ question });
+  assert.equal(fallback.state, 'resolved-current-field');
+  assert.equal(fallback.answerable, true);
+  assert.equal(product.status().admittedKnowledge.activeAdmissionRecordCount, 0);
+  assert.deepEqual(product.status().admittedKnowledge.diagnosticCodes, ['OBJECT_ONT_HISTORY_CORRUPT']);
+  // Verification cannot repair history. Only restoring the exact protected bytes recovers reuse.
+  assert.equal(historyBackend.get(receipt.historyKey).version, corrupt.version);
+  historyBackend.compareAndSwap(receipt.historyKey, {
+    expectedVersion: corrupt.version, bytes: accepted.bytes,
+  });
+  assert.equal((await product.verify({ question })).state, 'resolved-admitted-knowledge-proof-closure');
+});
+
+test('a pending protected publication disables warm reuse until explicit recovery', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-protected-pending-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const historyBackendUri = pathToFileURL(join(root, 'history')).href;
+  const { product, context, bundle, write, question } = createAdmittedFixture(root,
+    { buildOptions: { historyBackendUri } });
+  assert.equal((await product.verify({ question })).state, 'resolved-admitted-knowledge-proof-closure');
+  const route = { ontId: bundle.ontId, branch: write.branch };
+  const current = context.store.readRefHead(route);
+  const interrupted = openObjectOntStore({
+    historyBackend: openCanonicalObjectBackend({ uri: historyBackendUri }).backend,
+    backend: { ...context.backend, compareAndSwap(key, options) {
+      if (key === current.key) throw Object.assign(new Error('injected ref failure'), { code: 'TEST_REF_FAILURE' });
+      return context.backend.compareAndSwap(key, options);
+    } },
+  });
+  assert.throws(() => interrupted.compareAndSwapRefMetadata({
+    ...route, expectedVersion: current.version, commitSha256: current.ref.commitSha256,
+  }), { code: 'TEST_REF_FAILURE' });
+  assert.equal(context.backend.head(current.key).version, current.version);
+  assert.equal((await product.verify({ question })).state, 'resolved-current-field');
+  assert.deepEqual(product.status().admittedKnowledge.diagnosticCodes, ['OBJECT_ONT_HISTORY_PENDING']);
+  assert.throws(() => context.store.readRefHead(route), { code: 'OBJECT_ONT_HISTORY_PENDING' });
+  context.store.recoverRefHistory(route);
+  assert.equal((await product.verify({ question })).state, 'resolved-admitted-knowledge-proof-closure');
+});
+
+test('unchanged warm knowledge reads bounded ref metadata without replaying history', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'oont-admission-warm-reads-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const { product, question } = createAdmittedFixture(root);
@@ -629,7 +685,7 @@ test('unchanged warm knowledge reads its ref once without replaying history', as
   const reused = await product.verify({ question });
   assert.equal(reused.state, 'resolved-admitted-knowledge-proof-closure');
   assert.deepEqual(reads.filter((key) => key.startsWith('commits/')), []);
-  assert.equal(reads.filter((key) => key.startsWith('refs/')).length, 1);
+  assert.equal(reads.filter((key) => key.startsWith('refs/')).length, 2);
   assert.ok(reused.verification.exactSourceInspectionCount > 0);
   reads.length = 0;
   product.status();
@@ -731,6 +787,46 @@ test('rejects a current-version knowledge rewind and cold reopen retains correct
   assert.equal(reused.answerable, true);
   assert.equal(reused.verification.admissionRecordSha256, correction.record.recordSha256);
   assert.equal(cold.status().admittedKnowledge.commitSha256, corrected.commitSha256);
+});
+
+test('protected correction survives a raw rewind before first serving and cold reopen', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-protected-correction-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const fixture = createAdmittedFixture(root, { buildOptions: {
+    historyBackendUri: pathToFileURL(join(root, 'history')).href,
+  } });
+  const route = { ontId: fixture.bundle.ontId, branch: fixture.write.branch };
+  const initial = fixture.context.store.readRefHead(route);
+  const correction = admitBundle(fixture.bundle, {
+    proposerKeys: fixture.proposerKeys, reviewerKeys: fixture.reviewerKeys,
+    admittedAt: '2026-09-05T08:10:00.000Z',
+    supersedesRecordSha256s: [fixture.record.recordSha256],
+  });
+  const corrected = writeSourceNativeAdmittedKnowledge({
+    options: { artifactRoot: root }, ...correction,
+  });
+  const current = fixture.context.store.readRefHead(route);
+  assert.notEqual(initial.ref.commitSha256, current.ref.commitSha256);
+  fixture.context.backend.compareAndSwap(current.key, {
+    expectedVersion: current.version, bytes: Buffer.from(stableObjectText(initial.ref)),
+  });
+  const cold = openSourceNativeProductWithAdmittedKnowledge(
+    { artifactRoot: root }, { trustRegistry: fixture.trustRegistry },
+  );
+  for (const product of [fixture.product, cold]) {
+    const fallback = await product.verify({ question: fixture.question });
+    assert.equal(fallback.state, 'resolved-current-field');
+    assert.equal(fallback.answerable, true);
+    assert.deepEqual(product.status().admittedKnowledge.diagnosticCodes, ['OBJECT_ONT_HISTORY_MISMATCH']);
+  }
+  const { store } = openProductState({ artifactRoot: root });
+  const recovery = store.recoverRefHistory(route);
+  assert.equal(recovery.acceptedRef.commitSha256, corrected.commitSha256);
+  for (const product of [fixture.product, cold]) {
+    const reused = await product.verify({ question: fixture.question });
+    assert.equal(reused.state, 'resolved-admitted-knowledge-proof-closure');
+    assert.equal(reused.verification.admissionRecordSha256, correction.record.recordSha256);
+  }
 });
 
 test('unreadable or corrupt knowledge disables cached reuse and recovers when repaired', async (t) => {

@@ -152,6 +152,7 @@ interface SourcePack {
 }
 interface MaterializeInput {
   backend?: ObjectBackend;
+  historyBackend?: ObjectBackend;
   ontId?: string;
   branch?: string;
   expectedVersion?: string | null;
@@ -495,6 +496,7 @@ function openAtCommit({ store, ontId, commitSha256, replayMetadata }: {
 
 export function materializeSourceNativeObjectOnt({
   backend,
+  historyBackend,
   ontId,
   branch = 'main',
   expectedVersion = null,
@@ -514,7 +516,7 @@ export function materializeSourceNativeObjectOnt({
   const backendValue = backend ?? fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
   const sources = normalizeSources(sourceInput);
   const map = compileSourceNativeObjectMap({ sources, nativeObjectInputs, adapterDiagnostics });
-  const store = openObjectOntStore({ backend: backendValue });
+  const store = openObjectOntStore({ backend: backendValue, historyBackend });
   const sourcePacks: SourcePack[] = [];
   let currentPack: SourcePack = { byteLength: 0, sources: [], bytes: [] };
   const finishPack = () => {
@@ -754,12 +756,14 @@ export function openSourceNativeObjectOntAtCut({
 
 export function openSourceNativeObjectOntRefAtCut({
   backend,
+  historyBackend,
   ontId,
   branch,
   expectedCommitSha256,
   expectedReplaySha256,
 }: {
   backend: ObjectBackend;
+  historyBackend?: ObjectBackend;
   ontId: string;
   branch: string;
   expectedCommitSha256?: string;
@@ -767,7 +771,7 @@ export function openSourceNativeObjectOntRefAtCut({
 }): SourceNativeObjectOntRefCut | null {
   if (!backend || typeof ontId !== 'string' || !ontId
     || typeof branch !== 'string' || !branch) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
-  const store = openObjectOntStore({ backend });
+  const store = openObjectOntStore({ backend, historyBackend });
   const snapshot = store.readRefMetadataCheckpointSnapshot({ ontId, branch });
   if (snapshot === null) return null;
   if ((expectedCommitSha256 !== undefined
@@ -803,14 +807,15 @@ export function openSourceNativeObjectOntIndex(options: OpenSourceNativeObjectOn
 }
 
 /** Open one ref-bound index using only metadata authenticated by the object store. */
-export function openSourceNativeObjectOntRefIndex({ backend, ontId, branch }: {
+export function openSourceNativeObjectOntRefIndex({ backend, historyBackend, ontId, branch }: {
   backend: ObjectBackend;
+  historyBackend?: ObjectBackend;
   ontId: string;
   branch: string;
 }): SourceNativeObjectOntRefIndex | null {
   if (!backend || typeof ontId !== 'string' || !ontId
     || typeof branch !== 'string' || !branch) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
-  const store = openObjectOntStore({ backend });
+  const store = openObjectOntStore({ backend, historyBackend });
   const snapshot = store.readRefMetadataCheckpointSnapshot({ ontId, branch });
   if (snapshot === null) return null;
   const { replayMetadata, ...refMetadata } = snapshot;

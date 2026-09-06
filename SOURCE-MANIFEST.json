@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 92,
+  "fileCount": 94,
   "files": [
     {
       "path": ".editorconfig",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 18319,
-      "sha256": "21fe704d716f236309d6e8dabcec4526faaeded5ebd3552bf7ad43cf2b99de02"
+      "bytes": 18562,
+      "sha256": "2791b8c63552f3b7b6dd2dabec491c904802242f2682097ba83de6b0748159f7"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
@@ -132,8 +132,8 @@
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 5171,
-      "sha256": "4574eea79547f601abafc5f75096a58ad73a62e0f6c074a15e26c5a64c988b2c"
+      "bytes": 7829,
+      "sha256": "9a24ebefb3627f5de9d2a53e6e9d52a053cbb8028db64b3d13ead31312f8329b"
     },
     {
       "path": "examples/quickstart/source-lifecycle.mjs",
@@ -152,8 +152,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3305,
-      "sha256": "830ce230c742b18d64ecfc0ab290efbeeb1b0e566deaa6edd3c39c5fd9d6faf5"
+      "bytes": 3380,
+      "sha256": "80490418169da0c20e8fdaaba3cbb3e39632aed9bdd9550845bf89f9eac77cad"
     },
     {
       "path": "scripts/build.mjs",
@@ -211,6 +211,11 @@
       "sha256": "28c8e18ab3a257a7780ccb7f2d8e7b0e2a20e9c265fb2f62e026d909ede34440"
     },
     {
+      "path": "scripts/test-object-ont-history.mjs",
+      "bytes": 34774,
+      "sha256": "c859d024e4cd7e6e56c24777bf9c4e972bb3850b0cba086c6ef28114ee02d9b7"
+    },
+    {
       "path": "scripts/test-object-ont-replay-checkpoint.mjs",
       "bytes": 21095,
       "sha256": "e75bcc3a914faeabf7bdde119a767bdb053351d128b1c5417ccc4afd52274d6c"
@@ -232,8 +237,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 136299,
-      "sha256": "f8887349e799ec69258fdacef516bcdd799221b31bc752ff81d7d08e1ef9af54"
+      "bytes": 142169,
+      "sha256": "f7ff13c27fd725123dfb7cd6a3986e339f3de61e378b14282a97e05b918fb132"
     },
     {
       "path": "scripts/test-source-native-checkpoint-opening.mjs",
@@ -254,6 +259,11 @@
       "path": "scripts/test-source-native-historical-surfaces.mjs",
       "bytes": 22456,
       "sha256": "b06a3802b3f7d90b2f930db14f06d73206096cb03e1071a08f7cfdc6f2e891d7"
+    },
+    {
+      "path": "scripts/test-source-native-history.mjs",
+      "bytes": 11110,
+      "sha256": "ec9bcbdd312223ffcbe8c3fc6a18ad7c1bf64f672b8d52d82cc5f1810861aa7a"
     },
     {
       "path": "scripts/test-source-native-object-map.mjs",
@@ -332,8 +342,8 @@
     },
     {
       "path": "src/object-ont-store.mts",
-      "bytes": 54205,
-      "sha256": "31c43b6b126be2ee1e18f7a710386ce6871e35eccad2e954b81ae8cddd72fa04"
+      "bytes": 75594,
+      "sha256": "a3fa9dbbbcd7605ac487220035ff0c051c979054b91955ebfeb90c803adb2cc2"
     },
     {
       "path": "src/object-storage-backend.mts",
@@ -377,13 +387,13 @@
     },
     {
       "path": "src/source-native-admitted-knowledge.mts",
-      "bytes": 72037,
-      "sha256": "e1ff1de42bb14dc9bb5b3b71f61691fdac6a0514e71a4fff8bb15a4a07780ef3"
+      "bytes": 72109,
+      "sha256": "1303cba2ab32f18a8047b2f01070fceeda8db4b14ffff99cb5d6e0ee65951a37"
     },
     {
       "path": "src/source-native-artifact.mts",
-      "bytes": 30402,
-      "sha256": "2fd42ad0bbbb33e38819cb67e04fd01b100cae24a347c554e630319f749d0926"
+      "bytes": 33411,
+      "sha256": "78812738a1d1f8bad110f6f568487a35c6fa55c707072d633d979ca0e55145a4"
     },
     {
       "path": "src/source-native-current-field-verification.mts",
@@ -422,8 +432,8 @@
     },
     {
       "path": "src/source-native-object-ont.mts",
-      "bytes": 32497,
-      "sha256": "b83ee1488de3289dec0ae357147476355ab4bf28439960aaa048ed9bd411f92c"
+      "bytes": 32699,
+      "sha256": "e0d6ff1bc123ea66518350242efd65b04fa0f2c70b74f0b4bc81e4cc6ecee606"
     },
     {
       "path": "src/source-native-product-mcp.mts",
@@ -432,8 +442,8 @@
     },
     {
       "path": "src/source-native-product.mts",
-      "bytes": 34778,
-      "sha256": "cbd303eb93c1dc0d0f0ba78ce24c94af42de42c6bc7fc4d512acca665d114c29"
+      "bytes": 34848,
+      "sha256": "c7d04e7dbc93f617ca787eb2f4393ac3c9400caec3b7fd96e762e9df2838c52b"
     },
     {
       "path": "src/source-native-query-plan.mts",
@@ -466,5 +476,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:86b8facf780d80857011704b1bc19bc11a83a13f2a87d90c1cba615715e585d1"
+  "manifestSha256": "sha256:fdda54d5948867320d3878a5041930f4aa2829377801dee459aba04ca4452209"
 }

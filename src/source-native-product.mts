@@ -30,7 +30,7 @@ import type { SourceNativeObjectIdentityCensus } from './source-native-identity-
 
 export type { SourceNativeObjectIdentityAbsenceReceipt } from './source-native-field-resolver.mjs';
 
-const PRODUCT_OPTIONS = new Set(['artifactRoot', 'objectBackendUri', 'objectBackendEnv']);
+const PRODUCT_OPTIONS = new Set(['artifactRoot', 'objectBackendUri', 'historyBackendUri', 'objectBackendEnv']);
 const MAXIMUM_OFFERED_REFERENCES = 1024;
 export interface ProductSearchInput {
   question: string;
@@ -301,13 +301,14 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
   const {
     artifactRoot,
     objectBackendUri = null,
+    historyBackendUri = null,
     objectBackendEnv = process.env,
   } = options;
   if (createLifecycleAdapter !== null && typeof createLifecycleAdapter !== 'function') {
     fail('SOURCE_NATIVE_PRODUCT_LIFECYCLE_ADAPTER');
   }
   const { descriptor, selectedBackend, backend, store, objectOnt } = openProductState({
-    artifactRoot, objectBackendUri, objectBackendEnv,
+    artifactRoot, objectBackendUri, historyBackendUri, objectBackendEnv,
   });
   const sources = productSources(objectOnt);
   const sourceById = new Map(sources.map((source) => [source.sourceMessageId, source]));

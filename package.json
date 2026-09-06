@@ -52,7 +52,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "build": "node scripts/build.mjs",
     "check:source-native-product": "node scripts/test-product-surface-contract.mjs && node scripts/test-oont-cli-help.mjs && node --test scripts/test-source-native-product.mjs scripts/test-source-native-field-resolution.mjs scripts/test-source-native-historical-field.mjs scripts/test-source-native-historical-surfaces.mjs scripts/test-source-native-point-in-time.mjs scripts/test-source-native-title-query.mjs && node scripts/test-source-native-object-map.mjs && node scripts/test-source-native-query-planner.mjs",
-    "check:canonical-object-backend": "node --test scripts/test-canonical-content.mjs scripts/test-canonical-object-backend.mjs scripts/test-gcs-object-storage-backend.mjs scripts/test-object-ont-replay-checkpoint.mjs scripts/test-source-native-resource.mjs scripts/test-source-native-resource-checkpoint.mjs scripts/test-source-native-checkpoint-opening.mjs",
+    "check:canonical-object-backend": "node --test scripts/test-canonical-content.mjs scripts/test-canonical-object-backend.mjs scripts/test-gcs-object-storage-backend.mjs scripts/test-object-ont-replay-checkpoint.mjs scripts/test-object-ont-history.mjs scripts/test-source-native-resource.mjs scripts/test-source-native-resource-checkpoint.mjs scripts/test-source-native-checkpoint-opening.mjs scripts/test-source-native-history.mjs",
     "check:kernel": "node --test scripts/test-proof-sufficiency.mjs scripts/test-source-native-admitted-knowledge.mjs scripts/test-source-native-semantic-projection.mjs",
     "check:package-import-closure": "node scripts/check-package-import-closure.mjs",
     "check:public-release": "node scripts/check-public-release.mjs",

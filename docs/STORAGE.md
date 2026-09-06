@@ -7,8 +7,58 @@ Normal ObjectOnt ref publication is forward-only. An existing branch accepts
 its current commit or a descendant, and rejects an ancestor or unrelated fork
 with `OBJECT_ONT_REF_ROLLBACK`. Backend version conflicts still govern concurrent
 writes. Historical snapshots remain readable without changing current refs.
-This rule covers source and admitted-knowledge publication; it does not detect
-a direct backend rewrite or restoration of older storage after process restart.
+This rule covers source and admitted-knowledge publication. The legacy profile
+does not detect a direct backend rewrite after process restart. The unpublished
+protected profile below adds independently stored accepted history.
+
+## Protected history
+
+`[ACTIVE-WORK]` A kernel build with explicit `historyBackendUri` produces a V2
+source descriptor. Its stable resource preserves the same required history URI
+and binds it into its content hash. Existing V1 descriptors and resources remain
+legacy; opening cannot implicitly enroll them or substitute a different history
+backend. Data and history cannot use the identical canonical URI.
+
+```js
+import { buildSourceNativeProduct } from 'oont/kernel';
+
+buildSourceNativeProduct({
+  artifactRoot: './compiled-cut',
+  input: sourceAdapterOutput,
+  objectBackendUri: 'gs://example-ont-data/project',
+  historyBackendUri: 'gs://example-ont-history/project',
+});
+```
+
+These are storage settings for the operator. The root query surface stays
+`verify`, `search`, `read`, `check`, and `status`. Every successor build must use
+the same protected profile. Ordinary query operations never repair storage.
+
+The protected store reserves an exact target in accepted history, conditionally
+updates the data ref, then finalizes acceptance. A lost response leaves a target
+that can be recovered forward, never an instruction to reset to an older cut.
+Current readers refuse pending, missing, corrupt or mismatched history. Warm
+knowledge refresh uses the same check before reusing a cached Admission.
+Unavailable knowledge falls back to ordinary exact source verification.
+
+Explicit operator recovery uses the history-aware store returned by
+`openExactProductArtifactState`. `store.recoverRefHistory({ ontId, branch })`
+restores only the protected accepted or reserved target. It refuses unrelated
+refs and unavailable required objects; it cannot recreate lost Corpus bytes.
+Exact historical source opening remains independent of current-ref eligibility,
+but its returned store still guards current source and knowledge refs.
+
+Existing unprotected branches need explicit receipt-bound enrollment through
+`initializeRefHistory`, with old writers quiesced. A current read never creates
+trusted history from the ref it is supposed to check. Enrollment and migration
+remain operator work, not automatic onboarding.
+
+Protection requires a separately controlled restore domain. Different bucket or
+prefix strings alone do not establish that boundary. A restore that rewinds both
+data and protected history remains indistinguishable without an independently
+retained receipt. IAM, backup retention and deployment-specific recovery still
+require operational qualification. Protected publication adds conditional writes
+and reachable-object metadata checks in exchange for cold-start continuity.
 
 ## Local file
 

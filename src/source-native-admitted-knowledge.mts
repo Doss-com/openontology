@@ -1424,7 +1424,10 @@ function openReader(context: SourceNativeProductRuntimeContext,
   const diagnosticCodes = new Set<string>();
   try {
     if (previous?.ref) {
-      const head = context.backend.head(previous.ref.key);
+      const head = context.store.readRefHead({
+        ontId: context.descriptor.ontId,
+        branch: knowledgeBranch,
+      });
       if (head?.version === previous.ref.version
         && head.checksumSha256 === previous.ref.checksumSha256) return previous;
     }
