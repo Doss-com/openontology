@@ -583,6 +583,92 @@ test('readSnapshot uses the blob identity for malformed records without exposing
   assert.deepEqual(snapshot.ledger.activeRecords, [original]);
 });
 
+test('reader diagnostics normalize arbitrary backend codes in record and history failures', (t) => {
+  const f = fixture(t);
+  f.write(f.admit());
+  const sourceStore = f.state.store;
+  const recordStore = {
+    ...sourceStore,
+    readBlob() {
+      const error = new Error('private backend detail');
+      error.code = 'SECRET_RECORD_BACKEND_TOKEN_9f3a';
+      throw error;
+    },
+  };
+  const recordReader = createConstructionLedgerReader({ ...f.state, store: recordStore }, f.trust);
+  const recordSnapshot = recordReader.readSnapshot();
+  assert(recordSnapshot.ledger.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_RECORD'));
+  assert(recordSnapshot.records.some((record) => record.reasonCodes.includes('CONSTRUCTION_ADMISSION_RECORD')));
+  assert(recordSnapshot.ledger.diagnosticCodes.every((code) => !code.includes('SECRET')));
+  assert(recordSnapshot.records.every((record) => record.reasonCodes.every((code) => !code.includes('SECRET'))));
+
+  const historyStore = {
+    ...sourceStore,
+    readRefMetadataSnapshot() {
+      const error = new Error('private history backend detail');
+      error.code = 'SECRET_HISTORY_BACKEND_TOKEN_4b2e';
+      throw error;
+    },
+  };
+  const historyReader = createConstructionLedgerReader({ ...f.state, store: historyStore }, f.trust);
+  const historySnapshot = historyReader.readSnapshot();
+  assert(historySnapshot.ledger.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_HISTORY'));
+  assert.deepEqual(historySnapshot.records, []);
+  assert(historySnapshot.ledger.diagnosticCodes.every((code) => !code.includes('SECRET')));
+});
+
+test('ordinary read shares store reads with readSnapshot on active and degraded paths', (t) => {
+  const f = fixture(t);
+  f.write(f.admit());
+  const sourceStore = f.state.store;
+  const instrumented = () => {
+    const counts = { metadata: 0, blobs: 0 };
+    const store = {
+      ...sourceStore,
+      readRefMetadataSnapshot(input) {
+        counts.metadata += 1;
+        return sourceStore.readRefMetadataSnapshot(input);
+      },
+      readBlob(input) {
+        counts.blobs += 1;
+        return sourceStore.readBlob(input);
+      },
+    };
+    return { reader: createConstructionLedgerReader({ ...f.state, store }, f.trust), counts };
+  };
+  const ordinary = instrumented();
+  const snapshot = instrumented();
+  assert.deepEqual(ordinary.reader.read(), snapshot.reader.readSnapshot().ledger);
+  assert.deepEqual(ordinary.counts, { metadata: 1, blobs: 1 });
+  assert.deepEqual(snapshot.counts, { metadata: 1, blobs: 1 });
+
+  const degraded = () => {
+    const counts = { metadata: 0, blobs: 0 };
+    const store = {
+      ...sourceStore,
+      readRefMetadataSnapshot() {
+        counts.metadata += 1;
+        const error = new Error('history unavailable');
+        error.code = 'SECRET_HISTORY_BACKEND_TOKEN_4b2e';
+        throw error;
+      },
+      readBlob(input) {
+        counts.blobs += 1;
+        return sourceStore.readBlob(input);
+      },
+    };
+    return { reader: createConstructionLedgerReader({ ...f.state, store }, f.trust), counts };
+  };
+  const degradedOrdinary = degraded();
+  const degradedSnapshot = degraded();
+  const degradedLedger = degradedOrdinary.reader.read();
+  const degradedValue = degradedSnapshot.reader.readSnapshot();
+  assert.deepEqual(degradedLedger, degradedValue.ledger);
+  assert.deepEqual(degradedValue.records, []);
+  assert.deepEqual(degradedOrdinary.counts, { metadata: 1, blobs: 0 });
+  assert.deepEqual(degradedSnapshot.counts, { metadata: 1, blobs: 0 });
+});
+
 test('readSnapshot returns no cached records for missing or rewound history and recovers at a descendant', (t) => {
   const f = fixture(t);
   const original = f.admit(); f.write(original);
