@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 16279,
-      "sha256": "c7d5b984ec59005ad904747b46eb51bb759971ff64b10096cfeffc6145b11941"
+      "bytes": 17204,
+      "sha256": "8e451d1d4f4bc3e65ef55f59f3b9f0aa0ac1b8f55ad5870eea1aba79a0d3023c"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 29463,
-      "sha256": "6eb85967fa1381e793aecd043c9be8616ee8126295236935338f6d3885f7826a"
+      "bytes": 30078,
+      "sha256": "0cf4b9932baac02db4d54e6085045be6070b25ba2e3c136b851e45c653f03698"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -312,8 +312,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 53715,
-      "sha256": "62286607b5c00131b222dc0d1ee6243968216508939a4a84de07cec80e76f2a1"
+      "bytes": 56606,
+      "sha256": "5eadfa67dcf3e035f90f8de3b9d555732685eb06587d8623757e7e16a67b9b7d"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -502,8 +502,8 @@
     },
     {
       "path": "src/source-native-product-mcp.mts",
-      "bytes": 15136,
-      "sha256": "96482f64a1fa39748ceaa195ca0ff09eeb2ebfcb85c6245a31ba5f90b121f1ae"
+      "bytes": 16883,
+      "sha256": "4e308d6cd488a6934e800d52f34667cff9ae2a4d6ad90c6f702a46da71d49cef"
     },
     {
       "path": "src/source-native-product.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:07ca85c43d6ca3ca86422e51a7985e268035c416f598adf2e9b750a916f11dd6"
+  "manifestSha256": "sha256:a79c0cc88367ac7c7871b87480daa889bd23291d9edd486307e78d4a678ac350"
 }

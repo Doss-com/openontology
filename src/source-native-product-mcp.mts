@@ -28,33 +28,36 @@ const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$
 
 const SCOPE_SCHEMA = Object.freeze({
   type: 'object',
+  description: 'Optional exact source profile. Omit scope when its names are unknown; use the question or returned availableFields to identify the declared profile.',
   required: ['sourceSystem', 'objectType', 'field'],
   properties: {
-    sourceSystem: { type: 'string', minLength: 1 },
-    objectType: { type: 'string', minLength: 1 },
-    externalId: { type: 'string', minLength: 1 },
-    field: { type: 'string', minLength: 1 },
+    sourceSystem: { type: 'string', minLength: 1, description: 'Exact, case-sensitive sourceSystem from the declared profile or availableFields. Do not infer it from the object type.' },
+    objectType: { type: 'string', minLength: 1, description: 'Exact, case-sensitive objectType from the declared profile or availableFields.' },
+    externalId: { type: 'string', minLength: 1, description: 'Optional source-native object ID. Omit when the question identifies the object by a supported name.' },
+    field: { type: 'string', minLength: 1, description: 'Exact fieldPath from the declared profile or availableFields.' },
   },
   additionalProperties: false,
 });
 
 const QUERY_PROPERTIES = Object.freeze({
-  question: { type: 'string', minLength: 1 },
-  intent: { type: 'string', enum: ['current', 'next'], default: 'current' },
+  question: { type: 'string', minLength: 1, description: 'Complete question, including the requested field and any known source-native object ID or supported name.' },
+  intent: { type: 'string', enum: ['current', 'next'], default: 'current', description: 'Omit for the latest recorded field value. Use next only for the field revision immediately following a known field value.' },
   at: {
     type: 'string',
     pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$',
+    description: 'Explicitly requested as-of time in UTC with milliseconds. Omit for current queries; do not invent a time. at cannot be combined with anchorValue or intent next.',
   },
-  anchorValue: { type: 'string', minLength: 1 },
+  anchorValue: { type: 'string', minLength: 1, description: 'Known previous field value, not an object ID. Only used with intent next; current queries ignore it. Omit when the question already names that value. Do not combine with at.' },
   scope: SCOPE_SCHEMA,
 });
 
 const CONSTRUCTION_SCOPE_SCHEMA = Object.freeze({
   type: 'object',
+  description: 'Optional declared source scope for concept navigation. Omit scope when its names are unknown; unscoped results preserve ambiguity.',
   required: ['sourceSystem'],
   properties: {
-    sourceSystem: { type: 'string', minLength: 1, maxLength: 256 },
-    objectType: { type: 'string', minLength: 1, maxLength: 256 },
+    sourceSystem: { type: 'string', minLength: 1, maxLength: 256, description: 'Exact, case-sensitive declared source-system name, not an object type.' },
+    objectType: { type: 'string', minLength: 1, maxLength: 256, description: 'Optional exact, case-sensitive declared object type within the source system.' },
   },
   additionalProperties: false,
 });
@@ -70,7 +73,7 @@ const CONSTRUCTION_QUERY_PROPERTIES = Object.freeze({
 
 const VERIFY_TOOL = Object.freeze({
   name: 'verify',
-  description: 'Verify one complete question against the named source cut. OpenOntology searches for candidate references, resolves identity and chronology, reads every required exact source range, and returns proof-complete context or a typed refusal. It does not generate a prose answer.',
+  description: 'Verify one complete question against the named source cut. Start with only question; omit unknown optional selectors. OpenOntology searches for candidate references, resolves identity and chronology, reads every required exact source range, and returns proof-complete context or a typed refusal. It does not generate a prose answer.',
   inputSchema: {
     type: 'object',
     required: ['question'],
@@ -81,7 +84,7 @@ const VERIFY_TOOL = Object.freeze({
 
 const SEARCH_TOOL = Object.freeze({
   name: 'search',
-  description: 'Find candidate references for one complete question. Results are navigation only and are not evidence. Read every match marked requiredForProof before making a material claim.',
+  description: 'Find candidate references for one complete question. Start with only question; omit unknown optional selectors. Results are navigation only and are not evidence. Read every match marked requiredForProof before making a material claim.',
   inputSchema: {
     type: 'object',
     required: ['question'],
@@ -103,7 +106,7 @@ const READ_TOOL = Object.freeze({
 
 const CONSTRUCTION_SEARCH_TOOL = Object.freeze({
   name: 'search',
-  description: 'Search either one ordinary question or one exact construction term. Construction results are navigation metadata only. Ambiguous concepts remain browsable but do not select an identity, prove absence, or create factual proof.',
+  description: 'Search either one ordinary question or one exact construction term, not both. Start with only question or term; omit unknown optional selectors. Construction results are navigation metadata only. Ambiguous concepts remain browsable but do not select an identity, prove absence, or create factual proof.',
   inputSchema: {
     type: 'object',
     oneOf: [

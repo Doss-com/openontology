@@ -17,6 +17,16 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 5. Verification reads exact Evidence and closes the declared proof obligations.
 6. The SDK, CLI, and MCP surfaces expose the same query contract.
 
+An ordinary MCP query needs only `question`. Optional `scope` uses exact,
+case-sensitive declared source-system, object-type and field names; an
+unavailable result can return `availableFields` for discovery. A mismatched
+profile does not prove an absent object. Temporal selectors express a request,
+not a default: `at` is an explicit as-of time, while `anchorValue` is a previous
+field value for immediate-successor navigation. It is not an object ID and
+current queries ignore it.
+`at` cannot be combined with `anchorValue` or `intent: next`. These meanings
+are also included in the tool parameter descriptions.
+
 `[EXISTS]` Current-field Verification compiles a content-addressed chronology
 receipt over one stable native identity and field. The receipt binds the source
 commit, replay, catalog, complete mapped source count, every identity

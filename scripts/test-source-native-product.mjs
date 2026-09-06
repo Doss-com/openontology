@@ -14,6 +14,7 @@ import {
   openSourceNativeProductRuntime,
 } from '../dist/src/source-native-product.mjs';
 import { stableObjectSha256 } from '../dist/src/canonical-content.mjs';
+import { createSourceNativeProductMcpHandler } from '../dist/src/source-native-product-mcp.mjs';
 import {
   openExactProductArtifactState,
   openProductState,
@@ -21,6 +22,53 @@ import {
 
 const resolverCli = join(import.meta.dirname, '..', 'dist', 'scripts', 'oont-resolver.mjs');
 const publicCli = join(import.meta.dirname, '..', 'dist', 'bin', 'oont.mjs');
+
+test('MCP query guidance explains optional selectors without changing parsing', async () => {
+  const calls = [];
+  const product = {
+    kind: 'OpenOntologySourceNativeProductV2',
+    verify: async input => { calls.push(input); return { answerable: false }; },
+    search: async () => ({}),
+    read: async () => ({}),
+  };
+  const ordinary = createSourceNativeProductMcpHandler(product);
+  const advanced = createSourceNativeProductMcpHandler(product, { profile: 'advanced' });
+  const construction = createSourceNativeProductMcpHandler({ ...product,
+    kind: 'OpenOntologySourceNativeConstructionProductV1' }, { profile: 'advanced' });
+  const queries = [ordinary.tools[0].inputSchema, advanced.tools[0].inputSchema,
+    construction.tools[0].inputSchema.oneOf[0]];
+  for (const schema of queries) {
+    assert.deepEqual(schema.required, ['question']);
+    assert.equal(schema.additionalProperties, false);
+    assert.deepEqual(Object.keys(schema.properties).sort(), ['anchorValue', 'at', 'intent', 'question', 'scope']);
+    for (const property of Object.values(schema.properties)) assert.equal(typeof property.description, 'string');
+    assert.match(schema.properties.at.description, /cannot.*anchorValue.*next/u);
+    assert.match(schema.properties.anchorValue.description, /field value.*not an object ID/u);
+    assert.match(schema.properties.scope.description, /omit.*unknown/iu);
+    assert.match(schema.properties.scope.properties.sourceSystem.description, /case-sensitive/u);
+    assert.match(schema.properties.scope.properties.field.description, /fieldPath/u);
+  }
+  assert.match(ordinary.tools[0].description, /only question/u);
+  assert.match(construction.tools[0].description, /not both/u);
+  const termSchema = construction.tools[0].inputSchema.oneOf[1];
+  assert.deepEqual(termSchema.required, ['term']);
+  assert.match(termSchema.properties.scope.description, /omit.*unknown/iu);
+  const request = args => ordinary.handle({ jsonrpc: '2.0', id: 1,
+    method: 'tools/call', params: { name: 'verify', arguments: args } });
+  const result = await request({ question: 'What is the current title of task-1?' });
+  assert.notEqual(result.result.isError, true);
+  assert.deepEqual(calls, [{ question: 'What is the current title of task-1?', intent: 'current', anchorValue: null, typedQuery: null }]);
+  for (const args of [
+    { question: 'What is the title?', at: '2026-01-01T00:00:00.000Z', anchorValue: 'Alpha' },
+    { question: 'What is the title?', at: '2026-01-01T00:00:00.000Z', intent: 'next' },
+    { question: 'What is the title?', typedQuery: {} },
+  ]) {
+    const invalid = await request(args);
+    assert.equal(invalid.result.isError, true);
+    assert.equal(invalid.result.content[0].text, 'SOURCE_NATIVE_PRODUCT_QUERY');
+  }
+  assert.equal(calls.length, 1);
+});
 
 function buildInput() {
   const revisions = [

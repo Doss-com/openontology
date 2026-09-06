@@ -218,6 +218,17 @@ Advanced MCP exposes exactly `search` and `read`:
 oont serve ./verified-context --mcp --advanced
 ```
 
+Start a verification call with only `question`:
+
+```json
+{ "question": "What is the current title of task-1?" }
+```
+
+Optional selectors narrow the request; they are not fields to fill by guessing.
+Use `scope` only with exact declared source-system, object-type and field names.
+If a result returns `availableFields`, it lists those names for the bound Ont.
+A scope mismatch is not proof that the object is absent.
+
 Run `npx oont --help` for the command list and
 `npx oont <command> --help` for command-specific options. The private research
 compiler and its customer-specific compatibility commands are intentionally
@@ -241,7 +252,9 @@ oont verify ./verified-context \
   --field title
 ```
 
-Scope narrows authority. It cannot make missing proof answerable.
+Scope narrows authority. It cannot make missing proof answerable. Its names are
+case-sensitive, so `clickup` and `ClickUp` are not interchangeable. Omit scope
+when you do not know the declared profile.
 
 ### Declared titles
 
@@ -287,11 +300,17 @@ await ont.verify({
 })
 ```
 
-The CLI takes the same timestamp with `--at`; MCP takes `at` on `verify` or
-advanced `search`. Use an exact UTC ISO timestamp with milliseconds. Do not
+The CLI takes the same timestamp with `--at`; MCP takes `at` on `verify` or the
+ordinary-question form of advanced `search`. Use an exact UTC ISO timestamp with milliseconds. Do not
 combine it with `intent: next` or an anchor value.
 
-This selects what was valid at that instant within the bound source snapshot,
+For `intent: next`, optional `anchorValue` is the previous recorded field value,
+such as `Prepare launch`, not the object's ID. It can be omitted when that
+value is already in the question. Current queries ignore `anchorValue`.
+Omit both temporal selectors for an ordinary
+current-value query; never substitute an invented timestamp.
+
+An `at` query selects what was valid at that instant within the bound source snapshot,
 including later-learned corrections. It does not reconstruct what was known
 then. Missing `validAt` falls back to the source observation time. Requests
 beyond the snapshot's observation horizon, before the first valid value, or
