@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import childProcess from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import test from 'node:test';
 import {
   normalizeCanonicalObjectBackendUri,
@@ -87,15 +90,56 @@ test('gs URI preserves a scoped prefix and accepts a renewable token provider', 
 });
 
 test('gs URI accepts a programmatic request observer and rejects non-callback configuration', () => {
-  const observeRequest = () => {};
-  const selected = openCanonicalObjectBackend({
-    uri: 'gs://customer-ontology',
-    env: {
-      OONT_GCS_ACCESS_TOKEN: 'fixture-token',
-      OONT_GCS_REQUEST_OBSERVER: observeRequest,
-    },
-  });
-  assert.equal(selected.capabilities.backend, 'gcs');
+  const observations = [];
+  const curlCalls = [];
+  const originalSpawnSync = childProcess.spawnSync;
+  childProcess.spawnSync = (_command, args) => {
+    curlCalls.push(args);
+    const headersPath = args[args.indexOf('--dump-header') + 1];
+    const responsePath = args[args.indexOf('--output') + 1];
+    writeFileSync(headersPath, 'HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\n\r\n');
+    writeFileSync(responsePath, '{}');
+    return { status: 0, stdout: '404', stderr: '' };
+  };
+  syncBuiltinESMExports();
+  try {
+    const selected = openCanonicalObjectBackend({
+      uri: 'gs://customer-ontology/tenant-a/ont-a',
+      env: {
+        OONT_GCS_ACCESS_TOKEN: 'fixture-token',
+        OONT_GCS_REQUEST_OBSERVER: (observation) => observations.push(observation),
+      },
+    });
+    assert.equal(selected.capabilities.backend, 'gcs');
+    assert.equal(selected.backend.head('refs/main'), null);
+  } finally {
+    childProcess.spawnSync = originalSpawnSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(curlCalls.length, 1);
+  assert.equal(curlCalls[0][curlCalls[0].indexOf('--request') + 1], 'GET');
+  assert.deepEqual(observations.map(({ operationClass, method, attempt, status, requestBodyBytes, responseBodyBytes,
+    bucket, prefix, failureClass }) => ({
+    operationClass,
+    method,
+    attempt,
+    status,
+    requestBodyBytes,
+    responseBodyBytes,
+    bucket,
+    prefix,
+    failureClass,
+  })), [{
+    operationClass: 'object-metadata',
+    method: 'GET',
+    attempt: 1,
+    status: 404,
+    requestBodyBytes: 0,
+    responseBodyBytes: 2,
+    bucket: 'customer-ontology',
+    prefix: 'tenant-a/ont-a',
+    failureClass: null,
+  }]);
   assert.throws(() => openCanonicalObjectBackend({
     uri: 'gs://customer-ontology',
     env: {

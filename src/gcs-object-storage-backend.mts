@@ -54,6 +54,11 @@ export interface GcsRequestObservation {
 
 export type GcsRequestObserver = (observation: Readonly<GcsRequestObservation>) => void;
 
+type GcsRequestObservationFields = Omit<
+  GcsRequestObservation,
+  'schemaVersion' | 'kind' | 'bucket' | 'prefix'
+>;
+
 export interface GcsObjectBackendOptions {
   bucket?: string;
   prefix?: string | null;
@@ -302,39 +307,14 @@ export function openGcsObjectBackend({
     const elapsed = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   };
-  const observe = ({
-    operationClass,
-    method,
-    attempt,
-    status,
-    requestBodyBytes,
-    responseBodyBytes,
-    elapsedMs,
-    failureClass,
-  }: {
-    operationClass: GcsRequestOperationClass;
-    method: string;
-    attempt: number;
-    status: number | null;
-    requestBodyBytes: number;
-    responseBodyBytes: number | null;
-    elapsedMs: number;
-    failureClass: GcsRequestFailureClass | null;
-  }): void => {
+  const observe = (fields: GcsRequestObservationFields): void => {
     if (observeRequest === null) return;
     const observation = Object.freeze({
       schemaVersion: 1 as const,
       kind: 'OpenOntologyGcsRequestObservationV1' as const,
-      operationClass,
-      method,
-      attempt,
-      status,
-      requestBodyBytes,
-      responseBodyBytes,
-      elapsedTransportMs: elapsedMs,
+      ...fields,
       bucket: configuredBucket,
       prefix,
-      failureClass,
     });
     try {
       observeRequest(observation);
@@ -353,11 +333,12 @@ export function openGcsObjectBackend({
     body?: Buffer;
   }): GcsTransportResponse => {
     for (let attempt = 1; attempt <= maximumReadAttempts; attempt += 1) {
-      const startedAt = process.hrtime.bigint();
       let transportInvoked = false;
+      let startedAt: bigint | null = null;
       let response: GcsTransportResponse;
       try {
         const authorization = `Bearer ${token()}`;
+        startedAt = observeRequest === null ? null : process.hrtime.bigint();
         transportInvoked = true;
         response = transport({
           method,
@@ -367,7 +348,7 @@ export function openGcsObjectBackend({
           curlPath,
         });
       } catch (error) {
-        if (transportInvoked) {
+        if (transportInvoked && startedAt !== null) {
           observe({
             operationClass,
             method,
@@ -375,7 +356,7 @@ export function openGcsObjectBackend({
             status: null,
             requestBodyBytes: body.length,
             responseBodyBytes: null,
-            elapsedMs: elapsedTransportMs(startedAt),
+            elapsedTransportMs: elapsedTransportMs(startedAt),
             failureClass: 'transport',
           });
         }
@@ -388,28 +369,32 @@ export function openGcsObjectBackend({
       }
       if (!response || !Number.isInteger(response.status) || !response.headers
         || !Buffer.isBuffer(response.body)) {
+        if (startedAt !== null) {
+          observe({
+            operationClass,
+            method,
+            attempt,
+            status: safeStatus(response?.status),
+            requestBodyBytes: body.length,
+            responseBodyBytes: safeBodyBytes(response?.body),
+            elapsedTransportMs: elapsedTransportMs(startedAt),
+            failureClass: 'malformed-response',
+          });
+        }
+        fail('OBJECT_BACKEND_GCS_RESPONSE');
+      }
+      if (startedAt !== null) {
         observe({
           operationClass,
           method,
           attempt,
-          status: safeStatus(response?.status),
+          status: safeStatus(response.status),
           requestBodyBytes: body.length,
-          responseBodyBytes: safeBodyBytes(response?.body),
-          elapsedMs: elapsedTransportMs(startedAt),
-          failureClass: 'malformed-response',
+          responseBodyBytes: response.body.length,
+          elapsedTransportMs: elapsedTransportMs(startedAt),
+          failureClass: null,
         });
-        fail('OBJECT_BACKEND_GCS_RESPONSE');
       }
-      observe({
-        operationClass,
-        method,
-        attempt,
-        status: safeStatus(response.status),
-        requestBodyBytes: body.length,
-        responseBodyBytes: response.body.length,
-        elapsedMs: elapsedTransportMs(startedAt),
-        failureClass: null,
-      });
       if (method === 'GET' && RETRYABLE_READ_STATUS.has(response.status)
         && attempt < maximumReadAttempts) {
         retryDelay(attempt);

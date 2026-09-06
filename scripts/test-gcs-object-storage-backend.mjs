@@ -456,6 +456,49 @@ test('GCS retries only bounded reads and reacquires renewable credentials', () =
   assert.equal(writeCalls, 1);
 });
 
+test('GCS elapsed transport time excludes token refresh and retry backoff', () => {
+  const fixture = gcsFixtureTransport();
+  const observations = [];
+  const originalHrtimeBigint = process.hrtime.bigint;
+  let clock = 0n;
+  let transientStatuses = 1;
+  let tokenCalls = 0;
+  process.hrtime.bigint = () => clock;
+  try {
+    const backend = openGcsObjectBackend({
+      bucket: 'valid-bucket',
+      accessTokenProvider: () => {
+        tokenCalls += 1;
+        clock += 100_000_000n;
+        return `fixture-token-${tokenCalls}`;
+      },
+      transport: (request) => {
+        clock += request.headers.range ? 7_000_000n : 5_000_000n;
+        if (request.method === 'GET' && transientStatuses > 0) {
+          transientStatuses -= 1;
+          return { status: 503, headers: {}, body: Buffer.from('busy') };
+        }
+        return fixture.transport(request);
+      },
+      maximumReadAttempts: 2,
+      retryDelay: () => { clock += 200_000_000n; },
+      observeRequest: (observation) => observations.push(observation),
+    });
+    assert.equal(backend.ensureBucket().available, true);
+  } finally {
+    process.hrtime.bigint = originalHrtimeBigint;
+  }
+  assert.deepEqual(observations.map(({ attempt, status, elapsedTransportMs }) => ({
+    attempt,
+    status,
+    elapsedTransportMs,
+  })), [
+    { attempt: 1, status: 503, elapsedTransportMs: 5 },
+    { attempt: 2, status: 200, elapsedTransportMs: 5 },
+  ]);
+  assert.equal(tokenCalls, 2);
+});
+
 test('GCS observations retain retry, transport, and malformed-response classifications', () => {
   const retryFixture = gcsFixtureTransport();
   const retryObservations = [];
