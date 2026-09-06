@@ -583,6 +583,24 @@ test('readSnapshot uses the blob identity for malformed records without exposing
   assert.deepEqual(snapshot.ledger.activeRecords, [original]);
 });
 
+test('malformed core hash cannot overwrite a valid record disposition', (t) => {
+  const f = fixture(t);
+  const original = f.admit();
+  f.write(original);
+  const { recordSha256: _recordSha256, ...malformedCore } = original;
+  const malformedBlob = f.plant(malformedCore, `${prefix}malformed-core.json`);
+  assert.equal(malformedBlob.storedSha256, original.recordSha256);
+  const snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  assert.equal(snapshot.records.length, 2);
+  const valid = snapshot.records.find((record) => record.recordSha256 === original.recordSha256);
+  assert.equal(valid?.state, 'active');
+  const malformed = snapshot.records.find((record) => record.blobSha256 === malformedBlob.storedSha256
+    && record.recordSha256 === null);
+  assert.equal(malformed?.state, 'invalid');
+  assert(malformed?.reasonCodes.length > 0);
+  assert.deepEqual(snapshot.ledger.activeRecords, [original]);
+});
+
 test('reader diagnostics normalize arbitrary backend codes in record and history failures', (t) => {
   const f = fixture(t);
   f.write(f.admit());
