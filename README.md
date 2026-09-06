@@ -257,7 +257,10 @@ oont verify ./verified-context \
 
 Scope narrows authority. It cannot make missing proof answerable. Its names are
 case-sensitive, so `clickup` and `ClickUp` are not interchangeable. Omit scope
-when you do not know the declared profile.
+when you do not know the declared profile. If the question names a native object
+ID, it must agree with `scope.externalId`; a different known ID returns
+`unavailable-native-multiple-object-identifiers` with no context. This identity
+check does not resolve disagreements about the requested field or type.
 
 An opaque ID alone may not identify an object type. If your Adapter declares
 `task` objects with IDs such as `W-17`, ask for "the current title of task W-17"

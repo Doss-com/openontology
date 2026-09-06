@@ -310,9 +310,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     plannerSchemaSha256 = stableObjectSha256(querySchemas);
   }
   if (query !== null) {
-    const mention = query.externalId === undefined || declaredTitle.normalizedTitle !== null
-      ? mentionedExternalId(scanQuestion, map, namespace, query)
-      : { value: query.externalId, candidates: [], unresolvedExternalIds: [] };
+    const mention = mentionedExternalId(scanQuestion, map, namespace, query);
     const externalId = query.externalId ?? mention.value;
     mentionedExternalIds = mention.candidates;
     unresolvedExternalIds = mention.unresolvedExternalIds;
@@ -320,6 +318,10 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
       state = 'unavailable-native-object-identifier-not-declared';
       query = null;
     } else if (mention.value === EXTERNAL_ID_MULTIPLE) {
+      state = 'unavailable-native-multiple-object-identifiers';
+      query = null;
+    } else if (query.externalId !== undefined && typeof mention.value === 'string'
+      && mention.value !== query.externalId) {
       state = 'unavailable-native-multiple-object-identifiers';
       query = null;
     } else {
@@ -362,7 +364,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     query = anchor.query;
   }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v3-declared-title-v1', namespace, querySchemas,
+    adapter: 'source-native-product-query-v4-declared-title-id-agreement-v1', namespace, querySchemas,
   });
   const core = {
     schema: 1,
@@ -400,7 +402,7 @@ export function queryPlanner({ namespace, plan }: {
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v3-declared-title-v1',
+    adapter: 'source-native-product-query-v4-declared-title-id-agreement-v1',
     namespace,
     plannerSha256,
     modelCalls: 0,

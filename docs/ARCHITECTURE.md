@@ -82,7 +82,9 @@ assertions about the name at a requested time. Existing chronology, semantic
 proof, Admission and exact reads still apply. The changed planner identity
 changes query-plan hashes; prior-plan Admissions are not silently reused under
 the new planner. Their signed bytes remain history and ordinary verification
-remains available.
+remains available. A structured `externalId` narrows the question but cannot
+override a different explicit native ID in the question; that conflict refuses
+with no Evidence. Field or object-type disagreements remain separate concerns.
 
 Seed-search Adapters may declare up to 1,000 logical network operations per
 search, with zero model calls. Hosted receipts must report actual operations

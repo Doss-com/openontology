@@ -28,12 +28,12 @@ const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$
 
 const SCOPE_SCHEMA = Object.freeze({
   type: 'object',
-  description: 'Optional exact source profile. Omit scope when its names are unknown; use the question or returned availableFields to identify the declared profile.',
+  description: 'Optional exact source profile. Omit scope when its names are unknown; use the question or returned availableFields to identify the declared profile. If the question names a native object ID, it must agree with externalId.',
   required: ['sourceSystem', 'objectType', 'field'],
   properties: {
     sourceSystem: { type: 'string', minLength: 1, description: 'Exact, case-sensitive sourceSystem from the declared profile or availableFields. Do not infer it from the object type.' },
     objectType: { type: 'string', minLength: 1, description: 'Exact, case-sensitive objectType from the declared profile or availableFields.' },
-    externalId: { type: 'string', minLength: 1, description: 'Optional source-native object ID. Omit when the question identifies the object by a supported name.' },
+    externalId: { type: 'string', minLength: 1, description: 'Optional source-native object ID. Omit when the question identifies the object by a supported name. A different explicit ID in the question is refused.' },
     field: { type: 'string', minLength: 1, description: 'Exact fieldPath from the declared profile or availableFields.' },
   },
   additionalProperties: false,

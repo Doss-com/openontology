@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 17965,
-      "sha256": "d110fdb15105d53ef4dbf00b491ceafe5ee1848bd92f4c86fb61fc85188209ae"
+      "bytes": 18227,
+      "sha256": "2837b58d0dcdd87697b42ddf2b74caa644e8f54e9b21b811b2c3814eaf573380"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 30078,
-      "sha256": "0cf4b9932baac02db4d54e6085045be6070b25ba2e3c136b851e45c653f03698"
+      "bytes": 30294,
+      "sha256": "cf1bff3ee3911e13e329f416f10f9c34283d61b75320dc296442e0e77f6da3d0"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -342,8 +342,8 @@
     },
     {
       "path": "scripts/test-source-native-title-query.mjs",
-      "bytes": 13704,
-      "sha256": "5558b898010bcc981bc47c13c30c5459aa86bd8907e93194527a82e152e78fa2"
+      "bytes": 18307,
+      "sha256": "b4add4fb66caf6f4672bff31cb3266b967e2111f90b99ba37e2e43f304516234"
     },
     {
       "path": "scripts/update-source-manifest.mjs",
@@ -502,8 +502,8 @@
     },
     {
       "path": "src/source-native-product-mcp.mts",
-      "bytes": 16883,
-      "sha256": "4e308d6cd488a6934e800d52f34667cff9ae2a4d6ad90c6f702a46da71d49cef"
+      "bytes": 17008,
+      "sha256": "bedbb8a6dabf4d902e444d047b93afff1f7c9f0440435f85db35fd705dc65738"
     },
     {
       "path": "src/source-native-product.mts",
@@ -512,8 +512,8 @@
     },
     {
       "path": "src/source-native-query-plan.mts",
-      "bytes": 18672,
-      "sha256": "bbae25681209aca4dd398120ee116e8607a986aac870c97edc6cab3f69182b5a"
+      "bytes": 18752,
+      "sha256": "e818cf53058fedeb83cffcacaa15d9095301c59fe84b727747165049d97e5e01"
     },
     {
       "path": "src/source-native-query-planner.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:1525138b44f2e3ad0b845900477a95e83e5189a4646e420b172b1cc352877c7f"
+  "manifestSha256": "sha256:98492fa0c39519d042621cd0e1853974ad5f5e8ad053d4b9ccdc76b5f1b92af5"
 }

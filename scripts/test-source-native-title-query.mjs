@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 
 import { openOntology } from '../dist/src/openontology.mjs';
-import { buildSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+import { buildSourceNativeProduct, openSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+import { createSourceNativeProductMcpHandler } from '../dist/src/source-native-product-mcp.mjs';
+
+const publicCli = resolve(import.meta.dirname, '..', 'dist', 'bin', 'oont.mjs');
 
 function sourceRow({ relativePath, occurredAt, externalId, title, status, body = '', includeTitle = true }) {
   const content = `Title: ${title}\nStatus: ${status}. ${body}`;
@@ -79,7 +83,7 @@ async function withProduct(input, callback) {
   const artifactRoot = mkdtempSync(join(tmpdir(), 'oont-title-binding-case-'));
   try {
     buildSourceNativeProduct({ artifactRoot, input });
-    return await callback(openOntology({ artifactRoot }));
+    return await callback(openOntology({ artifactRoot }), artifactRoot);
   } finally {
     rmSync(artifactRoot, { recursive: true, force: true });
   }
@@ -215,7 +219,7 @@ test('requires complete declared title coverage before name binding', async () =
 });
 
 test('keeps identity and namespace qualifiers coherent with a title', async () => {
-  await withProduct(buildInput(), async (product) => {
+  await withProduct(buildInput(), async (product, artifactRoot) => {
     const mismatchedId = await product.verify(
       'What is the current status of task-2 titled "Quarterly status review"?',
     );
@@ -249,6 +253,87 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
     });
     assert.equal(typedKnownConflict.state, 'unavailable-native-multiple-object-identifiers');
     assert.equal(typedKnownConflict.answerable, false);
+
+    const typedKnownConflictWithoutTitle = await product.verify({
+      question: 'What is the current status of task-2?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(typedKnownConflictWithoutTitle.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(typedKnownConflictWithoutTitle.answerable, false);
+    assert.deepEqual(typedKnownConflictWithoutTitle.context, []);
+    assert.equal(typedKnownConflictWithoutTitle.verification.absenceReceipt, null);
+
+    const typedUnknownConflictWithoutTitle = await product.verify({
+      question: 'What is the current status of task-999?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(typedUnknownConflictWithoutTitle.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(typedUnknownConflictWithoutTitle.answerable, false);
+    assert.deepEqual(typedUnknownConflictWithoutTitle.context, []);
+
+    const typedMultipleConflictWithoutTitle = await product.verify({
+      question: 'What is the current status of task-1 and task-2?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(typedMultipleConflictWithoutTitle.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(typedMultipleConflictWithoutTitle.answerable, false);
+    assert.deepEqual(typedMultipleConflictWithoutTitle.context, []);
+    assert.deepEqual(typedMultipleConflictWithoutTitle.mentionedExternalIds, ['task-1', 'task-2']);
+
+    const typedHistoricalConflict = await product.verify({
+      question: 'What was the status of task-2?',
+      at: '2026-01-15T00:00:00.000Z',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+    });
+    assert.equal(typedHistoricalConflict.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(typedHistoricalConflict.answerable, false);
+    assert.deepEqual(typedHistoricalConflict.context, []);
+
+    const mcp = createSourceNativeProductMcpHandler(openSourceNativeProduct({ artifactRoot }));
+    const mcpResponse = await mcp.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'verify',
+        arguments: {
+          question: 'What is the current status of task-2?',
+          scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+        },
+      },
+    });
+    assert.equal(mcpResponse.result.isError, undefined);
+    const mcpConflict = JSON.parse(mcpResponse.result.content[0].text);
+    assert.equal(mcpConflict.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(mcpConflict.answerable, false);
+    assert.deepEqual(mcpConflict.context, []);
+
+    const cliConflict = spawnSync(process.execPath, [
+      publicCli, 'verify', artifactRoot, 'What is the current status of task-2?',
+      '--source-system', 'clickup', '--object-type', 'task', '--external-id', 'task-1',
+      '--field', 'status',
+    ], { encoding: 'utf8' });
+    assert.equal(cliConflict.status, 0, cliConflict.stderr);
+    const cliConflictResult = JSON.parse(cliConflict.stdout);
+    assert.equal(cliConflictResult.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(cliConflictResult.answerable, false);
+    assert.deepEqual(cliConflictResult.context, []);
+
+    const overlappingId = sourceRow({
+      relativePath: 'clickup/acme/task-10.md',
+      occurredAt: '2026-02-03T00:00:00.000Z',
+      externalId: 'task-10', title: 'Long identifier', status: 'Ready',
+    });
+    await withProduct(buildInput({ extraRows: [overlappingId] }), async (overlapProduct) => {
+      const overlapConflict = await overlapProduct.verify({
+        question: 'What is the current status of task-10?',
+        scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+      });
+      assert.equal(overlapConflict.state, 'unavailable-native-multiple-object-identifiers');
+      assert.equal(overlapConflict.answerable, false);
+      assert.deepEqual(overlapConflict.context, []);
+      assert.deepEqual(overlapConflict.mentionedExternalIds, ['task-10']);
+    });
 
     const typedUnknownConflict = await product.verify({
       question: 'What is the current status of task-999 titled "Quarterly status review"?',
