@@ -14,7 +14,8 @@ const prefix = 'blobs/knowledge-ledger/construction/';
 const signature = (statement, key) => sign(null, Buffer.from(kernel.stableObjectText(statement)), key).toString('base64');
 const pageBytes = 256 * 1024;
 
-function fixture(t, { names = ['AllocationException', 'DocumentedTask'], protectedHistory = false, extraText = '' } = {}) {
+function fixture(t, { names = ['AllocationException', 'DocumentedTask'], protectedHistory = false,
+  extraText = '', longExternalId = null } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'oont-ont-explorer-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const options = { artifactRoot: join(root, 'ont') };
@@ -39,7 +40,8 @@ function fixture(t, { names = ['AllocationException', 'DocumentedTask'], protect
     nativeObjectInputs: sources.map((source, index) => ({ relativePath: source.relativePath,
       objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: source.sourceType,
         objectType: index === 0 ? 'Document' : 'ClickupTask', namespace: 'example',
-        externalId: index === 0 ? 'guide' : `CT-${16 + index}` },
+        externalId: longExternalId !== null && index === 1 ? longExternalId
+          : index === 0 ? 'guide' : `CT-${16 + index}` },
       fields: [{ fieldPath: 'body', value: source.content }] })),
   };
   kernel.buildSourceNativeProduct({ ...options, objectBackendUri, input,
@@ -281,7 +283,24 @@ test('boundary-sized valid metadata pages include cursor overhead in their byte 
     (cursor) => explorer.nodes({ limit: 64, cursor }), 'nodes');
   assert(pages.pages.every((page) => jsonBytes(page) <= pageBytes));
   assert(pages.items.length === pages.first.totalCount);
-  assert(pages.pages.some((page) => page.returnedCount < 64));
+  assert.equal(new Set(pages.items.map((node) => node.id)).size, pages.items.length);
+  assert(pages.pages.some((page) => page.nextCursor !== null && page.returnedCount < 64));
+});
+
+test('a valid oversized native identity refuses as one item without an empty cursor page', (t) => {
+  const longExternalId = `oversized-${'x'.repeat(300_000)}`;
+  const f = fixture(t, { longExternalId });
+  const explorer = f.open();
+  assert.equal(explorer.status().state, 'ready');
+  const nativeObject = f.state.objectOnt.map.nativeObjects.find((object) =>
+    object.objectIdentity.externalId === longExternalId);
+  assert(nativeObject);
+  const nodeId = `native-object:${kernel.stableObjectSha256({
+    sourceCommitSha256: f.state.objectOnt.commitSha256,
+    nativeObjectSha256: nativeObject.nativeObjectSha256,
+  })}`;
+  assert.throws(() => explorer.nodes({ ids: [nodeId], limit: 64 }),
+    { code: 'SOURCE_NATIVE_EXPLORER_ITEM_BYTES' });
 });
 
 test('records retain conflict, correction and ineligible states without entering current graph', (t) => {
