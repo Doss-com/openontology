@@ -1,7 +1,15 @@
 /** Signed, cold-replayable semantic proof reuse over exact source-native Corpus bytes. */
-import { createPublicKey, verify as verifySignature } from 'node:crypto';
-
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
+import {
+  admissionTrustRegistry,
+  authenticateAdmissionSignatures,
+  canonicalAdmissionSignature,
+} from './admission-authentication.mjs';
+import type {
+  SourceNativeAdmissionTrustEntry,
+  SourceNativeAdmissionTrustRole,
+  TrustedAdmissionKey,
+} from './admission-authentication.mjs';
 import { openProductState } from './source-native-artifact.mjs';
 import type { RefReadResult } from './object-ont-store.mjs';
 import {
@@ -122,13 +130,10 @@ export interface SourceNativeAdmissionRecord {
   recordSha256: string;
 }
 
-export interface SourceNativeAdmissionTrustEntry {
-  issuerId: string;
-  publicKeyPem: string;
-  roles: readonly SourceNativeAdmissionTrustRole[];
-}
-
-export type SourceNativeAdmissionTrustRole = 'proposer' | 'reviewer';
+export type {
+  SourceNativeAdmissionTrustEntry,
+  SourceNativeAdmissionTrustRole,
+} from './admission-authentication.mjs';
 
 export interface CompileSourceNativeAdmittedKnowledgeBundleInput extends UnknownRecord {
   proposedBy?: unknown;
@@ -307,10 +312,6 @@ type PlainRecord = Record<string, unknown>;
 type SourceNativeBindingContext = Pick<SourceNativeProductRuntimeContext,
   'descriptor' | 'objectOnt'>;
 type SourceNativeBoundSource = SourceNativeBindingContext['objectOnt']['sources'][number];
-interface TrustedAdmissionKey {
-  key: ReturnType<typeof createPublicKey>;
-  roles: ReadonlySet<SourceNativeAdmissionTrustRole>;
-}
 type RequiredProofRole = 'support' | 'invalidator';
 interface SourceNativeAdmittedProofUnit {
   role: SourceNativeAdmittedProofContext['role'];
@@ -319,7 +320,6 @@ interface SourceNativeAdmittedProofUnit {
 }
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 const KNOWLEDGE_PREFIX = 'blobs/knowledge-ledger/admitted/';
 const DEFAULT_KNOWLEDGE_BRANCH_PREFIX = 'knowledge';
 const MAX_ADMITTED_CONTEXT_ENCODED_EVIDENCE_BYTES =
@@ -730,16 +730,6 @@ function validateAdmissionStatement(value: unknown,
   return expected;
 }
 
-function canonicalSignature(value: unknown): string {
-  const signature = typeof value === 'string' && value.length > 0 && BASE64.test(value)
-    ? value : fail('SOURCE_NATIVE_ADMISSION_SIGNATURE');
-  const bytes = Buffer.from(signature, 'base64');
-  if (bytes.length !== 64 || bytes.toString('base64') !== signature) {
-    fail('SOURCE_NATIVE_ADMISSION_SIGNATURE');
-  }
-  return signature;
-}
-
 export function compileSourceNativeAdmissionRecord({
   bundle: bundleInput,
   proposalStatement: proposalStatementInput,
@@ -755,9 +745,9 @@ export function compileSourceNativeAdmissionRecord({
 } = {}): SourceNativeAdmissionRecord {
   const bundle = validateSourceNativeAdmittedKnowledgeBundle(bundleInput);
   const proposalStatement = validateProposalStatement(proposalStatementInput, bundle);
-  const proposalSignature = canonicalSignature(proposalSignatureBase64);
+  const proposalSignature = canonicalAdmissionSignature(proposalSignatureBase64);
   const statement = validateAdmissionStatement(statementInput, bundle);
-  const signature = canonicalSignature(signatureBase64);
+  const signature = canonicalAdmissionSignature(signatureBase64);
   const core = {
     schemaVersion: 1 as const,
     kind: 'OpenOntologySourceNativeAdmissionRecordV1' as const,
@@ -785,61 +775,17 @@ function validateSourceNativeAdmissionRecord(value: unknown): SourceNativeAdmiss
   return expected;
 }
 
-function trustRegistry(value: unknown): Map<string, TrustedAdmissionKey> {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 128) {
-    fail('SOURCE_NATIVE_ADMISSION_TRUST');
-  }
-  const entries: unknown[] = Array.isArray(value) ? value : fail('SOURCE_NATIVE_ADMISSION_TRUST');
-  const registry = new Map<string, TrustedAdmissionKey>();
-  for (const entryInput of entries) {
-    const entry = plain(entryInput) ? entryInput : fail('SOURCE_NATIVE_ADMISSION_TRUST');
-    exactKeys(entry, ['issuerId', 'publicKeyPem', 'roles'], 'SOURCE_NATIVE_ADMISSION_TRUST');
-    const issuerId = nonempty(entry.issuerId, 'SOURCE_NATIVE_ADMISSION_TRUST');
-    const publicKeyPem = nonempty(entry.publicKeyPem, 'SOURCE_NATIVE_ADMISSION_TRUST');
-    const roleRows: unknown[] = Array.isArray(entry.roles)
-      ? entry.roles : fail('SOURCE_NATIVE_ADMISSION_TRUST');
-    const roles = roleRows.map((role): SourceNativeAdmissionTrustRole =>
-      role === 'proposer' || role === 'reviewer'
-        ? role : fail('SOURCE_NATIVE_ADMISSION_TRUST')).sort(compare);
-    const key: ReturnType<typeof createPublicKey> = (() => {
-      try { return createPublicKey(publicKeyPem); } catch {
-        return fail('SOURCE_NATIVE_ADMISSION_TRUST');
-      }
-    })();
-    if (key.asymmetricKeyType !== 'ed25519' || registry.has(issuerId)
-      || roles.length < 1 || new Set(roles).size !== roles.length) {
-      fail('SOURCE_NATIVE_ADMISSION_TRUST');
-    }
-    registry.set(issuerId, { key, roles: new Set(roles) });
-  }
-  return registry;
-}
-
 function authenticateRecord(value: unknown,
   registry: Map<string, TrustedAdmissionKey>): SourceNativeAdmissionRecord {
   const record = validateSourceNativeAdmissionRecord(value);
-  const proposer = registry.get(record.proposalStatement.proposerId);
-  const reviewer = registry.get(record.statement.issuerId);
-  const proposerKey = proposer?.key;
-  const reviewerKey = reviewer?.key;
-  const sameKey = proposerKey !== undefined && reviewerKey !== undefined
-    && Buffer.from(proposerKey.export({ type: 'spki', format: 'der' }))
-      .equals(Buffer.from(reviewerKey.export({ type: 'spki', format: 'der' })));
-  if (proposerKey === undefined || reviewerKey === undefined
-    || proposer?.roles.has('proposer') !== true
-    || reviewer?.roles.has('reviewer') !== true || sameKey
-    || !verifySignature(
-      null,
-      Buffer.from(stableObjectText(record.proposalStatement)),
-      proposerKey,
-      Buffer.from(record.proposalSignatureBase64, 'base64'),
-    )
-    || !verifySignature(
-    null,
-    Buffer.from(stableObjectText(record.statement)),
-    reviewerKey,
-    Buffer.from(record.signatureBase64, 'base64'),
-  )) fail('SOURCE_NATIVE_ADMISSION_AUTHENTICATION');
+  authenticateAdmissionSignatures({
+    proposerId: record.proposalStatement.proposerId,
+    issuerId: record.statement.issuerId,
+    proposalStatement: record.proposalStatement,
+    statement: record.statement,
+    proposalSignatureBase64: record.proposalSignatureBase64,
+    signatureBase64: record.signatureBase64,
+  }, registry);
   return record;
 }
 
@@ -1092,7 +1038,7 @@ export function writeSourceNativeAdmittedKnowledge({
   trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
   knowledgeBranch?: string;
 }): SourceNativeAdmittedKnowledgeWriteResult {
-  const registry = trustRegistry(trustInput);
+  const registry = admissionTrustRegistry(trustInput);
   const record = authenticateRecord(recordInput, registry);
   const state = openProductState(options);
   const context = {
@@ -1686,7 +1632,7 @@ export function openSourceNativeProductWithAdmittedKnowledge(
     ?? fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_RUNTIME');
   const knowledgeBranch = knowledgeBranchFor(exactContext.objectOnt.commitSha256,
     knowledgeBranchInput);
-  const registry = trustRegistry(trustInput);
+  const registry = admissionTrustRegistry(trustInput);
   let reader = openReader(exactContext, registry, knowledgeBranch);
   return freeze({
     ...product,
