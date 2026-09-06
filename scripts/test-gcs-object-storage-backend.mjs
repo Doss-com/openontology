@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { encodeEntry, entry as makeEntry } from '../dist/src/assertion-envelope.mjs';
 import { openGcsObjectBackend } from '../dist/src/gcs-object-storage-backend.mjs';
@@ -628,6 +629,45 @@ test('GCS observer failures do not alter outcomes or repeat the diagnostic', () 
   }
   assert.equal(observerCalls, 2);
   assert.deepEqual(diagnostics, ['OpenOntology GCS request observer failed; accounting incomplete\n']);
+});
+
+test('GCS classifies transport parser failures without changing the original error', () => {
+  const expectedError = Object.assign(new Error('malformed provider response'), {
+    code: 'OBJECT_BACKEND_GCS_RESPONSE',
+  });
+  const observations = [];
+  const backend = openGcsObjectBackend({
+    bucket: 'valid-bucket', accessToken: 'fixture-token',
+    transport: () => { throw expectedError; },
+    observeRequest: (observation) => observations.push(observation),
+  });
+  assert.throws(() => backend.ensureBucket(), (error) => error === expectedError);
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].failureClass, 'malformed-response');
+  assert.equal(observations[0].responseBodyBytes, null);
+  assert.equal(observations[0].status, null);
+});
+
+test('GCS async observer rejection cannot terminate a committed writer or leak its error', () => {
+  const moduleUrl = new URL('../dist/src/gcs-object-storage-backend.mjs', import.meta.url).href;
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import { createHash } from 'node:crypto';
+    import { openGcsObjectBackend } from ${JSON.stringify(moduleUrl)};
+    const bytes = Buffer.from('committed');
+    const metadata = { bucket: 'valid-bucket', name: 'refs/main', generation: '1',
+      size: String(bytes.length), metadata: { 'oont-byte-length': String(bytes.length),
+        'oont-sha256': 'sha256:' + createHash('sha256').update(bytes).digest('hex') } };
+    const backend = openGcsObjectBackend({ bucket: 'valid-bucket', accessToken: 'fixture-token',
+      transport: () => ({ status: 200, headers: {}, body: Buffer.from(JSON.stringify(metadata)) }),
+      observeRequest: async () => { throw new Error('observer-secret-must-not-escape'); } });
+    const committed = backend.compareAndSwap('refs/main', { bytes });
+    const current = backend.head('refs/main');
+    await new Promise(resolve => setImmediate(resolve));
+    process.stdout.write(JSON.stringify({ committed: committed.version, current: current.version }));
+  `], { encoding: 'utf8', timeout: 10_000 });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), { committed: 'gcs-v1:1', current: 'gcs-v1:1' });
+  assert.equal(child.stderr, 'OpenOntology GCS request observer failed; accounting incomplete\n');
 });
 
 test('GCS carries a complete ObjectOnt commit, branch activation, and exact replay', () => {

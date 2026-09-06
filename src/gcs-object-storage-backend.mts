@@ -307,6 +307,11 @@ export function openGcsObjectBackend({
     const elapsed = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   };
+  const reportObserverFailure = (): void => {
+    if (observerFailureReported) return;
+    observerFailureReported = true;
+    try { process.stderr.write(OBSERVER_FAILURE_DIAGNOSTIC); } catch { /* diagnostic is best effort */ }
+  };
   const observe = (fields: GcsRequestObservationFields): void => {
     if (observeRequest === null) return;
     const observation = Object.freeze({
@@ -317,12 +322,13 @@ export function openGcsObjectBackend({
       prefix,
     });
     try {
-      observeRequest(observation);
-    } catch {
-      if (!observerFailureReported) {
-        observerFailureReported = true;
-        try { process.stderr.write(OBSERVER_FAILURE_DIAGNOSTIC); } catch { /* diagnostic is best effort */ }
+      const result: unknown = observeRequest(observation);
+      if (result !== null && (typeof result === 'object' || typeof result === 'function')
+        && 'then' in result && typeof result.then === 'function') {
+        void Promise.resolve(result).catch(reportObserverFailure);
       }
+    } catch {
+      reportObserverFailure();
     }
   };
   const call = ({ operationClass, method, url, headers = {}, body = Buffer.alloc(0) }: {
@@ -357,7 +363,8 @@ export function openGcsObjectBackend({
             requestBodyBytes: body.length,
             responseBodyBytes: null,
             elapsedTransportMs: elapsedTransportMs(startedAt),
-            failureClass: 'transport',
+            failureClass: error && typeof error === 'object' && 'code' in error
+              && error.code === 'OBJECT_BACKEND_GCS_RESPONSE' ? 'malformed-response' : 'transport',
           });
         }
         if (method !== 'GET' || !(error && typeof error === 'object' && 'code' in error
