@@ -1,4 +1,13 @@
 /** Bounded extension Interface for managed and research runtimes. */
+export { openSourceNativeConstructionReview } from './source-native-construction-review.mjs';
+export type {
+  SourceNativeConstructionReviewDecision,
+  SourceNativeConstructionReviewItem,
+  SourceNativeConstructionReviewPacket,
+  SourceNativeConstructionReviewResponse,
+  SourceNativeConstructionReviewSession,
+  SourceNativeConstructionSemanticReview,
+} from './source-native-construction-review.mjs';
 export { openSourceNativeProductWithConstruction } from './source-native-construction-navigation.mjs';
 export type {
   SourceNativeConstructionAttachmentRole,

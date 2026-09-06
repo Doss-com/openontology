@@ -207,6 +207,7 @@ openOntology();
   openSourceNativeProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
   openSourceNativeProductWithConstruction,
+  openSourceNativeConstructionReview,
   stableObjectSha256,
   type ExactSessionOptions,
   type OpenSourceNativeObjectOntOptions,
@@ -225,6 +226,7 @@ openOntology();
   type SourceNativeSemanticConstructionInput,
   type SourceNativeConstructionLedger,
   type SourceNativeConstructionProduct,
+  type SourceNativeConstructionReviewSession,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
@@ -278,6 +280,18 @@ const inspectConstructionClient = async (ont: SourceNativeConstructionProduct) =
   }
 };
 void openConstruction; void inspectConstructionClient;
+const openReview: typeof openSourceNativeConstructionReview = openSourceNativeConstructionReview;
+const inspectReview = (session: SourceNativeConstructionReviewSession) => {
+  const kind: 'preferred-name' | 'scoped-alias' | 'mentions' | 'defines' | undefined = session.packet.items[0]?.kind;
+  const result = session.evaluate({ packetSha256: session.packet.packetSha256, decisions: [] });
+  const unsigned: false = result.admissionGranted;
+  // @ts-expect-error a semantic review does not contain a reviewer signature
+  const signature = result.signatureBase64;
+  // @ts-expect-error a semantic review does not contain factual proof
+  const proof = result.proofDisposition;
+  void kind; void unsigned; void signature; void proof;
+};
+void openReview; void inspectReview;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
 const trustRole: SourceNativeAdmissionTrustRole = 'reviewer';
@@ -519,6 +533,7 @@ assert.deepEqual(kernelKeys, [
     'openSourceNativeObjectOntRefIndex',
     'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
     'openSourceNativeProductWithConstruction',
+    'openSourceNativeConstructionReview',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
     'readSourceNativeConstructionLedger',
     'rebindSourceNativeSemanticConstruction',
@@ -570,11 +585,28 @@ const construction = kernel.compileSourceNativeSemanticConstruction({ options, i
   claims: [{ kind: 'Claim', id: 'label-mention', about: 'example-label', predicate: 'mentions', source: witness }],
   coverage: [{ sourceRef, sourceSha256: span.sourceSha256, disposition: 'examined' }],
 } });
+const reviewSession = kernel.openSourceNativeConstructionReview({ options, construction });
+assert.equal(reviewSession.packet.items.length, 2);
+const source = reviewSession.packet.sources.find(source => source.relativePath === sourceRef);
+assert.equal(source.content, state.objectOnt.sources.find(source => source.relativePath === sourceRef).content);
+const decisions = reviewSession.packet.items.map(item => ({ itemSha256: item.itemSha256,
+  decision: 'accept', reason: 'Fixture protocol response, not independent semantic judgment.',
+  citations: [{ sourceRef, quote: field.value }] }));
+const accepted = reviewSession.evaluate({ packetSha256: reviewSession.packet.packetSha256, decisions });
+assert.equal(accepted.disposition, 'accepted');
+assert.equal(accepted.admissionGranted, false);
+assert.equal('signatureBase64' in accepted, false);
+assert.throws(() => reviewSession.evaluate({ packetSha256: reviewSession.packet.packetSha256,
+  decisions: decisions.slice(0, 1) }), { code: 'CONSTRUCTION_REVIEW_INCOMPLETE' });
+const rejected = reviewSession.evaluate({ packetSha256: reviewSession.packet.packetSha256,
+  decisions: decisions.map((item, index) => ({ ...item, decision: index ? 'reject' : 'accept' })) });
+assert.equal(rejected.disposition, 'rejected');
 const proposer = generateKeyPairSync('ed25519');
 const reviewer = generateKeyPairSync('ed25519');
 const trustRegistry = [['constructor', proposer, 'proposer'], ['reviewer', reviewer, 'reviewer']]
   .map(([issuerId, pair, role]) => ({ issuerId, roles: [role],
     publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }) }));
+assert.equal(kernel.readSourceNativeConstructionLedger({ options, trustRegistry }).activeRecords.length, 0);
 const proposalStatement = kernel.sourceNativeConstructionProposalStatement({ construction });
 const statement = kernel.sourceNativeConstructionAdmissionStatement({ construction,
   issuerId: 'reviewer', admittedAt: '2026-09-02T00:00:00.000Z' });

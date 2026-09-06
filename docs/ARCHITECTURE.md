@@ -294,8 +294,45 @@ decision. It shares Ed25519 trust-role validation with query-proof Admission,
 including the distinct-actual-key requirement. Its versioned statements bind
 the complete construction hash and cannot substitute for query-proof
 statements. Signature authentication proves authority and integrity, not the
-quality of semantic judgment. Review is externally supplied; an automated
-construction reviewer and held-out quality qualification remain unimplemented.
+quality of semantic judgment. Semantic judgment is externally supplied; the
+bounded review session below prepares source context and validates responses.
+An automated production reviewer and held-out quality qualification remain
+unimplemented.
+
+`openSourceNativeConstructionReview({ options, construction })` safely rebinds
+the proposal and opens one immutable source cut. It returns a `packet` and an
+`evaluate(response)` method. The packet contains a content-bound item for each
+preferred name, scoped alias and `mentions` / `defines` attachment, its native
+identity and exact witness, and the complete cited source documents. Full
+documents let reviewers see negation or rejected proposals outside the chosen
+witness. Reviewers must be authorized to read those whole documents; this is
+not a field-limited access API. Uncited sources are not implicitly reviewed.
+
+The review profile permits at most 128 items, 32 cited documents, 256 KiB of raw
+source text and 1 MiB of serialized packet. Larger input refuses without a
+cropped or partial packet. A structurally valid construction can exceed this
+review profile and require a smaller authored batch or another explicitly
+configured review process. These bounds do not establish a latency SLO.
+
+Every response must name the exact packet and decide every item once with
+`accept`, `reject` or `abstain`, a reason, and exact source quotations. The
+evaluator rejects missing/duplicate items, unknown sources and invented quotes.
+It evaluates against its original immutable packet, not a caller-replaced
+packet. The response is bounded to 1 MiB. One rejection rejects the batch;
+otherwise an abstention yields `needs-review`; all accepts yield `accepted`.
+The immutable result has `admissionGranted: false`. This checks protocol and
+quotation integrity, not whether the reviewer's reasoning is correct. It does
+not sign, write knowledge, edit a proposal, select a model or answer a question.
+An independent authorized signer still owns the decision to admit the unchanged
+construction. A corrected proposal requires a new review.
+
+Semantic reviewers must distinguish a named concept from its adoption or
+instantiation. Proposed and historical concepts can be valid navigation targets.
+`defines` preserves an affirmative source-local meaning, including a documented
+historical definition. A mention or expressly rejected draft is not that
+definition. An old recorded alias is not invalid just because it is old;
+explicitly mistaken equivalence and unsupported co-occurrence are different.
+Review does not turn any of these attachments into current factual authority.
 
 The writer and cold ledger reader rebind exact source bytes and scoped native
 objects. They use the same object store, source-cut knowledge branch, metadata

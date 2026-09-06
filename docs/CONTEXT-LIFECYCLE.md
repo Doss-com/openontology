@@ -446,9 +446,32 @@ no passage refs until resolved. Empty results do not prove absence. Reads are
 exact source passages, but their `mentions` or `defines` interpretation remains
 navigation. Only the later native-field Verification closes factual proof.
 
-This completes executable mechanics, not independent semantic judgment, held-out
-value evaluation or managed production qualification. Automatic studying and
-semantic-review quality remain the next requirements.
+For a source-grounded review, open a review session before asking the independent
+signer to approve the construction:
+
+```js
+import { openSourceNativeConstructionReview } from 'oont/kernel';
+
+const review = openSourceNativeConstructionReview({ options, construction });
+// Hand review.packet to an authorized independent human or model reviewer.
+// It contains complete cited documents, not just the proposer's chosen spans.
+const result = review.evaluate(reviewerResponse);
+if (result.disposition !== 'accepted') throw new Error(result.disposition);
+// Still unsigned. The independent reviewer separately decides whether to sign
+// the unchanged construction using the existing Admission procedure.
+```
+
+The response names `packetSha256` and includes one decision per item:
+`itemSha256`, `decision` (`accept`, `reject` or `abstain`), `reason`, and
+`citations` containing exact `sourceRef` / `quote` pairs. Unknown sources,
+omitted or duplicate item decisions, and fabricated quotes fail protocol
+validation. A rejection cannot
+be removed to approve a smaller implicit batch. A syntactically valid response
+can still be a bad judgment; source interpretation must be independently tested.
+
+This completes executable mechanics, not independent semantic judgment,
+held-out value evaluation or managed production qualification. Automatic
+studying and semantic-review quality remain unqualified.
 
 ## The whole lifecycle, in one paragraph
 

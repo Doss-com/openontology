@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a bounded full-source construction review session with complete per-item
+  decisions and exact quotation checks. Results remain unsigned and cannot
+  grant Admission; independent semantic judgment remains external.
 - Add a bounded construction profile for source-grounded concept ObjectDefs,
   scoped aliases and `mentions` / `defines` Claims. Independently signed
   Admission, correction and cold eligibility feed metadata-only `search` and

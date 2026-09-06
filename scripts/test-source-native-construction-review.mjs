@@ -3,12 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import {
   buildSourceNativeProduct,
   compileSourceNativeSemanticConstruction,
   openProductState,
   openSourceNativeConstructionReview,
+  objectBytesSha256,
   stableObjectSha256,
 } from '../dist/src/kernel.mjs';
 import { constructionInputFor, reviewCases } from './lib/construction-review-fixtures.mjs';
@@ -184,7 +186,9 @@ test('review protocol requires the exact packet and complete one-per-item decisi
   assert.throws(() => session.evaluate(badQuote), { code: 'CONSTRUCTION_REVIEW_CITATION' });
 
   const wrongSource = clone(valid);
-  wrongSource.decisions[0].citations[0].sourceRef = 'clickup/explicit-clickup-alias.txt';
+  const otherSource = session.packet.sources.find(source =>
+    source.relativePath !== session.packet.items[0].source.evidence.sourceRef);
+  wrongSource.decisions[0].citations = [{ sourceRef: otherSource.relativePath, quote: otherSource.content }];
   assert.throws(() => session.evaluate(wrongSource), { code: 'CONSTRUCTION_REVIEW_CITATION' });
 
   const wrongPacket = clone(valid);
@@ -199,6 +203,12 @@ test('review protocol requires the exact packet and complete one-per-item decisi
   assert.throws(() => { session.packet.sources[0].content = 'caller mutation'; }, TypeError);
   assert.throws(() => session.evaluate({ ...valid, packetSha256: forgedPacket.packetSha256 }),
     { code: 'CONSTRUCTION_REVIEW_PACKET' });
+
+  const result = session.evaluate(valid);
+  assert.deepEqual(session.evaluate({ ...valid, decisions: [...valid.decisions].reverse() }), result);
+  valid.decisions[0].citations[0].quote = 'mutated after evaluation';
+  assert.notEqual(result.decisions[0].citations[0].quote, valid.decisions[0].citations[0].quote);
+  assert.throws(() => { result.decisions[0].citations[0].quote = 'mutation'; }, TypeError);
 });
 
 test('empty constructions are not reviewable batches', (t) => {
@@ -240,6 +250,10 @@ test('review limits refuse oversized item, source-document and raw-source budget
     input: { ...materialized.input, objectDefs: repeatedObjects, claims: repeatedClaims } });
   assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
     construction: oversizedItems }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+  const atItemLimit = compileSourceNativeSemanticConstruction({ options: materialized.options,
+    input: { ...materialized.input, objectDefs: repeatedObjects, claims: repeatedClaims.slice(0, 64) } });
+  assert.equal(openSourceNativeConstructionReview({ options: materialized.options,
+    construction: atItemLimit }).packet.items.length, 128);
 
   const manySources = clone(base.buildInput);
   manySources.sources = [...manySources.sources,
@@ -307,4 +321,70 @@ test('review limits refuse oversized item, source-document and raw-source budget
   assert(largeRows.reduce((total, row) => total + Buffer.byteLength(row.content), 0) > 256 * 1024);
   assert.throws(() => openSourceNativeConstructionReview({ options: largeOptions,
     construction: largeConstruction }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+});
+
+test('review supplies qualifications outside the exact proposer-selected witness', (t) => {
+  const fixture = cases.find(item => item.id === 'negated-equivalence');
+  const materialized = materialize(t, fixture);
+  const input = clone(materialized.input);
+  const definition = input.objectDefs[0];
+  const source = materialized.state.objectOnt.sources.find(item => item.relativePath === fixture.specification.nameSourceRef);
+  const start = Buffer.byteLength(source.content.slice(0, source.content.indexOf(definition.name)));
+  definition.source.evidence = { ...definition.source.evidence, byteStart: start,
+    byteEnd: start + Buffer.byteLength(definition.name), textSha256: objectBytesSha256(Buffer.from(definition.name)) };
+  const construction = compileSourceNativeSemanticConstruction({ options: materialized.options, input });
+  const { packet } = openSourceNativeConstructionReview({ options: materialized.options, construction });
+  assert.equal(packet.items[0].source.evidence.byteEnd - packet.items[0].source.evidence.byteStart,
+    Buffer.byteLength(definition.name));
+  assert.equal(packet.sources[0].content, source.content);
+  assert(packet.sources[0].content.includes('not'));
+  assert(packet.sources[0].content.length > definition.name.length);
+});
+
+test('an open review stays pinned but cannot rebind its construction to an advanced source', (t) => {
+  const fixture = cases[0];
+  const materialized = materialize(t, fixture);
+  const session = openSourceNativeConstructionReview({ options: materialized.options, construction: materialized.construction });
+  const response = responseFor(session, fixture);
+  const before = session.evaluate(response);
+  const nextInput = clone(fixture.buildInput);
+  nextInput.sources.forEach(source => { source.occurredAt = '2026-09-03T00:00:00.000Z'; });
+  const nextOptions = { artifactRoot: join(materialized.root, 'next'),
+    objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href };
+  buildSourceNativeProduct({ ...nextOptions, input: nextInput });
+  assert.throws(() => openSourceNativeConstructionReview({ options: nextOptions,
+    construction: materialized.construction }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
+    construction: materialized.construction }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+  assert.deepEqual(session.evaluate(response), before);
+  assert.equal(before.admissionGranted, false);
+});
+
+test('serialized packet budget accounts for JSON expansion without cropping full sources', (t) => {
+  const fixture = clone(cases[0]);
+  const body = fixture.buildInput.sources[0].content;
+  fixture.buildInput.sources[0].content = body + '\u0000'.repeat(200_000);
+  // Only the original body is an extracted field. Review still receives the complete source.
+  const materialized = materialize(t, fixture);
+  assert(Buffer.byteLength(fixture.buildInput.sources[0].content) < 256 * 1024);
+  assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
+    construction: materialized.construction }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+});
+
+test('serialized response budget applies even when every individual citation is valid', (t) => {
+  const fixture = clone(cases[0]);
+  const quote = 'x'.repeat(4096);
+  fixture.buildInput.sources[0].content += ` ${quote}`;
+  fixture.buildInput.nativeObjectInputs[0].fields[0].value = fixture.buildInput.sources[0].content;
+  const materialized = materialize(t, fixture);
+  const definition = materialized.input.objectDefs[0];
+  const construction = compileSourceNativeSemanticConstruction({ options: materialized.options,
+    input: { ...materialized.input, objectDefs: Array.from({ length: 32 }, (_, index) =>
+      ({ ...definition, id: `concept-${index}`, aliases: [] })), claims: [] } });
+  const session = openSourceNativeConstructionReview({ options: materialized.options, construction });
+  const response = { packetSha256: session.packet.packetSha256,
+    decisions: session.packet.items.map(item => ({ itemSha256: item.itemSha256,
+      decision: 'accept', reason: 'Synthetic size control, not semantic judgment.',
+      citations: Array.from({ length: 8 }, () => ({ sourceRef: item.source.evidence.sourceRef, quote })) })) };
+  assert.throws(() => session.evaluate(response), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
 });

@@ -200,8 +200,8 @@ for (const path of packedPaths.filter((name) => name.endsWith('.map'))) {
     fail(`packed source map is not valid for the generated output contract: ${path}`);
   }
 }
-// Two construction/Admission modules include runtime, declarations and their maps.
-if (packed.entryCount > 168) fail(`package contains ${packed.entryCount} files, expected at most 168`);
+// Construction review adds one runtime module plus declarations and their maps.
+if (packed.entryCount > 172) fail(`package contains ${packed.entryCount} files, expected at most 172`);
 
 process.stdout.write(`public release check passed: ${tracked.length} tracked files, ${packed.entryCount} package files\n`);
 rmSync(packageSandbox, { recursive: true, force: true });

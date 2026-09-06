@@ -193,7 +193,7 @@ const CASES = [
   row(
     'historical-alias-conflict',
     'A historical alias is explicitly assigned to a different record in the current source.',
-    'A Billing Batch groups invoices for one posting run. An old note incorrectly called a separate record invoice group. The current guide uses invoice group for that separate record.',
+    'A Billing Batch groups invoices for one posting run. An old note incorrectly called the Billing Batch an invoice group. The correction states that invoice group names a separate record, not a Billing Batch.',
     'ClickupTask CT-113 discusses a Billing Batch and its posting run.',
     specification('billing-batch', 'Billing Batch', 'docs/historical-alias-conflict.md', [
       { value: 'invoice group', sourceSystem: 'docs', sourceRef: 'docs/historical-alias-conflict.md' },

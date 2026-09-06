@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 104,
+  "fileCount": 107,
   "files": [
     {
       "path": ".editorconfig",
@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 5870,
-      "sha256": "3dd42cd812200a46bc86ac823a30aad651601340ed3008b97e2536e5d3b5e29c"
+      "bytes": 6091,
+      "sha256": "49f8ac76c7d200b759fac5099e519ac9f22eca53ad85aae6b8a551ea9f0b6cc4"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -122,13 +122,13 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 26200,
-      "sha256": "97d911293e1f5971a093bc14c2831742ae0d49c93ab02957faeae65def3cd6ac"
+      "bytes": 28660,
+      "sha256": "14ef01150e3b5ad1f34c06c98d6888fa66e8d81a9c37be2448447459779c38f9"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
-      "bytes": 22569,
-      "sha256": "f0a1321239a6a8a95f22d8c95eb0eba7b4e3149cb6115791e88f199dfce7a311"
+      "bytes": 23748,
+      "sha256": "5d4ea1d5bb8004933bb4f50dbafbaf9f8e7dd267e34c6cc83c35791c1fdc89c6"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
@@ -162,8 +162,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3575,
-      "sha256": "2b5a9c7e156e474db44be1b6b72cbf213675415a8d943a261960ecc3d78607f3"
+      "bytes": 3626,
+      "sha256": "66ccd821a3b38825c5d2eb79d6c9010db47340e62acbdce7dec84b7cf4aca457"
     },
     {
       "path": "scripts/build.mjs",
@@ -177,13 +177,18 @@
     },
     {
       "path": "scripts/check-public-release.mjs",
-      "bytes": 9979,
-      "sha256": "c02aa78dc1c9a0b5541eebaf6d68f520d0488bfbeec57b81c5b5ff5da9247dad"
+      "bytes": 9976,
+      "sha256": "500c440b4c27d7869a4092817d160244b45f8f3566983ef45b4b7c39ee850044"
     },
     {
       "path": "scripts/clean.mjs",
       "bytes": 444,
       "sha256": "8ea7d05f7ec279cb71eb742dab674d8935a024e54f9798ebfa5fb1e6bb5d0613"
+    },
+    {
+      "path": "scripts/lib/construction-review-fixtures.mjs",
+      "bytes": 13345,
+      "sha256": "5010cb6559aa53b7f71391ef312cf0e117570920bdba35731a65980e730812cf"
     },
     {
       "path": "scripts/oont-resolver.mts",
@@ -202,8 +207,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 32199,
-      "sha256": "f885667b2fb213364fc5ee0fe2ef6ca536ee03b9541c7c054e453c124edfd86e"
+      "bytes": 34466,
+      "sha256": "a654f5df3bd030a509a2c85a598bdbd53092488b8a669dba27741a44d1e3bf9d"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -264,6 +269,11 @@
       "path": "scripts/test-source-native-construction-navigation.mjs",
       "bytes": 20213,
       "sha256": "1ebc8cc750f4f869f39b8177413751d1c90b07cceedb9b311a5e06c5cf19c2cd"
+    },
+    {
+      "path": "scripts/test-source-native-construction-review.mjs",
+      "bytes": 21694,
+      "sha256": "5c212aca68dfed325ee16a817f9878b4d8e736a7093f26026fcad2e2e396cbfb"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -372,8 +382,8 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 7082,
-      "sha256": "3c774c1bfaa510db4273de6ca32c63ca784bc26f3638c02bed001a7b40a510f0"
+      "bytes": 7485,
+      "sha256": "077f1313991dfdc39defe5605f0af1a3a67179ffec1f6da783690c8eea799cc6"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -439,6 +449,11 @@
       "path": "src/source-native-construction-navigation.mts",
       "bytes": 15432,
       "sha256": "d924cd1fc4bab14dae171dc4f0ff38a2952c67be8532449f9f8b9d874c6d7def"
+    },
+    {
+      "path": "src/source-native-construction-review.mts",
+      "bytes": 10263,
+      "sha256": "a7460281792501e37976c808926bb342d9f5b939f4071123c2ceb0af3aa26a88"
     },
     {
       "path": "src/source-native-current-field-verification.mts",
@@ -526,5 +541,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:4428edbfdc98301cd5802cc9321117a7bf3ac845356dde290151425fe05a5aed"
+  "manifestSha256": "sha256:8b4b6960543c89c6070569a709f3e7782aefc8bd6f61f37a4a549b05b78f8576"
 }
