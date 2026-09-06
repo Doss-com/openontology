@@ -389,6 +389,32 @@ which remain unimplemented. The 2 MiB signed-record envelope includes a bounded
 
 These are navigation-eligible records, not a new proof authority.
 
+`[ACTIVE-WORK]` The bounded kernel explorer opens one source-native product
+state and consumes the same construction reader snapshot. Its `nodes`, `edges`,
+`records`, and `status` methods return metadata-only pages over native objects,
+active ObjectDefs, passage witnesses, directed Claim connectors, and safe record
+dispositions. Claim connectors point from the passage witness to the ObjectDef
+named by `about`; view-only name, alias, and native-observation connectors are
+separate from Claims. Reviewer agreement is deduplicated by construction hash.
+Pages are limited to 64 nodes, 128 edges, or 64 records, retain at most 128
+opaque session cursors, and refuse serialized responses above 256 KiB. The
+kernel binds each response to the artifact, source cut, native map, knowledge
+projection, and a non-secret reviewer configuration hash that includes canonical
+public-key identities. Scope-only browsing and scoped term lookup use actual
+native attachment scope, so a preferred-name witness in one system does not
+hide an attachment in another. Alias matching retains its declared source-system
+scope, while object-type filtering applies to any actual attached passage.
+Edge identity excludes the selected reviewer-agreement representative.
+Status and unavailable metadata retain bounded diagnostic and conflict lists with
+explicit totals and truncation flags.
+Upstream freshness is unknown in this primitive, and its whole-Ont operator
+configuration is not an HTTP or browser authorization boundary. It does not
+expose source text, exact read References, historical exact inspection, trust
+keys, or a new root SDK, CLI, or MCP operation. Missing or rewound knowledge
+history returns unavailable with no cached graph or record items and clears
+session cursors; source-only Onts still expose native identity nodes and
+coverage.
+
 `[ACTIVE-WORK]` The unpublished kernel now composes construction discovery with
 the existing admitted-knowledge client through
 `openSourceNativeProductWithConstruction`. `search({ term, scope?, conceptId?,

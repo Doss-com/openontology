@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 108,
+  "fileCount": 110,
   "files": [
     {
       "path": ".editorconfig",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 30973,
-      "sha256": "d80a34035fbadd9999ba7ec9f5a48af6017c3c94d60927ece3b4fa8164e609e0"
+      "bytes": 32804,
+      "sha256": "9e6bdd983e7fa89f67300152f2e29c86cfff6f9839eac87e21226c3d3b4402f6"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -162,8 +162,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3674,
-      "sha256": "7940f295d49ed0c8e42466e33e722b2a2776bf43ae767995e7a676f90f4ac15c"
+      "bytes": 3718,
+      "sha256": "3622cd55177590713a19d0092b0b3b3fd4717b50bcc8a8cb3eef7c82297ba43e"
     },
     {
       "path": "scripts/build.mjs",
@@ -306,6 +306,11 @@
       "sha256": "a247084d2818c3d38095cf4d9f3f60322ec46505645bb2ccfe840ad137dfe3af"
     },
     {
+      "path": "scripts/test-source-native-ont-explorer.mjs",
+      "bytes": 26098,
+      "sha256": "9eccc78ff8eacd49b0a5f64583412a5d77e07c56d2b8846e410a143be6cb2ac9"
+    },
+    {
       "path": "scripts/test-source-native-point-in-time.mjs",
       "bytes": 3477,
       "sha256": "49725b3dca15fe8d1c8dc5db4193bb5a696e70d2595356de084d9ba0b2eddea7"
@@ -387,8 +392,8 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 7485,
-      "sha256": "077f1313991dfdc39defe5605f0af1a3a67179ffec1f6da783690c8eea799cc6"
+      "bytes": 8286,
+      "sha256": "ff2944b91248587118d69a140d8f04d272266b65476abb49415f41105261c6aa"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -501,6 +506,11 @@
       "sha256": "e0d6ff1bc123ea66518350242efd65b04fa0f2c70b74f0b4bc81e4cc6ecee606"
     },
     {
+      "path": "src/source-native-ont-explorer.mts",
+      "bytes": 34026,
+      "sha256": "e328cabfc761eb60b76ca27cf1523325a2c3c6ea44851f421fe31eb4fe847632"
+    },
+    {
       "path": "src/source-native-product-mcp.mts",
       "bytes": 17127,
       "sha256": "fb6ae9d55b39e7001b1e501bbc30840dbd68f9f3c41e0392e7520be018b29214"
@@ -546,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:825eaa334e98221a8e592007aaa4317eb1fafafec311f8972e29cfa037d98066"
+  "manifestSha256": "sha256:e02791da5103bc7eeeaabdf567f7d5e59e568b44a9fff8841baad6656bbfc7d7"
 }
