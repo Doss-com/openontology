@@ -328,9 +328,51 @@ replacement over concept retirement, batch repartition and automatic merges,
 which remain unimplemented. The 2 MiB signed-record envelope includes a bounded
 1 MiB proposal and at most 128 supersession targets; it is not a serving budget.
 
-These are navigation-eligible records, not a new proof authority. A disposable
-concept projection and integration into existing `search` / `read`, followed
-by explicit native-object selection before `verify`, are still the next slice.
+These are navigation-eligible records, not a new proof authority.
+
+`[ACTIVE-WORK]` The unpublished kernel now composes construction discovery with
+the existing admitted-knowledge client through
+`openSourceNativeProductWithConstruction`. `search({ term, scope?, conceptId?,
+limit?, cursor? })` matches a complete normalized name or explicit alias.
+Optional scope selects a source system and object type. With an explicit source
+system, aliases from other systems cannot match. Without one, all recorded
+alias scopes participate and equal-name concept IDs remain ambiguous. This is
+declared vocabulary lookup, not fuzzy matching or arbitrary semantic question
+planning.
+
+Search returns metadata-only passage references, concept choices, a full match
+count and opaque page cursors. Identical concept/native-object/span witnesses
+share one reference with their attachment roles. Multiple reviewer signatures
+on the same construction do not duplicate the projection. Different matching
+concept IDs return ambiguity and no passage refs until explicitly narrowed.
+No match is not absence proof. A degraded ledger with no eligible matches is
+reported as unavailable rather than ordinary no-match.
+
+Construction references have `requiredForProof: false`. Their `read` returns
+exact UTF-8 source bytes and a distinct construction-passage binding, not a
+verified-field binding or proof disposition. The client refreshes eligible
+knowledge before term search and construction read, so a superseding correction
+invalidates previous refs. It shares one pinned source opening and one trust
+snapshot; the internal reader rechecks records without reloading the whole
+corpus. Missing or non-descendant knowledge disables reuse until a valid
+descendant returns, with a process-local floor in legacy profiles and durable
+history protection in protected profiles. Source and trust changes require a
+new opening. Existing pinned readers disclose their original source cut.
+
+Pages default to 20 passage refs and permit 1..64. At most 64 ambiguous concept
+choices are returned; larger sets require narrower scope rather than a partial
+choice list. Cursors bind the query and active construction projection, and
+cannot cross clients. The client retains at most 128 cursors and 1,024 offered
+refs with oldest-first eviction. Reads remain bounded to the compiler's 64 KiB
+passage limit. These limits do not establish a total ledger-size or latency SLO.
+
+Ordinary `search({ question, ... })`, factual `verify`, existing query-proof
+reuse and lifecycle hooks retain their original implementation. Concept lookup
+does not select the authoritative subject of a factual query. The caller reads
+the candidate, selects its native identity and field, then verifies through
+the existing chronology and proof closure. The root SDK/CLI/MCP still do not
+enable construction implicitly. See the
+[executable semantic-map example](CONTEXT-LIFECYCLE.md#executable-concept-map).
 
 ## Query path
 

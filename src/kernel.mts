@@ -1,4 +1,14 @@
 /** Bounded extension Interface for managed and research runtimes. */
+export { openSourceNativeProductWithConstruction } from './source-native-construction-navigation.mjs';
+export type {
+  SourceNativeConstructionAttachmentRole,
+  SourceNativeConstructionLedgerSummary,
+  SourceNativeConstructionMatch,
+  SourceNativeConstructionProduct,
+  SourceNativeConstructionReadResult,
+  SourceNativeConstructionSearchInput,
+  SourceNativeConstructionSearchResult,
+} from './source-native-construction-navigation.mjs';
 export {
   compileSourceNativeConstructionAdmissionRecord,
   readSourceNativeConstructionLedger,

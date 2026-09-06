@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add a bounded construction profile for source-grounded concept ObjectDefs,
+  scoped aliases and `mentions` / `defines` Claims. Independently signed
+  Admission, correction and cold eligibility feed metadata-only `search` and
+  exact passage `read` through `oont/kernel`. Navigation never supplies factual
+  proof or implicitly chooses the subject of `verify`. Include a runnable
+  synthetic concept-map example; semantic-review quality remains unqualified.
 - Require ordinary ObjectOnt ref publication to preserve the accepted head in
   candidate ancestry. Reject backward or unrelated source and knowledge writes,
   preserve concurrent-write conflicts, and keep historical snapshots readable.

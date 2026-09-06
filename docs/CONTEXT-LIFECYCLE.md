@@ -4,7 +4,7 @@ An Ont gives an agent three things: a map of its sources, a way to verify what t
 
 Follow one `ClickupTask` from its original system, through construction and verification, into reviewed knowledge that a later agent can reuse.
 
-This is a sanitized illustration of the Tapestry testbed lifecycle, not customer data or a benchmark. `ClickupTask` is our readable label for an object whose canonical identity contains `sourceSystem: clickup` and `objectType: task`. It is not a new kernel class or an API argument. The namespace and native ID complete that identity.
+This is a sanitized illustration of the Tapestry testbed lifecycle, not customer data or a benchmark. In the status walkthrough, `ClickupTask` is our readable label for an object whose canonical identity contains `sourceSystem: clickup` and `objectType: task`. The executable concept-map example below instead declares `objectType: ClickupTask` explicitly in its Adapter schema. Neither creates a new kernel class. The namespace and native ID complete the identity.
 
 The source-native construction and verification path [EXISTS] in the public kernel. Automated proposal capture and independent review [EXISTS] in the managed implementation, with production qualification still [ACTIVE-WORK]. The ordinary public `verify` call does not silently enable that managed lifecycle. Proposed extensions are marked below.
 
@@ -367,9 +367,9 @@ There are several kinds of link, and they should not be collapsed into one unlab
 
 The input Adapter supplies the identities, meanings and semantic assertions it can justify. The compiler validates and links them. The Resolver navigates the constructed map. Verification checks whether that route satisfies the question's proof obligations.
 
-The lexicon is currently narrower than a learned domain vocabulary. Query schemas declare aliases for object types and fields; the planner also resolves supported names against the complete typed identity census. That is useful name resolution, but it is not automatic discovery of concepts, topics, synonyms or cross-system equivalence.
+The lexicon is currently narrower than a learned domain vocabulary. Query schemas declare aliases for object types and fields; the planner also resolves supported names against the complete typed identity census. The unpublished construction path now persists bounded concept ObjectDefs, scoped aliases and source-attachment Claims. It does not automatically discover concepts, topics, synonyms or cross-system equivalence.
 
-Earlier research implementations constructed richer database and code maps, including definitions and links from foreign keys and code references. Those constructors are not wired into the current public source-native kernel. The project's design taxonomy is also not a persistent runtime taxonomy inside each Ont.
+Earlier research implementations constructed richer database and code maps, including definitions and links from foreign keys and code references. Those constructors are not wired into the current public source-native kernel. The full design taxonomy is not implemented as a persistent runtime taxonomy inside each Ont; the concept profile above is a bounded subset.
 
 ### The next layer: maps of ideas
 
@@ -391,6 +391,64 @@ This is an illustrative future map, not a link extracted from the status example
 We can extend the earlier canonical homes rather than invent a competing taxonomy: ObjectDef and InstanceRef for entities, Claim and PropositionRevision for assertions, typed relations for their connections, and Evidence references for exact support. Automatic semantic construction still needs an extraction, review and evaluation loop. Declaring these homes does not mean that whole loop has shipped.
 
 The tradeoff today is deliberate: inexpensive, auditable construction from declared source semantics, with less automatic conceptual discovery. The next step is to add useful semantic links without relaxing the distinction between a promising route and established Evidence.
+
+### Executable concept map
+
+[ACTIVE-WORK, unpublished] The kernel now supports an authored version of this
+loop. Run the packaged [semantic-map example](../examples/quickstart/semantic-map.mjs)
+from an installed candidate, using a new output directory:
+
+```sh
+node node_modules/oont/examples/quickstart/semantic-map.mjs ./semantic-map-demo
+```
+
+The example builds three synthetic sources, an `AllocationException` ObjectDef,
+the scoped alias `allocation mismatch`, and `defines` / `mentions` Claims. It
+signs and stores a construction Admission with separate ephemeral keys, then
+opens a fresh client. Keys are not written to disk. The signature step tests
+mechanics; a real reviewer must inspect the source interpretation before signing.
+
+```js
+import { openSourceNativeProductWithConstruction } from 'oont/kernel';
+
+const ont = openSourceNativeProductWithConstruction(options, { trustRegistry });
+const found = await ont.search({
+  term: 'allocation mismatch',
+  scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
+  limit: 20,
+});
+// found.totalMatches counts passages. found.matches contains no passage text.
+if (found.state !== 'resolved-construction-navigation') {
+  throw new Error(found.state); // Surface ambiguity or unavailability to the caller.
+}
+const selected = found.matches.find(match => match.nativeObject.externalId === 'CT-17');
+if (!selected) throw new Error('Requested ClickupTask is not in this page');
+const passage = await ont.read({ ref: selected.ref });
+const checked = await ont.verify({
+  question: 'What is the current status?',
+  typedQuery: {
+    sourceSystem: 'clickup', objectType: 'ClickupTask', fieldPath: 'status',
+    externalId: passage.binding.nativeObject.externalId,
+  },
+});
+```
+
+This uses `oont/kernel`; it does not silently activate construction in the root
+SDK, CLI or MCP. The example also checks pagination, refusal of an unbound
+two-object factual query, an explicit correction, invalidation of old read
+handles, cold reopen and reviewer revocation. Existing output is refused rather
+than overwritten. The retained Ont is useful for inspecting the storage layout;
+the discarded ephemeral keys are not a production review setup.
+
+Search matches a complete preferred name or declared alias, not an arbitrary
+question. Ambiguous concept IDs require `conceptId` or narrower scope and return
+no passage refs until resolved. Empty results do not prove absence. Reads are
+exact source passages, but their `mentions` or `defines` interpretation remains
+navigation. Only the later native-field Verification closes factual proof.
+
+This completes executable mechanics, not independent semantic judgment, held-out
+value evaluation or managed production qualification. Automatic studying and
+semantic-review quality remain the next requirements.
 
 ## The whole lifecycle, in one paragraph
 

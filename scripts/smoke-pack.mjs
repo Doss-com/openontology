@@ -206,6 +206,7 @@ openOntology();
   openSourceNativeObjectOntIndex,
   openSourceNativeProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
+  openSourceNativeProductWithConstruction,
   stableObjectSha256,
   type ExactSessionOptions,
   type OpenSourceNativeObjectOntOptions,
@@ -223,6 +224,7 @@ openOntology();
   type SourceNativeSemanticConstruction,
   type SourceNativeSemanticConstructionInput,
   type SourceNativeConstructionLedger,
+  type SourceNativeConstructionProduct,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
@@ -257,6 +259,25 @@ const inspectConstructionLedger = (ledger: SourceNativeConstructionLedger) => {
 const readConstruction: typeof readSourceNativeConstructionLedger = readSourceNativeConstructionLedger;
 const reviewConstruction: typeof sourceNativeConstructionAdmissionStatement = sourceNativeConstructionAdmissionStatement;
 void inspectConstructionLedger; void readConstruction; void reviewConstruction;
+const openConstruction: typeof openSourceNativeProductWithConstruction = openSourceNativeProductWithConstruction;
+const inspectConstructionClient = async (ont: SourceNativeConstructionProduct) => {
+  const result = await ont.search({ term: 'allocation mismatch', scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' } });
+  if (result.kind === 'OpenOntologyConstructionSearchResultV1') {
+    const total: number = result.totalMatches;
+    const proof: false | undefined = result.matches[0]?.requiredForProof;
+    // @ts-expect-error navigation matches do not pretend to be verified fields
+    const field: string | undefined = result.matches[0]?.fieldSha256;
+    void total; void proof; void field;
+  }
+  const read = await ont.read({ ref: 'example' });
+  if (read.kind === 'OpenOntologyConstructionReadResultV1') {
+    const navigationOnly: true = read.binding.navigationOnly;
+    // @ts-expect-error a construction read has no factual proof disposition
+    const disposition = read.proofDisposition;
+    void navigationOnly; void disposition;
+  }
+};
+void openConstruction; void inspectConstructionClient;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
 const trustRole: SourceNativeAdmissionTrustRole = 'reviewer';
@@ -497,6 +518,7 @@ assert.deepEqual(kernelKeys, [
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
     'openSourceNativeObjectOntRefIndex',
     'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
+    'openSourceNativeProductWithConstruction',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
     'readSourceNativeConstructionLedger',
     'rebindSourceNativeSemanticConstruction',
@@ -604,6 +626,23 @@ assert.equal(kernel.readSourceNativeConstructionLedger({ options, trustRegistry:
     beforeRerun !== null && rerun.status !== 0
       && existsSync(lifecycleRoot) && beforeRerun === directorySnapshot(lifecycleRoot),
     tail(rerun.stderr));
+
+  const semanticRoot = join(consumer, 'semantic-map');
+  const semanticExample = join(packageRoot, 'examples', 'quickstart', 'semantic-map.mjs');
+  const runSemantic = () => run(process.execPath, ['--import', noNetwork, semanticExample, semanticRoot], { cwd: consumer });
+  const semanticRun = runSemantic();
+  let semanticSummary;
+  try { semanticSummary = JSON.parse(semanticRun.stdout); } catch { semanticSummary = null; }
+  check('installed concept map discovers, reads, verifies, corrects and cold-reopens', semanticRun.status === 0
+    && semanticSummary?.kind === 'OpenOntologySemanticMapWalkthroughV1'
+    && semanticSummary?.initialMatches === 2 && semanticSummary?.correctedMatches === 1
+    && semanticSummary?.selectedObject === 'CT-17' && semanticSummary?.exactStatus === 'open'
+    && semanticSummary?.semanticReviewQualified === false,
+    semanticRun.status === 0 ? semanticRun.stdout.trim() : tail(semanticRun.stderr));
+  const beforeSemanticRerun = existsSync(semanticRoot) ? directorySnapshot(semanticRoot) : null;
+  const semanticRerun = runSemantic();
+  check('installed concept-map example preserves existing output', beforeSemanticRerun !== null
+    && semanticRerun.status !== 0 && beforeSemanticRerun === directorySnapshot(semanticRoot), tail(semanticRerun.stderr));
 
   const ordinaryMcp = await mcpTools(bin, ont, false);
   check('default MCP exposes only verify', ordinaryMcp.ok

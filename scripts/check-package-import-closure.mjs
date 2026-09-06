@@ -65,6 +65,7 @@ try {
     'dist/src/kernel.mjs',
     'dist/src/openontology.mjs',
     'examples/quickstart/source-lifecycle.mjs',
+    'examples/quickstart/semantic-map.mjs',
   ];
   for (const path of runtimeRoots) {
     if (!paths.has(path)) missing.push({
