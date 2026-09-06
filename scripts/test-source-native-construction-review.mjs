@@ -134,6 +134,47 @@ test('packets include complete cited source context and a complete item census',
   }
 });
 
+test('review sessions expose an immutable response schema bound to one packet', (t) => {
+  const fixture = cases.find((item) => item.id === 'explicit-clickup-alias');
+  const materialized = materialize(t, fixture);
+  const session = openSourceNativeConstructionReview({
+    options: materialized.options,
+    construction: materialized.construction,
+  });
+  const schema = session.responseSchema;
+  const decisionSchema = schema.properties.decisions.items;
+  const citationSchema = decisionSchema.properties.citations.items;
+  assert.equal(schema.type, 'object');
+  assert.deepEqual(schema.required, ['packetSha256', 'decisions']);
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(schema.properties.packetSha256.enum, [session.packet.packetSha256]);
+  assert.equal(session.packet.items.length > 1, true);
+  assert.equal(session.packet.sources.length > 1, true);
+  assert.equal(schema.properties.decisions.type, 'array');
+  assert.equal(decisionSchema.type, 'object');
+  assert.equal(schema.properties.decisions.minItems, session.packet.items.length);
+  assert.equal(schema.properties.decisions.maxItems, session.packet.items.length);
+  assert.deepEqual(decisionSchema.required, ['itemSha256', 'decision', 'reason', 'citations']);
+  assert.equal(decisionSchema.additionalProperties, false);
+  assert.deepEqual(decisionSchema.properties.itemSha256.enum,
+    session.packet.items.map((item) => item.itemSha256));
+  assert.deepEqual(decisionSchema.properties.decision.enum, ['accept', 'reject', 'abstain']);
+  assert.equal(decisionSchema.properties.reason.maxLength, 2048);
+  assert.equal(citationSchema.additionalProperties, false);
+  assert.equal(decisionSchema.properties.citations.minItems, 1);
+  assert.equal(decisionSchema.properties.citations.maxItems, 8);
+  assert.deepEqual(citationSchema.properties.sourceRef.enum,
+    session.packet.sources.map((source) => source.relativePath));
+  assert.equal(citationSchema.properties.quote.maxLength, 4096);
+  assert.doesNotMatch(JSON.stringify(schema), /expected|gold|judgment|answer/iu);
+  assert.equal(Object.isFrozen(schema), true);
+  assert.equal(Object.isFrozen(schema.properties), true);
+  assert.equal(Object.isFrozen(decisionSchema.properties.itemSha256.enum), true);
+  assert.equal(Object.isFrozen(citationSchema.properties.sourceRef.enum), true);
+  assert.throws(() => { schema.properties.packetSha256.enum[0] = 'mutated'; }, TypeError);
+  assert.throws(() => { schema.properties.decisions.minItems = 0; }, TypeError);
+});
+
 test('synthetic protocol replies produce accepted, rejected and needs-review outcomes', (t) => {
   const observed = new Map();
   for (const fixture of cases) {

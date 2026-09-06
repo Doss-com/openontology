@@ -55,6 +55,7 @@ export interface SourceNativeConstructionSemanticReview {
 }
 export interface SourceNativeConstructionReviewSession {
   packet: SourceNativeConstructionReviewPacket;
+  responseSchema: Readonly<Record<string, unknown>>;
   evaluate(response: unknown): SourceNativeConstructionSemanticReview;
 }
 
@@ -142,6 +143,39 @@ export function openSourceNativeConstructionReview(input: {
   boundedJson(packet);
   const itemsByHash = new Map(items.map(item => [item.itemSha256, item]));
   const sourcesByRef = new Map(sources.map(source => [source.relativePath, source]));
+  const responseSchema = freeze({
+    type: 'object',
+    required: ['packetSha256', 'decisions'],
+    additionalProperties: false,
+    properties: {
+      packetSha256: { type: 'string', enum: [packet.packetSha256] },
+      decisions: {
+        type: 'array', minItems: packet.items.length, maxItems: packet.items.length,
+        items: {
+          type: 'object',
+          required: ['itemSha256', 'decision', 'reason', 'citations'],
+          additionalProperties: false,
+          properties: {
+            itemSha256: { type: 'string', enum: packet.items.map(item => item.itemSha256) },
+            decision: { type: 'string', enum: ['accept', 'reject', 'abstain'] },
+            reason: { type: 'string', minLength: 1, maxLength: 2048, pattern: '\\S' },
+            citations: {
+              type: 'array', minItems: 1, maxItems: 8,
+              items: {
+                type: 'object',
+                required: ['sourceRef', 'quote'],
+                additionalProperties: false,
+                properties: {
+                  sourceRef: { type: 'string', enum: sources.map(source => source.relativePath) },
+                  quote: { type: 'string', minLength: 1, maxLength: 4096, pattern: '\\S' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 
   const evaluate = (response: unknown): SourceNativeConstructionSemanticReview => {
     const value = row(response, ['packetSha256', 'decisions']);
@@ -179,5 +213,5 @@ export function openSourceNativeConstructionReview(input: {
       admissionGranted: false as const, navigationOnly: true as const, exactSourcesRemainAuthority: true as const };
     return freeze({ ...result, reviewSha256: stableObjectSha256(result) });
   };
-  return freeze({ packet, evaluate });
+  return freeze({ packet, responseSchema, evaluate });
 }
