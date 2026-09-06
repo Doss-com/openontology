@@ -218,6 +218,121 @@ test('returns equivalent graph metadata and preserves legacy missing-checkpoint 
   assert.equal(raw.head(legacy.key) !== null, true);
 });
 
+test('keeps all ref publication variants forward-only with stale-version precedence', () => {
+  const variants = [
+    ['ordinary', (store, input) => store.compareAndSwapRef(input)],
+    ['metadata', (store, input) => store.compareAndSwapRefMetadata(input)],
+    ['checkpointed', (store, input) => store.compareAndSwapRefMetadataCheckpointed(input)],
+  ];
+  for (const [name, publish] of variants) {
+    const raw = openMemoryObjectBackend();
+    const store = openObjectOntStore({ backend: raw });
+    const manifest = manifestFor(store);
+    const first = commitFor(store, manifest, `continuity-${name}-first`);
+    const second = commitFor(store, manifest, `continuity-${name}-first`, {
+      parents: [first.commitSha256],
+    });
+    const forkManifest = store.putBlob({
+      logicalPath: 'oont.json',
+      bytes: Buffer.from(`{"fork":"${name}"}`),
+      mediaType: 'application/json',
+    });
+    const fork = commitFor(store, forkManifest, `continuity-${name}-first`);
+    assert.notEqual(fork.commitSha256, first.commitSha256, name);
+    assert.equal(store.replayMetadata(fork.commitSha256).commitOrder.includes(
+      first.commitSha256,
+    ), false, name);
+    const initial = publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'main',
+      commitSha256: first.commitSha256,
+    });
+    const advanced = publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'main',
+      expectedVersion: initial.version,
+      commitSha256: second.commitSha256,
+    });
+    const equal = publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'main',
+      expectedVersion: advanced.version,
+      commitSha256: second.commitSha256,
+    });
+    assert.equal(equal.ref.commitSha256, second.commitSha256, name);
+    expectCode(() => publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'main',
+      expectedVersion: equal.version,
+      commitSha256: first.commitSha256,
+    }), 'OBJECT_ONT_REF_ROLLBACK');
+    expectCode(() => publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'main',
+      expectedVersion: initial.version,
+      commitSha256: fork.commitSha256,
+    }), 'OBJECT_BACKEND_PRECONDITION');
+    expectCode(() => publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'main',
+      expectedVersion: equal.version,
+      commitSha256: fork.commitSha256,
+    }), 'OBJECT_ONT_REF_ROLLBACK');
+    const fresh = publish(store, {
+      ontId: `continuity-${name}-first`,
+      branch: 'new',
+      commitSha256: fork.commitSha256,
+    });
+    assert.equal(fresh.ref.commitSha256, fork.commitSha256, name);
+  }
+});
+
+test('preserves the winning head when it advances between ancestry read and CAS', () => {
+  const raw = openMemoryObjectBackend();
+  const baseStore = openObjectOntStore({ backend: raw });
+  const manifest = manifestFor(baseStore);
+  const ontId = 'continuity-race-fixture';
+  const first = commitFor(baseStore, manifest, ontId);
+  const candidate = commitFor(baseStore, manifest, ontId, { parents: [first.commitSha256] });
+  const winner = commitFor(baseStore, manifest, ontId, { parents: [first.commitSha256] });
+  const initial = baseStore.compareAndSwapRefMetadata({
+    ontId, branch: 'main', commitSha256: first.commitSha256,
+  });
+  const winnerReplay = baseStore.replayMetadata(winner.commitSha256);
+  let injected = false;
+  const refBackend = {
+    capabilities: raw.capabilities,
+    head: (...args) => raw.head(...args),
+    get: (...args) => raw.get(...args),
+    putIfAbsent: (...args) => raw.putIfAbsent(...args),
+    compareAndSwap(key, options) {
+      if (!injected && key === initial.key) {
+        injected = true;
+        raw.compareAndSwap(key, {
+          expectedVersion: initial.version,
+          bytes: Buffer.from(stableObjectText({
+            ...initial.ref,
+            commitSha256: winner.commitSha256,
+            replayStatus: winnerReplay.status,
+            replaySha256: winnerReplay.replaySha256,
+          })),
+        });
+      }
+      return raw.compareAndSwap(key, options);
+    },
+  };
+  const raceStore = openObjectOntStore({ backend: refBackend });
+  expectCode(() => raceStore.compareAndSwapRefMetadata({
+    ontId,
+    branch: 'main',
+    expectedVersion: initial.version,
+    commitSha256: candidate.commitSha256,
+  }), 'OBJECT_BACKEND_PRECONDITION');
+  assert.equal(injected, true);
+  assert.equal(baseStore.readRefMetadata({ ontId, branch: 'main' }).ref.commitSha256,
+    winner.commitSha256);
+});
+
 test('uses one ref, checkpoint, and tip commit read over a 10000-cut history', () => {
   const raw = openMemoryObjectBackend();
   const heads = [];
