@@ -207,6 +207,7 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
   evaluateProofSufficiencyContract,
   openSourceNativeExactEvidenceSession,
   openSourceNativeObjectOntIndex,
+  openSourceNativeOntExplorer,
   openSourceNativeProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
   openSourceNativeProductWithConstruction,
@@ -231,6 +232,14 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
   type SourceNativeConstructionLedger,
   type SourceNativeConstructionProduct,
   type SourceNativeConstructionReviewSession,
+  type SourceNativeOntExplorer,
+  type SourceNativeOntExplorerEdge,
+  type SourceNativeOntExplorerEdgesResult,
+  type SourceNativeOntExplorerNode,
+  type SourceNativeOntExplorerNodesResult,
+  type SourceNativeOntExplorerRecord,
+  type SourceNativeOntExplorerRecordsResult,
+  type SourceNativeOntExplorerStatusResult,
   type ProductTransport,
 } from 'oont/kernel';
 
@@ -315,6 +324,20 @@ const inspectReview = (session: SourceNativeConstructionReviewSession) => {
   void kind; void unsigned; void signature; void proof;
 };
 void openReview; void inspectReview;
+const openExplorer: typeof openSourceNativeOntExplorer = openSourceNativeOntExplorer;
+const inspectExplorer = (explorer: SourceNativeOntExplorer) => {
+  const status: SourceNativeOntExplorerStatusResult = explorer.status();
+  const nodes: SourceNativeOntExplorerNodesResult = explorer.nodes({ limit: 1 });
+  const edges: SourceNativeOntExplorerEdgesResult = explorer.edges({ limit: 1 });
+  const records: SourceNativeOntExplorerRecordsResult = explorer.records({ limit: 1 });
+  const node: SourceNativeOntExplorerNode | undefined = nodes.nodes[0];
+  const edge: SourceNativeOntExplorerEdge | undefined = edges.edges[0];
+  const record: SourceNativeOntExplorerRecord | undefined = records.records[0];
+  const freshness: 'unknown' = status.freshness.state;
+  const accessMode: 'trusted-whole-ont-kernel' = status.authority.accessMode;
+  void openExplorer; void node; void edge; void record; void freshness; void accessMode;
+};
+void inspectExplorer;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
 const trustRole: SourceNativeAdmissionTrustRole = 'reviewer';
@@ -554,6 +577,7 @@ assert.deepEqual(kernelKeys, [
     'openExactProductArtifactState',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
     'openSourceNativeObjectOntRefIndex',
+    'openSourceNativeOntExplorer',
     'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
     'openSourceNativeProductWithConstruction',
     'openSourceNativeConstructionReview',
@@ -729,6 +753,49 @@ do {
   cursor = page.nextCursor;
 } while (cursor);
 assert.equal(seen.size, 66);
+const explorer = kernel.openSourceNativeOntExplorer(options, { trustRegistry });
+const explorerStatus = explorer.status();
+assert.equal(explorerStatus.kind, 'OpenOntologySourceNativeOntExplorerStatusV1');
+assert.equal(explorerStatus.state, 'ready');
+assert.equal(explorerStatus.recordCount, 3);
+assert.equal(explorerStatus.activeRecordCount, 3);
+assert.equal(explorerStatus.binding.sourceCommitSha256, state.objectOnt.commitSha256);
+assert.equal(explorerStatus.binding.nativeObjectMapSha256, state.objectOnt.map.nativeObjectMapSha256);
+assert.equal(explorerStatus.freshness.state, 'unknown');
+assert.equal(explorerStatus.authority.accessMode, 'trusted-whole-ont-kernel');
+const explorerNodes = [];
+let explorerNodeCursor;
+do {
+  const page = explorer.nodes({ term: field.value, limit: 64,
+    ...(explorerNodeCursor ? { cursor: explorerNodeCursor } : {}) });
+  assert.equal(page.kind, 'OpenOntologySourceNativeOntExplorerNodesV1');
+  assert.equal(page.totalCount, 66);
+  assert(page.nodes.length > 0 && page.nodes.length <= 64);
+  explorerNodes.push(...page.nodes);
+  explorerNodeCursor = page.nextCursor;
+} while (explorerNodeCursor);
+assert.equal(explorerNodes.length, 66);
+assert.equal(new Set(explorerNodes.map(node => node.id)).size, 66);
+const admittedObjectDefNode = explorerNodes.find(node => node.objectDef?.id === 'example-label');
+assert(admittedObjectDefNode);
+const explorerEdges = explorer.edges({ focusId: admittedObjectDefNode.id, limit: 128 });
+assert.equal(explorerEdges.kind, 'OpenOntologySourceNativeOntExplorerEdgesV1');
+const claimEdge = explorerEdges.edges.find(edge => edge.kind === 'claim');
+assert(claimEdge);
+assert.equal(claimEdge.from.startsWith('passage:'), true);
+assert.equal(claimEdge.to, admittedObjectDefNode.id);
+assert.equal(claimEdge.about, 'example-label');
+assert.equal(claimEdge.predicate, 'mentions');
+const explorerRecordPage = explorer.records({ limit: 64 });
+assert.equal(explorerRecordPage.kind, 'OpenOntologySourceNativeOntExplorerRecordsV1');
+assert.equal(explorerRecordPage.totalCount, 3);
+assert.equal(explorerRecordPage.records.length, 3);
+const admittedRecordPage = explorer.records({ constructionSha256: construction.constructionSha256, limit: 1 });
+assert.equal(admittedRecordPage.totalCount, 1);
+assert.equal(admittedRecordPage.records[0].recordSha256, record.recordSha256);
+const explorerPayload = JSON.stringify({ explorerStatus, explorerNodes, explorerEdges, explorerRecordPage });
+assert.equal(explorerPayload.includes(source.content), false);
+assert.equal(/exactText|proofDisposition|signatureBase64|sourceText/u.test(explorerPayload), false);
 const mcp = kernel.createSourceNativeProductMcpHandler(browser, { profile: 'advanced' });
 const listed = await mcp.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
 assert.deepEqual(listed.result.tools.map(tool => tool.name), ['search', 'read']);
