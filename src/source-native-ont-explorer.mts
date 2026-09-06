@@ -396,7 +396,7 @@ function historyUnavailable(ledger: SourceNativeConstructionLedger): boolean {
 
 function observe(state: ReturnType<typeof openProductState>, reader: ReturnType<typeof createConstructionLedgerReader>,
   reviewerSha256: string): Observation {
-  const snapshot = reader.readSnapshot() as Snapshot;
+  const snapshot = reader.readSnapshot();
   const binding = sourceBinding(state, snapshot.ledger, reviewerSha256);
   const projectionSha256 = stableObjectSha256({ binding,
     ledger: { state: snapshot.ledger.state, diagnosticCodes: snapshot.ledger.diagnosticCodes,
@@ -519,7 +519,6 @@ function graph(state: ReturnType<typeof openProductState>, ledger: SourceNativeC
     const construction = recordValue.construction;
     const objectDefs = new Map(construction.objectDefs.map((object) => [object.id, object]));
     for (const objectDef of construction.objectDefs) {
-      const object = nativeObjects.get(objectDef.source.nativeObjectSha256) ?? fail('BINDING');
       const id = objectDefNodeId(state.objectOnt.commitSha256, construction.constructionSha256, objectDef.id);
       addNode({ node: { id, kind: 'object-def', label: objectDef.name, state: 'active',
         objectDef: { id: objectDef.id, name: objectDef.name,
