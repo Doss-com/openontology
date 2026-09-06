@@ -319,6 +319,49 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
       input.end();
       output.end();
     }
+
+    const verifyInput = new PassThrough();
+    const verifyOutput = new PassThrough();
+    const verifyOutputLines = createInterface({ input: verifyOutput });
+    const verifyServer = runSourceNativeProductMcp(
+      openSourceNativeProduct({ artifactRoot: root }),
+      { input: verifyInput, output: verifyOutput },
+    );
+    try {
+      await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 6, method: 'initialize',
+        params: { protocolVersion: '2024-11-05' },
+      });
+      const verifiedCurrentResponse = await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 7, method: 'tools/call',
+        params: { name: 'verify', arguments: { question: currentQuestion } },
+      });
+      const verifiedCurrent = JSON.parse(verifiedCurrentResponse.result.content[0].text);
+      assert.equal(verifiedCurrent.state, 'resolved-current-field');
+      assert.equal(verifiedCurrent.answerable, true);
+      assert.equal(verifiedCurrent.query.externalId, 'task-1');
+      assert.equal(verifiedCurrent.context[0].exactText, 'Done');
+      assert.equal(verifiedCurrent.context[0].binding.externalId, 'task-1');
+
+      const verifiedHistoricalResponse = await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 8, method: 'tools/call',
+        params: {
+          name: 'verify', arguments: { question: historicalQuestion, at: TITLE_AT },
+        },
+      });
+      const verifiedHistorical = JSON.parse(verifiedHistoricalResponse.result.content[0].text);
+      assert.equal(verifiedHistorical.state, 'resolved-historical-field');
+      assert.equal(verifiedHistorical.answerable, true);
+      assert.equal(verifiedHistorical.at, TITLE_AT);
+      assert.equal(verifiedHistorical.query.externalId, 'task-1');
+      assert.equal(verifiedHistorical.context[0].exactText, 'Ready');
+      assert.equal(verifiedHistorical.context[0].binding.externalId, 'task-1');
+    } finally {
+      verifyServer.close();
+      verifyOutputLines.close();
+      verifyInput.end();
+      verifyOutput.end();
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -378,6 +421,35 @@ test('title-only unknown and wrong-namespace refusals match across SDK, CLI and 
       outputLines.close();
       input.end();
       output.end();
+    }
+
+    const verifyInput = new PassThrough();
+    const verifyOutput = new PassThrough();
+    const verifyOutputLines = createInterface({ input: verifyOutput });
+    const verifyServer = runSourceNativeProductMcp(
+      openSourceNativeProduct({ artifactRoot: root }),
+      { input: verifyInput, output: verifyOutput },
+    );
+    try {
+      await mcpCall(verifyInput, verifyOutputLines, {
+        jsonrpc: '2.0', id: 20, method: 'initialize',
+        params: { protocolVersion: '2024-11-05' },
+      });
+      for (const [index, question] of questions.entries()) {
+        const response = await mcpCall(verifyInput, verifyOutputLines, {
+          jsonrpc: '2.0', id: 21 + index, method: 'tools/call',
+          params: { name: 'verify', arguments: { question } },
+        });
+        const result = JSON.parse(response.result.content[0].text);
+        assert.equal(result.state, sdkResults[index].state);
+        assert.equal(result.answerable, false);
+        assert.deepEqual(result.context, []);
+      }
+    } finally {
+      verifyServer.close();
+      verifyOutputLines.close();
+      verifyInput.end();
+      verifyOutput.end();
     }
   } finally {
     rmSync(root, { recursive: true, force: true });
