@@ -207,6 +207,7 @@ openOntology();
   openSourceNativeProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
   openSourceNativeProductWithConstruction,
+  createSourceNativeProductMcpHandler,
   openSourceNativeConstructionReview,
   stableObjectSha256,
   type ExactSessionOptions,
@@ -227,6 +228,7 @@ openOntology();
   type SourceNativeConstructionLedger,
   type SourceNativeConstructionProduct,
   type SourceNativeConstructionReviewSession,
+  type ProductTransport,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
@@ -262,7 +264,14 @@ const readConstruction: typeof readSourceNativeConstructionLedger = readSourceNa
 const reviewConstruction: typeof sourceNativeConstructionAdmissionStatement = sourceNativeConstructionAdmissionStatement;
 void inspectConstructionLedger; void readConstruction; void reviewConstruction;
 const openConstruction: typeof openSourceNativeProductWithConstruction = openSourceNativeProductWithConstruction;
+const inspectOrdinaryTransport = (ont: SourceNativeAdmittedKnowledgeProduct) => {
+  const transport: ProductTransport = ont;
+  return createSourceNativeProductMcpHandler(transport);
+};
+void inspectOrdinaryTransport;
 const inspectConstructionClient = async (ont: SourceNativeConstructionProduct) => {
+  const handler = createSourceNativeProductMcpHandler(ont, { profile: 'advanced' });
+  void handler;
   const result = await ont.search({ term: 'allocation mismatch', scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' } });
   if (result.kind === 'OpenOntologyConstructionSearchResultV1') {
     const total: number = result.totalMatches;
@@ -663,9 +672,27 @@ do {
   }
   cursor = page.nextCursor;
 } while (cursor);
-assert.equal(seen.size, 66);`;
+assert.equal(seen.size, 66);
+const mcp = kernel.createSourceNativeProductMcpHandler(browser, { profile: 'advanced' });
+const listed = await mcp.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+assert.deepEqual(listed.result.tools.map(tool => tool.name), ['search', 'read']);
+assert(listed.result.tools.every(tool => tool.inputSchema.type === 'object'));
+const response = await mcp.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call',
+  params: { name: 'search', arguments: { term: field.value, limit: 7 } } });
+assert.equal(response.result.isError, undefined);
+const discovered = JSON.parse(response.result.content[0].text);
+assert.equal(discovered.state, 'ambiguous-construction-navigation');
+assert.equal(discovered.totalConcepts, 66);
+assert.equal(discovered.matches.length, 7);
+const readResponse = await mcp.handle({ jsonrpc: '2.0', id: 3, method: 'tools/call',
+  params: { name: 'read', arguments: { ref: discovered.matches[0].ref } } });
+assert.equal(readResponse.result.isError, undefined);
+const read = JSON.parse(readResponse.result.content[0].text);
+assert.equal(read.exactText, field.value);
+assert.equal(read.binding.navigationOnly, true);
+assert.equal('proofDisposition' in read, false);`;
   const constructionSmoke = run(process.execPath, ['--input-type=module', '--eval', constructionProgram], { cwd: consumer });
-  check('installed construction Admission and repeated-name paging stay source-bound',
+  check('installed construction paging and MCP reads stay source-bound',
     constructionSmoke.status === 0, tail(constructionSmoke.stderr, 20));
 
   const lifecycleExample = join(packageRoot, 'examples', 'quickstart', 'source-lifecycle.mjs');

@@ -412,8 +412,13 @@ Ordinary `search({ question, ... })`, factual `verify`, existing query-proof
 reuse and lifecycle hooks retain their original implementation. Concept lookup
 does not select the authoritative subject of a factual query. The caller reads
 the candidate, selects its native identity and field, then verifies through
-the existing chronology and proof closure. The root SDK/CLI/MCP still do not
-enable construction implicitly. See the
+the existing chronology and proof closure. The root SDK and CLI still do not
+enable construction implicitly. An explicitly opened construction client can
+use `createSourceNativeProductMcpHandler(client, { profile: 'advanced' })`.
+It advertises the same `search` and `read` tools, with mutually exclusive
+question/term search schemas and both reference formats. Ordinary clients keep
+their existing schemas. The default MCP profile still exposes only `verify`.
+No MCP operation reviews or admits construction. See the
 [executable semantic-map example](CONTEXT-LIFECYCLE.md#executable-concept-map).
 
 ## Query path

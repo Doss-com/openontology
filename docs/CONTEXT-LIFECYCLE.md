@@ -435,7 +435,20 @@ const checked = await ont.verify({
 ```
 
 This uses `oont/kernel`; it does not silently activate construction in the root
-SDK, CLI or MCP. The example also checks pagination, refusal of an unbound
+SDK or CLI. To serve an explicitly configured client over MCP, use the same
+canonical handler:
+
+```js
+import { createSourceNativeProductMcpHandler } from 'oont/kernel';
+
+const handler = createSourceNativeProductMcpHandler(ont, { profile: 'advanced' });
+// Forward incoming JSON-RPC messages to handler.handle(message).
+// Tools remain search and read. Search accepts a question OR a term, not both.
+```
+
+The default MCP profile still exposes only `verify`. Construction-enabled
+advanced handlers offer metadata paging and exact reads, not an Admission or
+review endpoint. The example also checks pagination, refusal of an unbound
 two-object factual query, an explicit correction, invalidation of old read
 handles, cold reopen and reviewer revocation. Existing output is refused rather
 than overwritten. The retained Ont is useful for inspecting the storage layout;

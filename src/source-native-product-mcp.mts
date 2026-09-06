@@ -4,6 +4,10 @@ import type { UnknownRecord } from './source-native-object-map.mjs';
 import type {
   ProductSearchInput,
 } from './source-native-product.mjs';
+import type {
+  SourceNativeConstructionProduct,
+  SourceNativeConstructionSearchInput,
+} from './source-native-construction-navigation.mjs';
 import type { SourceNativeFieldQuery } from './source-native-query-planner.mjs';
 
 export interface ProductTransport {
@@ -12,6 +16,7 @@ export interface ProductTransport {
   search(input: ProductSearchInput): Promise<unknown>;
   read(input: { ref: string }): Promise<unknown>;
 }
+type McpProduct = ProductTransport | Pick<SourceNativeConstructionProduct, keyof ProductTransport>;
 interface JsonRpcResponse { jsonrpc: '2.0'; id: unknown; result?: unknown; error?: UnknownRecord }
 
 const fail = (code: string): never => {
@@ -44,6 +49,25 @@ const QUERY_PROPERTIES = Object.freeze({
   scope: SCOPE_SCHEMA,
 });
 
+const CONSTRUCTION_SCOPE_SCHEMA = Object.freeze({
+  type: 'object',
+  required: ['sourceSystem'],
+  properties: {
+    sourceSystem: { type: 'string', minLength: 1, maxLength: 256 },
+    objectType: { type: 'string', minLength: 1, maxLength: 256 },
+  },
+  additionalProperties: false,
+});
+
+const CONSTRUCTION_QUERY_PROPERTIES = Object.freeze({
+  term: { type: 'string', minLength: 1, maxLength: 256 },
+  scope: CONSTRUCTION_SCOPE_SCHEMA,
+  conceptId: { type: 'string', minLength: 1, maxLength: 128,
+    pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' },
+  limit: { type: 'integer', minimum: 1, maximum: 64, default: 20 },
+  cursor: { type: 'string', minLength: 1, maxLength: 256 },
+});
+
 const VERIFY_TOOL = Object.freeze({
   name: 'verify',
   description: 'Verify one complete question against the named source cut. OpenOntology searches for candidate references, resolves identity and chronology, reads every required exact source range, and returns proof-complete context or a typed refusal. It does not generate a prose answer.',
@@ -73,6 +97,44 @@ const READ_TOOL = Object.freeze({
     type: 'object',
     required: ['ref'],
     properties: { ref: { type: 'string', pattern: '^evidence:[0-9a-f]{64}$' } },
+    additionalProperties: false,
+  },
+});
+
+const CONSTRUCTION_SEARCH_TOOL = Object.freeze({
+  name: 'search',
+  description: 'Search either one ordinary question or one exact construction term. Construction results are navigation metadata only. Ambiguous concepts remain browsable but do not select an identity, prove absence, or create factual proof.',
+  inputSchema: {
+    type: 'object',
+    oneOf: [
+      {
+        type: 'object',
+        required: ['question'],
+        properties: QUERY_PROPERTIES,
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        required: ['term'],
+        properties: CONSTRUCTION_QUERY_PROPERTIES,
+        additionalProperties: false,
+      },
+    ],
+  },
+});
+
+const CONSTRUCTION_READ_TOOL = Object.freeze({
+  name: 'read',
+  description: 'Read one evidence or construction reference returned by search. Construction reads return exact source bytes for navigation and do not create factual proof.',
+  inputSchema: {
+    type: 'object',
+    required: ['ref'],
+    properties: {
+      ref: {
+        type: 'string',
+        pattern: '^(?:evidence:[0-9a-f]{64}|construction:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      },
+    },
     additionalProperties: false,
   },
 });
@@ -146,10 +208,66 @@ function queryArguments(value: unknown): ProductSearchInput {
   };
 }
 
-function readArguments(value: unknown): { ref: string } {
+function constructionText(value: unknown, maximum = 256): string {
+  if (typeof value !== 'string' || !value.trim() || value.length > maximum
+    || /[\u0000-\u001f\u007f]/u.test(value)
+    || Buffer.from(value).toString('utf8') !== value) {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  }
+  return typeof value === 'string' ? value.trim() : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+}
+
+function constructionScopeArguments(value: unknown): SourceNativeConstructionSearchInput['scope'] {
+  if (value === undefined) return undefined;
+  const scope = exactArguments(value, ['sourceSystem', 'objectType']);
+  return {
+    sourceSystem: constructionText(scope.sourceSystem),
+    ...(scope.objectType === undefined ? {} : { objectType: constructionText(scope.objectType) }),
+  };
+}
+
+function constructionSearchArguments(value: unknown): SourceNativeConstructionSearchInput {
+  const args = exactArguments(value, ['term', 'scope', 'conceptId', 'limit', 'cursor']);
+  const term = constructionText(args.term);
+  const conceptId = args.conceptId === undefined ? undefined : constructionText(args.conceptId, 128);
+  if (conceptId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(conceptId)) {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  }
+  const limit = args.limit === undefined ? undefined
+    : typeof args.limit === 'number' ? args.limit : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 64)) {
+    fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  }
+  const cursor = args.cursor === undefined ? undefined : constructionText(args.cursor);
+  return {
+    term,
+    ...(args.scope === undefined ? {} : { scope: constructionScopeArguments(args.scope) }),
+    ...(conceptId === undefined ? {} : { conceptId }),
+    ...(limit === undefined ? {} : { limit }),
+    ...(cursor === undefined ? {} : { cursor }),
+  };
+}
+
+function constructionAdvancedSearchArguments(value: unknown):
+  ProductSearchInput | SourceNativeConstructionSearchInput {
+  const args = exactArguments(value, [
+    'question', 'intent', 'at', 'anchorValue', 'scope',
+    'term', 'conceptId', 'limit', 'cursor',
+  ]);
+  const hasQuestion = Object.hasOwn(args, 'question');
+  const hasTerm = Object.hasOwn(args, 'term');
+  if (hasQuestion === hasTerm) fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  return hasTerm ? constructionSearchArguments(args) : queryArguments(args);
+}
+
+function readArguments(value: unknown, constructionProduct = false): { ref: string } {
   const args = exactArguments(value, ['ref']);
   const ref = args.ref;
-  if (typeof ref !== 'string' || !/^evidence:[0-9a-f]{64}$/u.test(ref)) {
+  const valid = typeof ref === 'string' && (
+    /^evidence:[0-9a-f]{64}$/u.test(ref)
+    || constructionProduct && /^construction:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(ref)
+  );
+  if (!valid) {
     fail('SOURCE_NATIVE_PRODUCT_READ');
   }
   return { ref: typeof ref === 'string' ? ref : fail('SOURCE_NATIVE_PRODUCT_READ') };
@@ -168,10 +286,12 @@ function errorResult(error: unknown): UnknownRecord {
   };
 }
 
-export function createSourceNativeProductMcpHandler(product: ProductTransport, {
+export function createSourceNativeProductMcpHandler(product: McpProduct, {
   profile = 'verify',
 }: { profile?: 'verify' | 'advanced' } = {}) {
-  if (!['OpenOntologySourceNativeProductV2', 'OpenOntologySourceNativeAdmittedKnowledgeProductV1']
+  const constructionProduct = product?.kind === 'OpenOntologySourceNativeConstructionProductV1';
+  if (!['OpenOntologySourceNativeProductV2', 'OpenOntologySourceNativeAdmittedKnowledgeProductV1',
+    'OpenOntologySourceNativeConstructionProductV1']
     .includes(product?.kind)
     || typeof product.verify !== 'function'
     || typeof product.search !== 'function'
@@ -179,7 +299,9 @@ export function createSourceNativeProductMcpHandler(product: ProductTransport, {
     || !['verify', 'advanced'].includes(profile)) {
     throw new TypeError('SOURCE_NATIVE_PRODUCT_MCP');
   }
-  const tools = Object.freeze(profile === 'verify' ? [VERIFY_TOOL] : [SEARCH_TOOL, READ_TOOL]);
+  const tools = Object.freeze(profile === 'verify' ? [VERIFY_TOOL]
+    : constructionProduct ? [CONSTRUCTION_SEARCH_TOOL, CONSTRUCTION_READ_TOOL]
+      : [SEARCH_TOOL, READ_TOOL]);
   const handle = async (input: unknown): Promise<JsonRpcResponse | null> => {
     if (!input || typeof input !== 'object' || Array.isArray(input)
       || !('id' in input) || input.id === undefined) return null;
@@ -204,11 +326,11 @@ export function createSourceNativeProductMcpHandler(product: ProductTransport, {
             queryArguments(params.arguments),
           ));
         } else if (profile === 'advanced' && params.name === 'search') {
-          response.result = result(await product.search(
-            queryArguments(params.arguments),
-          ));
+          response.result = result(await (product.kind === 'OpenOntologySourceNativeConstructionProductV1'
+            ? product.search(constructionAdvancedSearchArguments(params.arguments))
+            : product.search(queryArguments(params.arguments))));
         } else if (profile === 'advanced' && params.name === 'read') {
-          const args = readArguments(params.arguments);
+          const args = readArguments(params.arguments, constructionProduct);
           response.result = result(await product.read({ ref: args.ref }));
         } else {
           response.result = errorResult({ code: 'SOURCE_NATIVE_PRODUCT_TOOL_NOT_FOUND' });
@@ -224,7 +346,7 @@ export function createSourceNativeProductMcpHandler(product: ProductTransport, {
   return Object.freeze({ tools, handle });
 }
 
-export function runSourceNativeProductMcp(product: ProductTransport, {
+export function runSourceNativeProductMcp(product: McpProduct, {
   input = process.stdin,
   output = process.stdout,
   profile = 'verify',

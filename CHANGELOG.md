@@ -4,6 +4,9 @@
 
 - Make repeated concept names browsable through bounded metadata pages while
   preserving distinct identities, exact reads and explicit factual verification.
+- Expose explicitly configured construction clients through the existing MCP
+  `search` and `read` tools. Ordinary schemas and the default `verify` remain
+  unchanged; no review or signing tool is added.
 - Add a bounded full-source construction review session with complete per-item
   decisions and exact quotation checks. Results remain unsigned and cannot
   grant Admission; independent semantic judgment remains external.
