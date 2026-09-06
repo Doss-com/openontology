@@ -875,3 +875,103 @@ test('a fresh third writer cannot advance while recovery finalizes a pending tar
   assert.equal(recovery.readRefHead({ ontId: 'history-concurrent-recovery', branch: 'main' }).ref.commitSha256,
     second.commitSha256);
 });
+
+test('the original reservation resumes after reentrant recovery and converges or conflicts', () => {
+  const data = openMemoryObjectBackend();
+  const history = openMemoryObjectBackend();
+  const base = openObjectOntStore({ backend: data, historyBackend: history });
+  const ontId = 'history-reentrant-reservation';
+  const manifest = manifestFor(base);
+  const target = commitFor(base, manifest, ontId);
+  const recovery = openObjectOntStore({ backend: data, historyBackend: history });
+  let reentered = false;
+  let recoveryError = null;
+  const racingHistory = {
+    capabilities: history.capabilities,
+    head: (...args) => history.head(...args),
+    get: (...args) => history.get(...args),
+    putIfAbsent: (...args) => history.putIfAbsent(...args),
+    compareAndSwap(key, options) {
+      const result = history.compareAndSwap(key, options);
+      if (!reentered && key === `ref-history/${ontId}/main.json`) {
+        reentered = true;
+        try {
+          recovery.recoverRefHistory({ ontId, branch: 'main' });
+        } catch (error) {
+          recoveryError = error;
+        }
+      }
+      return result;
+    },
+  };
+  const original = openObjectOntStore({ backend: data, historyBackend: racingHistory });
+  let originalResult = null;
+  let originalError = null;
+  try {
+    originalResult = original.compareAndSwapRefMetadata({ ontId, branch: 'main', commitSha256: target.commitSha256 });
+  } catch (error) {
+    originalError = error;
+  }
+
+  assert.equal(reentered, true);
+  assert.equal(recoveryError, null);
+  if (originalError === null) {
+    assert.equal(originalResult.ref.commitSha256, target.commitSha256);
+  } else {
+    assert.equal(originalError.code, 'OBJECT_BACKEND_PRECONDITION');
+  }
+
+  const cold = openObjectOntStore({ backend: data, historyBackend: history });
+  assert.equal(cold.readRefMetadata({ ontId, branch: 'main' }).ref.commitSha256, target.commitSha256);
+  assert.equal(cold.recoverRefHistory({ ontId, branch: 'main' }).replayed, true);
+});
+
+test('the original data publication resumes after reentrant recovery and converges or conflicts', () => {
+  const data = openMemoryObjectBackend();
+  const history = openMemoryObjectBackend();
+  const base = openObjectOntStore({ backend: data, historyBackend: history });
+  const ontId = 'history-reentrant-data';
+  const manifest = manifestFor(base);
+  const target = commitFor(base, manifest, ontId);
+  const recovery = openObjectOntStore({ backend: data, historyBackend: history });
+  let reentered = false;
+  let recoveryError = null;
+  const racingData = {
+    capabilities: data.capabilities,
+    head: (...args) => data.head(...args),
+    get: (...args) => data.get(...args),
+    putIfAbsent: (...args) => data.putIfAbsent(...args),
+    compareAndSwap(key, options) {
+      const result = data.compareAndSwap(key, options);
+      if (!reentered && key === `refs/${ontId}/main.json`) {
+        reentered = true;
+        try {
+          recovery.recoverRefHistory({ ontId, branch: 'main' });
+        } catch (error) {
+          recoveryError = error;
+        }
+      }
+      return result;
+    },
+  };
+  const original = openObjectOntStore({ backend: racingData, historyBackend: history });
+  let originalResult = null;
+  let originalError = null;
+  try {
+    originalResult = original.compareAndSwapRefMetadata({ ontId, branch: 'main', commitSha256: target.commitSha256 });
+  } catch (error) {
+    originalError = error;
+  }
+
+  assert.equal(reentered, true);
+  assert.equal(recoveryError, null);
+  if (originalError === null) {
+    assert.equal(originalResult.ref.commitSha256, target.commitSha256);
+  } else {
+    assert.equal(originalError.code, 'OBJECT_BACKEND_PRECONDITION');
+  }
+
+  const cold = openObjectOntStore({ backend: data, historyBackend: history });
+  assert.equal(cold.readRefMetadata({ ontId, branch: 'main' }).ref.commitSha256, target.commitSha256);
+  assert.equal(cold.recoverRefHistory({ ontId, branch: 'main' }).replayed, true);
+});
