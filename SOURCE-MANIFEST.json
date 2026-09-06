@@ -212,8 +212,8 @@
     },
     {
       "path": "scripts/test-object-ont-history.mjs",
-      "bytes": 34774,
-      "sha256": "c859d024e4cd7e6e56c24777bf9c4e972bb3850b0cba086c6ef28114ee02d9b7"
+      "bytes": 42917,
+      "sha256": "849248fb2852f04c81e55f01aa735c40b8fbac1927b8d985152c593372f62c95"
     },
     {
       "path": "scripts/test-object-ont-replay-checkpoint.mjs",
@@ -342,8 +342,8 @@
     },
     {
       "path": "src/object-ont-store.mts",
-      "bytes": 75594,
-      "sha256": "a3fa9dbbbcd7605ac487220035ff0c051c979054b91955ebfeb90c803adb2cc2"
+      "bytes": 76587,
+      "sha256": "085db7ad31389406ce7f2e1d30e134ae857c3af5c944984ae461edfea42c63e8"
     },
     {
       "path": "src/object-storage-backend.mts",
@@ -476,5 +476,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:fdda54d5948867320d3878a5041930f4aa2829377801dee459aba04ca4452209"
+  "manifestSha256": "sha256:d7eee3ecc9f50f24b2f5e7917b119ed7dc5ce963991f4ceae08bbf0311bd1ee5"
 }
