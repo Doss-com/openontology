@@ -362,12 +362,19 @@ test('structured scopes preserve declared field intent and may fill missing sele
       assert.equal(narrowed.answerable, true);
       assert.deepEqual(narrowed.context.map(row => row.exactText), ['Done']);
     }
-    const absent = await product.verify({ question: 'Inspect this object.',
+    for (const question of ['Inspect this object.', 'What is the current status of task-999?']) {
+      const absent = await product.verify({ question, scope: { ...scope, externalId: 'task-999' } });
+      assert.equal(absent.state, 'verified-native-object-absent-from-bound-source-catalog');
+      assert.equal(absent.answerable, false);
+      assert.deepEqual(absent.context, []);
+      assert.equal(absent.verification.absenceReceipt.exactOccurrenceCount, 0);
+      assert.equal(absent.verification.absenceReceipt.worldAbsenceAuthorized, false);
+    }
+    const extraId = await product.verify({ question: 'What is the status of task-999 and task-998?',
       scope: { ...scope, externalId: 'task-999' } });
-    assert.equal(absent.state, 'verified-native-object-absent-from-bound-source-catalog');
-    assert.equal(absent.answerable, false);
-    assert.deepEqual(absent.context, []);
-    assert.equal(absent.verification.absenceReceipt.exactOccurrenceCount, 0);
+    assert.equal(extraId.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(extraId.context, []);
+    assert.equal(extraId.verification.absenceReceipt, null);
     const historical = await product.verify({
       question: 'What was the status of task-1?', at: '2026-01-15T00:00:00.000Z',
       scope: { ...scope, field: 'title' },
@@ -391,6 +398,14 @@ test('structured scopes preserve declared field intent and may fill missing sele
     assert.equal(cliResult.state, 'unavailable-native-field-ambiguous');
     assert.equal(cliResult.answerable, false);
     assert.deepEqual(cliResult.context, []);
+  });
+  await withProduct(buildInput({ adapterDiagnostics: [{ code: 'PARSE_FAILURE' }] }), async product => {
+    const incomplete = await product.verify({ question: 'What is the status of task-999?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', externalId: 'task-999', field: 'status' } });
+    assert.equal(incomplete.state, 'unavailable-native-object-not-seeded');
+    assert.equal(incomplete.answerable, false);
+    assert.deepEqual(incomplete.context, []);
+    assert.equal(incomplete.verification.absenceReceipt, null);
   });
 });
 

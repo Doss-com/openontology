@@ -1989,18 +1989,21 @@ test('Admission compilation refuses a contract bound to a different authority pr
   }
 });
 
-test('a different typed scope cannot reuse admitted context', async () => {
+test('different and contradictory typed scopes cannot reuse admitted context', async () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-admitted-scope-binding-'));
   try {
     const { product, question, record } = createAdmittedFixture(root);
+    const typedQuery = {
+      sourceSystem: 'linear', objectType: 'issue', externalId: 'issue-2', fieldPath: 'status',
+    };
+    const conflict = await product.verify({ question, typedQuery });
+    assert.equal(conflict.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(conflict.answerable, false);
+    assert.deepEqual(conflict.context, []);
+    assert.equal(conflict.verification.absenceReceipt, null);
+    assert.notEqual(conflict.verification.admissionRecordSha256, record.recordSha256);
     const verification = await product.verify({
-      question,
-      typedQuery: {
-        sourceSystem: 'linear',
-        objectType: 'issue',
-        externalId: 'issue-2',
-        fieldPath: 'status',
-      },
+      question: 'What is the current issue status?', typedQuery,
     });
     assert.equal(verification.state,
       'verified-native-object-absent-from-bound-source-catalog');
@@ -2011,6 +2014,15 @@ test('a different typed scope cannot reuse admitted context', async () => {
     assert.equal(verification.verification.absenceReceipt.objectIdentity.externalId, 'issue-2');
     assert.equal(verification.verification.absenceReceipt.worldAbsenceAuthorized, false);
     assert.notEqual(verification.verification.admissionRecordSha256, record.recordSha256);
+    const explicit = await product.verify({
+      question: 'What is the current issue status for issue-2?', typedQuery,
+    });
+    assert.equal(explicit.state, 'verified-native-object-absent-from-bound-source-catalog');
+    assert.equal(explicit.answerable, false);
+    assert.deepEqual(explicit.context, []);
+    assert.equal(explicit.verification.absenceReceipt.objectIdentity.externalId, 'issue-2');
+    assert.equal(explicit.verification.absenceReceipt.worldAbsenceAuthorized, false);
+    assert.notEqual(explicit.verification.admissionRecordSha256, record.recordSha256);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

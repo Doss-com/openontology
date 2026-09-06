@@ -6,6 +6,8 @@
   structured scope. Preserve scope-only queries and disambiguation among
   matching declared candidates across SDK, CLI and MCP. Version the planner
   binding so prior-plan Admissions do not silently reuse different semantics.
+  Matching typed missing IDs retain catalog-scoped absence; conflicting IDs
+  cannot issue an absence receipt for a different requested object.
 - Make repeated concept names browsable through bounded metadata pages while
   preserving distinct identities, exact reads and explicit factual verification.
 - Expose explicitly configured construction clients through the existing MCP

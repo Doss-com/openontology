@@ -162,12 +162,16 @@ function mentionedExternalId(question: string, map: SourceNativeObjectMap, names
   query: SourceNativeFieldQuery): { value: string | symbol | null; candidates: string[]; unresolvedExternalIds: string[] } {
   const text = normalizedQuestion(question);
   let unsafeMention = false;
-  const knownExternalIds = [...new Set(map.nativeObjects.filter((object) =>
-    object.objectIdentity.namespace === namespace
-    && object.objectIdentity.sourceSystem === query.sourceSystem
-    && object.objectIdentity.objectType === query.objectType)
-    .map((object) => object.objectIdentity.externalId))];
-  const candidates = knownExternalIds.filter((externalId) => {
+  // Recognizing a scoped ID does not prove it exists. The bound census owns that check.
+  const candidateExternalIds = [...new Set([
+    ...map.nativeObjects.filter((object) =>
+      object.objectIdentity.namespace === namespace
+      && object.objectIdentity.sourceSystem === query.sourceSystem
+      && object.objectIdentity.objectType === query.objectType)
+      .map((object) => object.objectIdentity.externalId),
+    ...(query.externalId === undefined ? [] : [query.externalId]),
+  ])];
+  const candidates = candidateExternalIds.filter((externalId) => {
     const needle = normalizedQuestion(externalId);
     let index = text.indexOf(needle);
     while (index >= 0) {
@@ -181,10 +185,10 @@ function mentionedExternalId(question: string, map: SourceNativeObjectMap, names
   });
   const identifierTokens = text.match(/[\p{L}\p{N}]+(?:[-_:./][\p{L}\p{N}]+)+/gu) ?? [];
   const identifierShape = (value: string): string => value.replace(/\p{N}+/gu, '#');
-  const knownByText = new Set(knownExternalIds.map(normalizedQuestion));
-  const knownShapes = new Set([...knownByText].map(identifierShape));
+  const candidateByText = new Set(candidateExternalIds.map(normalizedQuestion));
+  const candidateShapes = new Set([...candidateByText].map(identifierShape));
   const unresolvedExternalIds = [...new Set(identifierTokens.filter((token) =>
-    !knownByText.has(token) && knownShapes.has(identifierShape(token))))].sort();
+    !candidateByText.has(token) && candidateShapes.has(identifierShape(token))))].sort();
   if (candidates.length > 1 || candidates.length === 1 && unresolvedExternalIds.length > 0) {
     return { value: EXTERNAL_ID_MULTIPLE, candidates: candidates.sort(), unresolvedExternalIds };
   }
@@ -343,7 +347,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     query = anchor.query;
   }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v5-declared-scope-agreement-v1', namespace, querySchemas,
+    adapter: 'source-native-product-query-v6-declared-scope-agreement-v2', namespace, querySchemas,
   });
   const core = {
     schema: 1,
@@ -381,7 +385,7 @@ export function queryPlanner({ namespace, plan }: {
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v5-declared-scope-agreement-v1',
+    adapter: 'source-native-product-query-v6-declared-scope-agreement-v2',
     namespace,
     plannerSha256,
     modelCalls: 0,

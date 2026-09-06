@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 6759,
-      "sha256": "06e794e4b794822d8a83bf22513a59b893700658b07b9b6dd9252de3bab0c8b0"
+      "bytes": 6903,
+      "sha256": "da0100778074d7af2ba0b00b290f41a6a6ca0d971f9aa858f232e3a3b1a301be"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 30798,
-      "sha256": "c07a2ac990d631f9d8663f5ea29f7c07b8181868b9be1317e3a0ec66c6650825"
+      "bytes": 30973,
+      "sha256": "d80a34035fbadd9999ba7ec9f5a48af6017c3c94d60927ece3b4fa8164e609e0"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -252,8 +252,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 142169,
-      "sha256": "f7ff13c27fd725123dfb7cd6a3986e339f3de61e378b14282a97e05b918fb132"
+      "bytes": 143182,
+      "sha256": "c1388fd4ad6cb68148542101993c4cb17fcbef457f6c7359722623259eaae01b"
     },
     {
       "path": "scripts/test-source-native-checkpoint-opening.mjs",
@@ -342,8 +342,8 @@
     },
     {
       "path": "scripts/test-source-native-title-query.mjs",
-      "bytes": 22643,
-      "sha256": "3afc250bd3586b385e793adc97977f2008395ae7d82b5df9e96d7d87465fcefa"
+      "bytes": 23696,
+      "sha256": "d04418fb8288fcc00096387b1eef96a1703d3b3c3f1d59cc1864c200410487a3"
     },
     {
       "path": "scripts/update-source-manifest.mjs",
@@ -512,8 +512,8 @@
     },
     {
       "path": "src/source-native-query-plan.mts",
-      "bytes": 17589,
-      "sha256": "3e9b9a03cc60d247c9943f173216a463d637e516afc6ae93410d50d1ff0fcdf7"
+      "bytes": 17799,
+      "sha256": "c7b744802d37866da1bd885d18e6fc61ef41098d4ba577e9717f919e713b5427"
     },
     {
       "path": "src/source-native-query-planner.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:df3a0fd9cccc9411c2bf87aee5dde970d0b417678507a628e81e7e59aa9a16b0"
+  "manifestSha256": "sha256:33736d5fd8f6412e187db4284f9401476e565a0f4a81410c1f8d6c17917edee9"
 }
