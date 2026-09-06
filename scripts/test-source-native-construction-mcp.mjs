@@ -172,7 +172,7 @@ function fixture(t) {
   });
   kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry, record });
   const product = kernel.openSourceNativeProductWithConstruction(options, { trustRegistry });
-  return { product };
+  return { product, options, trustRegistry };
 }
 
 async function call(handler, id, name, argumentsValue) {
@@ -195,10 +195,12 @@ function errorCode(response) {
 }
 
 test('construction advanced MCP forwards navigation and ordinary operations through one client', async t => {
-  const { product } = fixture(t);
+  const fixtureState = fixture(t);
+  const { product } = fixtureState;
   const handler = createSourceNativeProductMcpHandler(product, { profile: 'advanced' });
   const listed = await handler.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
   assert.deepEqual(listed.result.tools.map(tool => tool.name), ['search', 'read']);
+  assert.equal(listed.result.tools[0].inputSchema.type, 'object');
   assert.equal(listed.result.tools[0].inputSchema.oneOf.length, 2);
   assert.deepEqual(listed.result.tools[0].inputSchema.oneOf.map(schema => schema.required), [
     ['question'],
@@ -224,6 +226,22 @@ test('construction advanced MCP forwards navigation and ordinary operations thro
   assert.equal(constructionRead.exactText, 'ClickupTask CT-17: allocation mismatch. Status: open.');
   assert.equal(constructionRead.binding.navigationOnly, true);
   assert.equal(constructionRead.binding.exactSourcesRemainAuthority, true);
+
+  const secondProduct = kernel.openSourceNativeProductWithConstruction(
+    fixtureState.options,
+    { trustRegistry: fixtureState.trustRegistry },
+  );
+  const secondHandler = createSourceNativeProductMcpHandler(secondProduct, { profile: 'advanced' });
+  const secondSearch = resultValue(await call(secondHandler, 30, 'search', {
+    term: 'allocation mismatch',
+    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
+    limit: 1,
+  }));
+  const secondRef = secondSearch.matches[0].ref;
+  assert.equal(resultValue(await call(secondHandler, 31, 'read', { ref: secondRef })).kind,
+    'OpenOntologyConstructionReadResultV1');
+  assert.equal(errorCode(await call(handler, 32, 'read', { ref: secondRef })),
+    'CONSTRUCTION_NAVIGATION_REFERENCE');
 
   const ordinaryQuery = {
     question: 'What is the current status for CT-17?',
@@ -255,6 +273,9 @@ test('construction advanced MCP forwards navigation and ordinary operations thro
   }));
   assert.equal(unbound.answerable, false);
   assert.equal(unbound.context.length, 0);
+  assert.equal(errorCode(await call(verifyHandler, 9, 'verify', {
+    term: 'allocation mismatch',
+  })), 'SOURCE_NATIVE_PRODUCT_QUERY');
 });
 
 test('construction MCP rejects mixed, invalid and foreign inputs without changing ordinary clients', async t => {
@@ -262,10 +283,13 @@ test('construction MCP rejects mixed, invalid and foreign inputs without changin
   const constructionHandler = createSourceNativeProductMcpHandler(product, { profile: 'advanced' });
   for (const argumentsValue of [
     { term: 'allocation mismatch', scope: { objectType: 'ClickupTask' } },
+    { term: 'allocation mismatch', scope: null },
     { term: 'allocation mismatch', extra: true },
     { term: 'allocation mismatch', question: 'What is true?' },
     { term: '', limit: 0 },
     { term: 'allocation mismatch', limit: 65 },
+    { term: 'allocation mismatch', limit: 1.5 },
+    { term: 'allocation mismatch', conceptId: '../other' },
   ]) {
     assert.equal(errorCode(await call(constructionHandler, randomUUID(), 'search', argumentsValue)),
       'SOURCE_NATIVE_PRODUCT_QUERY');
@@ -276,6 +300,15 @@ test('construction MCP rejects mixed, invalid and foreign inputs without changin
   assert.equal(errorCode(await call(constructionHandler, 21, 'read', {
     ref: `construction:${randomUUID()}`,
   })), 'CONSTRUCTION_NAVIGATION_REFERENCE');
+  const offered = resultValue(await call(constructionHandler, 24, 'search', {
+    term: 'allocation mismatch',
+    scope: { sourceSystem: 'clickup' },
+    limit: 1,
+  })).matches[0].ref;
+  assert.equal(errorCode(await call(constructionHandler, 25, 'read', {
+    ref: offered,
+    extra: true,
+  })), 'SOURCE_NATIVE_PRODUCT_QUERY');
 
   const ordinary = createSourceNativeProductMcpHandler({
     ...product,

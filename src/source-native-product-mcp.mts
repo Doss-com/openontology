@@ -11,9 +11,16 @@ export interface ProductTransport {
   kind: 'OpenOntologySourceNativeProductV2' | 'OpenOntologySourceNativeAdmittedKnowledgeProductV1'
     | 'OpenOntologySourceNativeConstructionProductV1';
   verify(input: ProductSearchInput): Promise<unknown>;
-  search(input: ProductSearchInput): Promise<unknown>;
+  search(input: ProductSearchInput | SourceNativeConstructionSearchInput): Promise<unknown>;
   read(input: { ref: string }): Promise<unknown>;
 }
+interface OrdinaryProductTransport {
+  kind: 'OpenOntologySourceNativeProductV2' | 'OpenOntologySourceNativeAdmittedKnowledgeProductV1';
+  verify(input?: ProductSearchInput): Promise<unknown>;
+  search(input?: ProductSearchInput): Promise<unknown>;
+  read(input: { ref: string }): Promise<unknown>;
+}
+type CompatibleProductTransport = ProductTransport | OrdinaryProductTransport;
 interface JsonRpcResponse { jsonrpc: '2.0'; id: unknown; result?: unknown; error?: UnknownRecord }
 
 const fail = (code: string): never => {
@@ -50,8 +57,8 @@ const CONSTRUCTION_SCOPE_SCHEMA = Object.freeze({
   type: 'object',
   required: ['sourceSystem'],
   properties: {
-    sourceSystem: { type: 'string', minLength: 1 },
-    objectType: { type: 'string', minLength: 1 },
+    sourceSystem: { type: 'string', minLength: 1, maxLength: 256 },
+    objectType: { type: 'string', minLength: 1, maxLength: 256 },
   },
   additionalProperties: false,
 });
@@ -100,8 +107,9 @@ const READ_TOOL = Object.freeze({
 
 const CONSTRUCTION_SEARCH_TOOL = Object.freeze({
   name: 'search',
-  description: 'Browse construction names, aliases and source-linked passages. Results are navigation metadata only. Ambiguous concepts remain browsable but do not select an identity, prove absence, or create factual proof.',
+  description: 'Search either one ordinary question or one exact construction term. Construction results are navigation metadata only. Ambiguous concepts remain browsable but do not select an identity, prove absence, or create factual proof.',
   inputSchema: {
+    type: 'object',
     oneOf: [
       {
         type: 'object',
@@ -283,14 +291,7 @@ function errorResult(error: unknown): UnknownRecord {
   };
 }
 
-function searchProduct(product: ProductTransport,
-  input: ProductSearchInput | SourceNativeConstructionSearchInput): Promise<unknown> {
-  return (product.search as unknown as (
-    value: ProductSearchInput | SourceNativeConstructionSearchInput,
-  ) => Promise<unknown>)(input);
-}
-
-export function createSourceNativeProductMcpHandler(product: ProductTransport, {
+export function createSourceNativeProductMcpHandler(product: CompatibleProductTransport, {
   profile = 'verify',
 }: { profile?: 'verify' | 'advanced' } = {}) {
   const constructionProduct = product?.kind === 'OpenOntologySourceNativeConstructionProductV1';
@@ -330,8 +331,9 @@ export function createSourceNativeProductMcpHandler(product: ProductTransport, {
             queryArguments(params.arguments),
           ));
         } else if (profile === 'advanced' && params.name === 'search') {
-          response.result = result(await searchProduct(product,
-            advancedSearchArguments(params.arguments, constructionProduct)));
+          response.result = result(await (product.kind === 'OpenOntologySourceNativeConstructionProductV1'
+            ? product.search(advancedSearchArguments(params.arguments, true))
+            : product.search(queryArguments(params.arguments))));
         } else if (profile === 'advanced' && params.name === 'read') {
           const args = readArguments(params.arguments, constructionProduct);
           response.result = result(await product.read({ ref: args.ref }));
@@ -349,7 +351,7 @@ export function createSourceNativeProductMcpHandler(product: ProductTransport, {
   return Object.freeze({ tools, handle });
 }
 
-export function runSourceNativeProductMcp(product: ProductTransport, {
+export function runSourceNativeProductMcp(product: CompatibleProductTransport, {
   input = process.stdin,
   output = process.stdout,
   profile = 'verify',
