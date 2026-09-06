@@ -2,7 +2,7 @@
 import { fileURLToPath } from 'node:url';
 import type { ObjectBackend, ObjectBackendCapabilities } from './object-storage-backend.mjs';
 import { openGcsObjectBackend } from './gcs-object-storage-backend.mjs';
-import type { GcsRequestObserver } from './gcs-object-storage-backend.mjs';
+import type { GcsRequestObserver } from './gcs-request-observation.mjs';
 import { openFileObjectBackend } from './object-storage-backend.mjs';
 import { openS3ObjectBackend } from './s3-object-storage-backend.mjs';
 

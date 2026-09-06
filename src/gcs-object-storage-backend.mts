@@ -4,6 +4,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import type { GcsRequestOperationClass, GcsRequestObservation, GcsRequestObserver } from './gcs-request-observation.mjs';
+export type { GcsRequestOperationClass, GcsRequestFailureClass, GcsRequestObservation, GcsRequestObserver } from './gcs-request-observation.mjs';
 import {
   CANONICAL_OBJECT_BACKEND_CONTRACT,
   type ObjectBackend,
@@ -27,32 +29,6 @@ export interface GcsTransportResponse {
 }
 
 export type GcsTransport = (request: GcsTransportRequest) => GcsTransportResponse;
-
-export type GcsRequestOperationClass =
-  | 'bucket-metadata'
-  | 'object-metadata'
-  | 'body-read'
-  | 'create-if-absent'
-  | 'compare-and-swap';
-
-export type GcsRequestFailureClass = 'transport' | 'malformed-response';
-
-export interface GcsRequestObservation {
-  readonly schemaVersion: 1;
-  readonly kind: 'OpenOntologyGcsRequestObservationV1';
-  readonly operationClass: GcsRequestOperationClass;
-  readonly method: string;
-  readonly attempt: number;
-  readonly status: number | null;
-  readonly requestBodyBytes: number;
-  readonly responseBodyBytes: number | null;
-  readonly elapsedTransportMs: number;
-  readonly bucket: string;
-  readonly prefix: string | null;
-  readonly failureClass: GcsRequestFailureClass | null;
-}
-
-export type GcsRequestObserver = (observation: Readonly<GcsRequestObservation>) => void;
 
 type GcsRequestObservationFields = Omit<
   GcsRequestObservation,

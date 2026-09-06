@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 94,
+  "fileCount": 95,
   "files": [
     {
       "path": ".editorconfig",
@@ -327,13 +327,18 @@
     },
     {
       "path": "src/canonical-object-backend.mts",
-      "bytes": 5497,
-      "sha256": "ca8a4866a66476f788c046639a4e17712c343e1148ad028328d74b05e4f908f1"
+      "bytes": 5494,
+      "sha256": "3d347341feb45ee4259ecfecf5050fbe830753d7f76b64e53aa4fe0ceb1c0cf4"
     },
     {
       "path": "src/gcs-object-storage-backend.mts",
-      "bytes": 25331,
-      "sha256": "ca8b107031277b17da67707d433f27b27d031d9c9e604b31f3ee279f69f96421"
+      "bytes": 24779,
+      "sha256": "1453283fdaed4b2db29f88869c0e2765fe5287f5c766148ec5c22858b91411a8"
+    },
+    {
+      "path": "src/gcs-request-observation.mts",
+      "bytes": 903,
+      "sha256": "a984e7192f90c3afe29cb86152a1e142ccc0c58614a2f8a41a87c257c23ef5c5"
     },
     {
       "path": "src/kernel.mts",
@@ -352,8 +357,8 @@
     },
     {
       "path": "src/openontology.mts",
-      "bytes": 16377,
-      "sha256": "9ccfa7f57703b5ff225472e0d1a08f42fd0b9a470421081b2256c2d914b80831"
+      "bytes": 16374,
+      "sha256": "9926544afc405ad1c5c9de9118af50777a9f0b4b44b3e9cf2e75467d363c1dbc"
     },
     {
       "path": "src/product-result-state.mts",
@@ -476,5 +481,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:91f8894fcb29db3cacab29a33b531a0e1fcdec2e547275b2911b6aa237328598"
+  "manifestSha256": "sha256:8be5db06b306119e27200731f0dd94413c2778ec6e51a0a764f7bd7d3978d932"
 }

@@ -8,7 +8,7 @@ import {
 } from './source-native-product.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
 import type { OpenOntologyResultState as ResultState } from './product-result-state.mjs';
-import type { GcsRequestObserver } from './gcs-object-storage-backend.mjs';
+import type { GcsRequestObserver } from './gcs-request-observation.mjs';
 
 export interface OpenOntologyScopeInput {
   sourceSystem: string;
