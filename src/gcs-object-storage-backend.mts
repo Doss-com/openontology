@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { GCS_REQUEST_OBSERVATION_KIND } from './gcs-request-observation.mjs';
 import type { GcsRequestOperationClass, GcsRequestObservation, GcsRequestObserver } from './gcs-request-observation.mjs';
 export type { GcsRequestOperationClass, GcsRequestFailureClass, GcsRequestObservation, GcsRequestObserver } from './gcs-request-observation.mjs';
 import {
@@ -292,7 +293,7 @@ export function openGcsObjectBackend({
     if (observeRequest === null) return;
     const observation = Object.freeze({
       schemaVersion: 1 as const,
-      kind: 'OpenOntologyGcsRequestObservationV1' as const,
+      kind: GCS_REQUEST_OBSERVATION_KIND,
       ...fields,
       bucket: configuredBucket,
       prefix,

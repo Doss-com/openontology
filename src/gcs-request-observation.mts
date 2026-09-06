@@ -1,4 +1,6 @@
 /** Plain transport observations, usable without Node runtime type declarations. */
+export const GCS_REQUEST_OBSERVATION_KIND = 'OpenOntologyGcsRequestObservationV1' as const;
+
 export type GcsRequestOperationClass =
   | 'bucket-metadata'
   | 'object-metadata'
@@ -10,7 +12,7 @@ export type GcsRequestFailureClass = 'transport' | 'malformed-response';
 
 export interface GcsRequestObservation {
   readonly schemaVersion: 1;
-  readonly kind: 'OpenOntologyGcsRequestObservationV1';
+  readonly kind: typeof GCS_REQUEST_OBSERVATION_KIND;
   readonly operationClass: GcsRequestOperationClass;
   readonly method: string;
   readonly attempt: number;

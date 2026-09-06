@@ -332,13 +332,13 @@
     },
     {
       "path": "src/gcs-object-storage-backend.mts",
-      "bytes": 24779,
-      "sha256": "1453283fdaed4b2db29f88869c0e2765fe5287f5c766148ec5c22858b91411a8"
+      "bytes": 24839,
+      "sha256": "76552af41fe50238863814638375f0eb075ab51afb09fba9733ad6cf8cd9f48a"
     },
     {
       "path": "src/gcs-request-observation.mts",
-      "bytes": 903,
-      "sha256": "a984e7192f90c3afe29cb86152a1e142ccc0c58614a2f8a41a87c257c23ef5c5"
+      "bytes": 994,
+      "sha256": "faeabe98ce1f7001f0de716658192cf70cb765b88c0d4c8c1084219f63aaf168"
     },
     {
       "path": "src/kernel.mts",
@@ -481,5 +481,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:8be5db06b306119e27200731f0dd94413c2778ec6e51a0a764f7bd7d3978d932"
+  "manifestSha256": "sha256:3f08759afbbc924992056526a7f2098c9cca79927154acfa1b81f0b30efa0299"
 }
