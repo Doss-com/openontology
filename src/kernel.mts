@@ -167,3 +167,18 @@ export type {
   SourceNativeAdmissionTrustRole,
   SourceNativeProposalStatement,
 } from './source-native-admitted-knowledge.mjs';
+export {
+  compileSourceNativeSemanticConstruction,
+  rebindSourceNativeSemanticConstruction,
+  validateSourceNativeSemanticConstruction,
+} from './source-native-semantic-construction.mjs';
+export type {
+  SourceNativeSemanticAlias,
+  SourceNativeSemanticClaim,
+  SourceNativeSemanticConstruction,
+  SourceNativeSemanticConstructionInput,
+  SourceNativeSemanticObjectDef,
+  SourceNativeSemanticSourceBinding,
+  SourceNativeSemanticSourceResult,
+  SourceNativeSemanticWitness,
+} from './source-native-semantic-construction.mjs';

@@ -256,6 +256,40 @@ management are not part of this alpha.
 path without silently dropping Evidence. The current implementation refuses a
 proof that cannot be returned completely within one bounded Verification.
 
+## Semantic construction proposals
+
+`[ACTIVE-WORK]` The unpublished kernel exposes a bounded query-independent
+semantic-construction compiler. A minimal `ObjectDef` profile holds a stable
+local concept ID, a preferred name and source-system-scoped aliases. `Claim`
+records attach source passages to those definitions through `mentions` or
+`defines`. Each witness points to an existing native-object observation and an
+exact Corpus span. It does not synthesize a native identity or change the
+source-native proof map. Domain `LinkDef` relationships and public search
+`Reference` handles retain their separate meanings.
+
+Compilation safely opens the bound source cut, checks source/object/namespace
+membership, containment within the native object's declared field spans,
+exact UTF-8 bytes and literal name witnesses, and returns an
+immutable, content-addressed proposal. Extraction coverage distinguishes
+examined, unsupported, failed and unexamined sources. Coverage is a declared
+extraction inventory, not proof that every concept was found or that a missing
+concept is absent. Structural validation and source rebinding are separate
+kernel operations; neither grants review authority.
+
+Every proposal has `navigationOnly: true` and `reviewRequired: true`. A valid
+literal witness can still be a false definition or alias. Independent semantic
+review, signed construction Admission, correction and active navigation are
+not implemented by this compiler. Existing signed query-proof records remain
+unchanged. The root SDK, CLI and MCP do not consume these proposals.
+
+The record limits are 64 definitions, 16 aliases per definition, 256 claims,
+512 explicit source dispositions, 64 KiB per cited span and 1 MiB serialized
+metadata. Overflow refuses rather than truncating. These limits do not bound
+corpus size or grant a query-context budget. Compilation opens the current
+source artifact and can read the full source cut; it is not an incremental or
+streaming extractor. This profile favors bounded, inspectable proposals over
+general semantic extraction and narrower-than-source-system alias scope.
+
 ## Query path
 
 The ordinary query interface is `verify`. It composes navigation, exact reads,

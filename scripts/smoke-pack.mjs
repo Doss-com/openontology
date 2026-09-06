@@ -198,6 +198,7 @@ openOntology();
   writeFileSync(kernelContractPath, `import {
   compileProofSufficiencyContract,
   compileSourceNativeCurrentFieldChronologyVerification,
+  compileSourceNativeSemanticConstruction,
   evaluateProofSufficiencyContract,
   openSourceNativeExactEvidenceSession,
   openSourceNativeObjectOntIndex,
@@ -217,6 +218,8 @@ openOntology();
   type SourceNativeAdmissionTrustEntry,
   type SourceNativeAdmissionTrustRole,
   type SourceNativeProductRuntimeContext,
+  type SourceNativeSemanticConstruction,
+  type SourceNativeSemanticConstructionInput,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
@@ -227,6 +230,20 @@ const compileChronology: typeof compileSourceNativeCurrentFieldChronologyVerific
   compileSourceNativeCurrentFieldChronologyVerification;
 const chronology: SourceNativeCurrentFieldChronologyVerification | null = null;
 const context: SourceNativeProductRuntimeContext | null = null;
+const constructionInput: SourceNativeSemanticConstructionInput = {
+  proposedBy: 'constructor', proposedAt: '2026-09-01T00:00:00.000Z', method: 'authored',
+  objectDefs: [], claims: [], coverage: [],
+};
+const compileConstruction = (): SourceNativeSemanticConstruction =>
+  compileSourceNativeSemanticConstruction({ input: constructionInput });
+const inspectConstruction = (record: SourceNativeSemanticConstruction) => {
+  const needsReview: true = record.reviewRequired;
+  const predicate: 'mentions' | 'defines' | undefined = record.claims[0]?.predicate;
+  // @ts-expect-error a construction proposal has no proof disposition
+  const disposition = record.proofDisposition;
+  void needsReview; void predicate; void disposition;
+};
+void compileConstruction; void inspectConstruction;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
 const trustRole: SourceNativeAdmissionTrustRole = 'reviewer';
@@ -456,6 +473,7 @@ assert.deepEqual(kernelKeys, [
     'compileSourceNativeAdmissionRecord','compileSourceNativeAdmittedKnowledgeBundle',
     'compileSourceNativeCurrentFieldChronologyVerification',
     'compileSourceNativeProofAuthorityProjection',
+    'compileSourceNativeSemanticConstruction',
     'compileSourceNativeSemanticKnowledgeBundle',
     'createSourceNativeProductMcpHandler',
     'createSourceNativeProductResource',
@@ -466,14 +484,27 @@ assert.deepEqual(kernelKeys, [
     'openSourceNativeObjectOntRefIndex',
     'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
+    'rebindSourceNativeSemanticConstruction',
     'sourceNativeAdmissionStatement',
     'sourceNativeProposalStatement',
     'stableObjectSha256','stableObjectText','validateProofAuthorityProjection',
     'validateProofSufficiencyContract','validateSourceNativeAdmittedKnowledgeBundle',
     'validateSourceNativeProductResource',
+    'validateSourceNativeSemanticConstruction',
     'writeSourceNativeAdmittedKnowledge',
   ].sort());
 assert.equal(result.answerable, true);
+const construction = kernel.compileSourceNativeSemanticConstruction({
+  options: { artifactRoot: ${JSON.stringify(ont)} },
+  input: { proposedBy: 'constructor', proposedAt: '2026-09-01T00:00:00.000Z',
+    method: 'authored', objectDefs: [], claims: [], coverage: [] },
+});
+assert.equal(construction.reviewRequired, true);
+assert.equal(construction.coverage.unexaminedSourceCount, construction.coverage.sourceCount);
+assert.deepEqual(kernel.rebindSourceNativeSemanticConstruction({
+  options: { artifactRoot: ${JSON.stringify(ont)} },
+  construction: JSON.parse(JSON.stringify(construction)),
+}), construction);
 const historical = await ont.verify({
   question: 'What was the title of task-1?', at: '2026-01-15T00:00:00.000Z',
 });

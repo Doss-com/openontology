@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 96,
+  "fileCount": 98,
   "files": [
     {
       "path": ".editorconfig",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 18562,
-      "sha256": "2791b8c63552f3b7b6dd2dabec491c904802242f2682097ba83de6b0748159f7"
+      "bytes": 20665,
+      "sha256": "f5976890ecdb30be2bc818a6f6b70e25b9e9c04e7604e548d2c6b27fd0d25163"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -157,8 +157,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3413,
-      "sha256": "b5dc442637c8772ad6e73713a6b7b2c33fabbae4272991144f2d8a23156241e7"
+      "bytes": 3466,
+      "sha256": "8c84e7dadfa5f6f0a6c260eb18f076f345bfa5da4904ba713560f72749785b82"
     },
     {
       "path": "scripts/build.mjs",
@@ -197,8 +197,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 23958,
-      "sha256": "d8cd2cc1a0c9edea6290fb06b51ee259f46fa2b65095fa407e7b37d9d9d5dd4c"
+      "bytes": 25623,
+      "sha256": "d3e051c4244839e9c804a516f5bf1d1d430dca0cb998d649a47718a0f2f9b3fc"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -301,6 +301,11 @@
       "sha256": "f01abf6fa187221f13640866af6dd84cee3427dc360681c3885c2a92aa979070"
     },
     {
+      "path": "scripts/test-source-native-semantic-construction.mjs",
+      "bytes": 19709,
+      "sha256": "6cc6a4f3b4a8e508acaf318df1dfe6acac3e2037c43c8e22280f451762e6ba70"
+    },
+    {
       "path": "scripts/test-source-native-semantic-projection.mjs",
       "bytes": 11970,
       "sha256": "50b78c3aae65f61dc210452baf89954222ca86d202cbdee087caeb43fb2cc9a3"
@@ -347,8 +352,8 @@
     },
     {
       "path": "src/kernel.mts",
-      "bytes": 5498,
-      "sha256": "1b4e7b38bd380183ce12e3e915d08fe472b171bc3e2056d99451fe3f98e15f02"
+      "bytes": 6026,
+      "sha256": "501bf6970c9fec92fa98ccf7aa5716393a39dafca473ea20bf9f2f62fb31e77d"
     },
     {
       "path": "src/object-ont-store.mts",
@@ -471,6 +476,11 @@
       "sha256": "68256f54fb2cb3072dec44ff663c536b32e86f21303e87a0c96c7cebebeade3c"
     },
     {
+      "path": "src/source-native-semantic-construction.mts",
+      "bytes": 14839,
+      "sha256": "8ac773721f45179ed81c9645b3b20a9d6f723f5a9dd28d069a940291600f2732"
+    },
+    {
       "path": "src/source-native-semantic-projection.mts",
       "bytes": 10381,
       "sha256": "9d37783dc951949f4c195138c90c5c3b446e0de81ffbe5159d205695e77acedf"
@@ -486,5 +496,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:bcf743ef02d4588d0311bec85121c137f4f46bce8c29ec63d6527da43d1143a1"
+  "manifestSha256": "sha256:8bbc5d57cb2c2a7e14f060a35646804c4c64312426d2118f7281c90a4d0195d4"
 }
