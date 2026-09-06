@@ -294,7 +294,13 @@ test('preserves the winning head when it advances between ancestry read and CAS'
   const ontId = 'continuity-race-fixture';
   const first = commitFor(baseStore, manifest, ontId);
   const candidate = commitFor(baseStore, manifest, ontId, { parents: [first.commitSha256] });
-  const winner = commitFor(baseStore, manifest, ontId, { parents: [first.commitSha256] });
+  const winnerManifest = baseStore.putBlob({
+    logicalPath: 'oont.json',
+    bytes: Buffer.from('{"concurrentWinner":true}'),
+    mediaType: 'application/json',
+  });
+  const winner = commitFor(baseStore, winnerManifest, ontId, { parents: [first.commitSha256] });
+  assert.notEqual(candidate.commitSha256, winner.commitSha256);
   const initial = baseStore.compareAndSwapRefMetadata({
     ontId, branch: 'main', commitSha256: first.commitSha256,
   });

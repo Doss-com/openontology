@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 5042,
-      "sha256": "023012c51c10039d5736a17dd5918177bd3c47ef73c05769c477b28d428e323d"
+      "bytes": 5411,
+      "sha256": "a9200ec12348fbe8c1bd1b0b0fd9d08ff889482caff9f4f1cde926d707f67664"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -132,8 +132,8 @@
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 4545,
-      "sha256": "b6a1fa3cedc816ae0f43cbc53b25935711fd26cb9cc3aa343b6318fd7cf07676"
+      "bytes": 5171,
+      "sha256": "4574eea79547f601abafc5f75096a58ad73a62e0f6c074a15e26c5a64c988b2c"
     },
     {
       "path": "examples/quickstart/source-lifecycle.mjs",
@@ -212,8 +212,8 @@
     },
     {
       "path": "scripts/test-object-ont-replay-checkpoint.mjs",
-      "bytes": 16372,
-      "sha256": "931383f317dc6779473b6ad6009113ef522f5c2e2d97af2fc603d5015128cd21"
+      "bytes": 21095,
+      "sha256": "e75bcc3a914faeabf7bdde119a767bdb053351d128b1c5417ccc4afd52274d6c"
     },
     {
       "path": "scripts/test-oont-cli-help.mjs",
@@ -232,8 +232,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 134562,
-      "sha256": "fa7ae1a93e2179a7c52693d7040e36495975b197c7b0b623274018798395b854"
+      "bytes": 136299,
+      "sha256": "f8887349e799ec69258fdacef516bcdd799221b31bc752ff81d7d08e1ef9af54"
     },
     {
       "path": "scripts/test-source-native-checkpoint-opening.mjs",
@@ -282,8 +282,8 @@
     },
     {
       "path": "scripts/test-source-native-resource.mjs",
-      "bytes": 14783,
-      "sha256": "b3bbd100cb17267519ac0dd4e21d05f4ee6e035570dec1e77f59238ec1686356"
+      "bytes": 16608,
+      "sha256": "f01abf6fa187221f13640866af6dd84cee3427dc360681c3885c2a92aa979070"
     },
     {
       "path": "scripts/test-source-native-semantic-projection.mjs",
@@ -332,8 +332,8 @@
     },
     {
       "path": "src/object-ont-store.mts",
-      "bytes": 53975,
-      "sha256": "13b39c8ab2093b62e588d9df2ee0558437ee0400dc91bf57ab85fb6e45730a6b"
+      "bytes": 54205,
+      "sha256": "31c43b6b126be2ee1e18f7a710386ce6871e35eccad2e954b81ae8cddd72fa04"
     },
     {
       "path": "src/object-storage-backend.mts",
@@ -466,5 +466,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:4cdac9174dd5bc84c858ccb9c93ebaf6272439ceede1ad282a41ae492798c9ba"
+  "manifestSha256": "sha256:86b8facf780d80857011704b1bc19bc11a83a13f2a87d90c1cba615715e585d1"
 }

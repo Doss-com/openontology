@@ -3,6 +3,13 @@
 OpenOntology stores immutable objects and advances named refs with
 compare-and-swap. Storage Adapters do not decide truth, ranking, or proof.
 
+Normal ObjectOnt ref publication is forward-only. An existing branch accepts
+its current commit or a descendant, and rejects an ancestor or unrelated fork
+with `OBJECT_ONT_REF_ROLLBACK`. Backend version conflicts still govern concurrent
+writes. Historical snapshots remain readable without changing current refs.
+This rule covers source and admitted-knowledge publication; it does not detect
+a direct backend rewrite or restoration of older storage after process restart.
+
 ## Local file
 
 The local backend is the default and requires no credentials. Use it for local
@@ -87,6 +94,8 @@ the ref. Both still inspect every source hash and field Evidence span.
 The checkpoint bounds metadata request count as commit history grows, not
 checkpoint bytes, memory, query work, or total cost. It adds one immutable
 metadata object at publication in exchange for fewer history reads at startup.
+Ref publication also reads the current ref to check ancestry. A rejected
+checkpointed write can leave an immutable checkpoint without advancing the ref.
 Source hydration remains corpus-sized. The complete managed update loop and
 provider operating limits require further qualification.
 

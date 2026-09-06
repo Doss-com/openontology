@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Require ordinary ObjectOnt ref publication to preserve the accepted head in
+  candidate ancestry. Reject backward or unrelated source and knowledge writes,
+  preserve concurrent-write conflicts, and keep historical snapshots readable.
+  Direct-storage rewrites and restored-backup detection remain unqualified.
 - Bind quoted declared titles through the complete scoped native identity map.
   Preserve exact Evidence, counterevidence, historical selection and Admission
   reuse; refuse unknown or ambiguous names and conflicting identity qualifiers.
@@ -19,7 +23,8 @@
   modality and polarity constraints for their family, independent of obligation
   order. Preserve the complete authoritative item and relation censuses.
 - Add stable source resource binding and validated ref-bound replay checkpoints
-  to the kernel. Ordinary product opening still performs full replay.
+  to the kernel. Ordinary product opening uses valid checkpoints and falls back
+  to full replay when a checkpoint is absent.
 
 ## 0.3.0-alpha.3
 
