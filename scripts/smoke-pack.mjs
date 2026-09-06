@@ -199,6 +199,8 @@ openOntology();
   compileProofSufficiencyContract,
   compileSourceNativeCurrentFieldChronologyVerification,
   compileSourceNativeSemanticConstruction,
+  readSourceNativeConstructionLedger,
+  sourceNativeConstructionAdmissionStatement,
   evaluateProofSufficiencyContract,
   openSourceNativeExactEvidenceSession,
   openSourceNativeObjectOntIndex,
@@ -220,6 +222,7 @@ openOntology();
   type SourceNativeProductRuntimeContext,
   type SourceNativeSemanticConstruction,
   type SourceNativeSemanticConstructionInput,
+  type SourceNativeConstructionLedger,
 } from 'oont/kernel';
 
 const digest: string = stableObjectSha256({ contract: 'kernel' });
@@ -244,6 +247,16 @@ const inspectConstruction = (record: SourceNativeSemanticConstruction) => {
   void needsReview; void predicate; void disposition;
 };
 void compileConstruction; void inspectConstruction;
+const inspectConstructionLedger = (ledger: SourceNativeConstructionLedger) => {
+  const navigationOnly: true = ledger.navigationOnly;
+  const current: string | undefined = ledger.activeRecords[0]?.construction.constructionSha256;
+  // @ts-expect-error admitted navigation has no factual proof disposition
+  const proof = ledger.proofDisposition;
+  void navigationOnly; void current; void proof;
+};
+const readConstruction: typeof readSourceNativeConstructionLedger = readSourceNativeConstructionLedger;
+const reviewConstruction: typeof sourceNativeConstructionAdmissionStatement = sourceNativeConstructionAdmissionStatement;
+void inspectConstructionLedger; void readConstruction; void reviewConstruction;
 const exactOptions: ExactSessionOptions | null = null;
 const indexOptions: OpenSourceNativeObjectOntOptions | null = null;
 const trustRole: SourceNativeAdmissionTrustRole = 'reviewer';
@@ -471,6 +484,7 @@ assert.deepEqual(kernelKeys, [
     'bindSourceNativeProductResource','buildSourceNativeProduct',
     'compileProofAuthorityProjection','compileProofSufficiencyContract',
     'compileSourceNativeAdmissionRecord','compileSourceNativeAdmittedKnowledgeBundle',
+    'compileSourceNativeConstructionAdmissionRecord',
     'compileSourceNativeCurrentFieldChronologyVerification',
     'compileSourceNativeProofAuthorityProjection',
     'compileSourceNativeSemanticConstruction',
@@ -484,14 +498,19 @@ assert.deepEqual(kernelKeys, [
     'openSourceNativeObjectOntRefIndex',
     'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
+    'readSourceNativeConstructionLedger',
     'rebindSourceNativeSemanticConstruction',
     'sourceNativeAdmissionStatement',
+    'sourceNativeConstructionAdmissionStatement',
+    'sourceNativeConstructionProposalStatement',
     'sourceNativeProposalStatement',
     'stableObjectSha256','stableObjectText','validateProofAuthorityProjection',
     'validateProofSufficiencyContract','validateSourceNativeAdmittedKnowledgeBundle',
     'validateSourceNativeProductResource',
     'validateSourceNativeSemanticConstruction',
+    'validateSourceNativeConstructionAdmissionRecord',
     'writeSourceNativeAdmittedKnowledge',
+    'writeSourceNativeConstructionAdmission',
   ].sort());
 assert.equal(result.answerable, true);
 const construction = kernel.compileSourceNativeSemanticConstruction({
@@ -512,6 +531,45 @@ assert.equal(historical.answerable, true);
 assert.equal(historical.context[0].exactText, 'Prepare launch');`;
   const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
+
+  const constructionProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
+import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import * as kernel from 'oont/kernel';
+const options = { artifactRoot: ${JSON.stringify(ont)} };
+const state = kernel.openProductState(options);
+const object = state.objectOnt.map.nativeObjects[0];
+const field = object.fields[0];
+const { relativePath: sourceRef, ...span } = field.evidence;
+const witness = { nativeObjectSha256: object.nativeObjectSha256, evidence: { sourceRef, ...span } };
+const construction = kernel.compileSourceNativeSemanticConstruction({ options, input: {
+  proposedBy: 'constructor', proposedAt: '2026-09-01T00:00:00.000Z', method: 'authored',
+  objectDefs: [{ kind: 'ObjectDef', id: 'example-label', name: field.value, source: witness, aliases: [] }],
+  claims: [{ kind: 'Claim', id: 'label-mention', about: 'example-label', predicate: 'mentions', source: witness }],
+  coverage: [{ sourceRef, sourceSha256: span.sourceSha256, disposition: 'examined' }],
+} });
+const proposer = generateKeyPairSync('ed25519');
+const reviewer = generateKeyPairSync('ed25519');
+const trustRegistry = [['constructor', proposer, 'proposer'], ['reviewer', reviewer, 'reviewer']]
+  .map(([issuerId, pair, role]) => ({ issuerId, roles: [role],
+    publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }) }));
+const proposalStatement = kernel.sourceNativeConstructionProposalStatement({ construction });
+const statement = kernel.sourceNativeConstructionAdmissionStatement({ construction,
+  issuerId: 'reviewer', admittedAt: '2026-09-02T00:00:00.000Z' });
+const signature = (value, pair) => sign(null, Buffer.from(kernel.stableObjectText(value)), pair.privateKey).toString('base64');
+const record = kernel.compileSourceNativeConstructionAdmissionRecord({ construction, proposalStatement, statement,
+  proposalSignatureBase64: signature(proposalStatement, proposer), signatureBase64: signature(statement, reviewer) });
+const written = kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry, record });
+assert.equal(written.replayed, false);
+assert.equal(kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry, record }).replayed, true);
+const cold = kernel.readSourceNativeConstructionLedger({ options, trustRegistry });
+assert.equal(cold.navigationOnly, true);
+assert.equal(cold.state, 'ready');
+assert.deepEqual(cold.activeRecords, [record]);
+assert.equal(kernel.readSourceNativeConstructionLedger({ options, trustRegistry: trustRegistry.slice(0, 1) }).activeRecords.length, 0);`;
+  const constructionSmoke = run(process.execPath, ['--input-type=module', '--eval', constructionProgram], { cwd: consumer });
+  check('installed construction Admission cold-replays and respects reviewer revocation',
+    constructionSmoke.status === 0, tail(constructionSmoke.stderr));
 
   const lifecycleExample = join(packageRoot, 'examples', 'quickstart', 'source-lifecycle.mjs');
   const lifecycleGuide = join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md');

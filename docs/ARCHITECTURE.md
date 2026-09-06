@@ -277,10 +277,8 @@ concept is absent. Structural validation and source rebinding are separate
 kernel operations; neither grants review authority.
 
 Every proposal has `navigationOnly: true` and `reviewRequired: true`. A valid
-literal witness can still be a false definition or alias. Independent semantic
-review, signed construction Admission, correction and active navigation are
-not implemented by this compiler. Existing signed query-proof records remain
-unchanged. The root SDK, CLI and MCP do not consume these proposals.
+literal witness can still be a false definition or alias. The compiler does not
+perform semantic review. The root SDK, CLI and MCP do not consume these proposals.
 
 The record limits are 64 definitions, 16 aliases per definition, 256 claims,
 512 explicit source dispositions, 64 KiB per cited span and 1 MiB serialized
@@ -289,6 +287,50 @@ corpus size or grant a query-context budget. Compilation opens the current
 source artifact and can read the full source cut; it is not an incremental or
 streaming extractor. This profile favors bounded, inspectable proposals over
 general semantic extraction and narrower-than-source-system alias scope.
+
+`[ACTIVE-WORK]` A separate kernel construction Admission profile records a
+proposer signature and an independent reviewer's `admitted-for-navigation`
+decision. It shares Ed25519 trust-role validation with query-proof Admission,
+including the distinct-actual-key requirement. Its versioned statements bind
+the complete construction hash and cannot substitute for query-proof
+statements. Signature authentication proves authority and integrity, not the
+quality of semantic judgment. Review is externally supplied; an automated
+construction reviewer and held-out quality qualification remain unimplemented.
+
+The writer and cold ledger reader rebind exact source bytes and scoped native
+objects. They use the same object store, source-cut knowledge branch, metadata
+commits, protected history and compare-and-swap as query-proof Admission. New
+records occupy `blobs/knowledge-ledger/construction/`; old signed query-proof
+records retain their original `admitted/` prefix and bytes. Each reader consumes
+only its own record kind. Retry of the same record is idempotent. Concurrent
+writes retain the store's CAS failure behavior. New signatures of the same
+construction are agreement, not conflicting interpretations.
+
+Corrections explicitly name older Admission records and replace the same batch
+of ObjectDef IDs within exactly the same source binding. They may change
+aliases and Claims but cannot silently discard unrelated definitions or cross
+source cuts. Structural history remains readable even when trust or current
+source binding makes a record ineligible. Only a currently authenticated,
+source-bound correction can suppress an earlier record. Disjoint batches
+compose. Distinct active constructions sharing any ObjectDef ID quarantine
+every overlapping batch until the conflicting records are explicitly corrected.
+Equal names with distinct IDs do not automatically merge.
+
+`readSourceNativeConstructionLedger` returns a fresh immutable snapshot of
+eligible, unambiguous records with structural, invalid, superseded and conflict
+counts. Individual invalid records degrade the snapshot without hiding valid
+disjoint knowledge; metadata/history failure returns no active records. The
+source opens once per call; changed trust requires passing the new registry.
+Protected profiles retain accepted history across restart. Legacy profiles do
+not gain that rollback protection implicitly. This first cold path has no warm
+cache or incremental ledger index. Atomic batch correction favors auditable
+replacement over concept retirement, batch repartition and automatic merges,
+which remain unimplemented. The 2 MiB signed-record envelope includes a bounded
+1 MiB proposal and at most 128 supersession targets; it is not a serving budget.
+
+These are navigation-eligible records, not a new proof authority. A disposable
+concept projection and integration into existing `search` / `read`, followed
+by explicit native-object selection before `verify`, are still the next slice.
 
 ## Query path
 

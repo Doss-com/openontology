@@ -235,7 +235,8 @@ export function validateSourceNativeSemanticConstruction(value: unknown): Source
   return expected;
 }
 
-function assertBound(record: SourceNativeSemanticConstruction, state: State): void {
+/** Internal: callers validate the record before binding it to one safely opened snapshot. */
+export function assertSemanticConstructionBound(record: SourceNativeSemanticConstruction, state: State): void {
   if (stableObjectText(record.sourceBinding) !== stableObjectText(bindingFor(state))
     || record.coverage.sourceCount !== state.objectOnt.catalog.sourceCount) fail('BINDING');
   const sources = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));
@@ -298,7 +299,7 @@ export function compileSourceNativeSemanticConstruction({ options = {}, input }:
   const normalized = normalizeInput(input);
   const state = openProductState(options);
   const record = compile(normalized, bindingFor(state), state.objectOnt.catalog.sourceCount);
-  assertBound(record, state);
+  assertSemanticConstructionBound(record, state);
   return record;
 }
 
@@ -308,6 +309,6 @@ export function rebindSourceNativeSemanticConstruction({ options = {}, construct
   construction: unknown;
 }): SourceNativeSemanticConstruction {
   const record = validateSourceNativeSemanticConstruction(construction);
-  assertBound(record, openProductState(options));
+  assertSemanticConstructionBound(record, openProductState(options));
   return record;
 }

@@ -1,4 +1,19 @@
 /** Bounded extension Interface for managed and research runtimes. */
+export {
+  compileSourceNativeConstructionAdmissionRecord,
+  readSourceNativeConstructionLedger,
+  sourceNativeConstructionAdmissionStatement,
+  sourceNativeConstructionProposalStatement,
+  validateSourceNativeConstructionAdmissionRecord,
+  writeSourceNativeConstructionAdmission,
+} from './source-native-construction-admission.mjs';
+export type {
+  SourceNativeConstructionAdmissionRecord,
+  SourceNativeConstructionAdmissionStatement,
+  SourceNativeConstructionAdmissionWriteResult,
+  SourceNativeConstructionLedger,
+  SourceNativeConstructionProposalStatement,
+} from './source-native-construction-admission.mjs';
 export { createSourceNativeProductMcpHandler } from './source-native-product-mcp.mjs';
 export type { ProductTransport } from './source-native-product-mcp.mjs';
 export {

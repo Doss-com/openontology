@@ -103,7 +103,7 @@ unresolved.
 - **Admission** is an authenticated, independently reviewed decision to make one
   content-bound knowledge bundle eligible for later reuse. Admission does not
   replace Terrain authority. Proposer and reviewer authority are separate trust
-  roles. Every admitted proposition must participate in a required proof
+  roles. In the query-proof profile, every admitted proposition must participate in a required proof
   obligation; returned Evidence roles come from that obligation, and returned
   provenance uses fixed content hashes rather than proposer-authored labels.
   Reusable context is bounded to 64 Proof units, 64 KiB of raw Exact Evidence,
@@ -114,6 +114,12 @@ unresolved.
   a correction must name every active conflicting Admission it displaces.
   Corrections append a signed superseding Admission; they do not delete prior
   records.
+- **Construction Admission** is the query-independent navigation profile of
+  Admission. Its separately versioned signatures bind a source-grounded batch
+  of ObjectDefs, scoped aliases and source-attachment Claims. It does not carry
+  proof obligations or answer a question. Correction replaces the same batch of
+  ObjectDef IDs and preserves its history. Authentication does not certify the
+  reviewer's interpretation as true.
 - **Materialization** is a disposable derived index or projection.
 - **Adapter** is a concrete implementation of a storage, source, or Resolver
   interface.

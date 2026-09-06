@@ -7,7 +7,6 @@ import {
 } from './admission-authentication.mjs';
 import type {
   SourceNativeAdmissionTrustEntry,
-  SourceNativeAdmissionTrustRole,
   TrustedAdmissionKey,
 } from './admission-authentication.mjs';
 import { openProductState } from './source-native-artifact.mjs';
