@@ -289,7 +289,6 @@ interface SourceNativeConstructionRecordDisposition {
   supersedesRecordSha256s: readonly string[];
   supersededByRecordSha256s: readonly string[];
   conflictingObjectDefIds: readonly string[];
-  conflictingRecordSha256s: readonly string[];
 }
 
 interface MutableSourceNativeConstructionRecordDisposition {
@@ -329,7 +328,6 @@ export function createConstructionLedgerReader(
     const dispositions = new Map<string, MutableSourceNativeConstructionRecordDisposition>();
     let invalidRecordCount = 0;
     const diagnostics = new Set<string>();
-    let historyAvailable = true;
     function errorCode(error: unknown): string {
       return error && typeof error === 'object' && 'code' in error
         && typeof error.code === 'string' ? error.code : 'CONSTRUCTION_ADMISSION_RECORD';
@@ -361,9 +359,9 @@ export function createConstructionLedgerReader(
             blobSha256: descriptor.storedSha256,
             recordSha256: null,
             constructionSha256: null,
-            state: 'invalid' as SourceNativeConstructionRecordDispositionState,
-            reasonCodes: [] as string[],
-            supersedesRecordSha256s: [] as string[],
+            state: 'invalid',
+            reasonCodes: [],
+            supersedesRecordSha256s: [],
           };
           try {
             const record = readRecord(context, descriptor);
@@ -390,7 +388,6 @@ export function createConstructionLedgerReader(
       commitSha256 = null; replaySha256 = null;
       structural.clear(); bound.length = 0;
       dispositions.clear();
-      historyAvailable = false;
       invalid(error);
     }
     const eligible = bound.filter((record) => {
@@ -436,25 +433,20 @@ export function createConstructionLedgerReader(
       .sort((a, b) => compare(a.recordSha256, b.recordSha256));
     const conflictingRecordCount = current.length - activeRecords.length;
     if (conflictingRecordCount > 0) diagnostics.add('CONSTRUCTION_ADMISSION_AMBIGUOUS');
-    const conflictingPeers = new Map<string, Set<string>>();
+    const conflictingObjectIdsByRecord = new Map<string, Set<string>>();
     for (const objectDefId of conflictingObjectDefIds) {
       const records = recordsByObjectDefId.get(objectDefId) ?? [];
       for (const record of records) {
-        const peers = conflictingPeers.get(record.recordSha256) ?? new Set<string>();
-        for (const peer of records) {
-          if (peer.recordSha256 !== record.recordSha256) peers.add(peer.recordSha256);
-        }
-        conflictingPeers.set(record.recordSha256, peers);
+        const objectDefIds = conflictingObjectIdsByRecord.get(record.recordSha256) ?? new Set<string>();
+        objectDefIds.add(objectDefId);
+        conflictingObjectIdsByRecord.set(record.recordSha256, objectDefIds);
       }
     }
     for (const disposition of dispositions.values()) {
       if (disposition.recordSha256 === null) continue;
       const superseders = [...(supersededBy.get(disposition.recordSha256) ?? [])].sort(compare);
-      const conflictObjectIds = disposition.state === 'invalid' || disposition.state === 'ineligible'
-        ? [] : disposition.constructionSha256 === null ? [] : conflictingObjectDefIds.filter((id) => {
-          const record = structural.get(disposition.recordSha256 as string);
-          return record?.construction.objectDefs.some((object) => object.id === id) ?? false;
-        });
+      const conflictObjectIds = [...(conflictingObjectIdsByRecord.get(disposition.recordSha256) ?? [])]
+        .sort(compare);
       if (disposition.state !== 'invalid' && disposition.state !== 'ineligible') {
         if (superseders.length > 0) {
           disposition.state = 'superseded';
@@ -467,45 +459,28 @@ export function createConstructionLedgerReader(
         }
       }
     }
-    const invalidDispositions = [...dispositions.values()].filter((record) => record.recordSha256 === null)
-      .map((record): SourceNativeConstructionRecordDisposition => ({
-        schemaVersion: 1,
-        kind: 'OpenOntologySourceNativeConstructionRecordDispositionV1',
-        blobSha256: record.blobSha256,
-        recordSha256: null,
-        constructionSha256: null,
-        state: 'invalid',
-        reasonCodes: [...new Set(record.reasonCodes)].sort(compare),
-        supersedesRecordSha256s: [],
-        supersededByRecordSha256s: [],
-        conflictingObjectDefIds: [],
-        conflictingRecordSha256s: [],
-      }));
-    const validDispositions = [...dispositions.values()].filter((record) => record.recordSha256 !== null)
+    const recordStates = [...dispositions.values()]
       .map((record): SourceNativeConstructionRecordDisposition => {
-        const superseders = [...(supersededBy.get(record.recordSha256 as string) ?? [])].sort(compare);
-        const conflictObjectIds = record.state === 'invalid' || record.state === 'ineligible'
-          ? [] : conflictingObjectDefIds.filter((id) => {
-            const currentRecord = structural.get(record.recordSha256 as string);
-            return currentRecord?.construction.objectDefs.some((object) => object.id === id) ?? false;
-          });
+        const recordSha256 = record.recordSha256;
+        const superseders = recordSha256 === null ? []
+          : [...(supersededBy.get(recordSha256) ?? [])].sort(compare);
+        const conflictObjectIds = recordSha256 === null ? []
+          : [...(conflictingObjectIdsByRecord.get(recordSha256) ?? [])].sort(compare);
         return {
           schemaVersion: 1,
           kind: 'OpenOntologySourceNativeConstructionRecordDispositionV1',
           blobSha256: record.blobSha256,
-          recordSha256: record.recordSha256,
-          constructionSha256: record.constructionSha256,
+          recordSha256,
+          constructionSha256: recordSha256 === null ? null : record.constructionSha256,
           state: record.state,
           reasonCodes: [...new Set(record.reasonCodes)].sort(compare),
-          supersedesRecordSha256s: [...record.supersedesRecordSha256s].sort(compare),
+          supersedesRecordSha256s: recordSha256 === null ? []
+            : [...record.supersedesRecordSha256s].sort(compare),
           supersededByRecordSha256s: superseders,
           conflictingObjectDefIds: conflictObjectIds,
-          conflictingRecordSha256s: [...(conflictingPeers.get(record.recordSha256 as string) ?? [])].sort(compare),
         };
-      });
-    const recordStates = historyAvailable
-      ? [...validDispositions, ...invalidDispositions].sort((a, b) => compare(a.blobSha256, b.blobSha256))
-      : [];
+      })
+      .sort((a, b) => compare(a.blobSha256, b.blobSha256));
     const ledger: SourceNativeConstructionLedger = freeze({ schemaVersion: 1 as const,
       kind: 'OpenOntologySourceNativeConstructionLedgerV1' as const,
       branch, commitSha256, replaySha256, structuralRecordCount: structural.size,

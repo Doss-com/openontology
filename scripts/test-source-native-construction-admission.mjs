@@ -490,8 +490,47 @@ test('readSnapshot exposes active agreement, correction and conflict states with
   const conflicting = snapshot.records.filter((record) => record.state === 'conflicting');
   assert.equal(conflicting.length, 2);
   assert(conflicting.every((record) => record.conflictingObjectDefIds.includes('allocation-exception')));
-  assert(conflicting.every((record) => record.conflictingRecordSha256s.length === 1));
+  assert(conflicting.every((record) => !Object.hasOwn(record, 'conflictingRecordSha256s')));
   assert.equal(snapshot.ledger.conflictingRecordCount, 2);
+});
+
+test('superseded records do not inherit current conflict annotations', (t) => {
+  const f = fixture(t);
+  const agreement = f.admit();
+  const agreementBySecondReviewer = f.admit(agreement.construction, { issuerId: 'reviewer-two' });
+  f.write(agreement); f.write(agreementBySecondReviewer);
+  const conflict = f.admit(changed(f, { name: 'allocation mismatch' }), { admittedAt: at(4) });
+  f.write(conflict);
+  const correction = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(5), targets: [agreement.recordSha256, agreementBySecondReviewer.recordSha256] });
+  f.write(correction);
+  const snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  for (const target of [agreement, agreementBySecondReviewer]) {
+    const disposition = snapshot.records.find((record) => record.recordSha256 === target.recordSha256);
+    assert.equal(disposition?.state, 'superseded');
+    assert.deepEqual(disposition?.conflictingObjectDefIds, []);
+  }
+  const currentConflicts = snapshot.records.filter((record) => record.state === 'conflicting');
+  assert.equal(currentConflicts.length, 2);
+  assert(currentConflicts.every((record) => record.conflictingObjectDefIds.includes('allocation-exception')));
+});
+
+test('a larger planted conflict group keeps per-record conflict metadata linear and bounded', (t) => {
+  const f = fixture(t);
+  const groupSize = 24;
+  for (let index = 0; index < groupSize; index += 1) {
+    const input = clone(f.input);
+    input.claims[0].id = `definition-${index}`;
+    f.plant(f.admit(f.compile(input), { admittedAt: at(4) }));
+  }
+  const snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
+  assert.equal(snapshot.records.length, groupSize);
+  assert.equal(snapshot.ledger.conflictingRecordCount, groupSize);
+  assert.equal(snapshot.ledger.activeRecords.length, 0);
+  assert(snapshot.records.every((record) => record.state === 'conflicting'));
+  assert(snapshot.records.every((record) => record.conflictingObjectDefIds.length === 1
+    && record.conflictingObjectDefIds[0] === 'allocation-exception'));
+  assert(snapshot.records.every((record) => !Object.hasOwn(record, 'conflictingRecordSha256s')));
 });
 
 test('readSnapshot keeps ineligible history distinct from supersession and source binding', (t) => {
