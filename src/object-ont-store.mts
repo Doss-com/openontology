@@ -314,13 +314,32 @@ const fail = (code: string): never => {
   error.code = code;
   throw error;
 };
-function mapProtectedReadError(error: unknown): never {
-  const code = error && typeof error === 'object' && 'code' in error
+function errorCode(error: unknown): unknown {
+  return error && typeof error === 'object' && 'code' in error
     ? (error as { code?: unknown }).code : undefined;
+}
+function mapProtectedReadError(error: unknown): never {
+  const code = errorCode(error);
   if (code === 'OBJECT_BACKEND_NOT_FOUND' || code === 'OBJECT_BACKEND_PRECONDITION') {
     fail('OBJECT_ONT_HISTORY_CONFLICT');
   }
   if (code === 'OBJECT_BACKEND_CORRUPT') fail('OBJECT_ONT_HISTORY_CORRUPT');
+  throw error;
+}
+function mapHistoryTargetError(error: unknown): never {
+  const code = errorCode(error);
+  if (code === 'OBJECT_BACKEND_NOT_FOUND' || code === 'OBJECT_BACKEND_CORRUPT'
+    || (typeof code === 'string' && code.startsWith('OBJECT_ONT_'))) {
+    fail('OBJECT_ONT_HISTORY_TARGET');
+  }
+  throw error;
+}
+function mapHistoryConflictError(error: unknown): never {
+  const code = errorCode(error);
+  if (code === 'OBJECT_BACKEND_NOT_FOUND' || code === 'OBJECT_BACKEND_CORRUPT'
+    || (typeof code === 'string' && code.startsWith('OBJECT_ONT_'))) {
+    fail('OBJECT_ONT_HISTORY_CONFLICT');
+  }
   throw error;
 }
 const freeze = <T,>(value: T): T => {
@@ -1507,7 +1526,7 @@ export function openObjectOntStore({
   ): ReplayGraph | ReplayMetadataGraph => {
     let replay = replayInput ?? null;
     if (replay === null) {
-      try { replay = replayMetadataGraph(targetRef.commitSha256); } catch { fail('OBJECT_ONT_HISTORY_TARGET'); }
+      try { replay = replayMetadataGraph(targetRef.commitSha256); } catch (error) { mapHistoryTargetError(error); }
     }
     const validatedReplay = replay as ReplayGraph | ReplayMetadataGraph;
     if (validatedReplay.ontId !== targetRef.ontId
@@ -1537,7 +1556,7 @@ export function openObjectOntStore({
     const manifests = new Map<string, BlobDescriptor>();
     for (const commitSha256 of validatedReplay.commitOrder) {
       let commit: ObjectCommit | null = null;
-      try { commit = readCommit(commitSha256).commit; } catch { fail('OBJECT_ONT_HISTORY_TARGET'); }
+      try { commit = readCommit(commitSha256).commit; } catch (error) { mapHistoryTargetError(error); }
       if (commit === null) fail('OBJECT_ONT_HISTORY_TARGET');
       const validatedCommit = commit as ObjectCommit;
       if (validatedCommit.ontId !== targetRef.ontId) fail('OBJECT_ONT_HISTORY_TARGET');
@@ -1549,6 +1568,18 @@ export function openObjectOntStore({
         || head.byteLength !== descriptor.byteLength) fail('OBJECT_ONT_HISTORY_TARGET');
     }
     return validatedReplay;
+  };
+
+  const assertEnrollmentStable = (input: {
+    ontId: string;
+    branch: string;
+    enrolledRef: RefReadResult;
+  }): void => {
+    const after = readRefRecord({ ontId: input.ontId, branch: input.branch });
+    if (after === null || after.version !== input.enrolledRef.version
+      || !sameRef(after.ref, input.enrolledRef.ref)) {
+      fail('OBJECT_ONT_HISTORY_ENROLLMENT_RACE');
+    }
   };
 
   const initializeRefHistory = ({
@@ -1579,6 +1610,7 @@ export function openObjectOntStore({
       if (existing.record.pending !== null || !sameRef(existing.record.acceptedRef, enrolledRef.ref)) {
         fail('OBJECT_ONT_HISTORY_INITIALIZE');
       }
+      assertEnrollmentStable({ ontId, branch, enrolledRef });
       return historyReceipt('INITIALIZE', existing, true);
     }
     const accepted = makeRefHistory({
@@ -1588,10 +1620,7 @@ export function openObjectOntStore({
       pending: null,
     });
     const written = writeRefHistoryRecord(accepted, null);
-    const after = readRefRecord({ ontId, branch });
-    if (after === null || after.version !== enrolledRef.version || !sameRef(after.ref, enrolledRef.ref)) {
-      fail('OBJECT_ONT_HISTORY_ENROLLMENT_RACE');
-    }
+    assertEnrollmentStable({ ontId, branch, enrolledRef });
     return historyReceipt('INITIALIZE', written);
   };
 
@@ -1636,7 +1665,9 @@ export function openObjectOntStore({
     if (current !== null && sameRef(current.ref, targetRef)) return historyReceipt('RECOVER', establishedHistory, true);
     if (current !== null) {
       let currentReplay: ReplayMetadataGraph | null = null;
-      try { currentReplay = replayMetadataGraph(current.ref.commitSha256); } catch { fail('OBJECT_ONT_HISTORY_CONFLICT'); }
+      try { currentReplay = replayMetadataGraph(current.ref.commitSha256); } catch (error) {
+        mapHistoryConflictError(error);
+      }
       if (currentReplay === null) fail('OBJECT_ONT_HISTORY_CONFLICT');
       const validatedCurrentReplay = currentReplay as ReplayMetadataGraph;
       if (validatedCurrentReplay.status !== current.ref.replayStatus
@@ -1724,14 +1755,14 @@ export function openObjectOntStore({
   ) => ReplayGraph | ReplayMetadataGraph): RefWriteResult => {
     let commit: CommitRecord | null = null;
     try { commit = readCommit(commitSha256); } catch (error) {
-      if (historyBackend !== null) fail('OBJECT_ONT_HISTORY_TARGET');
+      if (historyBackend !== null) mapHistoryTargetError(error);
       throw error;
     }
     if (commit === null) fail('OBJECT_ONT_COMMIT_READ');
     if (commit.commit.ontId !== ontId) fail('OBJECT_ONT_REF_SCOPE');
     let replay: ReplayGraph | ReplayMetadataGraph;
     try { replay = replayReader(commitSha256); } catch (error) {
-      if (historyBackend !== null) fail('OBJECT_ONT_HISTORY_TARGET');
+      if (historyBackend !== null) mapHistoryTargetError(error);
       throw error;
     }
     if (replay.status === 'CONFLICT' && allowConflicts !== true) fail('OBJECT_ONT_REF_CONFLICT');

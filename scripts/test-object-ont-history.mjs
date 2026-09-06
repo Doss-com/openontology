@@ -129,6 +129,7 @@ function readBoundaryBackend(raw, {
   mutateOnGet = false,
   disappearOnGet = false,
   throwCode = null,
+  throwOnKey = null,
   corrupt = null,
 } = {}) {
   let armed = true;
@@ -136,7 +137,7 @@ function readBoundaryBackend(raw, {
     capabilities: raw.capabilities,
     head: (...args) => raw.head(...args),
     get(key, options) {
-      if (throwCode) backendError(throwCode);
+      if (throwCode && (!throwOnKey || throwOnKey === key)) backendError(throwCode);
       if (mutateOnGet && armed) {
         armed = false;
         const current = raw.get(key);
@@ -495,6 +496,54 @@ test('recovery rejects self-hashed impossible history states', () => {
   });
 });
 
+test('idempotent enrollment also detects a ref advance during existing-history read', () => {
+  const data = openMemoryObjectBackend();
+  const history = openMemoryObjectBackend();
+  const legacy = openObjectOntStore({ backend: data });
+  const manifest = manifestFor(legacy);
+  const first = commitFor(legacy, manifest, 'history-idempotent-enrollment');
+  const second = commitFor(legacy, manifest, 'history-idempotent-enrollment', [first.commitSha256]);
+  const firstResult = legacy.compareAndSwapRefMetadata({
+    ontId: 'history-idempotent-enrollment', branch: 'main', commitSha256: first.commitSha256,
+  });
+  const protectedStore = openObjectOntStore({ backend: data, historyBackend: history });
+  protectedStore.initializeRefHistory({
+    ontId: 'history-idempotent-enrollment',
+    branch: 'main',
+    expectedCommitSha256: first.commitSha256,
+    expectedReplaySha256: firstResult.ref.replaySha256,
+  });
+  const secondReplay = legacy.replayMetadata(second.commitSha256);
+  const secondRef = {
+    ...firstResult.ref,
+    commitSha256: second.commitSha256,
+    replaySha256: secondReplay.replaySha256,
+  };
+  const racingHistory = {
+    capabilities: history.capabilities,
+    head: (...args) => history.head(...args),
+    get(key, options) {
+      const result = history.get(key, options);
+      if (key === 'ref-history/history-idempotent-enrollment/main.json') {
+        data.overwrite(firstResult.key, Buffer.from(stableObjectText(secondRef)));
+      }
+      return result;
+    },
+    putIfAbsent: (...args) => history.putIfAbsent(...args),
+    compareAndSwap: (...args) => history.compareAndSwap(...args),
+  };
+  const retry = openObjectOntStore({ backend: data, historyBackend: racingHistory });
+  assert.throws(() => retry.initializeRefHistory({
+    ontId: 'history-idempotent-enrollment',
+    branch: 'main',
+    expectedCommitSha256: first.commitSha256,
+    expectedReplaySha256: firstResult.ref.replaySha256,
+  }), { code: 'OBJECT_ONT_HISTORY_ENROLLMENT_RACE' });
+  assert.throws(() => protectedStore.readRefHead({
+    ontId: 'history-idempotent-enrollment', branch: 'main',
+  }), { code: 'OBJECT_ONT_HISTORY_MISMATCH' });
+});
+
 test('reservation, data-ref, and finalization failures leave recoverable exact targets', () => {
   const variants = [
     ['reservation', 'history', [1]],
@@ -629,6 +678,38 @@ test('recovery refuses a target when an older historical source manifest is unav
   });
 });
 
+test('target validation preserves provider transport failures at commit and ancestor reads', () => {
+  const data = openMemoryObjectBackend();
+  const history = openMemoryObjectBackend();
+  const base = openObjectOntStore({ backend: data, historyBackend: history });
+  const manifest = manifestFor(base);
+  const first = commitFor(base, manifest, 'history-target-transport');
+  const second = commitFor(base, manifest, 'history-target-transport', [first.commitSha256]);
+  const targetRead = openObjectOntStore({
+    backend: readBoundaryBackend(data, { throwCode: 'OBJECT_BACKEND_TIMEOUT', throwOnKey: second.key }),
+    historyBackend: history,
+  });
+  assert.throws(() => targetRead.compareAndSwapRefMetadata({
+    ontId: 'history-target-transport', branch: 'main', commitSha256: second.commitSha256,
+  }), { code: 'OBJECT_BACKEND_TIMEOUT' });
+
+  const firstResult = base.compareAndSwapRefMetadata({
+    ontId: 'history-target-transport', branch: 'main', commitSha256: first.commitSha256,
+  });
+  base.compareAndSwapRefMetadata({
+    ontId: 'history-target-transport', branch: 'main',
+    expectedVersion: firstResult.version, commitSha256: second.commitSha256,
+  });
+  data.overwrite(firstResult.key, Buffer.from(stableObjectText(firstResult.ref)));
+  const ancestorRead = openObjectOntStore({
+    backend: readBoundaryBackend(data, { throwCode: 'OBJECT_BACKEND_TIMEOUT', throwOnKey: first.key }),
+    historyBackend: history,
+  });
+  assert.throws(() => ancestorRead.recoverRefHistory({
+    ontId: 'history-target-transport', branch: 'main',
+  }), { code: 'OBJECT_BACKEND_TIMEOUT' });
+});
+
 test('mutate-then-throw CAS boundaries recover without aborting the reservation', () => {
   {
     const data = openMemoryObjectBackend();
@@ -646,6 +727,9 @@ test('mutate-then-throw CAS boundaries recover without aborting the reservation'
     recovery.recoverRefHistory({ ontId: 'history-uncertain-reservation', branch: 'main' });
     assert.equal(recovery.readRefHead({ ontId: 'history-uncertain-reservation', branch: 'main' }).ref.commitSha256,
       commit.commitSha256);
+    assert.throws(() => store.compareAndSwapRefMetadata({
+      ontId: 'history-uncertain-reservation', branch: 'main', commitSha256: commit.commitSha256,
+    }), { code: 'OBJECT_BACKEND_PRECONDITION' });
   }
 
   {
@@ -663,6 +747,9 @@ test('mutate-then-throw CAS boundaries recover without aborting the reservation'
     recovery.recoverRefHistory({ ontId: 'history-uncertain-data', branch: 'main' });
     assert.equal(recovery.readRefHead({ ontId: 'history-uncertain-data', branch: 'main' }).ref.commitSha256,
       commit.commitSha256);
+    assert.throws(() => store.compareAndSwapRefMetadata({
+      ontId: 'history-uncertain-data', branch: 'main', commitSha256: commit.commitSha256,
+    }), { code: 'OBJECT_BACKEND_PRECONDITION' });
   }
 
   {
@@ -742,7 +829,7 @@ test('mutate-then-throw CAS boundaries recover without aborting the reservation'
   }
 });
 
-test('a concurrent original writer cannot advance while recovery finalizes a pending target', () => {
+test('a fresh third writer cannot advance while recovery finalizes a pending target', () => {
   const data = openMemoryObjectBackend();
   const history = openMemoryObjectBackend();
   const base = openObjectOntStore({ backend: data, historyBackend: history });
