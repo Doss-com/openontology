@@ -78,6 +78,7 @@ const BINDING_KEYS = ['ontId', 'namespace', 'artifactSha256', 'sourceCommitSha25
   'sourceReplaySha256', 'sourceCatalogSha256', 'nativeObjectMapSha256'];
 type Row = Record<string, unknown>;
 type State = ReturnType<typeof openProductState>;
+export type SourceNativeSemanticConstructionBindingContext = Pick<State, 'descriptor' | 'objectOnt'>;
 
 function fail(suffix: string): never {
   const code = `SEMANTIC_CONSTRUCTION_${suffix}`;
@@ -191,7 +192,7 @@ function sourceBinding(value: unknown): SourceNativeSemanticSourceBinding {
   };
 }
 
-function bindingFor(state: State): SourceNativeSemanticSourceBinding {
+function bindingFor(state: SourceNativeSemanticConstructionBindingContext): SourceNativeSemanticSourceBinding {
   return sourceBinding(Object.fromEntries(BINDING_KEYS.map((key) => [key, state.descriptor[key]])));
 }
 
@@ -236,7 +237,10 @@ export function validateSourceNativeSemanticConstruction(value: unknown): Source
 }
 
 /** Internal: callers validate the record before binding it to one safely opened snapshot. */
-export function assertSemanticConstructionBound(record: SourceNativeSemanticConstruction, state: State): void {
+export function assertSemanticConstructionBound(
+  record: SourceNativeSemanticConstruction,
+  state: SourceNativeSemanticConstructionBindingContext,
+): void {
   if (stableObjectText(record.sourceBinding) !== stableObjectText(bindingFor(state))
     || record.coverage.sourceCount !== state.objectOnt.catalog.sourceCount) fail('BINDING');
   const sources = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));

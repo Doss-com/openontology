@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import * as kernel from '../dist/src/kernel.mjs';
+import { createConstructionLedgerReader } from '../dist/src/source-native-construction-admission.mjs';
 import { openCanonicalObjectBackend } from '../dist/src/canonical-object-backend.mjs';
 
 const clone = structuredClone;
@@ -377,6 +378,101 @@ test('unreadable metadata disables all navigation rather than reusing cached con
   f.backend.compareAndSwap(current.key, { expectedVersion: current.version, bytes: Buffer.from('not-json') });
   assert.equal(f.read().state, 'degraded');
   assert.equal(f.read().activeRecords.length, 0);
+});
+
+test('internal reader pins source context and observes changed knowledge on each read', (t) => {
+  const f = fixture(t);
+  let metadataReads = 0;
+  const sourceStore = f.state.store;
+  const pinnedStore = {
+    ...sourceStore,
+    readRefMetadataSnapshot: (input) => {
+      metadataReads += 1;
+      return sourceStore.readRefMetadataSnapshot(input);
+    },
+  };
+  const reader = createConstructionLedgerReader({
+    descriptor: f.state.descriptor,
+    objectOnt: f.state.objectOnt,
+    store: pinnedStore,
+  }, f.trust);
+  assert.equal(reader.read().activeRecords.length, 0);
+  const original = f.admit();
+  f.write(original);
+  assert.deepEqual(reader.read().activeRecords, [original]);
+  const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
+  f.write(correction);
+  assert.deepEqual(reader.read().activeRecords, [correction]);
+  assert.equal(metadataReads, 3);
+});
+
+test('internal reader keeps its commit floor through missing and rewound metadata, then recovers to a descendant', (t) => {
+  const f = fixture(t);
+  const original = f.admit();
+  f.write(original);
+  const earlier = f.state.store.readRefMetadataSnapshot(f.route);
+  const sourceStore = f.state.store;
+  let forcedSnapshot = undefined;
+  const pinnedStore = {
+    ...sourceStore,
+    readRefMetadataSnapshot: (input) => forcedSnapshot === undefined
+      ? sourceStore.readRefMetadataSnapshot(input) : forcedSnapshot,
+  };
+  const reader = createConstructionLedgerReader({
+    descriptor: f.state.descriptor,
+    objectOnt: f.state.objectOnt,
+    store: pinnedStore,
+  }, f.trust);
+  assert.deepEqual(reader.read().activeRecords, [original]);
+  const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
+  f.write(correction);
+  assert.deepEqual(reader.read().activeRecords, [correction]);
+  forcedSnapshot = null;
+  const missing = reader.read();
+  assert.equal(missing.state, 'degraded');
+  assert.deepEqual(missing.activeRecords, []);
+  assert(missing.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_MISSING'));
+  forcedSnapshot = earlier;
+  const rewound = reader.read();
+  assert.equal(rewound.state, 'degraded');
+  assert.deepEqual(rewound.activeRecords, []);
+  assert(rewound.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_ROLLBACK'));
+  const successor = f.admit(changed(f, { id: 'successor' }), { admittedAt: at(5) });
+  f.write(successor);
+  forcedSnapshot = undefined;
+  const recovered = reader.read();
+  assert.equal(recovered.state, 'ready');
+  assert.deepEqual(recovered.activeRecords.map((record) => record.recordSha256).sort(),
+    [correction.recordSha256, successor.recordSha256].sort());
+});
+
+test('internal reader pins trust independently of later trust input mutation', (t) => {
+  const f = fixture(t);
+  const record = f.admit();
+  f.write(record);
+  const reader = createConstructionLedgerReader(f.state, f.trust);
+  assert.deepEqual(reader.read().activeRecords, [record]);
+  f.trust[0].publicKeyPem = 'mutated-after-open';
+  f.trust[1].roles = ['proposer'];
+  f.trust.splice(0);
+  const retained = reader.read();
+  assert.equal(retained.state, 'ready');
+  assert.deepEqual(retained.activeRecords, [record]);
+});
+
+test('one-shot construction ledger API remains source-bound and unchanged', (t) => {
+  const f = fixture(t);
+  const record = f.admit();
+  f.write(record);
+  const ledger = kernel.readSourceNativeConstructionLedger({
+    options: f.options,
+    trustRegistry: f.trust,
+  });
+  assert.equal(ledger.kind, 'OpenOntologySourceNativeConstructionLedgerV1');
+  assert.equal(ledger.state, 'ready');
+  assert.deepEqual(ledger.activeRecords, [record]);
+  assert.equal(ledger.navigationOnly, true);
+  assert.equal(ledger.exactSourcesRemainAuthority, true);
 });
 
 test('old signed query proofs and new construction share the branch without reinterpretation', async (t) => {

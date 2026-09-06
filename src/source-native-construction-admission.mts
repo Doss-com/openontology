@@ -79,6 +79,7 @@ export interface SourceNativeConstructionLedger {
 }
 
 type State = ReturnType<typeof openProductState>;
+type ConstructionLedgerContext = Pick<State, 'descriptor' | 'objectOnt' | 'store'>;
 type Registry = ReturnType<typeof admissionTrustRegistry>;
 type Row = Record<string, unknown>;
 interface LedgerInput {
@@ -113,7 +114,7 @@ const text = (value: unknown): string => typeof value === 'string' && value.leng
 const hash = (value: unknown): string => typeof value === 'string' && SHA256.test(value)
   ? value : fail('HASH');
 function recordPath(sha256: string): string { return `${PREFIX}${sha256.slice(7)}.json`; }
-function branchFor(state: State, input: unknown): string {
+function branchFor(state: ConstructionLedgerContext, input: unknown): string {
   const branch = input === undefined ? `knowledge-${state.objectOnt.commitSha256.slice(7, 23)}` : text(input);
   if (branch === state.descriptor.branch) fail('BRANCH');
   return branch;
@@ -211,7 +212,7 @@ function authenticate(record: SourceNativeConstructionAdmissionRecord, registry:
     statement: record.statement, proposalSignatureBase64: record.proposalSignatureBase64,
     signatureBase64: record.signatureBase64 }, registry);
 }
-function readRecord(state: State, descriptor: BlobDescriptor): SourceNativeConstructionAdmissionRecord {
+function readRecord(state: ConstructionLedgerContext, descriptor: BlobDescriptor): SourceNativeConstructionAdmissionRecord {
   if (descriptor.byteLength > RECORD_LIMIT) fail('LIMIT');
   const bytes = state.store.readBlob(descriptor).bytes;
   const decoded = bytes.toString('utf8');
@@ -222,7 +223,7 @@ function readRecord(state: State, descriptor: BlobDescriptor): SourceNativeConst
   if (descriptor.logicalPath !== recordPath(record.recordSha256)) fail('PATH');
   return record;
 }
-function assertReplay(state: State, replay: ReplayMetadataGraph): void {
+function assertReplay(state: ConstructionLedgerContext, replay: ReplayMetadataGraph): void {
   if (replay.status !== 'CLEAN' || replay.ontId !== state.descriptor.ontId
     || !replay.commitOrder.includes(state.objectOnt.commitSha256)) fail('BRANCH');
 }
@@ -274,77 +275,104 @@ export function writeSourceNativeConstructionAdmission({
     commitSha256: receipt.commitSha256, replaySha256: updated.ref.replaySha256, replayed: false });
 }
 
+interface ConstructionLedgerReader {
+  read(): SourceNativeConstructionLedger;
+}
+
+/** Internal source/trust-pinned reader. Returned records are navigation, not Evidence. */
+export function createConstructionLedgerReader(
+  context: ConstructionLedgerContext,
+  trustInput: readonly SourceNativeAdmissionTrustEntry[],
+  knowledgeBranch?: string,
+): ConstructionLedgerReader {
+  const registry = admissionTrustRegistry(trustInput);
+  const branch = branchFor(context, knowledgeBranch);
+  let lastAcceptedCommitSha256: string | null = null;
+
+  const read = (): SourceNativeConstructionLedger => {
+    let commitSha256: string | null = null;
+    let replaySha256: string | null = null;
+    const structural = new Map<string, SourceNativeConstructionAdmissionRecord>();
+    const bound: SourceNativeConstructionAdmissionRecord[] = [];
+    let invalidRecordCount = 0;
+    const diagnostics = new Set<string>();
+    function invalid(error: unknown): void {
+      invalidRecordCount += 1;
+      diagnostics.add(error && typeof error === 'object' && 'code' in error
+        && typeof error.code === 'string' ? error.code : 'CONSTRUCTION_ADMISSION_RECORD');
+    }
+    try {
+      const snapshot = context.store.readRefMetadataSnapshot({ ontId: context.descriptor.ontId, branch });
+      if (snapshot === null && lastAcceptedCommitSha256 !== null) fail('MISSING');
+      if (snapshot) {
+        assertReplay(context, snapshot.replayMetadata);
+        if (lastAcceptedCommitSha256 !== null
+          && !snapshot.replayMetadata.commitOrder.includes(lastAcceptedCommitSha256)) {
+          fail('ROLLBACK');
+        }
+        commitSha256 = snapshot.ref.commitSha256;
+        replaySha256 = snapshot.ref.replaySha256;
+        lastAcceptedCommitSha256 = snapshot.ref.commitSha256;
+        for (const descriptor of snapshot.replayMetadata.blobDescriptors.filter((item) => item.logicalPath.startsWith(PREFIX))) {
+          try {
+            const record = readRecord(context, descriptor);
+            structural.set(record.recordSha256, record);
+            authenticate(record, registry);
+            assertSemanticConstructionBound(record.construction, context);
+            bound.push(record);
+          } catch (error) { invalid(error); }
+        }
+      }
+    } catch (error) {
+      commitSha256 = null; replaySha256 = null;
+      structural.clear(); bound.length = 0;
+      invalid(error);
+    }
+    const eligible = bound.filter((record) => {
+      try {
+        for (const sha of record.statement.supersedesRecordSha256s) {
+          const target = structural.get(sha);
+          if (!target) fail('SUPERSESSION');
+          assertCorrection(record, target);
+        }
+        return true;
+      } catch (error) {
+        invalid(error);
+        return false;
+      }
+    });
+    const superseded = new Set(eligible.flatMap((record) => record.statement.supersedesRecordSha256s));
+    const current = eligible.filter((record) => !superseded.has(record.recordSha256));
+    const proposalsById = new Map<string, Set<string>>();
+    for (const record of current) {
+      for (const object of record.construction.objectDefs) {
+        const hashes = proposalsById.get(object.id) ?? new Set<string>();
+        hashes.add(record.construction.constructionSha256);
+        proposalsById.set(object.id, hashes);
+      }
+    }
+    const conflictingObjectDefIds = [...proposalsById].filter(([, hashes]) => hashes.size > 1)
+      .map(([id]) => id).sort(compare);
+    const conflicts = new Set(conflictingObjectDefIds);
+    const activeRecords = current.filter((record) => !record.construction.objectDefs.some((item) => conflicts.has(item.id)))
+      .sort((a, b) => compare(a.recordSha256, b.recordSha256));
+    const conflictingRecordCount = current.length - activeRecords.length;
+    if (conflictingRecordCount > 0) diagnostics.add('CONSTRUCTION_ADMISSION_AMBIGUOUS');
+    return freeze({ schemaVersion: 1, kind: 'OpenOntologySourceNativeConstructionLedgerV1',
+      branch, commitSha256, replaySha256, structuralRecordCount: structural.size,
+      eligibleRecordCount: eligible.length,
+      supersededRecordCount: superseded.size,
+      conflictingRecordCount, invalidRecordCount, conflictingObjectDefIds, activeRecords,
+      diagnosticCodes: [...diagnostics].sort(compare), state: diagnostics.size > 0 ? 'degraded' : 'ready',
+      navigationOnly: true, exactSourcesRemainAuthority: true });
+  };
+  return Object.freeze({ read });
+}
+
 /** Fresh source/trust-bound snapshot. Returned records are navigation, not Evidence. */
 export function readSourceNativeConstructionLedger({
   options = {}, trustRegistry: trust, knowledgeBranch,
 }: LedgerInput): SourceNativeConstructionLedger {
-  const registry = admissionTrustRegistry(trust);
   const state = openProductState(options);
-  const branch = branchFor(state, knowledgeBranch);
-  let commitSha256: string | null = null;
-  let replaySha256: string | null = null;
-  const structural = new Map<string, SourceNativeConstructionAdmissionRecord>();
-  const bound: SourceNativeConstructionAdmissionRecord[] = [];
-  let invalidRecordCount = 0;
-  const diagnostics = new Set<string>();
-  function invalid(error: unknown): void {
-    invalidRecordCount += 1;
-    diagnostics.add(error && typeof error === 'object' && 'code' in error
-      && typeof error.code === 'string' ? error.code : 'CONSTRUCTION_ADMISSION_RECORD');
-  }
-  try {
-    const snapshot = state.store.readRefMetadataSnapshot({ ontId: state.descriptor.ontId, branch });
-    if (snapshot) {
-      assertReplay(state, snapshot.replayMetadata);
-      commitSha256 = snapshot.ref.commitSha256;
-      replaySha256 = snapshot.ref.replaySha256;
-      for (const descriptor of snapshot.replayMetadata.blobDescriptors.filter((item) => item.logicalPath.startsWith(PREFIX))) {
-        try {
-          const record = readRecord(state, descriptor);
-          structural.set(record.recordSha256, record);
-          authenticate(record, registry);
-          assertSemanticConstructionBound(record.construction, state);
-          bound.push(record);
-        } catch (error) { invalid(error); }
-      }
-    }
-  } catch (error) {
-    commitSha256 = null; replaySha256 = null;
-    structural.clear(); bound.length = 0;
-    invalid(error);
-  }
-  const eligible = bound.filter((record) => {
-    try {
-      for (const sha of record.statement.supersedesRecordSha256s) {
-        const target = structural.get(sha);
-        if (!target) fail('SUPERSESSION');
-        assertCorrection(record, target);
-      }
-      return true;
-    } catch (error) { invalid(error); return false; }
-  });
-  const superseded = new Set(eligible.flatMap((record) => record.statement.supersedesRecordSha256s));
-  const current = eligible.filter((record) => !superseded.has(record.recordSha256));
-  const proposalsById = new Map<string, Set<string>>();
-  for (const record of current) {
-    for (const object of record.construction.objectDefs) {
-      const hashes = proposalsById.get(object.id) ?? new Set<string>();
-      hashes.add(record.construction.constructionSha256);
-      proposalsById.set(object.id, hashes);
-    }
-  }
-  const conflictingObjectDefIds = [...proposalsById].filter(([, hashes]) => hashes.size > 1)
-    .map(([id]) => id).sort(compare);
-  const conflicts = new Set(conflictingObjectDefIds);
-  const activeRecords = current.filter((record) => !record.construction.objectDefs.some((item) => conflicts.has(item.id)))
-    .sort((a, b) => compare(a.recordSha256, b.recordSha256));
-  const conflictingRecordCount = current.length - activeRecords.length;
-  if (conflictingRecordCount > 0) diagnostics.add('CONSTRUCTION_ADMISSION_AMBIGUOUS');
-  return freeze({ schemaVersion: 1, kind: 'OpenOntologySourceNativeConstructionLedgerV1',
-    branch, commitSha256, replaySha256, structuralRecordCount: structural.size,
-    eligibleRecordCount: eligible.length,
-    supersededRecordCount: superseded.size,
-    conflictingRecordCount, invalidRecordCount, conflictingObjectDefIds, activeRecords,
-    diagnosticCodes: [...diagnostics].sort(compare), state: diagnostics.size > 0 ? 'degraded' : 'ready',
-    navigationOnly: true, exactSourcesRemainAuthority: true });
+  return createConstructionLedgerReader(state, trust, knowledgeBranch).read();
 }
