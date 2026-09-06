@@ -259,8 +259,11 @@ Scope narrows authority. It cannot make missing proof answerable. Its names are
 case-sensitive, so `clickup` and `ClickUp` are not interchangeable. Omit scope
 when you do not know the declared profile. If the question names a native object
 ID, it must agree with `scope.externalId`; a different known ID returns
-`unavailable-native-multiple-object-identifiers` with no context. This identity
-check does not resolve disagreements about the requested field or type.
+`unavailable-native-multiple-object-identifiers` with no context. Scope can fill
+in an unspecified object profile or field, or select among matching declared
+aliases. It cannot override a recognized different profile or field. Those
+conflicts return the corresponding object-type or field ambiguity refusal.
+This agreement check uses your declared aliases, not general language reasoning.
 
 An opaque ID alone may not identify an object type. If your Adapter declares
 `task` objects with IDs such as `W-17`, ask for "the current title of task W-17"

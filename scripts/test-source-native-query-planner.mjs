@@ -49,3 +49,29 @@ test('fails closed for undeclared fields and ambiguous object types', () => {
   assert.equal(ambiguous.state, 'unavailable-native-object-type-ambiguous');
   assert.equal(ambiguous.query, null);
 });
+
+test('typed selection narrows recognized fields without inventing a third choice', () => {
+  const scopedSchemas = [{ sourceSystem: 'helpdesk', objectType: 'ticket', aliases: ['ticket'],
+    fields: [
+      { fieldPath: 'priority', aliases: ['priority', 'urgency'] },
+      { fieldPath: 'title', aliases: ['title'] },
+      { fieldPath: 'assignee', aliases: ['assignee'] },
+    ] }];
+  const typedQuery = { sourceSystem: 'helpdesk', objectType: 'ticket', fieldPath: 'priority' };
+  const sameField = compileSourceNativeFieldQuery({ question: 'What is the ticket priority or urgency?',
+    schemas: scopedSchemas });
+  assert.equal(sameField.state, 'resolved-native-field-query');
+  const narrowed = compileSourceNativeFieldQuery({ question: 'What is the ticket priority and title?',
+    schemas: scopedSchemas, typedQuery });
+  assert.equal(narrowed.state, 'resolved-native-field-query');
+  assert.equal(narrowed.query.fieldPath, 'priority');
+  const third = compileSourceNativeFieldQuery({ question: 'What is the ticket priority and title?',
+    schemas: scopedSchemas, typedQuery: { ...typedQuery, fieldPath: 'assignee' } });
+  assert.equal(third.state, 'unavailable-native-field-ambiguous');
+  assert.equal(third.query, null);
+  assert.deepEqual(third.matchedFieldAliases, ['priority', 'title']);
+  const unknown = compileSourceNativeFieldQuery({ question: 'Inspect this ticket.',
+    schemas: scopedSchemas, typedQuery: { ...typedQuery, fieldPath: 'missing' } });
+  assert.equal(unknown.state, 'unavailable-native-field-not-declared');
+  assert.equal(unknown.query, null);
+});

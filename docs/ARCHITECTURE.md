@@ -84,7 +84,14 @@ changes query-plan hashes; prior-plan Admissions are not silently reused under
 the new planner. Their signed bytes remain history and ordinary verification
 remains available. A structured `externalId` narrows the question but cannot
 override a different explicit native ID in the question; that conflict refuses
-with no Evidence. Field or object-type disagreements remain separate concerns.
+with no Evidence. The same declared-alias compiler now checks ordinary and
+structured queries. Scope can fill missing lexical selectors or choose among
+matching object/field candidates; a different recognized profile or field
+refuses before Resolver lookup or an absence receipt. Shared object aliases
+can be disambiguated by exact source system. Multiple aliases for one field
+remain one candidate. This checks declared vocabulary, not arbitrary semantic
+equivalence. The wrapper still masks quoted titles and preserves explicit IDs,
+historical anchors and public input validation.
 
 Seed-search Adapters may declare up to 1,000 logical network operations per
 search, with zero model calls. Hosted receipts must report actual operations

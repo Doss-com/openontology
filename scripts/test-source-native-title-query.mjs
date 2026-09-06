@@ -344,6 +344,77 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
   });
 });
 
+test('structured scopes preserve declared field intent and may fill missing selectors', async () => {
+  await withProduct(buildInput(), async (product, artifactRoot) => {
+    const scope = { sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', field: 'status' };
+    for (const question of ['What is the current status of task-1?', 'What is the current status?']) {
+      const conflict = await product.verify({ question, scope: { ...scope, field: 'title' } });
+      assert.equal(conflict.state, 'unavailable-native-field-ambiguous');
+      assert.equal(conflict.answerable, false);
+      assert.deepEqual(conflict.context, []);
+      assert.equal(conflict.verification.absenceReceipt, null);
+      const matching = await product.verify({ question, scope });
+      assert.equal(matching.answerable, true);
+      assert.deepEqual(matching.context.map(row => row.exactText), ['Done']);
+    }
+    for (const question of ['Inspect this object.', 'Inspect task-1.', 'What is the task status and title?']) {
+      const narrowed = await product.verify({ question, scope });
+      assert.equal(narrowed.answerable, true);
+      assert.deepEqual(narrowed.context.map(row => row.exactText), ['Done']);
+    }
+    const absent = await product.verify({ question: 'Inspect this object.',
+      scope: { ...scope, externalId: 'task-999' } });
+    assert.equal(absent.state, 'verified-native-object-absent-from-bound-source-catalog');
+    assert.equal(absent.answerable, false);
+    assert.deepEqual(absent.context, []);
+    assert.equal(absent.verification.absenceReceipt.exactOccurrenceCount, 0);
+    const historical = await product.verify({
+      question: 'What was the status of task-1?', at: '2026-01-15T00:00:00.000Z',
+      scope: { ...scope, field: 'title' },
+    });
+    assert.equal(historical.state, 'unavailable-native-field-ambiguous');
+    assert.deepEqual(historical.context, []);
+    const mcp = createSourceNativeProductMcpHandler(openSourceNativeProduct({ artifactRoot }));
+    const response = await mcp.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: {
+      name: 'verify', arguments: { question: 'What is the current status of task-1?',
+        scope: { ...scope, field: 'title' } },
+    } });
+    const mcpResult = JSON.parse(response.result.content[0].text);
+    assert.equal(mcpResult.state, 'unavailable-native-field-ambiguous');
+    assert.equal(mcpResult.answerable, false);
+    assert.deepEqual(mcpResult.context, []);
+    const cli = spawnSync(process.execPath, [publicCli, 'verify', artifactRoot,
+      'What is the current status of task-1?', '--source-system', 'clickup',
+      '--object-type', 'task', '--external-id', 'task-1', '--field', 'title'], { encoding: 'utf8' });
+    assert.equal(cli.status, 0, cli.stderr);
+    const cliResult = JSON.parse(cli.stdout);
+    assert.equal(cliResult.state, 'unavailable-native-field-ambiguous');
+    assert.equal(cliResult.answerable, false);
+    assert.deepEqual(cliResult.context, []);
+  });
+});
+
+test('structured profiles disambiguate matching object aliases but cannot override another profile', async () => {
+  const input = buildInput();
+  input.querySchemas.push({ sourceSystem: 'linear', objectType: 'issue', aliases: ['issue'],
+    fields: [{ fieldPath: 'status', aliases: ['status'] }] });
+  input.querySchemas.push({ sourceSystem: 'other', objectType: 'task', aliases: ['task'],
+    fields: [{ fieldPath: 'status', aliases: ['status'] }] });
+  await withProduct(input, async product => {
+    const scope = { sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', field: 'status' };
+    const conflict = await product.verify({ question: 'What is the current issue status?', scope });
+    assert.equal(conflict.state, 'unavailable-native-object-type-ambiguous');
+    assert.equal(conflict.answerable, false);
+    assert.deepEqual(conflict.context, []);
+    assert.equal(conflict.verification.absenceReceipt, null);
+    const unscoped = await product.verify('What is the current task status of task-1?');
+    assert.equal(unscoped.state, 'unavailable-native-object-type-ambiguous');
+    const narrowed = await product.verify({ question: 'What is the current task status of task-1?', scope });
+    assert.equal(narrowed.answerable, true);
+    assert.deepEqual(narrowed.context.map(row => row.exactText), ['Done']);
+  });
+});
+
 test('does not scan title words as field, ID or temporal intent, including historical reads', async () => {
   const title = 'Status task-1 at 2026';
   await withProduct(buildInput({ targetTitle: title }), async (product) => {

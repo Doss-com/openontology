@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 6453,
-      "sha256": "ba38b15a9fa0083f0ddf1faa68c6a1d6d830e6d43931c6a8429a346afefe93ca"
+      "bytes": 6759,
+      "sha256": "06e794e4b794822d8a83bf22513a59b893700658b07b9b6dd9252de3bab0c8b0"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 18227,
-      "sha256": "2837b58d0dcdd87697b42ddf2b74caa644e8f54e9b21b811b2c3814eaf573380"
+      "bytes": 18464,
+      "sha256": "ec13dceee7f27ecd9de4eff41add59fda06266ec83017fc435b539e7b77bf11e"
     },
     {
       "path": "SECURITY.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 30294,
-      "sha256": "cf1bff3ee3911e13e329f416f10f9c34283d61b75320dc296442e0e77f6da3d0"
+      "bytes": 30798,
+      "sha256": "c07a2ac990d631f9d8663f5ea29f7c07b8181868b9be1317e3a0ec66c6650825"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -317,8 +317,8 @@
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
-      "bytes": 1944,
-      "sha256": "bff79d16729c66f1d2226716cdc205d236b6872202688ac1f5381371fd67de42"
+      "bytes": 3526,
+      "sha256": "c9607bae4c8a96b7228f259d803c22285df73cc56088cc3336447f9756f0bdc9"
     },
     {
       "path": "scripts/test-source-native-resource-checkpoint.mjs",
@@ -342,8 +342,8 @@
     },
     {
       "path": "scripts/test-source-native-title-query.mjs",
-      "bytes": 18307,
-      "sha256": "b4add4fb66caf6f4672bff31cb3266b967e2111f90b99ba37e2e43f304516234"
+      "bytes": 22643,
+      "sha256": "3afc250bd3586b385e793adc97977f2008395ae7d82b5df9e96d7d87465fcefa"
     },
     {
       "path": "scripts/update-source-manifest.mjs",
@@ -502,8 +502,8 @@
     },
     {
       "path": "src/source-native-product-mcp.mts",
-      "bytes": 17008,
-      "sha256": "bedbb8a6dabf4d902e444d047b93afff1f7c9f0440435f85db35fd705dc65738"
+      "bytes": 17127,
+      "sha256": "fb6ae9d55b39e7001b1e501bbc30840dbd68f9f3c41e0392e7520be018b29214"
     },
     {
       "path": "src/source-native-product.mts",
@@ -512,13 +512,13 @@
     },
     {
       "path": "src/source-native-query-plan.mts",
-      "bytes": 18752,
-      "sha256": "e818cf53058fedeb83cffcacaa15d9095301c59fe84b727747165049d97e5e01"
+      "bytes": 17589,
+      "sha256": "3e9b9a03cc60d247c9943f173216a463d637e516afc6ae93410d50d1ff0fcdf7"
     },
     {
       "path": "src/source-native-query-planner.mts",
-      "bytes": 7026,
-      "sha256": "201f8bf2a02053957bebf7ab129e4fcf95f24e26b025356e6d67a46989636b7d"
+      "bytes": 8269,
+      "sha256": "8a4b005f37da659d7c5b2b17f37d381baf322fffe35aae62d66e5851fcfa9e3d"
     },
     {
       "path": "src/source-native-resolver-support.mts",
@@ -546,5 +546,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:98492fa0c39519d042621cd0e1853974ad5f5e8ad053d4b9ccdc76b5f1b92af5"
+  "manifestSha256": "sha256:df3a0fd9cccc9411c2bf87aee5dde970d0b417678507a628e81e7e59aa9a16b0"
 }

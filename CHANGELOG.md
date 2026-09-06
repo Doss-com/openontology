@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Refuse disagreement between a question's declared identity/profile/field and
+  structured scope. Preserve scope-only queries and disambiguation among
+  matching declared candidates across SDK, CLI and MCP. Version the planner
+  binding so prior-plan Admissions do not silently reuse different semantics.
 - Make repeated concept names browsable through bounded metadata pages while
   preserving distinct identities, exact reads and explicit factual verification.
 - Expose explicitly configured construction clients through the existing MCP

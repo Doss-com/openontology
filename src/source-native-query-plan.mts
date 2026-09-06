@@ -272,14 +272,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
   const scanQuestion = declaredTitle.scanQuestion;
   const namespaceMismatch = declaredTitle.normalizedTitle !== null
     && explicitNamespaceRefusal(scanQuestion, namespace);
-  if (typedQuery === null) {
-    const compiled = compileSourceNativeFieldQuery({ question: scanQuestion, schemas: querySchemas });
-    state = compiled.state;
-    query = compiled.query;
-    matchedObjectAliases = compiled.matchedObjectAliases;
-    matchedFieldAliases = compiled.matchedFieldAliases;
-    plannerSchemaSha256 = compiled.plannerSchemaSha256;
-  } else {
+  if (typedQuery !== null) {
     if (typeof typedQuery?.sourceSystem !== 'string' || !typedQuery.sourceSystem
       || typeof typedQuery.objectType !== 'string' || !typedQuery.objectType
       || typeof typedQuery.fieldPath !== 'string' || !typedQuery.fieldPath
@@ -287,28 +280,14 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
         && (typeof typedQuery.externalId !== 'string' || !typedQuery.externalId)) {
       fail('SOURCE_NATIVE_PRODUCT_QUERY');
     }
-    const schema = querySchemas.find((candidate) =>
-      candidate.sourceSystem === typedQuery.sourceSystem
-      && candidate.objectType === typedQuery.objectType);
-    const field = schema?.fields.find((candidate) => candidate.fieldPath === typedQuery.fieldPath);
-    state = schema === undefined ? 'unavailable-native-object-type-not-declared'
-      : field === undefined ? 'unavailable-native-field-not-declared'
-        : 'resolved-native-field-query';
-    query = state === 'resolved-native-field-query' ? { ...typedQuery } : null;
-    matchedObjectAliases = [];
-    matchedFieldAliases = [];
-    if (declaredTitle.normalizedTitle !== null) {
-      const compiled = compileSourceNativeFieldQuery({ question: scanQuestion, schemas: querySchemas });
-      if (compiled.state === 'resolved-native-field-query'
-        && compiled.query?.sourceSystem === typedQuery.sourceSystem
-        && compiled.query.objectType === typedQuery.objectType
-        && compiled.query.fieldPath === typedQuery.fieldPath) {
-        matchedObjectAliases = compiled.matchedObjectAliases;
-        matchedFieldAliases = compiled.matchedFieldAliases;
-      }
-    }
-    plannerSchemaSha256 = stableObjectSha256(querySchemas);
   }
+  const compiled = compileSourceNativeFieldQuery({ question: scanQuestion,
+    schemas: querySchemas, typedQuery });
+  state = compiled.state;
+  query = compiled.query === null ? null : { ...compiled.query, ...typedQuery };
+  matchedObjectAliases = compiled.matchedObjectAliases;
+  matchedFieldAliases = compiled.matchedFieldAliases;
+  plannerSchemaSha256 = compiled.plannerSchemaSha256;
   if (query !== null) {
     const mention = mentionedExternalId(scanQuestion, map, namespace, query);
     const externalId = query.externalId ?? mention.value;
@@ -364,7 +343,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     query = anchor.query;
   }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v4-declared-title-id-agreement-v1', namespace, querySchemas,
+    adapter: 'source-native-product-query-v5-declared-scope-agreement-v1', namespace, querySchemas,
   });
   const core = {
     schema: 1,
@@ -402,7 +381,7 @@ export function queryPlanner({ namespace, plan }: {
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v4-declared-title-id-agreement-v1',
+    adapter: 'source-native-product-query-v5-declared-scope-agreement-v1',
     namespace,
     plannerSha256,
     modelCalls: 0,

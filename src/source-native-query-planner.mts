@@ -14,6 +14,7 @@ export interface QuerySchema {
 interface QueryPlanInput {
   question?: unknown;
   schemas?: unknown;
+  typedQuery?: SourceNativeFieldQuery | null;
 }
 export type SourceNativeFieldQuery = {
   sourceSystem: string;
@@ -93,33 +94,50 @@ export function normalizeSourceNativeQuerySchemas(input: unknown): QuerySchema[]
     || left.objectType.localeCompare(right.objectType)));
 }
 
-export function compileSourceNativeFieldQuery({ question, schemas: schemaInput }: QueryPlanInput = {}): CompiledSourceNativeFieldQueryPlan {
+export function compileSourceNativeFieldQuery({ question, schemas: schemaInput,
+  typedQuery = null }: QueryPlanInput = {}): CompiledSourceNativeFieldQueryPlan {
   if (typeof question !== 'string' || !question.trim()) fail('SOURCE_NATIVE_QUERY_INPUT');
   const schemas = normalizeSourceNativeQuerySchemas(schemaInput);
   const questionText = normalized(question);
   const plannerSchemaSha256 = stableObjectSha256(schemas);
-  const matchedObjects = schemas.map((schema: QuerySchema) => ({
+  const objects = schemas.map((schema: QuerySchema) => ({
     schema,
     aliases: schema.aliases.filter((alias: string) => containsAlias(questionText, alias)),
-  })).filter((row) => row.aliases.length > 0);
+  }));
+  const mentionedObjects = objects.filter((row) => row.aliases.length > 0);
+  const scopedObject = typedQuery === null ? undefined : objects.find(({ schema }) =>
+    schema.sourceSystem === typedQuery.sourceSystem && schema.objectType === typedQuery.objectType);
+  const matchedObjects = scopedObject === undefined ? mentionedObjects : [scopedObject];
   let state: SourceNativeQueryPlanState;
   let query: SourceNativeFieldQuery | null = null;
   let matchedObjectAliases: string[] = [];
   let matchedFieldAliases: string[] = [];
-  if (matchedObjects.length < 1) {
+  if (typedQuery !== null && scopedObject === undefined || matchedObjects.length < 1) {
     state = 'unavailable-native-object-type-not-declared';
+  } else if (scopedObject !== undefined && mentionedObjects.length > 0
+    && !mentionedObjects.includes(scopedObject)) {
+    state = 'unavailable-native-object-type-ambiguous';
+    matchedObjectAliases = mentionedObjects.flatMap((row) => row.aliases).sort();
   } else if (matchedObjects.length > 1) {
     state = 'unavailable-native-object-type-ambiguous';
     matchedObjectAliases = matchedObjects.flatMap((row) => row.aliases).sort();
   } else {
     const matchedObject = matchedObjects[0]!;
     matchedObjectAliases = matchedObject.aliases;
-    const matchedFields = matchedObject.schema.fields.map((field) => ({
+    const fields = matchedObject.schema.fields.map((field) => ({
       field,
       aliases: field.aliases.filter((alias: string) => containsAlias(questionText, alias)),
-    })).filter((row) => row.aliases.length > 0);
-    if (matchedFields.length < 1) {
+    }));
+    const mentionedFields = fields.filter((row) => row.aliases.length > 0);
+    const scopedField = typedQuery === null ? undefined
+      : fields.find(({ field }) => field.fieldPath === typedQuery.fieldPath);
+    const matchedFields = scopedField === undefined ? mentionedFields : [scopedField];
+    if (typedQuery !== null && scopedField === undefined || matchedFields.length < 1) {
       state = 'unavailable-native-field-not-declared';
+    } else if (scopedField !== undefined && mentionedFields.length > 0
+      && !mentionedFields.includes(scopedField)) {
+      state = 'unavailable-native-field-ambiguous';
+      matchedFieldAliases = mentionedFields.flatMap((row) => row.aliases).sort();
     } else if (matchedFields.length > 1) {
       state = 'unavailable-native-field-ambiguous';
       matchedFieldAliases = matchedFields.flatMap((row) => row.aliases).sort();
