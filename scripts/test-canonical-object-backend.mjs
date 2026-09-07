@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import {
   normalizeCanonicalObjectBackendUri,
@@ -244,4 +244,101 @@ test('canonical backend URI never accepts embedded credentials or configuration 
       code: 'CANONICAL_OBJECT_BACKEND_URI',
     });
   }
+});
+
+test('file backend hashes large canonical metadata without a second string-to-Buffer allocation', () => {
+  const child = String.raw`
+    import { mkdtempSync, rmSync } from 'node:fs';
+    import { tmpdir } from 'node:os';
+    import { join } from 'node:path';
+    const originalFrom = Buffer.from;
+    const largeStringCalls = [];
+    Buffer.from = function patchedBufferFrom(value, ...args) {
+      if (typeof value === 'string' && value.length > 1_000_000) largeStringCalls.push(value.length);
+      return originalFrom.call(Buffer, value, ...args);
+    };
+    const { openFileObjectBackend } = await import('./dist/src/object-storage-backend.mjs');
+    const root = mkdtempSync(join(tmpdir(), 'oont-file-hash-allocation-'));
+    try {
+      const bytes = Buffer.alloc(2 * 1024 * 1024, 0x61);
+      openFileObjectBackend({ root }).putIfAbsent('objects/large', bytes);
+      process.stdout.write(JSON.stringify({ largeStringCalls }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  `;
+  const result = childProcess.spawnSync(process.execPath, ['--input-type=module', '-e', child], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const observed = JSON.parse(result.stdout);
+  assert.equal(observed.largeStringCalls.length, 1, JSON.stringify(observed));
+});
+
+test('file backend hash conversion preserves physical envelopes, versions, ranges, and corruption checks', () => {
+  const child = String.raw`
+    import assert from 'node:assert/strict';
+    import { createHash } from 'node:crypto';
+    import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+    import { tmpdir } from 'node:os';
+    import { join } from 'node:path';
+    import { pathToFileURL } from 'node:url';
+    const modulePath = join(process.cwd(), 'dist/src/object-storage-backend.mjs');
+    const candidateText = readFileSync(modulePath, 'utf8');
+    const oldText = candidateText.replace(
+      "createHash('sha256').update(canonical(value), 'utf8').digest('hex')",
+      "createHash('sha256').update(Buffer.from(canonical(value))).digest('hex')",
+    );
+    assert.notEqual(oldText, candidateText);
+    const root = mkdtempSync(join(tmpdir(), 'oont-file-hash-parity-'));
+    const oldModulePath = join(root, 'old-backend.mjs');
+    writeFileSync(oldModulePath, oldText);
+    const [{ openFileObjectBackend: openNew }, { openFileObjectBackend: openOld }] = await Promise.all([
+      import(pathToFileURL(modulePath)),
+      import(pathToFileURL(oldModulePath)),
+    ]);
+    const newRoot = join(root, 'new');
+    const oldRoot = join(root, 'old');
+    const newBackend = openNew({ root: newRoot });
+    const oldBackend = openOld({ root: oldRoot });
+    const key = 'objects/unicode-numeric';
+    const bytes = Buffer.from(JSON.stringify({ '10': 'ten', '2': 'two', text: 'café 漢字 🙂 \\ud800' }));
+    const comparable = ({ key: rowKey, version, checksumSha256, byteLength, generation, created, replayed, previousVersion }) =>
+      ({ key: rowKey, version, checksumSha256, byteLength, generation, created, replayed, previousVersion });
+    const newFirst = newBackend.putIfAbsent(key, bytes);
+    const oldFirst = oldBackend.putIfAbsent(key, bytes);
+    assert.deepEqual(comparable(newFirst), comparable(oldFirst));
+    assert.deepEqual(readFileSync(join(newRoot, 'BACKEND.json')), readFileSync(join(oldRoot, 'BACKEND.json')));
+    const envelopePath = (rootPath) => {
+      const keyHash = createHash('sha256').update(key).digest('hex');
+      return join(rootPath, 'objects', keyHash.slice(0, 2), keyHash.slice(2) + '.json');
+    };
+    assert.deepEqual(readFileSync(envelopePath(newRoot)), readFileSync(envelopePath(oldRoot)));
+    assert.deepEqual(newBackend.get(key).bytes, oldBackend.get(key).bytes);
+    assert.deepEqual(newBackend.get(key, { start: 2, end: bytes.length - 2 }).bytes,
+      oldBackend.get(key, { start: 2, end: bytes.length - 2 }).bytes);
+    const newSecond = newBackend.compareAndSwap(key, { expectedVersion: newFirst.version, bytes: Buffer.concat([bytes, Buffer.from([0x0a])]) });
+    const oldSecond = oldBackend.compareAndSwap(key, { expectedVersion: oldFirst.version, bytes: Buffer.concat([bytes, Buffer.from([0x0a])]) });
+    assert.deepEqual(comparable(newSecond), comparable(oldSecond));
+    assert.deepEqual(readFileSync(envelopePath(newRoot)), readFileSync(envelopePath(oldRoot)));
+    const newCold = openNew({ root: newRoot });
+    const oldCold = openOld({ root: oldRoot });
+    assert.deepEqual(comparable(newCold.head(key)), comparable(oldCold.head(key)));
+    assert.deepEqual(newCold.get(key).bytes, oldCold.get(key).bytes);
+    for (const [name, backend, rootPath] of [['new', newCold, newRoot], ['old', oldCold, oldRoot]]) {
+      const corrupted = Buffer.from(readFileSync(envelopePath(rootPath)));
+      corrupted[corrupted.length - 3] ^= 1;
+      writeFileSync(envelopePath(rootPath), corrupted);
+      assert.throws(() => backend.get(key), { code: 'OBJECT_BACKEND_CORRUPT' }, name);
+    }
+    process.stdout.write(JSON.stringify({ status: 'PASS', envelopeBytes: readFileSync(envelopePath(newRoot)).length }));
+    rmSync(root, { recursive: true, force: true });
+  `;
+  const result = childProcess.spawnSync(process.execPath, ['--input-type=module', '-e', child], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).status, 'PASS');
 });

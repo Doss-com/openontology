@@ -217,8 +217,8 @@
     },
     {
       "path": "scripts/test-canonical-object-backend.mjs",
-      "bytes": 10520,
-      "sha256": "2ba7c254753c41671ffdcfaff4671ff09cd958536fcfcc577e93f4047104e26b"
+      "bytes": 16063,
+      "sha256": "929584522294fa73f207e6ab8ae85f687cf0259dab5fce2670ad2f80741fa4de"
     },
     {
       "path": "scripts/test-gcs-object-storage-backend.mjs",
@@ -402,8 +402,8 @@
     },
     {
       "path": "src/object-storage-backend.mts",
-      "bytes": 13113,
-      "sha256": "32b535215ca2259b7f4abda1a1703e7cbb842d9cef1ce4c359a0812bcc398654"
+      "bytes": 13157,
+      "sha256": "c125d10f114bd77996e0314201952c6279fc35822ad17dda498199b15dd15578"
     },
     {
       "path": "src/openontology.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:111d65b4cd34fce3ed7182ceefaf112c44593f4ed19565e166e5449d34bff440"
+  "manifestSha256": "sha256:a2b1a5c99301a4b1d77b1364527aea029adecb368ca506774094421dc24f0b0c"
 }

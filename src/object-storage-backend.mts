@@ -74,7 +74,8 @@ const canonical = (value: unknown): string => JSON.stringify(value, (_key: strin
     ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
     : row) as string;
 const sha256 = (bytes: Uint8Array): string => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-const objectSha256 = (value: unknown): string => sha256(Buffer.from(canonical(value)));
+const objectSha256 = (value: unknown): string =>
+  `sha256:${createHash('sha256').update(canonical(value), 'utf8').digest('hex')}`;
 const fail = (code: string): never => {
   const error = new Error(code) as Error & { code: string };
   error.code = code;
