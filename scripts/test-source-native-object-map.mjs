@@ -27,6 +27,54 @@ function span(content, fieldPath, value) {
   return { fieldPath, value, codeUnitStart: content.indexOf(value) };
 }
 
+function compiledHeaderFixture() {
+  const content = '# Header fixture\nStatus: open\n';
+  const sources = [source('clickup/acme/header.md', '2026-01-01T00:00:00.000Z', content)];
+  return compileSourceNativeObjectMap({
+    sources,
+    nativeObjectInputs: [{
+      relativePath: sources[0].relativePath,
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-header',
+      },
+      fields: [span(content, 'title', 'Header fixture')],
+    }],
+  });
+}
+
+test('rejects missing, malformed, and inherited map headers at the validator boundary', () => {
+  const valid = compiledHeaderFixture();
+  const mutations = [
+    ['missing schema', (map) => { delete map.schema; }],
+    ['null schema', (map) => { map.schema = null; }],
+    ['undefined schema', (map) => { map.schema = undefined; }],
+    ['wrong number schema', (map) => { map.schema = 2; }],
+    ['wrong string schema', (map) => { map.schema = '1'; }],
+    ['wrong object schema', (map) => { map.schema = {}; }],
+    ['missing kind', (map) => { delete map.kind; }],
+    ['null kind', (map) => { map.kind = null; }],
+    ['undefined kind', (map) => { map.kind = undefined; }],
+    ['wrong number kind', (map) => { map.kind = 1; }],
+    ['wrong string kind', (map) => { map.kind = 'wrong'; }],
+    ['wrong object kind', (map) => { map.kind = {}; }],
+    ['inherited-only headers', (map) => {
+      delete map.schema;
+      delete map.kind;
+      Object.setPrototypeOf(map, {
+        schema: 1,
+        kind: 'OpenOntologySourceNativeObjectMapV1',
+      });
+    }],
+  ];
+  for (const [label, mutate] of mutations) {
+    const candidate = structuredClone(valid);
+    mutate(candidate);
+    assert.throws(() => validateSourceNativeObjectMap(candidate), {
+      code: 'SOURCE_NATIVE_MAP',
+    }, label);
+  }
+});
+
 test('compiles exact source-native field revisions and duplicate evidence without making either authoritative', () => {
   const oldTask = '# Old task title\nStatus: open\n';
   const newTask = '# Current task title\nStatus: complete\n';
@@ -66,6 +114,9 @@ test('compiles exact source-native field revisions and duplicate evidence withou
   ];
   const map = compileSourceNativeObjectMap({ sources, nativeObjectInputs });
   assert.equal(map.kind, 'OpenOntologySourceNativeObjectMapV1');
+  const roundTrip = validateSourceNativeObjectMap(JSON.parse(JSON.stringify(map)));
+  assert.deepEqual(roundTrip, map);
+  assert.equal(roundTrip.nativeObjectMapSha256, map.nativeObjectMapSha256);
   assert.equal(map.fieldRevisionCount, 2);
   assert.deepEqual(map.fieldRevisions.map((row) => row.fieldPath), ['status', 'title']);
   assert.ok(map.fieldRevisions.every((row) => row.relationType === 'supersedes'

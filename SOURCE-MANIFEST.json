@@ -302,8 +302,8 @@
     },
     {
       "path": "scripts/test-source-native-object-map.mjs",
-      "bytes": 13001,
-      "sha256": "a247084d2818c3d38095cf4d9f3f60322ec46505645bb2ccfe840ad137dfe3af"
+      "bytes": 15029,
+      "sha256": "b36225e28ae945ef9d21ea8be60cb950360b49f05d83e4f6372788f4f15ca01e"
     },
     {
       "path": "scripts/test-source-native-ont-explorer.mjs",
@@ -497,8 +497,8 @@
     },
     {
       "path": "src/source-native-object-map.mts",
-      "bytes": 55403,
-      "sha256": "8a34a0171458a97b582d3b59a79af16b49e22e8fe20a20bbbb700f7a9744f6a3"
+      "bytes": 55573,
+      "sha256": "c597b08f878c0deb6b2d12127573003d711b60e1d05bb14be9043594c87abd4c"
     },
     {
       "path": "src/source-native-object-ont.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:24644a7b760107697a41bf5b45bec121b2f763a8c4e6b2cde3b2a241787ea99c"
+  "manifestSha256": "sha256:c2be146ce6a0c6fdf38779e00b73011d703d82a58b2842848be967dd1b2586b9"
 }

@@ -914,6 +914,11 @@ function validateCompiledRevision(revision: SourceNativeFieldRevision): void {
 
 export function validateSourceNativeObjectMap(value: unknown): SourceNativeObjectMap {
   const map = exactRecord(value, 'SOURCE_NATIVE_MAP');
+  if (!Object.prototype.hasOwnProperty.call(map, 'schema')
+    || !Object.prototype.hasOwnProperty.call(map, 'kind')
+    || map.schema !== 1 || map.kind !== 'OpenOntologySourceNativeObjectMapV1') {
+    fail('SOURCE_NATIVE_MAP');
+  }
   if (!Array.isArray(map.nativeObjects) || !Array.isArray(map.fieldRevisions)
     || !Array.isArray(map.duplicateEvidenceClusters)
     || !Array.isArray(map.businessEntityEvidenceNeighborhoods)
@@ -982,8 +987,7 @@ export function validateSourceNativeObjectMap(value: unknown): SourceNativeObjec
   };
   const { nativeObjectMapSha256: observedHash, ...core } = typedMap;
   const mappedPaths = new Set(nativeObjects.map((object) => object.relativePath));
-  if (typedMap.kind !== 'OpenOntologySourceNativeObjectMapV1'
-    || !SHA256.test(observedHash) || stableObjectSha256(core) !== observedHash
+  if (!SHA256.test(observedHash) || stableObjectSha256(core) !== observedHash
     || nativeObjectCount !== nativeObjects.length
     || !Number.isSafeInteger(sourceCount) || sourceCount < 1
     || mappedSourceCount !== mappedPaths.size
