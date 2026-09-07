@@ -97,6 +97,14 @@ export type {
   SourceNativeProductResourceReceipt,
 } from './source-native-artifact.mjs';
 export {
+  normalizeCanonicalObjectBackendUri,
+  openCanonicalObjectBackend,
+} from './canonical-object-backend.mjs';
+export type {
+  CanonicalObjectBackendEnvironment,
+  CanonicalObjectBackendSelection,
+} from './canonical-object-backend.mjs';
+export {
   openSourceNativeExactEvidenceSession,
 } from './source-native-evidence-session.mjs';
 export {

@@ -96,6 +96,26 @@ source-checkpoint ordering and background reconciliation remain operator work.
 The local backend is the default and requires no credentials. Use it for local
 development, tests, and offline operation.
 
+The kernel exposes the same URI normalizer and backend opener used by the
+builder, for managed or research operators that need to select a backend
+before opening a store:
+
+```js
+import {
+  normalizeCanonicalObjectBackendUri,
+  openCanonicalObjectBackend,
+  openObjectOntStore,
+} from 'oont/kernel';
+
+const uri = normalizeCanonicalObjectBackendUri('file:///tmp/ont-objects');
+const selected = openCanonicalObjectBackend({ uri, env: process.env });
+const store = openObjectOntStore({ backend: selected.backend });
+```
+
+These are storage primitives, not a new query or credential surface. Invalid
+URI syntax is refused before a backend is opened, and provider credentials stay
+in the supplied environment or callback configuration.
+
 ## GCS
 
 Select GCS with a canonical backend URI:

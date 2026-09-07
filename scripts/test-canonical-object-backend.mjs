@@ -2,13 +2,96 @@
 
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import {
   normalizeCanonicalObjectBackendUri,
   openCanonicalObjectBackend,
 } from '../dist/src/canonical-object-backend.mjs';
+import {
+  normalizeCanonicalObjectBackendUri as kernelNormalizeCanonicalObjectBackendUri,
+  openCanonicalObjectBackend as kernelOpenCanonicalObjectBackend,
+} from '../dist/src/kernel.mjs';
+import {
+  buildSourceNativeProduct,
+  openObjectOntStore,
+} from '../dist/src/kernel.mjs';
+
+test('kernel re-exports the canonical backend selection primitives', () => {
+  assert.equal(kernelNormalizeCanonicalObjectBackendUri, normalizeCanonicalObjectBackendUri);
+  assert.equal(kernelOpenCanonicalObjectBackend, openCanonicalObjectBackend);
+});
+
+test('kernel-selected local backend interoperates with protected source publication', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-kernel-backend-entry-'));
+  try {
+    const input = JSON.parse(readFileSync(new URL('../examples/quickstart/source-native-input.json', import.meta.url), 'utf8'));
+    input.branch = 'research';
+    const objectBackendUri = pathToFileURL(join(root, 'objects')).href;
+    const historyBackendUri = pathToFileURL(join(root, 'history')).href;
+    const initial = buildSourceNativeProduct({
+      artifactRoot: join(root, 'initial'),
+      input,
+      objectBackendUri,
+      historyBackendUri,
+    });
+    const backend = kernelOpenCanonicalObjectBackend({ uri: objectBackendUri }).backend;
+    const historyBackend = kernelOpenCanonicalObjectBackend({ uri: historyBackendUri }).backend;
+    const store = openObjectOntStore({ backend, historyBackend });
+    const before = store.readRefMetadata({ ontId: input.ontId, branch: input.branch });
+    assert.equal(before.version, initial.receipt.refVersion);
+    assert.equal(before.ref.commitSha256, initial.receipt.commitSha256);
+    assert.ok(historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`));
+    assert.ok(store.readRefMetadataCheckpointSnapshot({
+      ontId: input.ontId,
+      branch: input.branch,
+    }));
+    const historyBefore = historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`);
+
+    const successorInput = structuredClone(input);
+    successorInput.sources[1].content = 'Task task-1 title: Verified successor';
+    successorInput.nativeObjectInputs[1].fields[0].value = 'Verified successor';
+    const successor = buildSourceNativeProduct({
+      artifactRoot: join(root, 'successor'),
+      input: successorInput,
+      objectBackendUri,
+      historyBackendUri,
+      expectedSourceVersion: before.version,
+    });
+    const after = store.readRefMetadata({ ontId: input.ontId, branch: input.branch });
+    assert.equal(after.version, successor.receipt.refVersion);
+    assert.equal(after.ref.commitSha256, successor.receipt.commitSha256);
+    assert.notEqual(after.ref.commitSha256, initial.receipt.commitSha256);
+    const historyAfter = historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`);
+    assert.ok(historyAfter);
+    assert.notEqual(historyAfter.version, historyBefore.version);
+    const checkpointAfter = store.readRefMetadataCheckpointSnapshot({
+      ontId: input.ontId,
+      branch: input.branch,
+    });
+    assert.equal(checkpointAfter?.ref.commitSha256, after.ref.commitSha256);
+    assert.equal(checkpointAfter?.ref.replaySha256, after.ref.replaySha256);
+
+    const staleInput = structuredClone(input);
+    staleInput.sources[1].content = 'Task task-1 title: Stale successor';
+    staleInput.nativeObjectInputs[1].fields[0].value = 'Stale successor';
+    assert.throws(() => buildSourceNativeProduct({
+      artifactRoot: join(root, 'stale'),
+      input: staleInput,
+      objectBackendUri,
+      historyBackendUri,
+      expectedSourceVersion: before.version,
+    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT' });
+    assert.deepEqual(store.readRefMetadata({ ontId: input.ontId, branch: input.branch }), after);
+    assert.deepEqual(historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`), historyAfter);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('canonical backend syntax is normalized once for every consumer', () => {
   assert.equal(normalizeCanonicalObjectBackendUri('gs://customer-ontology/'), 'gs://customer-ontology');
