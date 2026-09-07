@@ -181,6 +181,9 @@ void exactText;
 openOntology();
 // @ts-expect-error source publication preconditions are not query options.
 openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
+// @ts-expect-error Adapter authoring types are exposed through the kernel subpath only.
+import type { SourceNativeBuildInput as RootSourceNativeBuildInput } from 'oont';
+void (undefined as RootSourceNativeBuildInput | undefined);
 `);
   const compiler = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
   const typedConsumer = run(process.execPath, [
@@ -197,6 +200,15 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
     tail(typedConsumer.stderr || typedConsumer.stdout, 12));
 
   const kernelContractPath = join(consumer, 'kernel-contract.mts');
+  const authoringExample = readFileSync(join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md'), 'utf8')
+    .match(/```ts\n([\s\S]*?)\n```/u)?.[1] ?? '';
+  if (!authoringExample) throw new Error('missing installed TypeScript authoring example');
+  const authoringExamplePath = join(consumer, 'authoring-example.mts');
+  writeFileSync(authoringExamplePath, `${authoringExample}\n`);
+  const authoringExampleBody = authoringExample.replace(
+    /^import \{ buildSourceNativeProduct \} from 'oont\/kernel';\nimport type \{ SourceNativeBuildInput \} from 'oont\/kernel';\n\n/u,
+    '',
+  );
   writeFileSync(kernelContractPath, `import {
   buildSourceNativeProduct,
   compileProofSufficiencyContract,
@@ -226,6 +238,7 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
   type SourceNativeAdmittedProofBinding,
   type SourceNativeAdmissionTrustEntry,
   type SourceNativeAdmissionTrustRole,
+  type SourceNativeBuildInput,
   type SourceNativeProductRuntimeContext,
   type SourceNativeSemanticConstruction,
   type SourceNativeSemanticConstructionInput,
@@ -244,10 +257,97 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
   type ProductTransport,
 } from 'oont/kernel';
 
+${authoringExampleBody}
 const digest: string = stableObjectSha256({ contract: 'kernel' });
 const buildWithVersion = (input: unknown, expectedSourceVersion: string | null | undefined) =>
   buildSourceNativeProduct({ artifactRoot: './new-cut', input, expectedSourceVersion });
 void buildWithVersion;
+const parsedInput: unknown = authoringInput;
+buildSourceNativeProduct({ artifactRoot: './new-cut', input: parsedInput });
+const optionalFieldV2: SourceNativeBuildInput['nativeObjectInputs'][number]['fields'][number] = {
+  fieldPath: 'status',
+  value: 'open',
+  propositionFamilyKey: 'ticket-status',
+  businessEntityKeys: ['ticket:T-1'],
+  canonicalValue: 'open',
+  validAt: '2026-01-01T00:00:00.000Z',
+  knownAt: '2026-01-01T00:00:00.000Z',
+  canonicalProposition: {
+    kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+    propositionKey: 'ticket-t-1-status-open',
+    actorHome: 'ObjectDef/InstanceRef',
+    stateHome: 'Claim/PropositionRevision-payload',
+    actorKind: 'ticket',
+    predicate: 'has-status',
+    state: 'open',
+    dimension: 'ticket-status',
+    canonicalRoles: ['state'],
+    modality: 'observed',
+    polarity: 'positive',
+    businessEntityKeys: ['ticket:T-1'],
+    extractionAuthority: 'deterministic-source-adapter-v1',
+    relations: [],
+  },
+  provenanceBy: {
+    home: 'ObjectDef/InstanceRef',
+    sourceSystem: 'tracker',
+    displayName: 'Tracker adapter',
+    roleLabels: ['adapter'],
+  },
+  actorResolutionEvidence: {
+    businessEntityKeys: ['ticket:T-1'], value: 'T-1', codeUnitStart: 7,
+  },
+};
+const optionalObject: SourceNativeBuildInput['nativeObjectInputs'][number] = {
+  relativePath: authoringInput.sources[0].relativePath,
+  objectIdentity: authoringInput.nativeObjectInputs[0].objectIdentity,
+  businessEntityKeys: ['ticket:T-1'],
+  duplicateEvidenceFieldPaths: ['status'],
+  transportOriginSystem: null,
+  fields: [optionalFieldV2],
+};
+const optionalFieldV1: SourceNativeBuildInput['nativeObjectInputs'][number]['fields'][number] = {
+  fieldPath: 'status',
+  value: 'open',
+  canonicalProposition: {
+    kind: 'OpenOntologySourceNativeCanonicalPropositionV1',
+    actorHome: 'ObjectDef/InstanceRef',
+    stateHome: 'Claim/PropositionRevision-payload',
+    actorKind: 'ticket',
+    predicate: 'has-status',
+    state: 'open',
+    dimension: 'ticket-status',
+    businessEntityKeys: [],
+    extractionAuthority: 'deterministic-source-adapter-v1',
+  },
+};
+void optionalFieldV1;
+void optionalObject;
+// @ts-expect-error schemaVersion is the literal version 1.
+const wrongSchema = { ...authoringInput, schemaVersion: 2 } satisfies SourceNativeBuildInput;
+// @ts-expect-error kind must identify the V1 Adapter envelope.
+const wrongKind = { ...authoringInput, kind: 'OtherInput' } satisfies SourceNativeBuildInput;
+// @ts-expect-error querySchemas is required.
+const missingQuerySchemas: SourceNativeBuildInput = { schemaVersion: 1, kind: 'OpenOntologySourceNativeBuildInputV1', ontId: 'x', namespace: 'x', sources: [], nativeObjectInputs: [] };
+// @ts-expect-error sources is required.
+const missingSources: SourceNativeBuildInput = { schemaVersion: 1, kind: 'OpenOntologySourceNativeBuildInputV1', ontId: 'x', namespace: 'x', querySchemas: [], nativeObjectInputs: [] };
+// @ts-expect-error nativeObjectInputs is required.
+const missingObjects: SourceNativeBuildInput = { schemaVersion: 1, kind: 'OpenOntologySourceNativeBuildInputV1', ontId: 'x', namespace: 'x', querySchemas: [], sources: [] };
+// @ts-expect-error a source content must be a string.
+const nonStringContent = ({ ...authoringInput.sources[0], content: 1 }) satisfies SourceNativeBuildInput['sources'][number];
+// @ts-expect-error a field value is required.
+const missingFieldValue = ({ fieldPath: 'status' }) satisfies SourceNativeBuildInput['nativeObjectInputs'][number]['fields'][number];
+// @ts-expect-error a field span index must be numeric.
+const nonNumericSpan = ({ fieldPath: 'status', value: 'open', codeUnitStart: '19' }) satisfies SourceNativeBuildInput['nativeObjectInputs'][number]['fields'][number];
+// @ts-expect-error the identity home is fixed by the source-native contract.
+const invalidIdentityHome = ({ home: 'NativeObject', sourceSystem: 'tracker', objectType: 'ticket', namespace: 'demo', externalId: 'T-1' }) satisfies SourceNativeBuildInput['nativeObjectInputs'][number]['objectIdentity'];
+// @ts-expect-error the build identity requires its namespace.
+const missingIdentityNamespace = ({ home: 'ObjectDef/InstanceRef', sourceSystem: 'tracker', objectType: 'ticket', externalId: 'T-1' }) satisfies SourceNativeBuildInput['nativeObjectInputs'][number]['objectIdentity'];
+// @ts-expect-error diagnostics are JSON objects, not arbitrary runtime values.
+const nonJsonDiagnostic: NonNullable<SourceNativeBuildInput['adapterDiagnostics']>[number] = { bad: 1n };
+void wrongSchema; void wrongKind; void missingQuerySchemas; void missingSources; void missingObjects;
+void nonStringContent; void missingFieldValue; void nonNumericSpan; void invalidIdentityHome;
+void missingIdentityNamespace; void nonJsonDiagnostic;
 // @ts-expect-error source versions are opaque strings, never numeric generations.
 buildSourceNativeProduct({ artifactRoot: './new-cut', expectedSourceVersion: 1 });
 // @ts-expect-error source publication preconditions are not runtime opening options.
@@ -458,6 +558,7 @@ openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
     '--typeRoots', join(root, 'node_modules', '@types'),
     '--types', 'node',
     kernelContractPath,
+    authoringExamplePath,
   ], { cwd: consumer });
   check('kernel declarations compile with the supported Node types',
     typedKernelConsumer.status === 0,

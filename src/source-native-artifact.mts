@@ -31,6 +31,8 @@ import { compileSourceNativeObjectMap } from './source-native-object-map.mjs';
 import { normalizeSourceNativeQuerySchemas } from './source-native-query-planner.mjs';
 import type {
   JsonObject,
+  JsonValue,
+  SourceNativeCanonicalPropositionV2,
   SourceNativeFieldInput,
   SourceNativeObjectInput,
   SourceNativeObjectMap,
@@ -118,6 +120,75 @@ export interface ProductOptions {
   objectBackendUri?: string | null;
   historyBackendUri?: string | null;
   objectBackendEnv?: CanonicalObjectBackendEnvironment;
+}
+interface SourceNativeBuildCanonicalPropositionV1 extends UnknownRecord {
+  kind: 'OpenOntologySourceNativeCanonicalPropositionV1';
+  actorHome: 'ObjectDef/InstanceRef';
+  stateHome: 'Claim/PropositionRevision-payload';
+  actorKind: string;
+  predicate: string;
+  state: string;
+  dimension: string;
+  businessEntityKeys: string[];
+  extractionAuthority: 'deterministic-source-adapter-v1';
+}
+interface SourceNativeBuildProvenanceBy extends UnknownRecord {
+  home: 'ObjectDef/InstanceRef';
+  sourceSystem: string;
+  displayName: string;
+  roleLabels: string[];
+}
+interface SourceNativeBuildActorResolutionEvidence extends UnknownRecord {
+  businessEntityKeys: string[];
+  value: string;
+  codeUnitStart: number;
+}
+interface SourceNativeBuildFieldInput {
+  fieldPath: string;
+  value: string;
+  codeUnitStart?: number;
+  propositionFamilyKey?: string;
+  businessEntityKeys?: string[];
+  canonicalProposition?: SourceNativeBuildCanonicalPropositionV1 | SourceNativeCanonicalPropositionV2;
+  validAt?: string;
+  knownAt?: string;
+  canonicalValue?: JsonValue;
+  provenanceBy?: SourceNativeBuildProvenanceBy;
+  actorResolutionEvidence?: SourceNativeBuildActorResolutionEvidence;
+}
+interface SourceNativeBuildObjectIdentityInput {
+  home: 'ObjectDef/InstanceRef';
+  sourceSystem: string;
+  objectType: string;
+  namespace: string;
+  externalId: string;
+}
+interface SourceNativeBuildObjectInput {
+  relativePath: string;
+  objectIdentity: SourceNativeBuildObjectIdentityInput;
+  fields: SourceNativeBuildFieldInput[];
+  businessEntityKeys?: string[];
+  duplicateEvidenceFieldPaths?: string[];
+  transportOriginSystem?: string | null;
+}
+interface SourceNativeBuildSourceInput {
+  sourceType: string;
+  relativePath: string;
+  occurredAt: string;
+  content: string;
+  sourceSha256?: string;
+}
+/** Strict structural shape for the JSON-compatible Adapter build envelope. */
+export interface SourceNativeBuildInput {
+  schemaVersion: 1;
+  kind: 'OpenOntologySourceNativeBuildInputV1';
+  ontId: string;
+  namespace: string;
+  branch?: string;
+  querySchemas: QuerySchema[];
+  sources: SourceNativeBuildSourceInput[];
+  nativeObjectInputs: SourceNativeBuildObjectInput[];
+  adapterDiagnostics?: JsonObject[];
 }
 interface NormalizedSource extends SourceNativeSourceInput {
   relativePath: string;

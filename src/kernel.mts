@@ -91,6 +91,7 @@ export type {
   ObjectOnt,
   ProductOptions,
   ProductSource,
+  SourceNativeBuildInput,
   Resource,
   SourceNativeProductResourceBindingReceipt,
   SourceNativeProductResourceReceipt,

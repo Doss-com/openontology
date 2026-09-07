@@ -178,6 +178,49 @@ catalog, and never authorizes world absence.
 
 The lifecycle example claims a new output root before writing child artifacts.
 An existing root fails with `SOURCE_LIFECYCLE_OUTPUT_EXISTS` and is not removed
-or altered. TypeScript authoring types for this envelope are not currently a
-supported package export. Treat this JSON contract and runtime diagnostics as
-the authoring boundary until that separate type-surface follow-up is complete.
+or altered. TypeScript authors can import the strict structural envelope from
+the bounded kernel subpath and use `satisfies` without changing the runtime
+boundary:
+
+```ts
+import { buildSourceNativeProduct } from 'oont/kernel';
+import type { SourceNativeBuildInput } from 'oont/kernel';
+
+const authoringInput = {
+  schemaVersion: 1,
+  kind: 'OpenOntologySourceNativeBuildInputV1',
+  ontId: 'status-demo',
+  namespace: 'demo',
+  querySchemas: [{
+    sourceSystem: 'tracker',
+    objectType: 'ticket',
+    aliases: ['ticket'],
+    fields: [{fieldPath: 'status', aliases: ['status']}],
+  }],
+  sources: [{
+    sourceType: 'tracker',
+    relativePath: 'tracker/demo/t-1.txt',
+    occurredAt: '2026-01-01T00:00:00.000Z',
+    content: 'Ticket T-1 status: open',
+  }],
+  nativeObjectInputs: [{
+    relativePath: 'tracker/demo/t-1.txt',
+    objectIdentity: {
+      home: 'ObjectDef/InstanceRef',
+      sourceSystem: 'tracker',
+      objectType: 'ticket',
+      namespace: 'demo',
+      externalId: 'T-1',
+    },
+    fields: [{fieldPath: 'status', value: 'open'}],
+  }],
+} satisfies SourceNativeBuildInput;
+
+buildSourceNativeProduct({artifactRoot: './new-cut', input: authoringInput});
+```
+
+This checks structural field types only. It does not prove valid timestamps,
+matching namespaces, hashes, exact spans, nonempty arrays, complete coverage,
+or coherent propositions. `buildSourceNativeProduct` deliberately keeps its
+`input` parameter as `unknown`, so parsed or untrusted JSON still reaches the
+same runtime validation and diagnostics.
