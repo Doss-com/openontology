@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 46294,
-      "sha256": "2ba3bb350a948ab644b3b37ef0c31dbade8615994a2d0c582e6602cff7b4a134"
+      "bytes": 46829,
+      "sha256": "ee67c552c0a5ed4259c00e003f947a34e7a6217870071398991928a69f13e39e"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -307,8 +307,8 @@
     },
     {
       "path": "scripts/test-source-native-ont-explorer.mjs",
-      "bytes": 33385,
-      "sha256": "98425c9ceed472e3114c4a03f574beade40215a40ccdde7a71e6399ae9590c3b"
+      "bytes": 40576,
+      "sha256": "1c780eb2f610f3bb17f22957be56a7f18df5d274f11d5fc1b2b0f3c15fd72ebc"
     },
     {
       "path": "scripts/test-source-native-point-in-time.mjs",
@@ -507,8 +507,8 @@
     },
     {
       "path": "src/source-native-ont-explorer.mts",
-      "bytes": 48647,
-      "sha256": "61f4500d967c6fda418bf30c79a4e0773b0c864197930c84708357deb9e1b8f2"
+      "bytes": 48014,
+      "sha256": "3574a4d61605414ee0ec60ed678bf287b4bd22fb61f59abd2f0e7676314e50ae"
     },
     {
       "path": "src/source-native-product-mcp.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:ff6cb178cd5b98282b0dfdbdf5749f8dbaa08138080cbb30b7b4de4fb7d22d39"
+  "manifestSha256": "sha256:3f132178bda204764df02c8740a5ccaf97b2595d44ff4fe025166d0ffc373609"
 }

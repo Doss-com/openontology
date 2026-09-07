@@ -152,7 +152,7 @@ test('source-only Ont exposes native nodes, identity, coverage and unknown fresh
 });
 
 test('canonical graph preserves Claim IDs and passage-to-ObjectDef direction', (t) => {
-  const f = fixture(t, { names: ['AllocationException', 'DocumentedTask'] });
+  const f = fixture(t, { names: ['AllocationException', 'DocumentedTask'], extraText: ' multibyte λ' });
   const construction = f.compile(f.baseInput([
     { id: 'allocation-exception', name: 'AllocationException', alias: 'allocation mismatch' },
     { id: 'documented-task', name: 'DocumentedTask' },
@@ -163,10 +163,11 @@ test('canonical graph preserves Claim IDs and passage-to-ObjectDef direction', (
   const nodes = allPages(() => explorer.nodes({ limit: 64 }), (cursor) => explorer.nodes({ cursor, limit: 64 }), 'nodes').items;
   const edges = allPages(() => explorer.edges({ limit: 128 }), (cursor) => explorer.edges({ cursor, limit: 128 }), 'edges').items;
   const objectDef = nodes.find((node) => node.kind === 'object-def' && node.objectDef?.id === 'allocation-exception');
-  const passage = nodes.find((node) => node.kind === 'passage');
-  assert(objectDef && passage);
+  assert(objectDef);
   const claim = edges.find((edge) => edge.kind === 'claim' && edge.about === 'allocation-exception');
   assert(claim);
+  const passage = nodes.find((node) => node.id === claim.from);
+  assert(passage);
   assert.equal(claim.from, passage.id);
   assert.equal(claim.to, objectDef.id);
   assert.equal(claim.predicate, 'defines');
@@ -177,6 +178,19 @@ test('canonical graph preserves Claim IDs and passage-to-ObjectDef direction', (
   assert.equal(JSON.stringify(edges).includes('proofDisposition'), false);
   assert(edges.some((edge) => edge.kind === 'native-observation'));
   assert(edges.some((edge) => edge.kind === 'name-witness'));
+  const currentPassage = passage;
+  assert(currentPassage?.readRef);
+  const currentExact = explorer.read({ ref: currentPassage.readRef });
+  assert.equal(currentExact.historicalSnapshot, false);
+  assert.equal(currentExact.currentNavigationEligible, true);
+  assert.equal(currentExact.exactText, f.sourceByPath.get(currentExact.evidence.sourceRef).content);
+  assert(currentExact.exactText.includes('λ'));
+  assert.equal(Buffer.byteLength(currentExact.exactText),
+    currentExact.evidence.byteEnd - currentExact.evidence.byteStart);
+  assert(currentExact.evidence.byteEnd - currentExact.evidence.byteStart <= 64 * 1024);
+  assert.equal(currentExact.binding.admissionRecordSha256, admission.recordSha256);
+  assert.equal(Object.hasOwn(currentExact.binding, 'conceptId'), false);
+  assert.equal(Object.hasOwn(currentExact.binding, 'roles'), false);
 });
 
 test('reviewer agreement is deduplicated while same-name distinct definitions remain separate', (t) => {
@@ -358,7 +372,7 @@ test('foreign and filter-mismatched cursors are refused, and projection changes 
   assert.throws(() => a.nodes({ cursor: first.nextCursor, term: 'AllocationException', limit: 1 }), { code: 'SOURCE_NATIVE_EXPLORER_CURSOR_STALE' });
   const record = f.admit(f.compile(f.baseInput([{ id: 'new-concept', name: 'NewConcept' }])), { day: 4 });
   f.write(record);
-  assert.throws(() => a.nodes({ cursor: first.nextCursor, limit: 1 }), { code: 'SOURCE_NATIVE_EXPLORER_CURSOR_STALE' });
+  assert.throws(() => a.nodes({ cursor: first.nextCursor, limit: 1 }), { code: 'SOURCE_NATIVE_EXPLORER_CURSOR' });
 });
 
 test('pinned reviewer configuration and source cut stay stable after caller mutation', (t) => {
@@ -372,6 +386,20 @@ test('pinned reviewer configuration and source cut stay stable after caller muta
   assert.equal(after.binding.reviewerConfigurationSha256, before.binding.reviewerConfigurationSha256);
   assert.equal(after.binding.sourceCommitSha256, before.binding.sourceCommitSha256);
   assert.equal(after.state, 'ready');
+});
+
+test('current explorer refuses a source advance instead of serving a pinned graph as current', (t) => {
+  const f = fixture(t);
+  const explorer = f.open();
+  const successor = clone(f.input);
+  successor.sources[0].content += ' successor source cut';
+  successor.nativeObjectInputs[0].fields[0].value = successor.sources[0].content;
+  kernel.buildSourceNativeProduct({
+    artifactRoot: join(f.root, 'successor'), input: successor,
+    objectBackendUri: pathToFileURL(join(f.root, 'objects')).href,
+  });
+  assert.throws(() => explorer.status(), { code: 'SOURCE_NATIVE_EXPLORER_CONCURRENT' });
+  assert.throws(() => explorer.nodes({ limit: 64 }), { code: 'SOURCE_NATIVE_EXPLORER_CONCURRENT' });
 });
 
 test('reviewer configuration binds public key identity and edge IDs ignore agreement representative', (t) => {
@@ -445,18 +473,18 @@ test('unknown and unsupported explorer inputs refuse before page projection', (t
   assert.throws(() => explorer.nodes({ ids: Array.from({ length: 65 }, () => 'x') }), { code: 'SOURCE_NATIVE_EXPLORER_INPUT' });
   assert.throws(() => explorer.records({ state: 'ready' }), { code: 'SOURCE_NATIVE_EXPLORER_INPUT' });
   assert.throws(() => explorer.edges({ focusId: 'not-a-node' }), { code: 'SOURCE_NATIVE_EXPLORER_FOCUS' });
-  assert.equal('read' in explorer, false);
+  assert.equal(typeof explorer.read, 'function');
 });
 
 test('a selected record opens bounded historical pages and exact offered passages', (t) => {
   const f = fixture(t, { protectedHistory: true, names: ['HistoricalConcept'] });
-  const admission = f.admit(f.compile(f.baseInput([{ id: 'historical', name: 'HistoricalConcept' }])));
+  const admission = f.admit(f.compile(f.baseInput([{ id: 'historical', name: 'HistoricalConcept', alias: 'allocation mismatch' }])));
   f.write(admission);
   const current = f.open();
   const currentRecords = current.records({ limit: 64 });
   const selected = currentRecords.records.find((item) => item.recordSha256 === admission.recordSha256);
   assert(selected);
-  assert.equal('read' in current, false);
+  assert.equal(typeof current.read, 'function');
 
   const history = f.open({ ...f.configuration, snapshot: currentRecords.binding,
     recordSha256: selected.recordSha256 });
@@ -474,13 +502,14 @@ test('a selected record opens bounded historical pages and exact offered passage
   assert.equal(recordPages.items.length, 1);
   assert.equal(recordPages.items[0].recordSha256, admission.recordSha256);
   assert.equal(history.status().currentNavigationEligible, false);
+  assert.equal(history.nodes({ term: 'allocation mismatch',
+    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' }, limit: 64 }).totalCount, 1);
   const passage = nodePages.items.find((item) => item.kind === 'passage');
   assert(passage?.readRef);
   const exact = history.read({ ref: passage.readRef });
   assert.equal(exact.historicalSnapshot, true);
   assert.equal(exact.currentNavigationEligible, false);
-  assert.equal(exact.evidence.sourceRef, 'docs/guide.txt');
-  assert.equal(exact.exactText, f.sourceByPath.get('docs/guide.txt').content);
+  assert.equal(exact.exactText, f.sourceByPath.get(exact.evidence.sourceRef).content);
   assert.equal(exact.binding.admissionRecordSha256, admission.recordSha256);
   assert.equal(exact.binding.nativeObjectSha256, passage.passage.nativeObjectSha256);
   assert.equal(exact.binding.navigationOnly, true);
@@ -513,6 +542,56 @@ test('historical selection rejects incomplete bindings and preserves safe refusa
   const wrongReviewer = { ...f.configuration, trustRegistry: f.trustRegistry.slice(1),
     snapshot: page.binding, recordSha256: selected.recordSha256 };
   assert.throws(() => f.open(wrongReviewer), { code: 'SOURCE_NATIVE_EXPLORER_BINDING' });
+  const malformed = clone(admission);
+  malformed.kind = 'UnknownFutureRecordV99';
+  const malformedRecordSha256 = `sha256:${'0'.repeat(64)}`;
+  f.plant(malformed, `${prefix}${'0'.repeat(64)}.json`);
+  const afterMalformed = f.open();
+  const invalid = afterMalformed.records({ limit: 64 }).records.find((item) => item.recordSha256 === null);
+  assert(invalid);
+  const malformedHistory = f.open({ ...f.configuration, snapshot: afterMalformed.records().binding,
+    recordSha256: malformedRecordSha256 });
+  assert.throws(() => malformedHistory.nodes(), { code: 'SOURCE_NATIVE_EXPLORER_RECORD' });
+  assert.equal(JSON.stringify(invalid).includes('signatureBase64'), false);
+});
+
+test('current offered passages become stale when active knowledge changes', (t) => {
+  const f = fixture(t, { names: ['CurrentConcept', 'CorrectedConcept'], extraText: ' multibyte λ' });
+  const original = f.admit(f.compile(f.baseInput([{ id: 'current', name: 'CurrentConcept' }])));
+  f.write(original);
+  const explorer = f.open();
+  const passage = explorer.nodes({ limit: 64 }).nodes.find((node) => node.kind === 'passage');
+  assert(passage?.readRef);
+  const correction = f.admit(f.compile(f.baseInput([{ id: 'current', name: 'CorrectedConcept' }])), {
+    day: 4, targets: [original.recordSha256] });
+  f.write(correction);
+  assert.throws(() => explorer.read({ ref: passage.readRef }),
+    { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE_STALE' });
+  assert.throws(() => explorer.read({ ref: passage.readRef }),
+    { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+});
+
+test('a correction-ineligible authenticated record is historical but readable by explicit binding', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const original = f.admit();
+  f.write(original);
+  const invalidCorrection = f.admit(f.compile(), { day: 4,
+    targets: [`sha256:${'e'.repeat(64)}`] });
+  f.plant(invalidCorrection);
+  const current = f.open();
+  const ineligible = current.records({ state: 'ineligible', limit: 64 });
+  assert.equal(ineligible.totalCount, 1);
+  assert.equal(ineligible.records[0].recordSha256, invalidCorrection.recordSha256);
+  const history = f.open({ ...f.configuration, snapshot: ineligible.binding,
+    recordSha256: invalidCorrection.recordSha256 });
+  const nodes = history.nodes({ limit: 64 });
+  assert(nodes.nodes.some((node) => node.kind === 'object-def'));
+  const passage = nodes.nodes.find((node) => node.kind === 'passage');
+  assert(passage?.readRef);
+  const exact = history.read({ ref: passage.readRef });
+  assert.equal(exact.historicalSnapshot, true);
+  assert.equal(exact.currentNavigationEligible, false);
+  assert.equal(exact.binding.admissionRecordSha256, invalidCorrection.recordSha256);
 });
 
 test('conflicting and superseded records remain inspectable only through explicit history', (t) => {
@@ -551,4 +630,63 @@ test('conflicting and superseded records remain inspectable only through explici
   assert(passage?.readRef);
   assert.equal(historical.read({ ref: passage.readRef }).binding.admissionRecordSha256,
     original.recordSha256);
+});
+
+test('historical inspection refuses a protected knowledge rewind and recovers explicitly', (t) => {
+  const f = fixture(t, { protectedHistory: true,
+    names: ['AllocationException', 'DocumentedTask', 'CorrectedConcept'] });
+  const original = f.admit(f.compile(f.baseInput([{ id: 'concept-0', name: 'AllocationException' }])));
+  f.write(original);
+  const current = f.open();
+  const row = current.records({ limit: 64 }).records.find((item) => item.recordSha256 === original.recordSha256);
+  assert(row);
+  const history = f.open({ ...f.configuration, snapshot: current.records().binding,
+    recordSha256: original.recordSha256 });
+  assert(history.nodes({ limit: 64 }).nodes.some((node) => node.kind === 'passage'));
+  const accepted = f.state.store.readRefMetadata(f.route);
+  const correction = f.admit(f.compile(f.baseInput([{ id: 'concept-0', name: 'CorrectedConcept' }])), { day: 4,
+    targets: [original.recordSha256] });
+  f.write(correction);
+  const advanced = f.state.store.readRefMetadata(f.route);
+  f.backend.compareAndSwap(advanced.key, { expectedVersion: advanced.version,
+    bytes: Buffer.from(kernel.stableObjectText(accepted.ref)) });
+  assert.throws(() => history.nodes({ limit: 64 }));
+  f.state.store.recoverRefHistory(f.route);
+  assert.doesNotThrow(() => history.nodes({ limit: 64 }));
+});
+
+test('protected history pending state makes explorer unavailable until explicit recovery', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  f.write(f.admit());
+  const explorer = f.open();
+  const historyBackend = openCanonicalObjectBackend({
+    uri: pathToFileURL(join(f.root, 'history')).href,
+  }).backend;
+  const historyKey = `ref-history/${f.state.descriptor.ontId}/${f.route.branch}.json`;
+  const historyHead = historyBackend.head(historyKey);
+  assert(historyHead);
+  const history = JSON.parse(historyBackend.get(historyKey).bytes.toString('utf8'));
+  const current = f.state.store.readRefMetadata(f.route);
+  const pendingCore = {
+    ...history,
+    pending: {
+      schemaVersion: 1,
+      kind: 'OpenOntologyRefHistoryPendingV1',
+      baseRef: history.acceptedRef,
+      baseVersion: current.version,
+      targetRef: history.acceptedRef,
+    },
+  };
+  const { historySha256: _historySha256, ...pendingIdentity } = pendingCore;
+  historyBackend.compareAndSwap(historyKey, {
+    expectedVersion: historyHead.version,
+    bytes: Buffer.from(kernel.stableObjectText({
+      ...pendingIdentity,
+      historySha256: kernel.stableObjectSha256(pendingIdentity),
+    })),
+  });
+  assert.equal(explorer.status().state, 'unavailable');
+  assert.equal(explorer.nodes({ limit: 64 }).availability, 'unavailable');
+  f.state.store.recoverRefHistory(f.route);
+  assert.equal(explorer.status().state, 'ready');
 });

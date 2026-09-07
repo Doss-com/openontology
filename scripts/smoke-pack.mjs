@@ -237,6 +237,7 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
   type SourceNativeOntExplorerEdgesResult,
   type SourceNativeOntExplorerNode,
   type SourceNativeOntExplorerNodesResult,
+  type SourceNativeOntExplorerReadResult,
   type SourceNativeOntExplorerRecord,
   type SourceNativeOntExplorerRecordsResult,
   type SourceNativeOntExplorerStatusResult,
@@ -333,9 +334,10 @@ const inspectExplorer = (explorer: SourceNativeOntExplorer) => {
   const node: SourceNativeOntExplorerNode | undefined = nodes.nodes[0];
   const edge: SourceNativeOntExplorerEdge | undefined = edges.edges[0];
   const record: SourceNativeOntExplorerRecord | undefined = records.records[0];
+  const exact: SourceNativeOntExplorerReadResult = explorer.read({ ref: 'explorer:fixture' });
   const freshness: 'unknown' = status.freshness.state;
   const accessMode: 'trusted-whole-ont-kernel' = status.authority.accessMode;
-  void openExplorer; void node; void edge; void record; void freshness; void accessMode;
+  void openExplorer; void node; void edge; void record; void exact; void freshness; void accessMode;
 };
 void inspectExplorer;
 const exactOptions: ExactSessionOptions | null = null;
@@ -551,14 +553,20 @@ openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
     && exactResult?.evidence?.[0]?.exactText === 'Ship verified context',
   `references ${navigationResult?.matches?.length ?? 0}; exact reads ${exactResult?.evidence?.length ?? 0}`);
 
-  const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
+const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
 import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
 import { openOntology } from 'oont';
 import * as kernel from 'oont/kernel';
 const ont = openOntology({ artifactRoot: ${JSON.stringify(ont)} });
 const keys = Object.keys(ont).sort();
 const kernelKeys = Object.keys(kernel).sort();
 const result = await ont.verify('What is the current title of task-1?');
+const reviewer = generateKeyPairSync('ed25519').publicKey;
+const explorer = kernel.openSourceNativeOntExplorer({ artifactRoot: ${JSON.stringify(ont)} }, {
+  trustRegistry: [{ issuerId: 'reviewer', publicKeyPem: reviewer.export({ type: 'spki', format: 'pem' }), roles: ['reviewer'] }],
+});
+assert.equal(typeof explorer.read, 'function');
 assert.deepEqual(keys, ['kind','read','search','status','verify']);
 assert.deepEqual(kernelKeys, [
     'SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE','SOURCE_NATIVE_PRODUCT_RESOURCE_FILE',
