@@ -30,16 +30,27 @@ test('kernel-selected local backend interoperates with protected source publicat
   const root = mkdtempSync(join(tmpdir(), 'oont-kernel-backend-entry-'));
   try {
     const input = JSON.parse(readFileSync(new URL('../examples/quickstart/source-native-input.json', import.meta.url), 'utf8'));
+    input.branch = 'research';
     const objectBackendUri = pathToFileURL(join(root, 'objects')).href;
+    const historyBackendUri = pathToFileURL(join(root, 'history')).href;
     const initial = buildSourceNativeProduct({
       artifactRoot: join(root, 'initial'),
       input,
       objectBackendUri,
+      historyBackendUri,
     });
     const backend = kernelOpenCanonicalObjectBackend({ uri: objectBackendUri }).backend;
-    const store = openObjectOntStore({ backend });
-    const before = store.readRefMetadata({ ontId: input.ontId, branch: 'main' });
+    const historyBackend = kernelOpenCanonicalObjectBackend({ uri: historyBackendUri }).backend;
+    const store = openObjectOntStore({ backend, historyBackend });
+    const before = store.readRefMetadata({ ontId: input.ontId, branch: input.branch });
     assert.equal(before.version, initial.receipt.refVersion);
+    assert.equal(before.ref.commitSha256, initial.receipt.commitSha256);
+    assert.ok(historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`));
+    assert.ok(store.readRefMetadataCheckpointSnapshot({
+      ontId: input.ontId,
+      branch: input.branch,
+    }));
+    const historyBefore = historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`);
 
     const successorInput = structuredClone(input);
     successorInput.sources[1].content = 'Task task-1 title: Verified successor';
@@ -48,11 +59,22 @@ test('kernel-selected local backend interoperates with protected source publicat
       artifactRoot: join(root, 'successor'),
       input: successorInput,
       objectBackendUri,
+      historyBackendUri,
       expectedSourceVersion: before.version,
     });
-    const after = store.readRefMetadata({ ontId: input.ontId, branch: 'main' });
+    const after = store.readRefMetadata({ ontId: input.ontId, branch: input.branch });
     assert.equal(after.version, successor.receipt.refVersion);
-    assert.notEqual(after.commitSha256, initial.receipt.commitSha256);
+    assert.equal(after.ref.commitSha256, successor.receipt.commitSha256);
+    assert.notEqual(after.ref.commitSha256, initial.receipt.commitSha256);
+    const historyAfter = historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`);
+    assert.ok(historyAfter);
+    assert.notEqual(historyAfter.version, historyBefore.version);
+    const checkpointAfter = store.readRefMetadataCheckpointSnapshot({
+      ontId: input.ontId,
+      branch: input.branch,
+    });
+    assert.equal(checkpointAfter?.ref.commitSha256, after.ref.commitSha256);
+    assert.equal(checkpointAfter?.ref.replaySha256, after.ref.replaySha256);
 
     const staleInput = structuredClone(input);
     staleInput.sources[1].content = 'Task task-1 title: Stale successor';
@@ -61,9 +83,11 @@ test('kernel-selected local backend interoperates with protected source publicat
       artifactRoot: join(root, 'stale'),
       input: staleInput,
       objectBackendUri,
+      historyBackendUri,
       expectedSourceVersion: before.version,
     }), { code: 'SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT' });
-    assert.deepEqual(store.readRefMetadata({ ontId: input.ontId, branch: 'main' }), after);
+    assert.deepEqual(store.readRefMetadata({ ontId: input.ontId, branch: input.branch }), after);
+    assert.deepEqual(historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`), historyAfter);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

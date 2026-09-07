@@ -8,7 +8,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const keep = process.argv.includes('--keep');
@@ -184,6 +184,12 @@ openOntology({ artifactRoot: './fixture', expectedSourceVersion: null });
 // @ts-expect-error Adapter authoring types are exposed through the kernel subpath only.
 import type { SourceNativeBuildInput as RootSourceNativeBuildInput } from 'oont';
 void (undefined as RootSourceNativeBuildInput | undefined);
+// @ts-expect-error canonical backend primitives are exposed through the kernel subpath only.
+import { normalizeCanonicalObjectBackendUri as rootNormalizeCanonicalObjectBackendUri } from 'oont';
+// @ts-expect-error canonical backend primitives are exposed through the kernel subpath only.
+import { openCanonicalObjectBackend as rootOpenCanonicalObjectBackend } from 'oont';
+void rootNormalizeCanonicalObjectBackendUri;
+void rootOpenCanonicalObjectBackend;
 `);
   const compiler = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
   const typedConsumer = run(process.execPath, [
@@ -672,7 +678,8 @@ openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
     && exactResult?.evidence?.[0]?.exactText === 'Ship verified context',
   `references ${navigationResult?.matches?.length ?? 0}; exact reads ${exactResult?.evidence?.length ?? 0}`);
 
-const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
+  const installedBackendUri = pathToFileURL(join(sandbox, 'installed-backend')).href;
+  const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { openOntology } from 'oont';
@@ -725,13 +732,13 @@ assert.deepEqual(kernelKeys, [
     'writeSourceNativeConstructionAdmission',
   ].sort());
 assert.equal(result.answerable, true);
-assert.equal(kernel.normalizeCanonicalObjectBackendUri('file:///tmp/oont-installed-backend'),
-  'file:///tmp/oont-installed-backend');
+assert.equal(kernel.normalizeCanonicalObjectBackendUri(${JSON.stringify(installedBackendUri)}),
+  ${JSON.stringify(installedBackendUri)});
 const installedBackend = kernel.openCanonicalObjectBackend({
-  uri: 'file:///tmp/oont-installed-backend',
+  uri: ${JSON.stringify(installedBackendUri)},
   env: {},
 });
-assert.equal(installedBackend.uri, 'file:///tmp/oont-installed-backend');
+assert.equal(installedBackend.uri, ${JSON.stringify(installedBackendUri)});
 assert.equal(installedBackend.capabilities.backend, 'file');
 const construction = kernel.compileSourceNativeSemanticConstruction({
   options: { artifactRoot: ${JSON.stringify(ont)} },

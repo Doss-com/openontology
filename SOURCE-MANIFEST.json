@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 57415,
-      "sha256": "d99fb2ebe1f0ef30a192cd04080ebae9ed032fa9d0a0e916301f11c2b6979168"
+      "bytes": 57982,
+      "sha256": "0dbe84b41355ad4ed9b7b7636cf6bcb97df922e4fc6d3ac93c17f9075a5dfb65"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -217,8 +217,8 @@
     },
     {
       "path": "scripts/test-canonical-object-backend.mjs",
-      "bytes": 9169,
-      "sha256": "a30dcb0d2d6d0c9cea68e683561d7b626c3e0eace84b58fca8abd5c56c0c53b7"
+      "bytes": 10520,
+      "sha256": "2ba7c254753c41671ffdcfaff4671ff09cd958536fcfcc577e93f4047104e26b"
     },
     {
       "path": "scripts/test-gcs-object-storage-backend.mjs",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:673a0471f69de7f6d7ef8b1dbb889729b4b0f948e8954faee1b10066bbf1734e"
+  "manifestSha256": "sha256:f7c0f625054b6bb6efa6b1f6e8405e2d44dd2a4bdb47979603d466ae23ba6f25"
 }
