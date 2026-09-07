@@ -536,11 +536,28 @@ function readResource(root: string): Resource {
   return validateResource(value as UnknownRecord);
 }
 
-function assertResourceProfile(resource: Resource, objectOnt: { map: SourceNativeObjectMap }): void {
-  const schemas = new Map(resource.querySchemas.map((schema) => [
-    `${schema.sourceSystem}\0${schema.objectType}`,
-    new Set(schema.fields.map((field) => field.fieldPath)),
-  ]));
+function resourceShape(resource: Resource, anchorObjectOnt: { map: SourceNativeObjectMap }) {
+  const fieldsByProfile = new Map<string, Set<string>>();
+  const addField = (sourceSystem: string, objectType: string, fieldPath: string) => {
+    const key = `${sourceSystem}\0${objectType}`;
+    const fields = fieldsByProfile.get(key) ?? new Set<string>();
+    fields.add(fieldPath);
+    fieldsByProfile.set(key, fields);
+  };
+  for (const schema of resource.querySchemas) {
+    for (const field of schema.fields) addField(schema.sourceSystem, schema.objectType, field.fieldPath);
+  }
+  for (const object of anchorObjectOnt.map.nativeObjects) {
+    for (const field of object.fields) {
+      addField(object.objectIdentity.sourceSystem, object.objectIdentity.objectType, field.fieldPath);
+    }
+  }
+  return fieldsByProfile;
+}
+
+function assertResourceProfile(resource: Resource, objectOnt: { map: SourceNativeObjectMap },
+  anchorObjectOnt: { map: SourceNativeObjectMap } = objectOnt): void {
+  const schemas = resourceShape(resource, anchorObjectOnt);
   if (objectOnt.map.nativeObjects.some((object) => {
     const { sourceSystem, objectType, namespace } = object.objectIdentity;
     const fields = schemas.get(`${sourceSystem}\0${objectType}`);
@@ -702,11 +719,16 @@ export function bindSourceNativeProductResource({
   if (!selectedCut.commitOrder.includes(resource.sourceHistoryAnchorCommitSha256)) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_HISTORY');
   }
+  const anchorObjectOnt = openSourceNativeObjectOntIndex({
+    backend: selectedBackend.backend,
+    ontId: resource.ontId,
+    commitSha256: resource.sourceHistoryAnchorCommitSha256,
+  });
   const { objectOnt } = selectedCut;
   if (objectOnt.replaySha256 !== selectedCut.ref.replaySha256) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
-  assertResourceProfile(resource, objectOnt);
+  assertResourceProfile(resource, objectOnt, anchorObjectOnt);
   const core = descriptorCore(resource, {
     commitSha256: objectOnt.commitSha256,
     replaySha256: objectOnt.replaySha256,

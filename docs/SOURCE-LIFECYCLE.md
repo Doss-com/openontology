@@ -224,3 +224,28 @@ matching namespaces, hashes, exact spans, nonempty arrays, complete coverage,
 or coherent propositions. `buildSourceNativeProduct` deliberately keeps its
 `input` parameter as `unknown`, so parsed or untrusted JSON still reaches the
 same runtime validation and diagnostics.
+
+## Query schemas and stored source shape
+
+`querySchemas` is the declared query surface. It is not a complete inventory of
+source witnesses, and adding a witness such as `sourceText` to a native object
+does not make that field queryable. Ordinary `verify` and `search` continue to
+use only the declared source system, object type, aliases, and fields.
+
+When creating or binding a read-only resource, the allowed stored shape is the
+union of the resource's fixed `querySchemas` and the source-system, object-type,
+and field paths present in the immutable `sourceHistoryAnchorCommitSha256`
+native map. The anchor is opened and validated from the configured object
+backend. A later cut may add a field declared in `querySchemas`, retain or
+remove an anchored witness field, and reintroduce that witness later. It cannot
+add an undeclared field or object profile that was absent from both the fixed
+query declaration and anchor map. The check always uses the original anchor,
+not a mutable successor or an intermediate failed bind.
+
+This keeps exact source documents and witness fields available to the resource
+without expanding ordinary query behavior. Binding reads the anchor and
+successor indexes, maps, and catalogs; it does not hydrate source packs just to
+compare profile shape. Invalid anchor data, unrelated history, missing or
+rewound protected history, and namespace or profile drift refuse before a bound
+artifact descriptor is written. Resource V1 and protected V2 retain their
+existing bytes and history semantics.
