@@ -332,8 +332,8 @@
     },
     {
       "path": "scripts/test-source-native-resource.mjs",
-      "bytes": 30786,
-      "sha256": "92d10347372f8047a699474894d85c7f743a2c5890567dd8b942612ef02ed603"
+      "bytes": 36872,
+      "sha256": "bdc630642054a63f5dd77e4ebdf21916e7704845264695395d36111f78db657c"
     },
     {
       "path": "scripts/test-source-native-semantic-construction.mjs",
@@ -447,8 +447,8 @@
     },
     {
       "path": "src/source-native-artifact.mts",
-      "bytes": 36972,
-      "sha256": "71f98a79f6d2018dc9309560287a9c3832f6d389fea0b8ebe7fe4f70231fc327"
+      "bytes": 37076,
+      "sha256": "0892be4585b9d00b7abf714d5c805f79cdba2daf589ea356755c7c4c7df3a0cf"
     },
     {
       "path": "src/source-native-construction-admission.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:cc0551e7f29c1235042a30b863f42653bcc5a14908d96609410adc813ac92494"
+  "manifestSha256": "sha256:4f0c7b7586c0887652a42d4c0fb278ea55ebd85c7d0e018c72bdb13344fae347"
 }

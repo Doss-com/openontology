@@ -719,15 +719,17 @@ export function bindSourceNativeProductResource({
   if (!selectedCut.commitOrder.includes(resource.sourceHistoryAnchorCommitSha256)) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_HISTORY');
   }
-  const anchorObjectOnt = openSourceNativeObjectOntIndex({
-    backend: selectedBackend.backend,
-    ontId: resource.ontId,
-    commitSha256: resource.sourceHistoryAnchorCommitSha256,
-  });
   const { objectOnt } = selectedCut;
   if (objectOnt.replaySha256 !== selectedCut.ref.replaySha256) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
+  const anchorObjectOnt = selectedCut.ref.commitSha256 === resource.sourceHistoryAnchorCommitSha256
+    ? objectOnt
+    : openSourceNativeObjectOntIndex({
+      backend: selectedBackend.backend,
+      ontId: resource.ontId,
+      commitSha256: resource.sourceHistoryAnchorCommitSha256,
+    });
   assertResourceProfile(resource, objectOnt, anchorObjectOnt);
   const core = descriptorCore(resource, {
     commitSha256: objectOnt.commitSha256,

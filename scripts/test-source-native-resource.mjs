@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
@@ -28,6 +29,10 @@ import {
   buildSourceNativeProduct,
   openSourceNativeProduct,
 } from '../dist/src/source-native-product.mjs';
+import {
+  openSourceNativeObjectOntIndex,
+  openSourceNativeObjectOntRefIndex,
+} from '../dist/src/source-native-object-ont.mjs';
 
 function input(values = ['Alpha', 'Beta']) {
   const rows = values.map((value, index) => ({
@@ -70,6 +75,7 @@ function anchoredInput({
   status = 'open',
   witnessText = 'source document one',
   includeWitness = true,
+  includeDocumentObject = false,
   includeFuture = false,
   includeUnanchored = false,
   queryFields = ['status'],
@@ -85,6 +91,28 @@ function anchoredInput({
   if (includeWitness) fields.push({ fieldPath: 'sourceText', value: content });
   if (includeFuture) fields.push({ fieldPath: 'futureField', value: 'future-value' });
   if (includeUnanchored) fields.push({ fieldPath: 'unanchoredField', value: 'unanchored-value' });
+  const nativeObjectInputs = [{
+    relativePath: 'clickup/acme/task-1.md',
+    objectIdentity: {
+      home: 'ObjectDef/InstanceRef',
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      namespace: 'acme',
+      externalId: 'task-1',
+    },
+    fields,
+  }];
+  if (includeDocumentObject) nativeObjectInputs.push({
+    relativePath: 'clickup/acme/task-1.md',
+    objectIdentity: {
+      home: 'ObjectDef/InstanceRef',
+      sourceSystem: 'clickup',
+      objectType: 'source-document',
+      namespace: 'acme',
+      externalId: 'doc-1',
+    },
+    fields: [{ fieldPath: 'sourceText', value: content }],
+  });
   return {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeBuildInputV1',
@@ -102,17 +130,7 @@ function anchoredInput({
       occurredAt,
       content,
     }],
-    nativeObjectInputs: [{
-      relativePath: 'clickup/acme/task-1.md',
-      objectIdentity: {
-        home: 'ObjectDef/InstanceRef',
-        sourceSystem: 'clickup',
-        objectType: 'task',
-        namespace: 'acme',
-        externalId: 'task-1',
-      },
-      fields,
-    }],
+    nativeObjectInputs,
   };
 }
 
@@ -147,13 +165,17 @@ async function verifiedFieldValue(artifactRoot, fieldPath) {
 }
 
 async function unavailableField(artifactRoot, fieldPath) {
+  return unavailableTypedField(artifactRoot, 'task', fieldPath, 'task-1');
+}
+
+async function unavailableTypedField(artifactRoot, objectType, fieldPath, externalId) {
   const product = openSourceNativeProduct({ artifactRoot });
   return product.search({
-    question: `What is the current ${fieldPath} of task-1?`,
+    question: `What is the current ${fieldPath} of ${externalId}?`,
     typedQuery: {
       sourceSystem: 'clickup',
-      objectType: 'task',
-      externalId: 'task-1',
+      objectType,
+      externalId,
       fieldPath,
     },
   });
@@ -171,13 +193,17 @@ function rewriteResource(resourceRoot, mutate) {
 }
 
 function removeBlobObject(backendUri, descriptor) {
+  rmSync(blobObjectPath(backendUri, descriptor));
+}
+
+function blobObjectPath(backendUri, descriptor) {
   const keyHash = createHash('sha256').update(descriptor.key).digest('hex');
-  rmSync(join(
+  return join(
     fileURLToPath(new URL(backendUri)),
     'objects',
     keyHash.slice(0, 2),
     `${keyHash.slice(2)}.json`,
-  ));
+  );
 }
 
 test('keeps query schemas narrow while allowing anchored witness fields', async () => {
@@ -283,6 +309,69 @@ test('keeps anchored witness shape fixed across changed, removed, and reintroduc
     assert.equal(await verifiedFieldValue(reintroducedBound, 'status'), 'status:done');
     assert.equal((await unavailableField(reintroducedBound, 'sourceText')).state,
       'unavailable-native-field-not-declared');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('keeps an evidence-only source-document object outside the query surface', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-resource-document-'));
+  try {
+    const initialRoot = join(root, 'initial');
+    const resourceRoot = join(root, 'resource');
+    const backendUri = pathToFileURL(join(initialRoot, 'objects')).href;
+    const assertUnavailable = async (artifactRoot) => {
+      const result = await unavailableTypedField(artifactRoot, 'source-document', 'sourceText', 'doc-1');
+      assert.match(result.state, /^unavailable-/u);
+      assert.deepEqual(result.matches, []);
+    };
+    buildSourceNativeProduct({
+      artifactRoot: initialRoot,
+      input: anchoredInput({ includeWitness: false, includeDocumentObject: true }),
+    });
+    createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
+    await assertUnavailable(initialRoot);
+
+    const changed = join(root, 'changed');
+    buildSourceNativeProduct({
+      artifactRoot: changed,
+      input: anchoredInput({
+        status: 'closed', witnessText: 'source document two',
+        includeWitness: false, includeDocumentObject: true,
+        occurredAt: '2026-02-01T00:00:00.000Z',
+      }),
+      objectBackendUri: backendUri,
+    });
+    const changedBound = join(root, 'changed-bound');
+    bindSourceNativeProductResource({ resourceRoot, artifactRoot: changedBound });
+    await assertUnavailable(changedBound);
+
+    const removed = join(root, 'removed');
+    buildSourceNativeProduct({
+      artifactRoot: removed,
+      input: anchoredInput({
+        status: 'triaged', includeWitness: false, includeDocumentObject: false,
+        occurredAt: '2026-03-01T00:00:00.000Z',
+      }),
+      objectBackendUri: backendUri,
+    });
+    const removedBound = join(root, 'removed-bound');
+    bindSourceNativeProductResource({ resourceRoot, artifactRoot: removedBound });
+    await assertUnavailable(removedBound);
+
+    const reintroduced = join(root, 'reintroduced');
+    buildSourceNativeProduct({
+      artifactRoot: reintroduced,
+      input: anchoredInput({
+        status: 'done', witnessText: 'source document three',
+        includeWitness: false, includeDocumentObject: true,
+        occurredAt: '2026-04-01T00:00:00.000Z',
+      }),
+      objectBackendUri: backendUri,
+    });
+    const reintroducedBound = join(root, 'reintroduced-bound');
+    bindSourceNativeProductResource({ resourceRoot, artifactRoot: reintroducedBound });
+    await assertUnavailable(reintroducedBound);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -409,6 +498,25 @@ test('validates anchor and successor indexes without hydrating source packs', ()
     const anchorPack = anchorCommit.blobs.find((blob) =>
       blob.logicalPath.includes('/source-packs/'));
     assert.ok(anchorPack);
+    const reads = [];
+    const instrumented = {
+      ...backend,
+      get(key, ...args) {
+        reads.push(key);
+        return backend.get(key, ...args);
+      },
+    };
+    openSourceNativeObjectOntIndex({
+      backend: instrumented,
+      ontId: initial.receipt.ontId,
+      commitSha256: initial.receipt.commitSha256,
+    });
+    openSourceNativeObjectOntRefIndex({
+      backend: instrumented,
+      ontId: initial.receipt.ontId,
+      branch: 'main',
+    });
+    assert.equal(reads.filter((key) => key.includes('/source-packs/')).length, 0);
     removeBlobObject(backendUri, anchorPack);
     bindSourceNativeProductResource({
       resourceRoot,
@@ -420,34 +528,74 @@ test('validates anchor and successor indexes without hydrating source packs', ()
   }
 });
 
-test('rejects a corrupt immutable anchor before writing a bound descriptor', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-resource-anchor-'));
+test('binds a successor from a cold Node process', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-resource-cold-'));
   try {
     const initialRoot = join(root, 'initial');
     const resourceRoot = join(root, 'resource');
     const backendUri = pathToFileURL(join(initialRoot, 'objects')).href;
-    const initial = buildSourceNativeProduct({
-      artifactRoot: initialRoot,
-      input: anchoredInput(),
-    });
+    buildSourceNativeProduct({ artifactRoot: initialRoot, input: anchoredInput() });
     createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
-    buildSourceNativeProduct({
+    const successor = buildSourceNativeProduct({
       artifactRoot: join(root, 'successor'),
       input: anchoredInput({ status: 'closed', occurredAt: '2026-02-01T00:00:00.000Z' }),
       objectBackendUri: backendUri,
     });
-    const backend = openCanonicalObjectBackend({ uri: backendUri }).backend;
-    const store = openObjectOntStore({ backend });
-    const anchorCommit = store.readCommit(initial.receipt.commitSha256).commit;
-    const anchorMap = anchorCommit.blobs.find((blob) => blob.logicalPath.includes('/maps/'));
-    assert.ok(anchorMap);
-    removeBlobObject(backendUri, anchorMap);
-    const target = join(root, 'corrupt-anchor');
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: target,
-    }));
-    assert.equal(existsSync(join(target, 'source-native.json')), false);
+    const target = join(root, 'cold-bound');
+    const moduleUrl = pathToFileURL(join(import.meta.dirname, '..', 'dist', 'src',
+      'source-native-artifact.mjs')).href;
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', [
+      "const { bindSourceNativeProductResource } = await import(process.argv[1]);",
+      "const result = bindSourceNativeProductResource({ resourceRoot: process.argv[2], artifactRoot: process.argv[3], expectedSourceCommitSha256: process.argv[4] });",
+      'process.stdout.write(JSON.stringify(result));',
+    ].join('\n'), moduleUrl, resourceRoot, target, successor.receipt.commitSha256], {
+      cwd: join(import.meta.dirname, '..'),
+      encoding: 'utf8',
+    });
+    const binding = JSON.parse(output);
+    assert.equal(binding.sourceCommitSha256, successor.receipt.commitSha256);
+    assert.equal(existsSync(join(target, 'source-native.json')), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects missing or altered immutable anchor data before writing a descriptor', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-resource-anchor-'));
+  try {
+    for (const mode of ['missing', 'altered']) {
+      const initialRoot = join(root, mode, 'initial');
+      const resourceRoot = join(root, mode, 'resource');
+      const backendUri = pathToFileURL(join(initialRoot, 'objects')).href;
+      const initial = buildSourceNativeProduct({
+        artifactRoot: initialRoot,
+        input: anchoredInput(),
+      });
+      createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
+      buildSourceNativeProduct({
+        artifactRoot: join(root, mode, 'successor'),
+        input: anchoredInput({ status: 'closed', occurredAt: '2026-02-01T00:00:00.000Z' }),
+        objectBackendUri: backendUri,
+      });
+      const backend = openCanonicalObjectBackend({ uri: backendUri }).backend;
+      const store = openObjectOntStore({ backend });
+      const anchorCommit = store.readCommit(initial.receipt.commitSha256).commit;
+      const anchorMap = anchorCommit.blobs.find((blob) => blob.logicalPath.includes('/maps/'));
+      assert.ok(anchorMap);
+      const mapPath = blobObjectPath(backendUri, anchorMap);
+      if (mode === 'missing') rmSync(mapPath);
+      else {
+        const bytes = readFileSync(mapPath);
+        bytes[bytes.length - 1] ^= 1;
+        writeFileSync(mapPath, bytes);
+      }
+      const target = join(root, mode, 'bound');
+      assert.throws(() => bindSourceNativeProductResource({
+        resourceRoot,
+        artifactRoot: target,
+      }), { code: mode === 'missing' ? 'OBJECT_BACKEND_NOT_FOUND' : 'OBJECT_BACKEND_CORRUPT' });
+      assert.equal(existsSync(join(target, 'source-native.json')), false);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
