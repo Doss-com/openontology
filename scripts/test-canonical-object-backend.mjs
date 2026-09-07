@@ -2,13 +2,72 @@
 
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import {
   normalizeCanonicalObjectBackendUri,
   openCanonicalObjectBackend,
 } from '../dist/src/canonical-object-backend.mjs';
+import {
+  normalizeCanonicalObjectBackendUri as kernelNormalizeCanonicalObjectBackendUri,
+  openCanonicalObjectBackend as kernelOpenCanonicalObjectBackend,
+} from '../dist/src/kernel.mjs';
+import {
+  buildSourceNativeProduct,
+  openObjectOntStore,
+} from '../dist/src/kernel.mjs';
+
+test('kernel re-exports the canonical backend selection primitives', () => {
+  assert.equal(kernelNormalizeCanonicalObjectBackendUri, normalizeCanonicalObjectBackendUri);
+  assert.equal(kernelOpenCanonicalObjectBackend, openCanonicalObjectBackend);
+});
+
+test('kernel-selected local backend interoperates with protected source publication', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-kernel-backend-entry-'));
+  try {
+    const input = JSON.parse(readFileSync(new URL('../examples/quickstart/source-native-input.json', import.meta.url), 'utf8'));
+    const objectBackendUri = pathToFileURL(join(root, 'objects')).href;
+    const initial = buildSourceNativeProduct({
+      artifactRoot: join(root, 'initial'),
+      input,
+      objectBackendUri,
+    });
+    const backend = kernelOpenCanonicalObjectBackend({ uri: objectBackendUri }).backend;
+    const store = openObjectOntStore({ backend });
+    const before = store.readRefMetadata({ ontId: input.ontId, branch: 'main' });
+    assert.equal(before.version, initial.receipt.refVersion);
+
+    const successorInput = structuredClone(input);
+    successorInput.sources[1].content = 'Task task-1 title: Verified successor';
+    successorInput.nativeObjectInputs[1].fields[0].value = 'Verified successor';
+    const successor = buildSourceNativeProduct({
+      artifactRoot: join(root, 'successor'),
+      input: successorInput,
+      objectBackendUri,
+      expectedSourceVersion: before.version,
+    });
+    const after = store.readRefMetadata({ ontId: input.ontId, branch: 'main' });
+    assert.equal(after.version, successor.receipt.refVersion);
+    assert.notEqual(after.commitSha256, initial.receipt.commitSha256);
+
+    const staleInput = structuredClone(input);
+    staleInput.sources[1].content = 'Task task-1 title: Stale successor';
+    staleInput.nativeObjectInputs[1].fields[0].value = 'Stale successor';
+    assert.throws(() => buildSourceNativeProduct({
+      artifactRoot: join(root, 'stale'),
+      input: staleInput,
+      objectBackendUri,
+      expectedSourceVersion: before.version,
+    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT' });
+    assert.deepEqual(store.readRefMetadata({ ontId: input.ontId, branch: 'main' }), after);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('canonical backend syntax is normalized once for every consumer', () => {
   assert.equal(normalizeCanonicalObjectBackendUri('gs://customer-ontology/'), 'gs://customer-ontology');

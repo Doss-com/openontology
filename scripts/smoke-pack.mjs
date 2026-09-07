@@ -225,6 +225,8 @@ void (undefined as RootSourceNativeBuildInput | undefined);
   openSourceNativeProductWithConstruction,
   createSourceNativeProductMcpHandler,
   openSourceNativeConstructionReview,
+  normalizeCanonicalObjectBackendUri,
+  openCanonicalObjectBackend,
   stableObjectSha256,
   type ExactSessionOptions,
   type OpenSourceNativeObjectOntOptions,
@@ -254,11 +256,27 @@ void (undefined as RootSourceNativeBuildInput | undefined);
   type SourceNativeOntExplorerRecord,
   type SourceNativeOntExplorerRecordsResult,
   type SourceNativeOntExplorerStatusResult,
+  type CanonicalObjectBackendEnvironment,
+  type CanonicalObjectBackendSelection,
   type ProductTransport,
 } from 'oont/kernel';
 
 ${authoringExampleBody}
 const digest: string = stableObjectSha256({ contract: 'kernel' });
+const normalizedBackendUri: string = normalizeCanonicalObjectBackendUri('file:///tmp/oont-kernel-consumer');
+const backendEnvironment: CanonicalObjectBackendEnvironment = {
+  OONT_GCS_ACCESS_TOKEN_PROVIDER: () => 'fixture-token',
+};
+const selectedBackend: CanonicalObjectBackendSelection = openCanonicalObjectBackend({
+  uri: normalizedBackendUri,
+  env: backendEnvironment,
+});
+const backendName: string = selectedBackend.capabilities.backend;
+void backendName;
+// @ts-expect-error backend URI input is a string, not a numeric generation.
+openCanonicalObjectBackend({ uri: 1 });
+// @ts-expect-error token provider configuration is callable or text, not a number.
+openCanonicalObjectBackend({ uri: 'gs://fixture', env: { OONT_GCS_ACCESS_TOKEN_PROVIDER: 1 } });
 const buildWithVersion = (input: unknown, expectedSourceVersion: string | null | undefined) =>
   buildSourceNativeProduct({ artifactRoot: './new-cut', input, expectedSourceVersion });
 void buildWithVersion;
@@ -683,6 +701,7 @@ assert.deepEqual(kernelKeys, [
     'createSourceNativeProductResource',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
+    'normalizeCanonicalObjectBackendUri','openCanonicalObjectBackend',
     'openExactProductArtifactState',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
     'openSourceNativeObjectOntRefIndex',
@@ -706,6 +725,14 @@ assert.deepEqual(kernelKeys, [
     'writeSourceNativeConstructionAdmission',
   ].sort());
 assert.equal(result.answerable, true);
+assert.equal(kernel.normalizeCanonicalObjectBackendUri('file:///tmp/oont-installed-backend'),
+  'file:///tmp/oont-installed-backend');
+const installedBackend = kernel.openCanonicalObjectBackend({
+  uri: 'file:///tmp/oont-installed-backend',
+  env: {},
+});
+assert.equal(installedBackend.uri, 'file:///tmp/oont-installed-backend');
+assert.equal(installedBackend.capabilities.backend, 'file');
 const construction = kernel.compileSourceNativeSemanticConstruction({
   options: { artifactRoot: ${JSON.stringify(ont)} },
   input: { proposedBy: 'constructor', proposedAt: '2026-09-01T00:00:00.000Z',
