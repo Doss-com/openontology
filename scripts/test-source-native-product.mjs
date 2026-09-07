@@ -107,6 +107,109 @@ function buildInput() {
   };
 }
 
+function buildTemporalInput() {
+  const revisions = [
+    ['clickup/acme/status-rev-1.md', '2026-01-01T00:00:00.000Z', 'Alpha', 'Draft'],
+    ['clickup/acme/status-rev-2.md', '2026-02-01T00:00:00.000Z', 'Beta', 'Ready'],
+    ['clickup/acme/status-rev-3.md', '2026-03-01T00:00:00.000Z', 'Gamma', 'Closed'],
+  ];
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'preview-acme-temporal',
+    namespace: 'acme',
+    querySchemas: [{
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      aliases: ['task', 'task record'],
+      fields: [
+        { fieldPath: 'title', aliases: ['title', 'task title'] },
+        { fieldPath: 'status', aliases: ['status', 'task status'] },
+      ],
+    }],
+    sources: revisions.map(([relativePath, occurredAt, title, status]) => ({
+      relativePath,
+      sourceType: 'clickup',
+      occurredAt,
+      content: `Title: ${title}\nStatus: ${status}`,
+    })),
+    nativeObjectInputs: revisions.map(([relativePath, _occurredAt, title, status]) => ({
+      relativePath,
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        namespace: 'acme',
+        externalId: 'task-1',
+      },
+      fields: [
+        { fieldPath: 'title', value: title },
+        { fieldPath: 'status', value: status },
+      ],
+    })),
+  };
+}
+
+function buildTimestampInput() {
+  const timestamp = '2026-04-01T00:00:00.000Z';
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'preview-acme-timestamps',
+    namespace: 'acme',
+    querySchemas: [{
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      aliases: ['task'],
+      fields: [{ fieldPath: 'dueAt', aliases: ['due date', 'due at'] }],
+    }],
+    sources: [{
+      relativePath: 'clickup/acme/task-1.md',
+      sourceType: 'clickup',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      content: `Task task-1 due date: ${timestamp}`,
+    }],
+    nativeObjectInputs: [{
+      relativePath: 'clickup/acme/task-1.md',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef', sourceSystem: 'clickup', objectType: 'task',
+        namespace: 'acme', externalId: 'task-1',
+      },
+      fields: [{ fieldPath: 'dueAt', value: timestamp }],
+    }],
+  };
+}
+
+function buildTransitionTitleInput() {
+  const title = 'When did task enter Ready';
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'preview-acme-title-mask',
+    namespace: 'acme',
+    querySchemas: [{
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      aliases: ['task'],
+      fields: [{ fieldPath: 'title', aliases: ['title', 'task title'] }],
+    }],
+    sources: [{
+      relativePath: 'clickup/acme/task-1.md',
+      sourceType: 'clickup',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      content: title,
+    }],
+    nativeObjectInputs: [{
+      relativePath: 'clickup/acme/task-1.md',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef', sourceSystem: 'clickup', objectType: 'task',
+        namespace: 'acme', externalId: 'task-1',
+      },
+      fields: [{ fieldPath: 'title', value: title }],
+    }],
+  };
+}
+
 function buildAdversarialChronologyInput() {
   const revisions = [
     ['linear/northwind/nwd-418-r1.txt', '2026-01-04T09:00:00.000Z',
@@ -1084,6 +1187,107 @@ test('refuses temporal questions that do not declare a supported intent', async 
     });
     assert.equal(next.state, 'resolved-next-field-revision');
     assert.equal(next.answerable, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refuses transition-time questions before Resolver for every selector', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-transition-output-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildTemporalInput() });
+    const product = openOntology({ artifactRoot: root });
+    const question = 'When did task task-1 enter its current status?';
+    const requests = [
+      question,
+      { question, intent: 'current' },
+      { question, at: '2026-02-01T00:00:00.000Z' },
+      { question, intent: 'next', anchorValue: 'Draft' },
+      {
+        question: '  wHeN   DiD task task-1 change to Ready?  ',
+        scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+      },
+      {
+        question: 'At what time did task task-1 transition to Ready?',
+        scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+      },
+      {
+        question: 'When did task task-1 become Ready?', intent: 'current',
+        scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+      },
+      {
+        question: 'When did the task status change to Ready for task-1?',
+        scope: {
+          sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', field: 'status',
+        },
+      },
+    ];
+    for (const request of requests) {
+      const result = await product.verify(request);
+      assert.equal(result.state, 'unavailable-native-temporal-intent-not-declared', request.question ?? request);
+      assert.equal(result.answerable, false, request.question ?? request);
+      assert.deepEqual(result.context, [], request.question ?? request);
+      assert.equal(result.verification.navigationProposals, null, request.question ?? request);
+    }
+
+    const current = await product.verify('What is the current status for task task-1?');
+    assert.equal(current.state, 'resolved-current-field');
+    assert.equal(current.answerable, true);
+    assert.deepEqual(current.context.map((row) => row.exactText), ['Closed']);
+    const asOf = await product.verify({
+      question: 'What is the status for task task-1?',
+      at: '2026-02-01T00:00:00.000Z',
+    });
+    assert.equal(asOf.state, 'resolved-historical-field');
+    assert.deepEqual(asOf.context.map((row) => row.exactText), ['Ready']);
+    const next = await product.verify({
+      question: 'What status immediately followed Draft for task task-1?',
+      intent: 'next',
+    });
+    assert.equal(next.state, 'resolved-next-field-revision');
+    assert.deepEqual(next.context.filter((row) => row.role === 'answer')
+      .map((row) => row.exactText), ['Ready']);
+
+    const maskedRoot = mkdtempSync(join(tmpdir(), 'oont-source-native-transition-title-'));
+    try {
+      buildSourceNativeProduct({ artifactRoot: maskedRoot, input: buildTransitionTitleInput() });
+      const masked = await openOntology({ artifactRoot: maskedRoot }).verify(
+        'What is the current task title for the task titled "When did task enter Ready"?',
+      );
+      assert.equal(masked.state, 'resolved-current-field');
+      assert.equal(masked.answerable, true);
+      assert.deepEqual(masked.context.map((row) => row.exactText), ['When did task enter Ready']);
+    } finally {
+      rmSync(maskedRoot, { recursive: true, force: true });
+    }
+
+    const timestampRoot = mkdtempSync(join(tmpdir(), 'oont-source-native-transition-timestamp-'));
+    try {
+      buildSourceNativeProduct({ artifactRoot: timestampRoot, input: buildTimestampInput() });
+      const timestamp = await openOntology({ artifactRoot: timestampRoot }).verify(
+        'When is the due date for task task-1?',
+      );
+      assert.equal(timestamp.state, 'resolved-current-field');
+      assert.equal(timestamp.answerable, true);
+      assert.deepEqual(timestamp.context.map((row) => row.exactText), ['2026-04-01T00:00:00.000Z']);
+    } finally {
+      rmSync(timestampRoot, { recursive: true, force: true });
+    }
+
+    let plannerSha256;
+    let expectedPlannerSha256;
+    openSourceNativeProductRuntime({ artifactRoot: root }, (context) => {
+      plannerSha256 = context.prepareSearch({
+        question: 'What is the current status for task task-1?',
+      }).plan.plannerSha256;
+      expectedPlannerSha256 = stableObjectSha256({
+        adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+        namespace: context.descriptor.namespace,
+        querySchemas: context.descriptor.querySchemas,
+      });
+      return {};
+    });
+    assert.equal(plannerSha256, expectedPlannerSha256);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

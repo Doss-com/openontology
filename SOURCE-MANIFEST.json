@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 33257,
-      "sha256": "6e00628c5fe189c8ab7bd0b469ae3fb3bf94adb76a7ddfd3540c2e56bcb85112"
+      "bytes": 33965,
+      "sha256": "dc9ca628975ee17e5032f310d0186a61456e651990ef5b72359da87f5da1b8ec"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -317,8 +317,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 65378,
-      "sha256": "4b9b3a7c0eca31a4ace465efb6d343e6aaeea998bc9a8865371b12bc0620009a"
+      "bytes": 73183,
+      "sha256": "f6e66086c50586ce1641cfd4e3055c407e600e6ec49478da2e819a52d3ef2f32"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -522,8 +522,8 @@
     },
     {
       "path": "src/source-native-query-plan.mts",
-      "bytes": 17799,
-      "sha256": "c7b744802d37866da1bd885d18e6fc61ef41098d4ba577e9717f919e713b5427"
+      "bytes": 17977,
+      "sha256": "2d8418102a072454a45ab996b5a0dd5900879d9a7a254a5a2bc3a1c674122b37"
     },
     {
       "path": "src/source-native-query-planner.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:4f0c7b7586c0887652a42d4c0fb278ea55ebd85c7d0e018c72bdb13344fae347"
+  "manifestSha256": "sha256:24644a7b760107697a41bf5b45bec121b2f763a8c4e6b2cde3b2a241787ea99c"
 }

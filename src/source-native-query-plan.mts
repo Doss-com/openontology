@@ -36,12 +36,14 @@ const EXPLICIT_CURRENT_TIME = /\b(?:current|currently|latest|present|right now|n
 const HISTORICAL_TIME = /\b(?:was|were|previous|previously|prior|original|originally|initial|initially|former|formerly|earlier|historical|history)\b/u;
 const RELATIVE_TIME = /\b(?:yesterday|tomorrow|last (?:week|month|year)|next (?:week|month|year)|at the time|as of|ago|future|upcoming)\b/u;
 const CHANGE_OVER_TIME = /\b(?:has|have|had|did|when)\b[^?]{0,80}\b(?:change|changed)\b|\b(?:change|revision|status) history\b|\bhow many times\b/u;
+const TRANSITION_TIME = /\b(?:when\s+did|at\s+what\s+time\s+did)\b[^?]{0,100}\b(?:enter|change\s+to|become|transition(?:ed)?)\b/u;
 const ORDERED_TIME = /\b(?:before|after|followed|following|preceded|preceding|succeeded|succeeding)\b/u;
 const CALENDAR_TIME = /\b(?:on|in|at|as of)\s+(?:(?:19|20)\d{2}(?:[-/]\d{1,2}(?:[-/]\d{1,2})?)?|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{1,2},?)?(?:\s+(?:19|20)\d{2})?)\b/u;
 
 function hasUndeclaredTemporalIntent(question: string, intent: 'current' | 'next' | 'at'): boolean {
-  if (intent !== 'current') return false;
   const text = normalizedQuestion(question);
+  if (TRANSITION_TIME.test(text)) return true;
+  if (intent !== 'current') return false;
   return HISTORICAL_TIME.test(text)
     || RELATIVE_TIME.test(text)
     || CHANGE_OVER_TIME.test(text)
@@ -347,7 +349,7 @@ export function compileProductQueryPlan({ question, namespace, querySchemas, map
     query = anchor.query;
   }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v6-declared-scope-agreement-v2', namespace, querySchemas,
+    adapter: 'source-native-product-query-v6-declared-scope-agreement-v3', namespace, querySchemas,
   });
   const core = {
     schema: 1,
@@ -385,7 +387,7 @@ export function queryPlanner({ namespace, plan }: {
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v6-declared-scope-agreement-v2',
+    adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
     namespace,
     plannerSha256,
     modelCalls: 0,

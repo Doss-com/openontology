@@ -47,6 +47,17 @@ valid at the requested time. Consecutive equivalent observations share a state;
 nonconsecutive equal states stay distinct. Missing coverage, unresolved states,
 and requests outside the recorded horizon refuse without Evidence.
 
+`[ACTIVE-WORK]` The native planner recognizes a bounded set of explicit
+transition-time forms, including `When did ... enter`, `When did ... change to`,
+`At what time did ... transition`, and `When did ... become`. It does not answer
+those questions by returning a field value. It returns
+`unavailable-native-temporal-intent-not-declared` before Resolver work because
+source-record update time is not an exact transition time. This is not a claim
+to recognize or answer every English event-time phrasing. Declared date or
+timestamp fields and ordinary current, point-in-time, and immediate-successor
+value questions retain their existing profiles. This bounded refusal does not
+add event-history inference.
+
 Historical semantic projection validates the full immutable proposition and
 relation census, then selects active fields and their inbound counterevidence
 closure for that same time. An inactive intermediate revision is not a shortcut
