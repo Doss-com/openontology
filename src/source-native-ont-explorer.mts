@@ -511,8 +511,8 @@ function observe(state: ReturnType<typeof openProductState>, reader: ReturnType<
     }));
   const sourceSnapshot = selectedSnapshot?.sourceSnapshot
     ?? state.store.readRefMetadataSnapshot({ ontId: state.descriptor.ontId, branch: state.descriptor.branch });
-  if (selected === null && sourceSnapshot !== null
-    && sourceSnapshot.ref.commitSha256 !== state.objectOnt.commitSha256) fail('CONCURRENT');
+  if (selected === null
+    && sourceSnapshot?.ref.commitSha256 !== state.objectOnt.commitSha256) fail('CONCURRENT');
   const projectionSha256 = stableObjectSha256({ binding,
     ledger: { state: snapshot.ledger.state, diagnosticCodes: snapshot.ledger.diagnosticCodes,
       activeRecordSha256s: snapshot.ledger.activeRecords.map((item) => item.recordSha256).sort(compare) },

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -123,6 +125,100 @@ function allPages(fetchFirst, fetchNext, key) {
     items.push(...page[key]);
   }
   return { first: pages[0], items, pages };
+}
+
+// Capture the final protected source observation before publishing. Each
+// backend head/get reads its envelope once. Knowledge changes can occur after
+// the fourth source-ref read; source changes wait for the eighth history read
+// so storage's own before/after check still sees a consistent old observation.
+// The explorer must then refuse before egress. No production hook is needed.
+function interleavePublication(t, f, publish, operation, changesSource = false) {
+  const key = `${changesSource ? 'ref-history' : 'refs'}/${f.state.descriptor.ontId}/${f.state.descriptor.branch}.json`;
+  const hex = kernel.objectBytesSha256(Buffer.from(key)).slice(7);
+  const target = join(f.root, changesSource ? 'history' : 'objects', 'objects', hex.slice(0, 2), `${hex.slice(2)}.json`);
+  const originalRead = fs.readFileSync;
+  let reads = 0;
+  let published = false;
+  const replacement = t.mock.method(fs, 'readFileSync', (path, ...args) => {
+    const bytes = originalRead(path, ...args);
+    if (!published && path === target && ++reads === (changesSource ? 8 : 4)) {
+      published = true;
+      publish();
+    }
+    return bytes;
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(operation, { code: 'SOURCE_NATIVE_EXPLORER_CONCURRENT' });
+    assert.equal(published, true, 'the controlled interleaving must execute');
+  } finally {
+    replacement.mock.restore();
+    syncBuiltinESMExports();
+  }
+}
+
+for (const historical of [false, true]) {
+  for (const method of ['nodes', 'edges', 'records', 'status', 'read']) {
+    test(`${historical ? 'historical' : 'current'} ${method} rejects knowledge publication before egress`, (t) => {
+      const f = fixture(t, { protectedHistory: true });
+      const original = f.admit();
+      f.write(original);
+      const current = f.open();
+      const page = current.records();
+      const explorer = historical ? f.open({ ...f.configuration, snapshot: page.binding,
+        recordSha256: original.recordSha256 }) : current;
+      const passage = explorer.nodes().nodes.find(node => node.kind === 'passage');
+      assert(passage?.readRef);
+      const successor = f.admit(f.compile(f.baseInput([
+        { id: 'later-concept', name: 'DocumentedTask' },
+      ])), { day: 4 });
+      interleavePublication(t, f, () => f.write(successor),
+        () => explorer[method](method === 'read' ? { ref: passage.readRef } : undefined));
+      assert.throws(() => explorer.read({ ref: passage.readRef }),
+        { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+      const freshPassage = explorer.nodes().nodes.find(node => node.kind === 'passage');
+      assert(freshPassage?.readRef);
+      const exact = explorer.read({ ref: freshPassage.readRef });
+      assert.equal(exact.historicalSnapshot, historical);
+      assert.equal(exact.currentNavigationEligible, !historical);
+    });
+  }
+}
+
+for (const historical of [false, true]) {
+  for (const method of ['nodes', 'edges', 'records', 'status', 'read']) {
+    test(`${historical ? 'historical' : 'current'} ${method} rejects source publication before egress`, (t) => {
+      const f = fixture(t, { protectedHistory: true });
+      const record = f.admit(); f.write(record);
+      const current = f.open();
+      const snapshot = current.records().binding;
+      const explorer = historical ? f.open({ ...f.configuration, snapshot,
+        recordSha256: record.recordSha256 }) : current;
+      const passage = explorer.nodes().nodes.find(node => node.kind === 'passage');
+      assert(passage?.readRef);
+      const input = clone(f.input);
+      input.sources[0].content += ' successor source cut';
+      input.nativeObjectInputs[0].fields[0].value = input.sources[0].content;
+      const publish = () => kernel.buildSourceNativeProduct({
+        artifactRoot: join(f.root, 'successor'), input,
+        objectBackendUri: pathToFileURL(join(f.root, 'objects')).href,
+        historyBackendUri: pathToFileURL(join(f.root, 'history')).href,
+      });
+      interleavePublication(t, f, publish,
+        () => explorer[method](method === 'read' ? { ref: passage.readRef } : undefined), true);
+      assert.throws(() => explorer.read({ ref: passage.readRef }),
+        { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+      if (historical) {
+        const fresh = explorer.nodes().nodes.find(node => node.kind === 'passage');
+        const exact = explorer.read({ ref: fresh.readRef });
+        assert.equal(exact.currentNavigationEligible, false);
+        assert.equal(exact.historicalSnapshot, true);
+        assert.equal(exact.exactText, f.sourceByPath.get(exact.evidence.sourceRef).content);
+      } else {
+        assert.throws(() => explorer.nodes(), { code: 'SOURCE_NATIVE_EXPLORER_CONCURRENT' });
+      }
+    });
+  }
 }
 
 test('source-only Ont exposes native nodes, identity, coverage and unknown freshness', (t) => {
@@ -402,6 +498,42 @@ test('current explorer refuses a source advance instead of serving a pinned grap
   assert.throws(() => explorer.nodes({ limit: 64 }), { code: 'SOURCE_NATIVE_EXPLORER_CONCURRENT' });
 });
 
+for (const [protectedHistory, historical] of [[false, false], [false, true], [true, false], [true, true]]) {
+  test(`a removed source head invalidates every ${historical ? 'historical' : 'current'} operation, protected: ${protectedHistory}`, (t) => {
+    const f = fixture(t, { protectedHistory });
+    const record = f.admit(); f.write(record);
+    const snapshot = f.open().records().binding;
+    const sessions = ['nodes', 'edges', 'records', 'status', 'read'].map(method => {
+      const explorer = historical ? f.open({ ...f.configuration, snapshot,
+        recordSha256: record.recordSha256 }) : f.open();
+      const passage = explorer.nodes().nodes.find(node => node.kind === 'passage');
+      assert(passage?.readRef);
+      return { method, explorer, ref: passage.readRef };
+    });
+    const route = { ontId: f.state.descriptor.ontId, branch: f.state.descriptor.branch };
+    const head = f.state.store.readRefMetadata(route);
+    const hex = kernel.objectBytesSha256(Buffer.from(head.key)).slice(7);
+    // Remove only this disposable fixture's ref envelope, not its source bytes.
+    rmSync(join(f.root, 'objects', 'objects', hex.slice(0, 2), `${hex.slice(2)}.json`));
+    const code = protectedHistory ? 'OBJECT_ONT_HISTORY_MISMATCH'
+      : historical ? 'CONSTRUCTION_ADMISSION_MISSING' : 'SOURCE_NATIVE_EXPLORER_CONCURRENT';
+    for (const { method, explorer, ref } of sessions) {
+      assert.throws(() => explorer[method](method === 'read' ? { ref } : undefined), { code }, method);
+      assert.throws(() => explorer.read({ ref }), { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+    }
+    if (protectedHistory) f.state.store.recoverRefHistory(route);
+    else f.backend.compareAndSwap(head.key, { expectedVersion: null,
+      bytes: Buffer.from(kernel.stableObjectText(head.ref)) });
+    for (const { explorer } of sessions) {
+      const passage = explorer.nodes().nodes.find(node => node.kind === 'passage');
+      const exact = explorer.read({ ref: passage.readRef });
+      assert.equal(exact.currentNavigationEligible, !historical);
+      assert.equal(exact.historicalSnapshot, historical);
+      assert.equal(exact.exactText, f.sourceByPath.get(exact.evidence.sourceRef).content);
+    }
+  });
+}
+
 test('reviewer configuration binds public key identity and edge IDs ignore agreement representative', (t) => {
   const f = fixture(t, { names: ['StableConcept'] });
   const first = f.admit(f.compile(f.baseInput([{ id: 'stable', name: 'StableConcept' }])));
@@ -569,6 +701,121 @@ test('current offered passages become stale when active knowledge changes', (t) 
     { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE_STALE' });
   assert.throws(() => explorer.read({ ref: passage.readRef }),
     { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+});
+
+test('historical inspection rejects every mismatched snapshot identity field', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const record = f.admit(); f.write(record);
+  const snapshot = f.open().records().binding;
+  for (const key of ['ontId', 'namespace', 'artifactSha256', 'sourceCommitSha256',
+    'sourceReplaySha256', 'sourceCatalogSha256', 'nativeObjectMapSha256', 'reviewerConfigurationSha256']) {
+    const changed = { ...snapshot, [key]: key.endsWith('Sha256') ? `sha256:${'f'.repeat(64)}` : 'other' };
+    assert.throws(() => f.open({ ...f.configuration, snapshot: changed, recordSha256: record.recordSha256 }),
+      { code: 'SOURCE_NATIVE_EXPLORER_BINDING' }, key);
+  }
+  for (const key of ['knowledgeCommitSha256', 'knowledgeReplaySha256']) {
+    const history = f.open({ ...f.configuration, snapshot: { ...snapshot, [key]: `sha256:${'f'.repeat(64)}` },
+      recordSha256: record.recordSha256 });
+    assert.throws(() => history.nodes(), { code: 'CONSTRUCTION_ADMISSION_BRANCH' }, key);
+  }
+  const wrongBranch = f.open({ ...f.configuration, snapshot: { ...snapshot, knowledgeBranch: 'other' },
+    recordSha256: record.recordSha256 });
+  assert.throws(() => wrongBranch.nodes(), { code: 'CONSTRUCTION_ADMISSION_MISSING' });
+  assert.throws(() => f.open({ ...f.configuration, snapshot: { ...snapshot, unexpected: true },
+    recordSha256: record.recordSha256 }), { code: 'SOURCE_NATIVE_EXPLORER_INPUT' });
+});
+
+test('historical inspection cannot expose revoked or foreign-source construction labels', (t) => {
+  const f = fixture(t);
+  const record = f.admit(); f.write(record);
+  const revokedConfig = { trustRegistry: f.trustRegistry.filter(entry => entry.issuerId !== 'reviewer') };
+  const revoked = f.open(revokedConfig);
+  const revokedPage = revoked.records();
+  assert.equal(revokedPage.records[0].state, 'ineligible');
+  const history = f.open({ ...revokedConfig, snapshot: revokedPage.binding, recordSha256: record.recordSha256 });
+  assert.throws(() => history.nodes(), { code: 'SOURCE_NATIVE_EXPLORER_RECORD' });
+  assert.throws(() => history.edges(), { code: 'SOURCE_NATIVE_EXPLORER_RECORD' });
+  assert.equal(JSON.stringify(history.records()).includes('AllocationException'), false);
+  const foreign = fixture(t, { names: ['ForeignOnly'] });
+  const foreignRecord = f.admit(foreign.compile());
+  f.plant(foreignRecord);
+  const page = f.open().records({ state: 'ineligible' });
+  assert.equal(page.records[0].recordSha256, foreignRecord.recordSha256);
+  const wrongSource = f.open({ ...f.configuration, snapshot: page.binding,
+    recordSha256: foreignRecord.recordSha256 });
+  assert.throws(() => wrongSource.nodes(), { code: 'SOURCE_NATIVE_EXPLORER_RECORD' });
+  assert.throws(() => wrongSource.edges(), { code: 'SOURCE_NATIVE_EXPLORER_RECORD' });
+  assert.equal(JSON.stringify(wrongSource.records()).includes('ForeignOnly'), false);
+});
+
+test('offered reads reuse handles and evict only after 1,024 distinct passages', (t) => {
+  const f = fixture(t, { names: ['Needle'], extraText: 'Needle '.repeat(1025) });
+  const source = f.sourceByPath.get('docs/guide.txt');
+  const object = f.objectByPath.get(source.relativePath);
+  const witnesses = [...source.content.matchAll(/Needle/g)].slice(0, 1025).map(match => ({
+    nativeObjectSha256: object.nativeObjectSha256,
+    evidence: { sourceRef: source.relativePath, sourceSha256: object.sourceSha256,
+      byteStart: match.index, byteEnd: match.index + 6,
+      textSha256: kernel.objectBytesSha256(Buffer.from('Needle')) },
+  }));
+  for (let start = 0; start < witnesses.length; start += 256) {
+    const batch = witnesses.slice(start, start + 256);
+    const id = `bounded-${start}`;
+    const input = f.baseInput([]);
+    input.objectDefs = [{ kind: 'ObjectDef', id, name: 'Needle', aliases: [], source: batch[0] }];
+    input.claims = batch.slice(1).map((source, index) => ({ kind: 'Claim',
+      id: `mention-${start + index + 1}`, about: id, predicate: 'mentions', source }));
+    f.write(f.admit(f.compile(input)));
+  }
+  const explorer = f.open();
+  // Edge discovery does not offer passage handles, so the boundary starts empty.
+  const edges = allPages(() => explorer.edges(), cursor => explorer.edges({ cursor }), 'edges').items;
+  const ids = [...new Set(edges.flatMap(edge => [edge.from, edge.to])
+    .filter(id => id.startsWith('passage:')))].sort();
+  assert.equal(ids.length, 1025);
+  const offered = [];
+  for (let start = 0; start < 1024; start += 64) {
+    const page = explorer.nodes({ ids: ids.slice(start, start + 64) });
+    assert.equal(page.nextCursor, null);
+    assert.equal(page.returnedCount, 64);
+    offered.push(...page.nodes);
+  }
+  assert.equal(new Set(offered.map(node => node.readRef)).size, 1024);
+  const first = offered[0];
+  assert.equal(explorer.nodes({ ids: [first.id] }).nodes[0].readRef, first.readRef);
+  assert.equal(explorer.read({ ref: first.readRef }).exactText, 'Needle');
+  const last = explorer.nodes({ ids: [ids[1024]] }).nodes[0];
+  assert.throws(() => explorer.read({ ref: first.readRef }), { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+  assert.equal(explorer.read({ ref: offered[1].readRef }).exactText, 'Needle');
+  assert.equal(explorer.read({ ref: last.readRef }).exactText, 'Needle');
+});
+
+test('exact multibyte reads reach 64 KiB and invalid or oversized spans never enter the graph', (t) => {
+  const f = fixture(t, { names: ['Bounded'], extraText: 'λ'.repeat(32769) });
+  const bytes = Buffer.from(f.sourceByPath.get('docs/guide.txt').content);
+  const byteStart = bytes.indexOf(Buffer.from('λ'));
+  const input = f.baseInput([{ id: 'bounded', name: 'λ' }]);
+  input.claims = [];
+  const setSpan = byteEnd => {
+    const value = clone(input);
+    Object.assign(value.objectDefs[0].source.evidence, { byteStart, byteEnd,
+      textSha256: kernel.objectBytesSha256(bytes.subarray(byteStart, byteEnd)) });
+    return value;
+  };
+  assert.throws(() => f.compile(setSpan(byteStart + 65538)), { code: 'SEMANTIC_CONSTRUCTION_SPAN' });
+  assert.throws(() => f.compile(setSpan(byteStart + 65535)), { code: 'SEMANTIC_CONSTRUCTION_EVIDENCE' });
+  const record = f.admit(f.compile(setSpan(byteStart + 65536)));
+  f.write(record);
+  const current = f.open();
+  const history = f.open({ ...f.configuration, snapshot: current.records().binding,
+    recordSha256: record.recordSha256 });
+  for (const explorer of [current, history]) {
+    const passage = explorer.nodes().nodes.find(node => node.kind === 'passage');
+    const exact = explorer.read({ ref: passage.readRef });
+    assert.equal(exact.exactText, 'λ'.repeat(32768));
+    assert.equal(Buffer.byteLength(exact.exactText), 65536);
+    assert.equal(kernel.objectBytesSha256(Buffer.from(exact.exactText)), exact.evidence.textSha256);
+  }
 });
 
 test('a correction-ineligible authenticated record is historical but readable by explicit binding', (t) => {

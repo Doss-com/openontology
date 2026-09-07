@@ -719,6 +719,44 @@ test('readSnapshot returns no cached records for missing or rewound history and 
     [original.recordSha256, correction.recordSha256, successor.recordSha256].sort());
 });
 
+for (const historicalFirst of [false, true]) {
+  test(`mixed current/historical reads preserve the rollback floor, historical first: ${historicalFirst}`, (t) => {
+    const f = fixture(t);
+    const original = f.admit(); f.write(original);
+    const earlier = f.state.store.readRefMetadataSnapshot(f.route);
+    const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
+    f.write(correction);
+    const sourceStore = f.state.store;
+    let forcedSnapshot;
+    const reader = createConstructionLedgerReader({ ...f.state, store: { ...sourceStore,
+      readRefMetadataSnapshot: input => input.branch === f.branch && forcedSnapshot !== undefined
+        ? forcedSnapshot : sourceStore.readRefMetadataSnapshot(input),
+    } }, f.trust);
+    const selected = { commitSha256: earlier.ref.commitSha256,
+      replaySha256: earlier.ref.replaySha256, recordSha256: original.recordSha256 };
+    if (!historicalFirst) {
+      assert.deepEqual(reader.read().activeRecords, [correction]);
+      assert.equal(reader.readSnapshot().records.length, 2);
+    }
+    const old = reader.readSnapshotAt(selected);
+    assert.deepEqual(old.selectedRecord, original);
+    assert.equal(old.ledger.commitSha256, earlier.ref.commitSha256);
+    assert.equal(old.selectedDisposition.state, 'active');
+    // Selecting the ancestor must retain the latest observed head as the floor.
+    forcedSnapshot = earlier;
+    const rewound = reader.read();
+    assert.equal(rewound.state, 'degraded');
+    assert(rewound.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_ROLLBACK'));
+    assert.deepEqual(rewound.activeRecords, []);
+    assert.deepEqual(reader.readSnapshot().records, []);
+    assert.throws(() => reader.readSnapshotAt(selected), { code: 'CONSTRUCTION_ADMISSION_RECORD' });
+    forcedSnapshot = undefined;
+    assert.deepEqual(reader.read().activeRecords, [correction]);
+    assert.deepEqual(reader.readSnapshotAt(selected).selectedRecord, original);
+    assert.equal(reader.readSnapshot().records.length, 2);
+  });
+}
+
 test('readSnapshot projects the same ledger as read and the one-shot API', (t) => {
   const f = fixture(t);
   const original = f.admit(); f.write(original);

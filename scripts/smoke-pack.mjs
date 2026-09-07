@@ -821,9 +821,65 @@ assert.equal(readResponse.result.isError, undefined);
 const read = JSON.parse(readResponse.result.content[0].text);
 assert.equal(read.exactText, field.value);
 assert.equal(read.binding.navigationOnly, true);
-assert.equal('proofDisposition' in read, false);`;
+assert.equal('proofDisposition' in read, false);
+const passage = explorer.nodes({ ids: [claimEdge.from] }).nodes[0];
+const currentExact = explorer.read({ ref: passage.readRef });
+assert.equal(currentExact.exactText, field.value);
+assert.equal(currentExact.historicalSnapshot, false);
+assert.equal(currentExact.currentNavigationEligible, true);
+assert.equal(currentExact.binding.navigationOnly, true);
+assert.equal(currentExact.binding.exactSourcesRemainAuthority, true);
+assert.equal('conceptId' in currentExact.binding, false);
+assert.equal('proofDisposition' in currentExact, false);
+const history = kernel.openSourceNativeOntExplorer(options, { trustRegistry,
+  snapshot: admittedRecordPage.binding, recordSha256: record.recordSha256 });
+const historicalNodes = [];
+let historyCursor;
+do {
+  const page = history.nodes({ limit: 1, ...(historyCursor ? { cursor: historyCursor } : {}) });
+  assert.equal(page.historicalSnapshot, true);
+  assert.equal(page.currentNavigationEligible, false);
+  assert(page.nodes.length > 0);
+  historicalNodes.push(...page.nodes);
+  historyCursor = page.nextCursor;
+  if (!historyCursor) assert.equal(historicalNodes.length, page.totalCount);
+} while (historyCursor);
+const historicalPassage = historicalNodes.find(node => node.id === claimEdge.from);
+assert(historicalPassage?.readRef);
+const historicalExact = history.read({ ref: historicalPassage.readRef });
+assert.equal(historicalExact.exactText, field.value);
+assert.equal(historicalExact.historicalSnapshot, true);
+assert.equal(historicalExact.currentNavigationEligible, false);
+assert.equal(historicalExact.binding.admissionRecordSha256, record.recordSha256);
+assert.equal(historicalExact.receiptSha256,
+  kernel.stableObjectSha256({ ...historicalExact, receiptSha256: undefined }));
+assert.equal(history.records().records[0].state, 'active');
+assert(history.edges().edges.some(edge => edge.id === claimEdge.id));
+assert.throws(() => explorer.read({ ref: historicalPassage.readRef }),
+  { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+assert.throws(() => history.read({ ref: passage.readRef }),
+  { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE' });
+await assert.rejects(() => browser.read({ ref: historicalPassage.readRef }));
+const correctionStatement = kernel.sourceNativeConstructionAdmissionStatement({ construction,
+  issuerId: 'reviewer', admittedAt: '2026-09-03T00:00:00.000Z',
+  supersedesRecordSha256s: [record.recordSha256] });
+const correctionRecord = kernel.compileSourceNativeConstructionAdmissionRecord({ construction, proposalStatement,
+  statement: correctionStatement, proposalSignatureBase64: signature(proposalStatement, proposer),
+  signatureBase64: signature(correctionStatement, reviewer) });
+kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry, record: correctionRecord });
+assert.throws(() => explorer.read({ ref: passage.readRef }),
+  { code: 'SOURCE_NATIVE_EXPLORER_REFERENCE_STALE' });
+assert.equal(history.read({ ref: historicalPassage.readRef }).exactText, field.value);
+assert.equal(history.status().currentNavigationEligible, false);
+const supersededPage = explorer.records({ state: 'superseded' });
+assert.equal(supersededPage.records[0].recordSha256, record.recordSha256);
+const superseded = kernel.openSourceNativeOntExplorer(options, { trustRegistry,
+  snapshot: supersededPage.binding, recordSha256: record.recordSha256 });
+const supersededPassage = superseded.nodes({ ids: [claimEdge.from] }).nodes[0];
+assert.equal(superseded.records().records[0].state, 'superseded');
+assert.equal(superseded.read({ ref: supersededPassage.readRef }).exactText, field.value);`;
   const constructionSmoke = run(process.execPath, ['--input-type=module', '--eval', constructionProgram], { cwd: consumer });
-  check('installed construction paging and MCP reads stay source-bound',
+  check('installed construction, MCP and current/historical explorer reads stay source-bound',
     constructionSmoke.status === 0, tail(constructionSmoke.stderr, 20));
 
   const lifecycleExample = join(packageRoot, 'examples', 'quickstart', 'source-lifecycle.mjs');
