@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Correct `stableObjectSha256` to match the existing canonical JSON wire bytes
+  for integer-index object keys while preserving the serializer and public text
+  format. This alpha correction can change persisted identifiers, and an old
+  artifact may refuse with `SOURCE_NATIVE_MAP`; retain its old runtime, storage,
+  and Adapter input, then rebuild into a new target directory. There is no
+  in-place migration or signed-knowledge transfer.
 - Add an optional source-version precondition to the kernel builder. Delayed
   changed publications refuse without advancing the winning source head;
   identical-content retries remain idempotent. Root query options are unchanged.

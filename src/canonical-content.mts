@@ -56,10 +56,14 @@ function updateStableObjectHash(hash: Hash, input: unknown, key: string, ancesto
     }
     hash.update(']');
   } else {
+    const ordered = Object.fromEntries(
+      Object.keys(value).sort(compare)
+        .map((childKey) => [childKey, (value as Record<string, unknown>)[childKey]]),
+    );
     hash.update('{');
     let emitted = 0;
-    for (const childKey of Object.keys(value).sort(compare)) {
-      const child = (value as Record<string, unknown>)[childKey];
+    for (const childKey of Object.keys(ordered)) {
+      const child = (ordered as Record<string, unknown>)[childKey];
       if (child === undefined || typeof child === 'function' || typeof child === 'symbol') continue;
       if (emitted > 0) hash.update(',');
       hash.update(JSON.stringify(childKey));

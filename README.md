@@ -399,6 +399,11 @@ See [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md).
   exact Evidence. It is not a general answer generator.
 - Persisted alpha artifacts are not an in-place upgrade contract. Keep the
   Adapter input and rebuild into a new target directory after an upgrade.
+- The canonical hash wire-parity correction may change identifiers for persisted
+  JSON objects with integer-index keys. An old artifact may refuse with
+  `SOURCE_NATIVE_MAP`; preserve its old runtime, storage, and Adapter input,
+  then rebuild into a new target directory. There is no in-place migration or
+  signed-knowledge transfer.
 - Canonical source state and the ordinary SDK, CLI, and MCP query paths are
   read-only. Learning capture, independent review, and policy activation belong
   to a separately developed operator control plane. Its source and API are not

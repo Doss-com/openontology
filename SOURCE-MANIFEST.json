@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 7134,
-      "sha256": "077e1ae27ecafc31350d5e80c0325db80405faaef632c6b31945fb92de35f61e"
+      "bytes": 7577,
+      "sha256": "079834e717685242c5f4c5e535e4ede18678b907375b5acc50f3e7643366d70e"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 18565,
-      "sha256": "5caad2d33580eee9ca32544b87f5b19beab1bd850e269ea9470dc497d9b0c387"
+      "bytes": 18902,
+      "sha256": "ba9b1e98a0f0debee7a65bb7e0d46cce5a3fde300a4397598ae52e1cd1bb29a6"
     },
     {
       "path": "SECURITY.md",
@@ -212,8 +212,8 @@
     },
     {
       "path": "scripts/test-canonical-content.mjs",
-      "bytes": 1008,
-      "sha256": "cb8a87725d4d1bb3c69735f6f01e887c10bf2a22d047295a1e0fb1d83d192416"
+      "bytes": 7308,
+      "sha256": "cf0c99a1e465bd395e9e2c968d9d5a7c2ea945d70aba6a3dd85754655491914f"
     },
     {
       "path": "scripts/test-canonical-object-backend.mjs",
@@ -372,8 +372,8 @@
     },
     {
       "path": "src/canonical-content.mts",
-      "bytes": 3462,
-      "sha256": "f2c8a359df80ed818f73bd50b3d8eb8a6c047f668e1dfd9dde3dd7d3ebf6d157"
+      "bytes": 3624,
+      "sha256": "a5d045d63f253ae87a150a02d4fe2e21eda1bdb3df5e33654d3bfd0ac81698de"
     },
     {
       "path": "src/canonical-object-backend.mts",
@@ -556,5 +556,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:f7c0f625054b6bb6efa6b1f6e8405e2d44dd2a4bdb47979603d466ae23ba6f25"
+  "manifestSha256": "sha256:111d65b4cd34fce3ed7182ceefaf112c44593f4ed19565e166e5449d34bff440"
 }
