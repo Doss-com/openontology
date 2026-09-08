@@ -708,6 +708,7 @@ assert.deepEqual(kernelKeys, [
     'createSourceNativeProductResource',
     'evaluateProjectionRelationCensus',
     'evaluateProofSufficiencyContract','objectBytesSha256','openObjectOntStore',
+    'openProductSourceContext',
     'normalizeCanonicalObjectBackendUri','openCanonicalObjectBackend',
     'openExactProductArtifactState',
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
