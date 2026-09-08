@@ -197,8 +197,33 @@ checkpoint bytes, memory, query work, or total cost. It adds one immutable
 metadata object at publication in exchange for fewer history reads at startup.
 Ref publication also reads the current ref to check ancestry. A rejected
 checkpointed write can leave an immutable checkpoint without advancing the ref.
-Source hydration remains corpus-sized. The complete managed update loop and
+Full product hydration remains corpus-sized. The complete managed update loop and
 provider operating limits require further qualification.
+
+### Selected construction sources
+
+`[ACTIVE-WORK]` The unpublished kernel exports
+`openProductSourceContext(options)`. It checks the current artifact binding,
+protected history, map and complete catalog without hydrating every source
+pack. Its `readSource(sourceRef)` resolves only a catalog member, reads that
+whole document, verifies its hash and UTF-8, and checks every attached native
+field against those bytes. A context describes one checked immutable cut;
+it does not keep a mutable branch current after opening.
+
+Construction compile/rebind, review, construction Admission and standalone
+construction-ledger reads open this context internally. Their public inputs
+remain artifact options, not caller-supplied validation receipts. Review checks
+its source-text budget before reading payload and includes complete cited
+documents. Source-reading failures fail the entire ledger operation.
+
+This is selected-document validation, not a whole-Corpus audit. Full product
+opening and whole-Ont checks still validate all source bytes. Protected
+Admission still checks every parent object's availability and metadata.
+The file Adapter validates an entire JSON/base64 envelope even for a range or
+head operation; native GCS ranges need only return the selected bytes. Thus
+unrelated pack damage can affect these operations differently. Map and catalog
+work remains whole-index, and the map can itself contain large source fields.
+No total memory, latency or hosted-cost bound follows from a small range read.
 
 ## Managed storage
 

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import * as kernel from '../dist/src/kernel.mjs';
 import { createConstructionLedgerReader } from '../dist/src/source-native-construction-admission.mjs';
@@ -15,6 +15,13 @@ const prefix = 'blobs/knowledge-ledger/construction/';
 const pathFor = (sha) => `${prefix}${sha.slice(7)}.json`;
 const at = (day) => `2026-09-${String(day).padStart(2, '0')}T00:00:00.000Z`;
 const signature = (statement, key) => sign(null, Buffer.from(kernel.stableObjectText(statement)), key).toString('base64');
+const fileObjectPath = (objectBackendUri, key) => {
+  const keySha256 = kernel.objectBytesSha256(Buffer.from(key)).slice(7);
+  return join(fileURLToPath(objectBackendUri), 'objects', keySha256.slice(0, 2), `${keySha256.slice(2)}.json`);
+};
+const corruptFileObjectEnvelope = (objectBackendUri, key) => {
+  writeFileSync(fileObjectPath(objectBackendUri, key), Buffer.from('{corrupt envelope\n'));
+};
 
 function fixture(t, { protectedHistory = false, namespace = 'example' } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'oont-construction-admission-'));
@@ -404,6 +411,75 @@ test('internal reader pins source context and observes changed knowledge on each
   f.write(correction);
   assert.deepEqual(reader.read().activeRecords, [correction]);
   assert.equal(metadataReads, 3);
+});
+
+test('selected source I/O failures propagate their exact diagnostic through ledger catches', (t) => {
+  const f = fixture(t);
+  f.write(f.admit());
+  const sourceError = new Error('selected source backend unavailable');
+  const reader = createConstructionLedgerReader({
+    ...f.state,
+    readSource() {
+      throw sourceError;
+    },
+  }, f.trust);
+  assert.throws(() => reader.read(), (error) => error === sourceError);
+});
+
+test('canonical source-envelope corruption propagates through repeated and standalone ledger reads', (t) => {
+  const f = fixture(t);
+  const record = f.admit();
+  f.write(record);
+  const context = kernel.openProductSourceContext(f.options);
+  const reader = createConstructionLedgerReader(context, f.trust);
+  assert.deepEqual(reader.read().activeRecords, [record]);
+  corruptFileObjectEnvelope(f.objectBackendUri, f.state.objectOnt.sources[0].blobDescriptor.key);
+  const isBackendCorruption = (error) => error?.code === 'OBJECT_BACKEND_CORRUPT';
+  assert.throws(() => reader.read(), isBackendCorruption);
+  assert.throws(() => kernel.readSourceNativeConstructionLedger({
+    options: f.options, trustRegistry: f.trust,
+  }), isBackendCorruption);
+});
+
+test('corrupt Admission envelopes remain degraded invalid records on a clean source cut', (t) => {
+  const f = fixture(t);
+  const record = f.admit();
+  f.write(record);
+  const context = kernel.openProductSourceContext(f.options);
+  const reader = createConstructionLedgerReader(context, f.trust);
+  assert.deepEqual(reader.read().activeRecords, [record]);
+  const snapshot = f.state.store.readRefMetadataSnapshot(f.route);
+  const descriptor = snapshot.replayMetadata.blobDescriptors.find((item) =>
+    item.logicalPath === pathFor(record.recordSha256));
+  assert(descriptor);
+  corruptFileObjectEnvelope(f.objectBackendUri, descriptor.key);
+  const degraded = reader.readSnapshot();
+  assert.equal(degraded.ledger.state, 'degraded');
+  assert.equal(degraded.ledger.invalidRecordCount, 1);
+  assert.equal(degraded.ledger.activeRecords.length, 0);
+  assert.equal(degraded.records.length, 1);
+  assert.equal(degraded.records[0].state, 'invalid');
+  assert(degraded.records[0].reasonCodes.includes('CONSTRUCTION_ADMISSION_RECORD'));
+});
+
+test('ledger reads revalidate source bytes instead of reusing a prior verified result', (t) => {
+  const f = fixture(t);
+  f.write(f.admit());
+  let reads = 0;
+  const source = f.state.objectOnt.sources[0];
+  const reader = createConstructionLedgerReader({
+    ...f.state,
+    readSource() {
+      reads += 1;
+      return reads === 1 ? source : { ...source, content: 'tampered source text' };
+    },
+  }, f.trust);
+  assert.equal(reader.read().activeRecords.length, 1);
+  const second = reader.read();
+  assert.equal(reads, 2);
+  assert.equal(second.activeRecords.length, 0);
+  assert.equal(second.eligibleRecordCount, 0);
+  assert(second.diagnosticCodes.includes('SEMANTIC_CONSTRUCTION_SOURCE'));
 });
 
 test('internal reader keeps its commit floor through missing and rewound metadata, then recovers to a descendant', (t) => {

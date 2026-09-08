@@ -316,9 +316,9 @@ perform semantic review. The root SDK, CLI and MCP do not consume these proposal
 The record limits are 64 definitions, 16 aliases per definition, 256 claims,
 512 explicit source dispositions, 64 KiB per cited span and 1 MiB serialized
 metadata. Overflow refuses rather than truncating. These limits do not bound
-corpus size or grant a query-context budget. Compilation opens the current
-source artifact and can read the full source cut; it is not an incremental or
-streaming extractor. This profile favors bounded, inspectable proposals over
+corpus size or grant a query-context budget. Compilation checks the complete
+map and catalog, then verifies complete cited source documents on demand.
+It is not an incremental or streaming extractor. This profile favors bounded, inspectable proposals over
 general semantic extraction and narrower-than-source-system alias scope.
 
 `[ACTIVE-WORK]` A separate kernel construction Admission profile records a
@@ -346,6 +346,8 @@ source text and 1 MiB of serialized packet. Larger input refuses without a
 cropped or partial packet. A structurally valid construction can exceed this
 review profile and require a smaller authored batch or another explicitly
 configured review process. These bounds do not establish a latency SLO.
+The source-text budget is checked from catalog byte lengths before source
+payload reads. Full cited documents remain in the packet, not only witnesses.
 
 Every response must name the exact packet and decide every item once with
 `accept`, `reject` or `abstain`, a reason, and exact source quotations. The
@@ -527,8 +529,12 @@ resource to one immutable cut, checking history ancestry and declared query
 profile. Ref-index opening can reuse a validated, ref-bound replay checkpoint.
 Ordinary and exact product opening now use validated checkpoints when present,
 and new source materialization publishes the checkpoint before its ref CAS.
-Opening still validates all source bytes and field spans. Current query
-operations are unchanged. See
+Full product opening still validates all source bytes and field spans.
+Construction uses a distinct `openProductSourceContext` that validates the
+complete index and verifies selected documents, including every attached native
+field. An uncited corrupt source may leave construction usable, while a whole-Ont
+check refuses. Protected construction Admission still checks all parent object
+descriptors before publication. Current query operations are unchanged. See
 [Storage](STORAGE.md#kernel-resources-and-replay-checkpoints) for the implemented
 boundary and limits.
 
