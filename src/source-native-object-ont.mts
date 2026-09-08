@@ -463,15 +463,12 @@ function hydrateIndex({ store, index }: {
     });
   });
   const sourceByPath = new Map(sources.map((source) => [source.relativePath, source]));
-  const bytesByPath = new Map(sources.map((source) => [source.relativePath, Buffer.from(source.content)]));
   for (const object of map.nativeObjects) {
     const source = sourceByPath.get(object.relativePath);
     const exactSource = source ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     if (exactSource.sourceSha256 !== object.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     validateNativeObjectFieldEvidence({
-      source: exactSource,
-      bytes: bytesByPath.get(exactSource.relativePath) ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE'),
-      object,
+      source: exactSource, bytes: Buffer.from(exactSource.content), object,
     });
   }
   return freeze({

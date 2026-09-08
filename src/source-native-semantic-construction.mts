@@ -85,6 +85,7 @@ export interface SourceNativeSemanticConstructionBindingContext {
     'map' | 'catalog' | 'sources' | 'commitSha256' | 'replaySha256'>;
   readSource?: (sourceRef: string) => SourceNativeSource;
 }
+type SourceMetadata = Map<string, SourceNativeObjectOntIndex['sources'][number]>;
 
 function fail(suffix: string): never {
   const code = `SEMANTIC_CONSTRUCTION_${suffix}`;
@@ -247,16 +248,13 @@ export function assertSemanticConstructionBound(
   record: SourceNativeSemanticConstruction,
   state: SourceNativeSemanticConstructionBindingContext,
 ): ReadonlyMap<string, SourceNativeSource> {
-  if (stableObjectText(record.sourceBinding) !== stableObjectText(bindingFor(state))
-    || record.coverage.sourceCount !== state.objectOnt.catalog.sourceCount) fail('BINDING');
-  const sources = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));
+  const sources = assertSemanticConstructionMetadataBound(record, state);
   const objects = new Map(state.objectOnt.map.nativeObjects.map((object) => [object.nativeObjectSha256, object]));
   const systems = new Set(state.objectOnt.map.nativeObjects
     .filter((object) => object.objectIdentity.namespace === record.sourceBinding.namespace)
     .map((object) => object.objectIdentity.sourceSystem));
   const examined = new Set<string>();
   for (const result of record.coverage.sourceResults) {
-    if (sources.get(result.sourceRef)?.sourceSha256 !== result.sourceSha256) fail('COVERAGE');
     if (result.disposition === 'examined') examined.add(result.sourceRef);
   }
   const checkedSources = new Map<string, Buffer>();
@@ -322,6 +320,20 @@ export function assertSemanticConstructionBound(
     if (!names.some((name) => source.text.includes(name))) fail('ATTACHMENT');
   }
   return verifiedSources;
+}
+
+/** Validate the source cut and every witness before any selected source payload is read. */
+export function assertSemanticConstructionMetadataBound(
+  record: SourceNativeSemanticConstruction,
+  state: SourceNativeSemanticConstructionBindingContext,
+): SourceMetadata {
+  if (stableObjectText(record.sourceBinding) !== stableObjectText(bindingFor(state))
+    || record.coverage.sourceCount !== state.objectOnt.catalog.sourceCount) fail('BINDING');
+  const sources = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));
+  for (const result of record.coverage.sourceResults) {
+    if (sources.get(result.sourceRef)?.sourceSha256 !== result.sourceSha256) fail('COVERAGE');
+  }
+  return sources;
 }
 
 /** Compile against an actual source cut. This operation writes no objects or refs. */
