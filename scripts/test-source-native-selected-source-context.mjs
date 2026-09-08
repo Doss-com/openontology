@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import {
   buildSourceNativeProduct,
@@ -21,11 +22,17 @@ const OCCURRED_AT = '2026-09-08T00:00:00.000Z';
 const SOURCE_PACK_BYTES = 8 * 1024 * 1024;
 const SELECTED_WITNESS = 'Selected concept';
 
-function makeFixture() {
+function makeFixture({
+  selectedContent = 'Selected concept is defined by this source. UTF-8: café and café.\n',
+  unrelatedContent = `Unrelated source content ${'u'.repeat(SOURCE_PACK_BYTES + 1)}\n`,
+  expectSeparatePacks = true,
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), 'oont-selected-source-context-'));
-  const options = { artifactRoot: join(root, 'ont') };
-  const selectedContent = 'Selected concept is defined by this source. UTF-8: café and café.\n';
-  const unrelatedContent = `Unrelated source content ${'u'.repeat(SOURCE_PACK_BYTES + 1)}\n`;
+  const options = {
+    artifactRoot: join(root, 'ont'),
+    objectBackendUri: pathToFileURL(join(root, 'objects')).href,
+    historyBackendUri: pathToFileURL(join(root, 'history')).href,
+  };
   const sources = [
     { relativePath: SELECTED_REF, sourceType: 'docs', occurredAt: OCCURRED_AT, content: selectedContent },
     { relativePath: UNRELATED_REF, sourceType: 'docs', occurredAt: OCCURRED_AT, content: unrelatedContent },
@@ -110,8 +117,10 @@ function makeFixture() {
   const construction = compileSourceNativeSemanticConstruction({ options, input: selectedInput });
   const selectedPackKey = selectedSource.blobDescriptor.key;
   const unrelatedSource = sourceByRef.get(UNRELATED_REF);
-  assert.notEqual(selectedPackKey, unrelatedSource.blobDescriptor.key);
-  assert.equal(state.objectOnt.catalog.sourcePackCount, 2);
+  if (expectSeparatePacks) {
+    assert.notEqual(selectedPackKey, unrelatedSource.blobDescriptor.key);
+    assert.equal(state.objectOnt.catalog.sourcePackCount, 2);
+  }
   return {
     root,
     options,
@@ -121,9 +130,24 @@ function makeFixture() {
     selectedContent,
     selectedPackKey,
     unrelatedPackKey: unrelatedSource.blobDescriptor.key,
+    objectBackendRoot: join(root, 'objects'),
+    historyBackendRoot: join(root, 'history'),
     sourceByRef,
     objectByRef,
   };
+}
+
+function objectEnvelopePath(objectBackendRoot, key) {
+  const keySha256 = objectBytesSha256(Buffer.from(key)).slice(7);
+  return join(objectBackendRoot, 'objects', keySha256.slice(0, 2), `${keySha256.slice(2)}.json`);
+}
+
+function corruptEnvelope(objectBackendRoot, key) {
+  const envelopePath = objectEnvelopePath(objectBackendRoot, key);
+  const envelope = JSON.parse(readFileSync(envelopePath, 'utf8'));
+  const last = envelope.bytesBase64.at(-1);
+  envelope.bytesBase64 = `${envelope.bytesBase64.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`;
+  writeFileSync(envelopePath, `${JSON.stringify(envelope)}\n`);
 }
 
 let fixture;
@@ -256,4 +280,90 @@ test('unknown source refs are refused rather than discovered from the whole Ont'
   assert.throws(() => compileSourceNativeSemanticConstruction({
     options: fixture.options, input: unknown,
   }), { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' });
+});
+
+test('unknown source refs do not trigger arbitrary source-pack reads', () => {
+  const unknown = clone(fixture.selectedInput);
+  unknown.coverage = [{
+    sourceRef: 'docs/unknown-without-payload.md',
+    sourceSha256: objectBytesSha256(Buffer.from('unknown source')),
+    disposition: 'examined',
+  }];
+  const sourcePackKeys = new Set([fixture.selectedPackKey, fixture.unrelatedPackKey]);
+  const observed = observeSourcePackReads(() => assert.throws(() =>
+    compileSourceNativeSemanticConstruction({ options: fixture.options, input: unknown }),
+  { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' }), sourcePackKeys);
+  assert.deepEqual(observed.sourcePackKeys, []);
+});
+
+test('review size refusal precedes selected source payload reads', () => {
+  const oversized = makeFixture({
+    selectedContent: `Selected concept ${'s'.repeat(256 * 1024)}\n`,
+    unrelatedContent: 'Unrelated source content.\n',
+    expectSeparatePacks: false,
+  });
+  try {
+    const sourcePackKeys = new Set([oversized.selectedPackKey, oversized.unrelatedPackKey]);
+    const observed = observeSourcePackReads(() => assert.throws(() =>
+      openSourceNativeConstructionReview({
+        options: oversized.options,
+        construction: oversized.construction,
+      }), { code: 'CONSTRUCTION_REVIEW_LIMIT' }), sourcePackKeys);
+    assert.deepEqual(observed.sourcePackKeys, []);
+  } finally {
+    rmSync(oversized.root, { recursive: true, force: true });
+  }
+});
+
+test('selected compile can proceed when an uncited file envelope is corrupt', () => {
+  const isolated = makeFixture();
+  try {
+    corruptEnvelope(isolated.objectBackendRoot, isolated.unrelatedPackKey);
+    assert.doesNotThrow(() => compileSourceNativeSemanticConstruction({
+      options: isolated.options,
+      input: isolated.selectedInput,
+    }));
+  } finally {
+    rmSync(isolated.root, { recursive: true, force: true });
+  }
+});
+
+test('selected file-envelope corruption remains fatal to existing compile', () => {
+  const isolated = makeFixture();
+  try {
+    corruptEnvelope(isolated.objectBackendRoot, isolated.selectedPackKey);
+    assert.throws(() => compileSourceNativeSemanticConstruction({
+      options: isolated.options,
+      input: isolated.selectedInput,
+    }), { code: 'OBJECT_BACKEND_CORRUPT' });
+  } finally {
+    rmSync(isolated.root, { recursive: true, force: true });
+  }
+});
+
+test('an actual protected source-ref advance rejects the prior construction', () => {
+  const before = openProductState(fixture.options);
+  const successorInput = clone(fixture.input);
+  const previous = successorInput.sources[1].content;
+  successorInput.sources[1].content = `${previous.slice(0, -2)}v\n`;
+  const successorRoot = join(fixture.root, 'successor');
+  buildSourceNativeProduct({
+    artifactRoot: successorRoot,
+    input: successorInput,
+    objectBackendUri: fixture.options.objectBackendUri,
+    historyBackendUri: fixture.options.historyBackendUri,
+    expectedSourceVersion: before.descriptor.refVersion,
+  });
+  const successorOptions = {
+    artifactRoot: successorRoot,
+    objectBackendUri: fixture.options.objectBackendUri,
+    historyBackendUri: fixture.options.historyBackendUri,
+  };
+  const after = openProductState(successorOptions);
+  assert.notEqual(after.descriptor.sourceCommitSha256, before.descriptor.sourceCommitSha256);
+  assert.throws(() => openProductState(fixture.options), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+  assert.throws(() => openSourceNativeConstructionReview({
+    options: successorOptions,
+    construction: fixture.construction,
+  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
 });
