@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import { openGcsObjectBackend } from '../dist/src/gcs-object-storage-backend.mjs';
-import { objectBytesSha256, openObjectOntStore } from '../dist/src/kernel.mjs';
+import { openFileObjectBackend } from '../dist/src/object-storage-backend.mjs';
+import {
+  buildSourceNativeProduct,
+  objectBytesSha256,
+  openObjectOntStore,
+  openSourceNativeObjectOntRefIndex,
+} from '../dist/src/kernel.mjs';
 
 function memoryBackend({ mutateGet = null } = {}) {
   const rows = new Map();
@@ -198,4 +208,125 @@ test('ObjectOntStore range wrapper preserves a synthetic native GCS 206 response
   assert.equal(requests[0].headers.range, 'bytes=7-11');
   assert.equal(range.objectChecksumSha256, storedSha256);
   assert.equal(range.completeObjectBytesVerified, false);
+});
+
+test('source reader rejects matching-header corrupt selected ranges and does not read unknown refs', async () => {
+  const { createSourceNativeObjectOntSourceReader } =
+    await import('../dist/src/source-native-object-ont.mjs');
+  assert.equal(typeof createSourceNativeObjectOntSourceReader, 'function',
+    'source-reader factory is supplied by the selected-source implementation lane');
+
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-reader-range-'));
+  try {
+    const objectRoot = join(root, 'objects');
+    const historyRoot = join(root, 'history');
+    const objectBackendUri = pathToFileURL(objectRoot).href;
+    const historyBackendUri = pathToFileURL(historyRoot).href;
+    const sources = [
+      {
+        relativePath: 'docs/a-selected.md',
+        sourceType: 'docs',
+        occurredAt: '2026-09-08T00:00:00.000Z',
+        content: 'Selected source body.\n',
+      },
+      {
+        relativePath: 'docs/b-other.md',
+        sourceType: 'docs',
+        occurredAt: '2026-09-08T00:00:01.000Z',
+        content: 'Other source body in the same pack.\n',
+      },
+    ];
+    const input = {
+      schemaVersion: 1,
+      kind: 'OpenOntologySourceNativeBuildInputV1',
+      ontId: 'source-reader-range-fixture',
+      namespace: 'source-reader-range-fixture',
+      querySchemas: [{
+        sourceSystem: 'docs', objectType: 'Document', aliases: ['document'],
+        fields: [{ fieldPath: 'body', aliases: ['body'] }],
+      }],
+      sources,
+      nativeObjectInputs: sources.map((source, index) => ({
+        relativePath: source.relativePath,
+        objectIdentity: {
+          home: 'ObjectDef/InstanceRef',
+          sourceSystem: 'docs',
+          objectType: 'Document',
+          namespace: 'source-reader-range-fixture',
+          externalId: index === 0 ? 'selected' : 'other',
+        },
+        fields: [{ fieldPath: 'body', value: source.content, codeUnitStart: 0 }],
+      })),
+    };
+    buildSourceNativeProduct({
+      artifactRoot: join(root, 'artifact'),
+      input,
+      objectBackendUri,
+      historyBackendUri,
+    });
+    const fileBackend = openFileObjectBackend({ root: objectRoot });
+    const fileHistoryBackend = openFileObjectBackend({ root: historyRoot });
+    const refIndex = openSourceNativeObjectOntRefIndex({
+      backend: fileBackend,
+      historyBackend: fileHistoryBackend,
+      ontId: input.ontId,
+      branch: 'main',
+    });
+    assert(refIndex);
+    const selected = refIndex.objectOnt.sources.find((source) =>
+      source.relativePath === 'docs/a-selected.md');
+    const other = refIndex.objectOnt.sources.find((source) =>
+      source.relativePath === 'docs/b-other.md');
+    assert(selected);
+    assert(other);
+    assert.equal(selected.blobDescriptor.key, other.blobDescriptor.key);
+    const selectedLength = selected.blobByteEnd - selected.blobByteStart;
+    const corrupted = Buffer.alloc(selectedLength, 0x58);
+    const selectedOriginal = Buffer.from(sources[0].content);
+    assert.equal(corrupted.equals(selectedOriginal), false);
+    const requests = [];
+    const gcsBackend = openGcsObjectBackend({
+      bucket: 'source-reader-range-fixture',
+      accessToken: 'fixture-token-1',
+      endpoint: 'https://storage.googleapis.com',
+      transport: (request) => {
+        requests.push(request);
+        const match = /^bytes=(\d+)-(\d*)$/u.exec(request.headers.range ?? '');
+        assert(match, 'reader must request a bounded source range');
+        const start = Number(match[1]);
+        const end = Number(match[2]) + 1;
+        assert.equal(start, selected.blobByteStart);
+        assert.equal(end, selected.blobByteEnd);
+        return {
+          status: 206,
+          headers: {
+            'content-length': String(corrupted.length),
+            'content-range': `bytes ${start}-${end - 1}/${selected.blobDescriptor.byteLength}`,
+            'x-goog-generation': '1700000000000000',
+            'x-goog-meta-oont-byte-length': String(selected.blobDescriptor.byteLength),
+            'x-goog-meta-oont-sha256': selected.blobDescriptor.storedSha256,
+          },
+          body: corrupted,
+        };
+      },
+    });
+    const reader = createSourceNativeObjectOntSourceReader({
+      store: openObjectOntStore({ backend: gcsBackend }),
+      index: refIndex.objectOnt,
+    });
+    assert.throws(() => reader('docs/a-selected.md'), {
+      code: 'SOURCE_NATIVE_OBJECT_ONT_SOURCE',
+    });
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].headers.range,
+      `bytes=${selected.blobByteStart}-${selected.blobByteEnd - 1}`);
+
+    requests.length = 0;
+    assert.throws(() => reader('docs/unknown.md'), {
+      code: 'SOURCE_NATIVE_OBJECT_ONT_SOURCE',
+    });
+    assert.equal(requests.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
