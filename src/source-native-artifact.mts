@@ -13,7 +13,9 @@ import {
   normalizeCanonicalObjectBackendUri,
   openCanonicalObjectBackend,
 } from './canonical-object-backend.mjs';
-import type { CanonicalObjectBackendEnvironment } from './canonical-object-backend.mjs';
+import type {
+  CanonicalObjectBackendEnvironment, CanonicalObjectBackendSelection,
+} from './canonical-object-backend.mjs';
 import {
   objectBytesSha256,
   stableObjectSha256,
@@ -22,6 +24,7 @@ import {
 import { openObjectOntStore } from './object-ont-store.mjs';
 import {
   materializeSourceNativeObjectOnt,
+  createSourceNativeObjectOntSourceReader,
   openSourceNativeObjectOntAtCut,
   openSourceNativeObjectOntIndex,
   openSourceNativeObjectOntRefAtCut,
@@ -36,10 +39,16 @@ import type {
   SourceNativeFieldInput,
   SourceNativeObjectInput,
   SourceNativeObjectMap,
+  SourceNativeSource,
   SourceNativeSourceInput,
   UnknownRecord,
 } from './source-native-object-map.mjs';
 import type { QuerySchema } from './source-native-query-planner.mjs';
+import type { ObjectOntStore } from './object-ont-store.mjs';
+import type {
+  SourceNativeObjectOntIndex,
+} from './source-native-object-ont.mjs';
+import type { ObjectBackend } from './object-storage-backend.mjs';
 
 const ARTIFACT_FILE = 'source-native.json';
 const RESOURCE_FILE = 'source-native-resource.json';
@@ -219,6 +228,18 @@ export interface ProductSource extends UnknownRecord {
   occurredAt: string;
   content: string;
   contentSha256: string;
+}
+export interface SourceNativeProductSourceContext {
+  kind: 'OpenOntologySourceNativeProductSourceContextV1';
+  descriptor: Descriptor;
+  selectedBackend: CanonicalObjectBackendSelection & { descriptor: string };
+  backend: ObjectBackend;
+  store: ObjectOntStore;
+  objectOnt: SourceNativeObjectOntIndex;
+  replayMetadataSource: 'graph' | 'checkpoint';
+  replayIndexCheckpointSha256: string | null;
+  replayIndexCheckpointByteLength: number | null;
+  readSource(sourceRef: string): SourceNativeSource;
 }
 const fail = (code: string): never => {
   const error = new TypeError(code) as TypeError & { code: string };
@@ -760,8 +781,8 @@ export function bindSourceNativeProductResource({
   });
 }
 
-function openProductArtifactState({ artifactRoot, objectBackendUri = null, historyBackendUri = null,
-  objectBackendEnv = process.env }: ProductOptions = {}, requireCurrentRef: boolean) {
+function openProductArtifactStorage({ artifactRoot, objectBackendUri = null, historyBackendUri = null,
+  objectBackendEnv = process.env }: ProductOptions = {}) {
   const root = exactDirectory(artifactRoot);
   const descriptor = readDescriptor(root);
   const selectedBackend = selectProductBackend({
@@ -773,6 +794,12 @@ function openProductArtifactState({ artifactRoot, objectBackendUri = null, histo
   const { backend } = selectedBackend;
   const selectedHistory = selectHistoryBackend(descriptor, historyBackendUri, objectBackendEnv, selectedBackend.uri);
   const store = openObjectOntStore({ backend, historyBackend: selectedHistory?.backend });
+  return { descriptor, selectedBackend, backend, selectedHistory, store };
+}
+
+function openProductArtifactState(options: ProductOptions = {}, requireCurrentRef: boolean) {
+  const { descriptor, selectedBackend, backend, selectedHistory, store } =
+    openProductArtifactStorage(options);
   let selectedCut: ReturnType<typeof openSourceNativeObjectOntAtCut>;
   if (requireCurrentRef) {
     selectedCut = openSourceNativeObjectOntRefAtCut({
@@ -815,6 +842,47 @@ function openProductArtifactState({ artifactRoot, objectBackendUri = null, histo
     replayIndexCheckpointSha256,
     replayIndexCheckpointByteLength,
   };
+}
+
+/** Open one protected current source context without hydrating unrelated source packs. */
+export function openProductSourceContext(options: ProductOptions = {}): SourceNativeProductSourceContext {
+  const { descriptor, selectedBackend, backend, selectedHistory, store } = openProductArtifactStorage(options);
+  const selectedCut = openSourceNativeObjectOntRefIndex({
+    backend,
+    historyBackend: selectedHistory?.backend,
+    ontId: descriptor.ontId,
+    branch: descriptor.branch,
+  });
+  const cut = selectedCut ?? fail('SOURCE_NATIVE_PRODUCT_REF');
+  if (cut.ref.commitSha256 !== descriptor.sourceCommitSha256
+    || cut.ref.replaySha256 !== descriptor.sourceReplaySha256) {
+    fail('SOURCE_NATIVE_PRODUCT_REF');
+  }
+  const { objectOnt } = cut;
+  if (objectOnt.replaySha256 !== descriptor.sourceReplaySha256
+    || objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256
+    || objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256) {
+    fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
+  }
+  const readSelectedSource = createSourceNativeObjectOntSourceReader({ store, index: objectOnt });
+  const readSource = (sourceRef: string): SourceNativeSource => {
+    const source = readSelectedSource(sourceRef);
+    return freeze({
+      sourceType: source.sourceType,
+      relativePath: source.relativePath,
+      occurredAt: source.occurredAt,
+      content: source.content,
+      sourceSha256: source.sourceSha256,
+    });
+  };
+  return freeze({
+    kind: 'OpenOntologySourceNativeProductSourceContextV1' as const,
+    descriptor, selectedBackend, backend, store, objectOnt,
+    replayMetadataSource: cut.replayMetadataSource,
+    replayIndexCheckpointSha256: cut.replayIndexCheckpointSha256,
+    replayIndexCheckpointByteLength: cut.replayIndexCheckpointByteLength,
+    readSource,
+  });
 }
 
 export function openProductState(options: ProductOptions = {}) {

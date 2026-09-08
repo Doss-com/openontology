@@ -1,6 +1,6 @@
 /** Full-source semantic review input and unsigned judgments. No signing or Admission. */
 import { stableObjectSha256, stableObjectText } from './canonical-content.mjs';
-import { openProductState } from './source-native-artifact.mjs';
+import { openProductSourceContext } from './source-native-artifact.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
 import type { SourceNativeObjectIdentity, SourceNativeSource } from './source-native-object-map.mjs';
 import { assertSemanticConstructionBound, validateSourceNativeSemanticConstruction } from './source-native-semantic-construction.mjs';
@@ -113,9 +113,15 @@ export function openSourceNativeConstructionReview(input: {
     ...construction.claims.map(item => item.source),
   ].map(source => source.evidence.sourceRef));
   if (sourceRefs.size > 32) fail('LIMIT');
-  const state = openProductState(input.options ?? {});
-  assertSemanticConstructionBound(construction, state);
-  const nativeObjects = new Map(state.objectOnt.map.nativeObjects.map(item => [item.nativeObjectSha256, item.objectIdentity]));
+  const context = openProductSourceContext(input.options ?? {});
+  const sourceRows = new Map(context.objectOnt.sources.map(source => [source.relativePath, source]));
+  const sourceBytes = [...sourceRefs].reduce((total, sourceRef) => {
+    const source = sourceRows.get(sourceRef) ?? fail('BINDING');
+    return total + source.blobByteEnd - source.blobByteStart;
+  }, 0);
+  if (sourceBytes > 256 * 1024) fail('LIMIT');
+  const verifiedSources = assertSemanticConstructionBound(construction, context);
+  const nativeObjects = new Map(context.objectOnt.map.nativeObjects.map(item => [item.nativeObjectSha256, item.objectIdentity]));
   const definitions = new Map(construction.objectDefs.map(item => [item.id, item]));
   const items: SourceNativeConstructionReviewItem[] = [];
   const add = (kind: SourceNativeConstructionReviewItem['kind'], objectDefId: string,
@@ -131,11 +137,12 @@ export function openSourceNativeConstructionReview(input: {
       { value: alias.value, sourceSystem: alias.sourceSystem });
   }
   for (const claim of construction.claims) add(claim.predicate, claim.about, claim.source, null, claim.id);
-  const sources: SourceNativeSource[] = state.objectOnt.sources.filter(source => sourceRefs.has(source.relativePath))
-    .map(source => ({ relativePath: source.relativePath, sourceType: source.sourceType, occurredAt: source.occurredAt,
-      sourceSha256: source.sourceSha256, content: source.content }));
+  const sources: SourceNativeSource[] = [...sourceRefs].map((sourceRef) => {
+    const source = verifiedSources.get(sourceRef) ?? fail('BINDING');
+    return { relativePath: source.relativePath, sourceType: source.sourceType, occurredAt: source.occurredAt,
+      sourceSha256: source.sourceSha256, content: source.content };
+  });
   sources.sort((a, b) => compare(a.relativePath, b.relativePath));
-  if (sources.reduce((bytes, source) => bytes + Buffer.byteLength(source.content), 0) > 256 * 1024) fail('LIMIT');
   const core = { schemaVersion: 1 as const, kind: 'OpenOntologyConstructionReviewPacketV1' as const,
     constructionSha256: construction.constructionSha256, sourceBinding: construction.sourceBinding,
     coverage: construction.coverage, items, sources, navigationOnly: true as const, exactSourcesRemainAuthority: true as const };

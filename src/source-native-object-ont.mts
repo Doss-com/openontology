@@ -463,27 +463,89 @@ function hydrateIndex({ store, index }: {
     });
   });
   const sourceByPath = new Map(sources.map((source) => [source.relativePath, source]));
+  const bytesByPath = new Map(sources.map((source) => [source.relativePath, Buffer.from(source.content)]));
   for (const object of map.nativeObjects) {
     const source = sourceByPath.get(object.relativePath);
     const exactSource = source ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     if (exactSource.sourceSha256 !== object.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
-    const bytes = Buffer.from(exactSource.content);
-    for (const field of object.fields) {
-      const evidence = field.evidence;
-      if (evidence.relativePath !== exactSource.relativePath
-        || evidence.sourceSha256 !== exactSource.sourceSha256
-        || evidence.byteStart < 0 || evidence.byteEnd > bytes.length
-        || evidence.byteEnd <= evidence.byteStart) fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
-      const exactBytes = bytes.subarray(evidence.byteStart, evidence.byteEnd);
-      if (objectBytesSha256(exactBytes) !== evidence.textSha256
-        || exactBytes.toString('utf8') !== field.value) fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
-    }
+    validateNativeObjectFieldEvidence({
+      source: exactSource,
+      bytes: bytesByPath.get(exactSource.relativePath) ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE'),
+      object,
+    });
   }
   return freeze({
     ...index,
     kind: 'OpenOntologySourceNativeObjectOntModuleV1',
     sources: freeze(sources),
   });
+}
+
+function validateNativeObjectFieldEvidence({
+  source, bytes, object,
+}: {
+  source: OpenSource;
+  bytes: Buffer;
+  object: SourceNativeObjectOntIndex['map']['nativeObjects'][number];
+}): void {
+  if (object.relativePath !== source.relativePath
+    || object.sourceSha256 !== source.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
+  for (const field of object.fields) {
+    const evidence = field.evidence;
+    if (evidence.relativePath !== source.relativePath
+      || evidence.sourceSha256 !== source.sourceSha256
+      || evidence.byteStart < 0 || evidence.byteEnd > bytes.length
+      || evidence.byteEnd <= evidence.byteStart) fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
+    const exactBytes = bytes.subarray(evidence.byteStart, evidence.byteEnd);
+    if (objectBytesSha256(exactBytes) !== evidence.textSha256
+      || exactBytes.toString('utf8') !== field.value) fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
+  }
+}
+
+export function createSourceNativeObjectOntSourceReader({
+  store, index,
+}: {
+  store: ObjectOntStore;
+  index: SourceNativeObjectOntIndex;
+}): (sourceRef: string) => OpenSource & { content: string } {
+  const sourcesByPath = new Map(index.sources.map((source) => [source.relativePath, source]));
+  const objectsByPath = new Map<string, SourceNativeObjectOntIndex['map']['nativeObjects'][number][]>();
+  for (const object of index.map.nativeObjects) {
+    const objects = objectsByPath.get(object.relativePath) ?? [];
+    objects.push(object);
+    objectsByPath.set(object.relativePath, objects);
+  }
+  return (sourceRef: string): OpenSource & { content: string } => {
+    const source = sourcesByPath.get(sourceRef) ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
+    return readSourceNativeObjectOntSource({
+      store, source, objects: objectsByPath.get(sourceRef) ?? [],
+    });
+  };
+}
+
+/** Read and fully validate one catalog member without hydrating unrelated sources. */
+function readSourceNativeObjectOntSource({
+  store, source, objects,
+}: {
+  store: ObjectOntStore;
+  source: OpenSource;
+  objects: ReadonlyArray<SourceNativeObjectOntIndex['map']['nativeObjects'][number]>;
+}): OpenSource & { content: string } {
+  const range = store.readBlobRange(source.blobDescriptor, {
+    start: source.blobByteStart,
+    end: source.blobByteEnd,
+  });
+  if (objectBytesSha256(range.bytes) !== source.sourceSha256) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
+  }
+  const content = range.bytes.toString('utf8');
+  if (!Buffer.from(content).equals(range.bytes)) {
+    fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
+  }
+  for (const object of objects) {
+    validateNativeObjectFieldEvidence({ source, bytes: range.bytes, object });
+  }
+  return freeze({ ...source, content });
 }
 
 function openAtCommit({ store, ontId, commitSha256, replayMetadata }: {

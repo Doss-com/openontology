@@ -1,8 +1,10 @@
 /** Source-bound semantic proposals. Compilation grants no review or proof authority. */
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from './canonical-content.mjs';
-import { openProductState } from './source-native-artifact.mjs';
+import { openProductSourceContext } from './source-native-artifact.mjs';
 import type { Descriptor, ProductOptions } from './source-native-artifact.mjs';
 import type { ProofEvidenceReference } from './proof-authority-projection.mjs';
+import type { SourceNativeSource } from './source-native-object-map.mjs';
+import type { SourceNativeObjectOntIndex } from './source-native-object-ont.mjs';
 
 export interface SourceNativeSemanticWitness {
   nativeObjectSha256: string;
@@ -77,8 +79,12 @@ const LOCAL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const BINDING_KEYS = ['ontId', 'namespace', 'artifactSha256', 'sourceCommitSha256',
   'sourceReplaySha256', 'sourceCatalogSha256', 'nativeObjectMapSha256'];
 type Row = Record<string, unknown>;
-type State = ReturnType<typeof openProductState>;
-export type SourceNativeSemanticConstructionBindingContext = Pick<State, 'descriptor' | 'objectOnt'>;
+export interface SourceNativeSemanticConstructionBindingContext {
+  descriptor: Descriptor;
+  objectOnt: Pick<SourceNativeObjectOntIndex,
+    'map' | 'catalog' | 'sources' | 'commitSha256' | 'replaySha256'>;
+  readSource?: (sourceRef: string) => SourceNativeSource;
+}
 
 function fail(suffix: string): never {
   const code = `SEMANTIC_CONSTRUCTION_${suffix}`;
@@ -240,7 +246,7 @@ export function validateSourceNativeSemanticConstruction(value: unknown): Source
 export function assertSemanticConstructionBound(
   record: SourceNativeSemanticConstruction,
   state: SourceNativeSemanticConstructionBindingContext,
-): void {
+): ReadonlyMap<string, SourceNativeSource> {
   if (stableObjectText(record.sourceBinding) !== stableObjectText(bindingFor(state))
     || record.coverage.sourceCount !== state.objectOnt.catalog.sourceCount) fail('BINDING');
   const sources = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));
@@ -254,6 +260,27 @@ export function assertSemanticConstructionBound(
     if (result.disposition === 'examined') examined.add(result.sourceRef);
   }
   const checkedSources = new Map<string, Buffer>();
+  const verifiedSources = new Map<string, SourceNativeSource>();
+  const readSource = (sourceRef: string): SourceNativeSource => {
+    const existing = verifiedSources.get(sourceRef);
+    if (existing !== undefined) return existing;
+    const metadata = sources.get(sourceRef);
+    if (!metadata) fail('SOURCE');
+    const source = state.readSource?.(sourceRef) ?? (() => {
+      if (typeof metadata.content !== 'string') fail('SOURCE');
+      return {
+        sourceType: metadata.sourceType,
+        relativePath: metadata.relativePath,
+        occurredAt: metadata.occurredAt,
+        content: metadata.content,
+        sourceSha256: metadata.sourceSha256,
+      };
+    })();
+    if (source.relativePath !== metadata.relativePath
+      || source.sourceSha256 !== metadata.sourceSha256) fail('SOURCE');
+    verifiedSources.set(sourceRef, source);
+    return source;
+  };
   const inspect = (witness: SourceNativeSemanticWitness): { text: string; system: string } => {
     const evidence = witness.evidence;
     const object = objects.get(witness.nativeObjectSha256);
@@ -266,9 +293,10 @@ export function assertSemanticConstructionBound(
       && field.evidence.byteStart <= evidence.byteStart
       && field.evidence.byteEnd >= evidence.byteEnd)) fail('SOURCE');
     if (!examined.has(evidence.sourceRef)) fail('COVERAGE');
+    const exactSource = readSource(evidence.sourceRef);
     let bytes = checkedSources.get(evidence.sourceRef);
     if (!bytes) {
-      bytes = Buffer.from(source.content);
+      bytes = Buffer.from(exactSource.content);
       if (objectBytesSha256(bytes) !== evidence.sourceSha256) fail('SOURCE');
       checkedSources.set(evidence.sourceRef, bytes);
     }
@@ -293,6 +321,7 @@ export function assertSemanticConstructionBound(
       .filter((alias) => alias.sourceSystem === source.system).map((alias) => alias.value)];
     if (!names.some((name) => source.text.includes(name))) fail('ATTACHMENT');
   }
+  return verifiedSources;
 }
 
 /** Compile against an actual source cut. This operation writes no objects or refs. */
@@ -301,9 +330,9 @@ export function compileSourceNativeSemanticConstruction({ options = {}, input }:
   input: SourceNativeSemanticConstructionInput;
 }): SourceNativeSemanticConstruction {
   const normalized = normalizeInput(input);
-  const state = openProductState(options);
-  const record = compile(normalized, bindingFor(state), state.objectOnt.catalog.sourceCount);
-  assertSemanticConstructionBound(record, state);
+  const context = openProductSourceContext(options);
+  const record = compile(normalized, bindingFor(context), context.objectOnt.catalog.sourceCount);
+  assertSemanticConstructionBound(record, context);
   return record;
 }
 
@@ -313,6 +342,6 @@ export function rebindSourceNativeSemanticConstruction({ options = {}, construct
   construction: unknown;
 }): SourceNativeSemanticConstruction {
   const record = validateSourceNativeSemanticConstruction(construction);
-  assertSemanticConstructionBound(record, openProductState(options));
+  assertSemanticConstructionBound(record, openProductSourceContext(options));
   return record;
 }

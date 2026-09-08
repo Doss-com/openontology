@@ -4,13 +4,16 @@ import {
   admissionTrustRegistry, authenticateAdmissionSignatures, canonicalAdmissionSignature,
 } from './admission-authentication.mjs';
 import type { SourceNativeAdmissionTrustEntry } from './admission-authentication.mjs';
-import { openProductState } from './source-native-artifact.mjs';
-import type { ProductOptions } from './source-native-artifact.mjs';
+import { openProductSourceContext } from './source-native-artifact.mjs';
+import type { ProductOptions, SourceNativeProductSourceContext } from './source-native-artifact.mjs';
 import type { BlobDescriptor, ReplayMetadataGraph, ReplayMetadataSnapshot } from './object-ont-store.mjs';
 import {
   assertSemanticConstructionBound, validateSourceNativeSemanticConstruction,
 } from './source-native-semantic-construction.mjs';
-import type { SourceNativeSemanticConstruction } from './source-native-semantic-construction.mjs';
+import type {
+  SourceNativeSemanticConstruction,
+  SourceNativeSemanticConstructionBindingContext,
+} from './source-native-semantic-construction.mjs';
 
 export interface SourceNativeConstructionProposalStatement {
   schemaVersion: 1;
@@ -78,8 +81,8 @@ export interface SourceNativeConstructionLedger {
   exactSourcesRemainAuthority: true;
 }
 
-type State = ReturnType<typeof openProductState>;
-type ConstructionLedgerContext = Pick<State, 'descriptor' | 'objectOnt' | 'store'>;
+type ConstructionLedgerContext = SourceNativeSemanticConstructionBindingContext
+  & Pick<SourceNativeProductSourceContext, 'store'>;
 type Registry = ReturnType<typeof admissionTrustRegistry>;
 type Row = Record<string, unknown>;
 interface LedgerInput {
@@ -272,7 +275,7 @@ export function writeSourceNativeConstructionAdmission({
   const registry = admissionTrustRegistry(trust);
   const record = validateSourceNativeConstructionAdmissionRecord(input);
   authenticate(record, registry);
-  const state = openProductState(options);
+  const state = openProductSourceContext(options);
   assertSemanticConstructionBound(record.construction, state);
   const branch = branchFor(state, knowledgeBranch);
   const snapshot = state.store.readRefMetadataSnapshot({ ontId: state.descriptor.ontId, branch });
@@ -393,6 +396,20 @@ export function createConstructionLedgerReader(
     const malformedDispositionKey = (blobSha256: string): string => `blob:${blobSha256}`;
     let invalidRecordCount = 0;
     const diagnostics = new Set<string>();
+    let sourceReadFailure: { error: unknown } | null = null;
+    const bindingContext: ConstructionLedgerContext = context.readSource === undefined ? context : {
+      ...context,
+      readSource: (sourceRef: string) => {
+        try {
+          return context.readSource?.(sourceRef) ?? fail('RECORD');
+        } catch (error) {
+          sourceReadFailure = { error };
+          throw error;
+        }
+      },
+    };
+    const isSourceReadFailure = (error: unknown): boolean =>
+      sourceReadFailure !== null && sourceReadFailure.error === error;
     function invalid(error: unknown, record: MutableSourceNativeConstructionRecordDisposition | undefined = undefined,
       state: SourceNativeConstructionRecordDispositionState = 'invalid',
       fallback = GENERIC_RECORD_ERROR_CODE): void {
@@ -445,15 +462,17 @@ export function createConstructionLedgerReader(
           structural.set(record.recordSha256, record);
           try {
             authenticate(record, registry);
-            assertSemanticConstructionBound(record.construction, context);
+            assertSemanticConstructionBound(record.construction, bindingContext);
             bound.push(record);
             if (selected?.recordSha256 === record.recordSha256) selectedRecord = record;
           } catch (error) {
+            if (isSourceReadFailure(error)) throw error;
             invalid(error, disposition, 'ineligible', GENERIC_INELIGIBLE_ERROR_CODE);
           }
         }
       }
     } catch (error) {
+      if (isSourceReadFailure(error)) throw error;
       commitSha256 = null; replaySha256 = null;
       structural.clear(); bound.length = 0;
       dispositions?.clear();
@@ -622,6 +641,6 @@ export function createConstructionLedgerReader(
 export function readSourceNativeConstructionLedger({
   options = {}, trustRegistry: trust, knowledgeBranch,
 }: LedgerInput): SourceNativeConstructionLedger {
-  const state = openProductState(options);
+  const state = openProductSourceContext(options);
   return createConstructionLedgerReader(state, trust, knowledgeBranch).read();
 }

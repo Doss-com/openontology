@@ -406,6 +406,39 @@ test('internal reader pins source context and observes changed knowledge on each
   assert.equal(metadataReads, 3);
 });
 
+test('selected source I/O failures propagate their exact diagnostic through ledger catches', (t) => {
+  const f = fixture(t);
+  f.write(f.admit());
+  const sourceError = new Error('selected source backend unavailable');
+  const reader = createConstructionLedgerReader({
+    ...f.state,
+    readSource() {
+      throw sourceError;
+    },
+  }, f.trust);
+  assert.throws(() => reader.read(), (error) => error === sourceError);
+});
+
+test('ledger reads revalidate source bytes instead of reusing a prior verified result', (t) => {
+  const f = fixture(t);
+  f.write(f.admit());
+  let reads = 0;
+  const source = f.state.objectOnt.sources[0];
+  const reader = createConstructionLedgerReader({
+    ...f.state,
+    readSource() {
+      reads += 1;
+      return reads === 1 ? source : { ...source, content: 'tampered source text' };
+    },
+  }, f.trust);
+  assert.equal(reader.read().activeRecords.length, 1);
+  const second = reader.read();
+  assert.equal(reads, 2);
+  assert.equal(second.activeRecords.length, 0);
+  assert.equal(second.eligibleRecordCount, 0);
+  assert(second.diagnosticCodes.includes('SEMANTIC_CONSTRUCTION_SOURCE'));
+});
+
 test('internal reader keeps its commit floor through missing and rewound metadata, then recovers to a descendant', (t) => {
   const f = fixture(t);
   const original = f.admit();
