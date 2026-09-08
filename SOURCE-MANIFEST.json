@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 110,
+  "fileCount": 112,
   "files": [
     {
       "path": ".editorconfig",
@@ -162,8 +162,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3718,
-      "sha256": "3622cd55177590713a19d0092b0b3b3fd4717b50bcc8a8cb3eef7c82297ba43e"
+      "bytes": 3815,
+      "sha256": "18de83b5b7c45b6ac95c4bc7e5c7d4a5b4221534110402b0aeac3eb091b82a0f"
     },
     {
       "path": "scripts/build.mjs",
@@ -236,6 +236,11 @@
       "sha256": "e75bcc3a914faeabf7bdde119a767bdb053351d128b1c5417ccc4afd52274d6c"
     },
     {
+      "path": "scripts/test-object-ont-source-ranges.mjs",
+      "bytes": 13556,
+      "sha256": "14f84d6b6198121157802ff67ab284062cd3ae48d971e92be2940b1e81c6b751"
+    },
+    {
       "path": "scripts/test-oont-cli-help.mjs",
       "bytes": 1259,
       "sha256": "68a1d82931f457c15e2fe32696fe54ddac1812d70c9ad4b6f8393cda603889bc"
@@ -262,8 +267,8 @@
     },
     {
       "path": "scripts/test-source-native-construction-admission.mjs",
-      "bytes": 45616,
-      "sha256": "09d9e2d66f4e7f4ae2f1e6045ddb5207fd62007e0188e8bccbbeecc0e2a0797c"
+      "bytes": 47837,
+      "sha256": "995ad1be9af1a6dead45b05eb0ca5a1ddbaeb94c9ff954f8a4f868b608b8b41c"
     },
     {
       "path": "scripts/test-source-native-construction-mcp.mjs",
@@ -334,6 +339,11 @@
       "path": "scripts/test-source-native-resource.mjs",
       "bytes": 36872,
       "sha256": "bdc630642054a63f5dd77e4ebdf21916e7704845264695395d36111f78db657c"
+    },
+    {
+      "path": "scripts/test-source-native-selected-source-context.mjs",
+      "bytes": 14933,
+      "sha256": "3dc23c5aef76e599788dad8c7d0cb1b2ea6c63129ef41cbe1f1d3670564db77d"
     },
     {
       "path": "scripts/test-source-native-semantic-construction.mjs",
@@ -556,5 +566,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:98f1ad2851fb08f31724588bf56819ec5218907b4d62e00793b30072246e87b2"
+  "manifestSha256": "sha256:0ff44ff27788e45cb4ef9f604592cd2dbf90f479a357d209eb531f3cf3eda3d4"
 }
