@@ -401,7 +401,8 @@ which remain unimplemented. The 2 MiB signed-record envelope includes a bounded
 1 MiB proposal and at most 128 supersession targets; it is not a serving budget.
 
 `readSourceNativeConstructionLedgerAtArtifact` is the explicit historical
-navigation read. It opens a retained exact artifact, requires the expected
+navigation read for protected V2 artifacts only. It opens a retained exact
+artifact, requires the expected
 seven-field source binding, and checks that the current protected source branch
 is a clean descendant of that cut before and after reading the latest protected
 knowledge head. Its active records are candidates for later reconstruction at
@@ -409,7 +410,9 @@ the retained cut, not current-source authority after a source advance; compile,
 review, writes, and Admission remain current-bound. A stable missing knowledge
 branch is an empty ledger, while broken history, a non-ancestor, or a changed
 selection refuses. The method intentionally hydrates the full retained source
-cut and makes no selected-read cost claim.
+cut and makes no selected-read cost claim. Legacy V1 artifacts are refused by
+this method; the existing current reader and explorer remain unchanged for
+their supported profiles.
 
 These are navigation-eligible records, not a new proof authority.
 

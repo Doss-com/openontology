@@ -282,7 +282,14 @@ const expectedHistoricalBinding: SourceNativeSemanticSourceBinding = {
   sourceCatalogSha256: digest,
   nativeObjectMapSha256: digest,
 };
+const readHistoricalAtArtifact = () => historicalLedgerRead({
+  options: { artifactRoot: './retained-artifact' }, trustRegistry: [],
+  expectedSourceBinding: expectedHistoricalBinding,
+});
+// @ts-expect-error a retained historical read requires the expected source binding.
+historicalLedgerRead({ options: { artifactRoot: './retained-artifact' }, trustRegistry: [] });
 void historicalLedgerRead;
+void readHistoricalAtArtifact;
 void expectedHistoricalBinding;
 const normalizedBackendUri: string = normalizeCanonicalObjectBackendUri('file:///tmp/oont-kernel-consumer');
 const backendEnvironment: CanonicalObjectBackendEnvironment = {
@@ -734,6 +741,7 @@ assert.deepEqual(kernelKeys, [
     'openSourceNativeConstructionReview',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
     'readSourceNativeConstructionLedger',
+    'readSourceNativeConstructionLedgerAtArtifact',
     'rebindSourceNativeSemanticConstruction',
     'sourceNativeAdmissionStatement',
     'sourceNativeConstructionAdmissionStatement',
