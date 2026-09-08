@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a canonical selected-source context for construction, preserving complete
+  cited documents and native-field verification without hydrating uncited packs.
+  Whole-index validation, full product checks and protected Admission object
+  availability checks remain. Review enforces source-text limits before reads.
 - Correct `stableObjectSha256` to match the existing canonical JSON wire bytes
   for integer-index object keys while preserving the serializer and public text
   format. This alpha correction can change persisted identifiers, and an old

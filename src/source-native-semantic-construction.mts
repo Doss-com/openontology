@@ -322,7 +322,7 @@ export function assertSemanticConstructionBound(
   return verifiedSources;
 }
 
-/** Validate the source cut and every witness before any selected source payload is read. */
+/** Validate the source cut and declared coverage against the complete catalog. */
 export function assertSemanticConstructionMetadataBound(
   record: SourceNativeSemanticConstruction,
   state: SourceNativeSemanticConstructionBindingContext,

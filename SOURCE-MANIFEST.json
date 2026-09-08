@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 7577,
-      "sha256": "079834e717685242c5f4c5e535e4ede18678b907375b5acc50f3e7643366d70e"
+      "bytes": 7894,
+      "sha256": "4e49f032868e8d4fbd4c95c5a908e00b793f64ef6556253ce6b7690daee3a557"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -122,8 +122,8 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 33965,
-      "sha256": "dc9ca628975ee17e5032f310d0186a61456e651990ef5b72359da87f5da1b8ec"
+      "bytes": 34504,
+      "sha256": "5266f7247079644b8fa83716778cdd163967b455647ff84371dce90c869efb72"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 10389,
-      "sha256": "33c646346027d5b63d677c606d9a5175edefe115ac120bb9fcc0d4c6e0fe1b51"
+      "bytes": 11903,
+      "sha256": "05cf49c6e0b584aacf0b67b2f3c6e2c714d978f783609ec05fb5a8fb7408961d"
     },
     {
       "path": "examples/quickstart/semantic-map.mjs",
@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/smoke-pack.mjs",
-      "bytes": 57982,
-      "sha256": "0dbe84b41355ad4ed9b7b7636cf6bcb97df922e4fc6d3ac93c17f9075a5dfb65"
+      "bytes": 58014,
+      "sha256": "dbc4714d75eea41dacfb064ed20ce41026932a2e3ab45bb412935b7565540420"
     },
     {
       "path": "scripts/test-canonical-content.mjs",
@@ -282,8 +282,8 @@
     },
     {
       "path": "scripts/test-source-native-construction-review.mjs",
-      "bytes": 24195,
-      "sha256": "28c464dbdc267521ade83406177e837483019b24f0d99ceb946b2eb89549f058"
+      "bytes": 28967,
+      "sha256": "e29076fea5839b3d71f21257bf003f532b109246251a894b6b96a8d458d90299"
     },
     {
       "path": "scripts/test-source-native-field-resolution.mjs",
@@ -472,8 +472,8 @@
     },
     {
       "path": "src/source-native-construction-review.mts",
-      "bytes": 11950,
-      "sha256": "08cc90fa0fb4c769c226eac55aa488411994920cc57c5daf8ca446c23128d113"
+      "bytes": 11986,
+      "sha256": "26b47a38bb0f38279477e5e2ada29b5b8566fdcbd95b99a50ec3decbeef8313c"
     },
     {
       "path": "src/source-native-current-field-verification.mts",
@@ -512,8 +512,8 @@
     },
     {
       "path": "src/source-native-object-ont.mts",
-      "bytes": 35027,
-      "sha256": "c6f7ed1f9190d65d4548c791680de5a773365cf998160fa9587f88afca2dfcdb"
+      "bytes": 34855,
+      "sha256": "d960d33bb0b0d6ab463e18cc08dfb788b80d2603ed95240966130930dfe8de86"
     },
     {
       "path": "src/source-native-ont-explorer.mts",
@@ -547,8 +547,8 @@
     },
     {
       "path": "src/source-native-semantic-construction.mts",
-      "bytes": 16490,
-      "sha256": "f3adbbeec73cbdaa8736b25cd694c357268eb9a0136cb2ea74624bf0bf81e4ce"
+      "bytes": 16988,
+      "sha256": "2ce052d34058fc990399c1a9c7fd15c68289fb2fd4c923afa2010e5a4c4a4615"
     },
     {
       "path": "src/source-native-semantic-projection.mts",
@@ -566,5 +566,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:0ff44ff27788e45cb4ef9f604592cd2dbf90f479a357d209eb531f3cf3eda3d4"
+  "manifestSha256": "sha256:d1a131f28106388478229d38cabc56fdaa2a5f5db5f6ac11f69a2bab8eb69757"
 }
