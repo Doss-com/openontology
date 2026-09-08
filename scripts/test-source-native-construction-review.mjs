@@ -281,7 +281,7 @@ function rehashConstruction(value) {
   return { ...core, constructionSha256: stableObjectSha256(core) };
 }
 
-test('review preserves canonical source binding precedence for a removed cited path', (t) => {
+test('review preserves canonical source error for a forged removed cited path', (t) => {
   const fixture = cases[0];
   const materialized = materialize(t, fixture);
   const removed = clone(materialized.construction);
@@ -290,6 +290,22 @@ test('review preserves canonical source binding precedence for a removed cited p
   assert.throws(() => openSourceNativeConstructionReview({
     options: materialized.options, construction,
   }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
+});
+
+test('review rejects an actual successor that removes a cited source before reading payload', (t) => {
+  const fixture = cases[0];
+  const materialized = materialize(t, fixture);
+  const successor = clone(fixture.buildInput);
+  successor.sources = successor.sources.slice(1);
+  successor.nativeObjectInputs = successor.nativeObjectInputs.slice(1);
+  const successorOptions = {
+    artifactRoot: join(materialized.root, 'successor-removes-cited'),
+    objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href,
+  };
+  buildSourceNativeProduct({ ...successorOptions, input: successor });
+  assert.throws(() => openSourceNativeConstructionReview({
+    options: successorOptions, construction: materialized.construction,
+  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
 });
 
 test('review preserves source-cut binding precedence over an oversized same-path successor', (t) => {

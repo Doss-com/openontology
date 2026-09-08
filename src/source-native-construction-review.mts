@@ -119,11 +119,17 @@ export function openSourceNativeConstructionReview(input: {
   if (sourceRefs.size > 32) fail('LIMIT');
   const context = openProductSourceContext(input.options ?? {});
   const binding = assertSemanticConstructionMetadataBound(construction, context);
-  const sourceBytes = [...sourceRefs].reduce((total, sourceRef) => {
-    const source = binding.sources.get(sourceRef) ?? fail('BINDING');
-    return total + source.blobByteEnd - source.blobByteStart;
-  }, 0);
-  if (sourceBytes > 256 * 1024) fail('LIMIT');
+  let sourceBytes = 0;
+  let hasUnknownSource = false;
+  for (const sourceRef of sourceRefs) {
+    const source = binding.get(sourceRef);
+    if (!source) {
+      hasUnknownSource = true;
+      continue;
+    }
+    sourceBytes += source.blobByteEnd - source.blobByteStart;
+  }
+  if (!hasUnknownSource && sourceBytes > 256 * 1024) fail('LIMIT');
   const verifiedSources = assertSemanticConstructionBound(construction, context);
   const nativeObjects = new Map(context.objectOnt.map.nativeObjects.map(item => [item.nativeObjectSha256, item.objectIdentity]));
   const definitions = new Map(construction.objectDefs.map(item => [item.id, item]));
