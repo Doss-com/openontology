@@ -1030,6 +1030,15 @@ test('stable absent knowledge is empty, while missing, corrupt, and pending prot
   assert.throws(() => readAtArtifact(pendingSource), { code: 'OBJECT_ONT_HISTORY_PENDING' });
 });
 
+test('historical full-source corruption remains fatal rather than degrading one record', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const record = f.admit();
+  f.write(record);
+  assert.deepEqual(readAtArtifact(f).activeRecords, [record]);
+  corruptFileObjectEnvelope(f.objectBackendUri, f.state.objectOnt.sources[0].blobDescriptor.key);
+  assert.throws(() => readAtArtifact(f), { code: 'OBJECT_BACKEND_CORRUPT' });
+});
+
 test('historical read keeps correction, conflict, and trust eligibility decisions current', (t) => {
   const f = fixture(t, { protectedHistory: true });
   const original = f.admit();
