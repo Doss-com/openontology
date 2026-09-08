@@ -85,7 +85,6 @@ export interface SourceNativeSemanticConstructionBindingContext {
     'map' | 'catalog' | 'sources' | 'commitSha256' | 'replaySha256'>;
   readSource?: (sourceRef: string) => SourceNativeSource;
 }
-type NativeObject = SourceNativeObjectOntIndex['map']['nativeObjects'][number];
 type SourceMetadata = Map<string, SourceNativeObjectOntIndex['sources'][number]>;
 
 function fail(suffix: string): never {

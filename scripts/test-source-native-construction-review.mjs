@@ -292,7 +292,7 @@ test('review preserves canonical source error for a forged removed cited path', 
   }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
 });
 
-test('review rejects an actual successor that removes a cited source before reading payload', (t) => {
+test('review rejects an actual successor that removes a cited source with canonical binding refusal', (t) => {
   const fixture = cases[0];
   const materialized = materialize(t, fixture);
   const successor = clone(fixture.buildInput);
@@ -306,6 +306,46 @@ test('review rejects an actual successor that removes a cited source before read
   assert.throws(() => openSourceNativeConstructionReview({
     options: successorOptions, construction: materialized.construction,
   }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+});
+
+test('review enforces known-source size when another cited ref is unknown', (t) => {
+  const fixture = clone(cases[0].buildInput);
+  const rows = Array.from({ length: 6 }, (_, index) => ({
+    name: `Known Source Concept ${String(index).padStart(2, '0')}`,
+    relativePath: `docs/known-source-${String(index).padStart(2, '0')}.md`,
+    content: `Known Source Concept ${String(index).padStart(2, '0')} ${'known-source '.repeat(4_000)}`,
+  }));
+  fixture.sources = [...fixture.sources, ...rows.map((row) => ({
+    relativePath: row.relativePath, sourceType: 'docs', occurredAt: '2026-09-01T00:00:00.000Z', content: row.content,
+  }))];
+  fixture.nativeObjectInputs = [...fixture.nativeObjectInputs, ...rows.map((row, index) => ({
+    relativePath: row.relativePath,
+    objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'docs', objectType: 'Document',
+      namespace: 'fixture-namespace', externalId: `known-source-${String(index).padStart(2, '0')}` },
+    fields: [{ fieldPath: 'body', value: row.content, codeUnitStart: 0 }],
+  }))];
+  const root = mkdtempSync(join(tmpdir(), 'oont-construction-review-mixed-size-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const options = { artifactRoot: join(root, 'ont') };
+  buildSourceNativeProduct({ ...options, input: fixture });
+  const state = openProductState(options);
+  const objectDefs = rows.map((row, index) => ({
+    kind: 'ObjectDef', id: `known-source-${String(index).padStart(2, '0')}`,
+    name: row.name, source: bodyWitness(state, row.relativePath), aliases: [],
+  }));
+  const claims = objectDefs.map((object, index) => ({ kind: 'Claim', id: `known-claim-${String(index).padStart(2, '0')}`,
+    about: object.id, predicate: 'defines', source: object.source }));
+  const constructionInput = { proposedBy: 'constructor', proposedAt: '2026-09-02T00:00:00.000Z', method: 'authored',
+    objectDefs, claims, coverage: allExamined(state) };
+  const materialized = { options, construction: compileSourceNativeSemanticConstruction({
+    options, input: constructionInput,
+  }) };
+  const mixed = clone(materialized.construction);
+  mixed.objectDefs[0].source.evidence.sourceRef = 'docs/unknown-late-ref.md';
+  const construction = rehashConstruction(mixed);
+  assert.throws(() => openSourceNativeConstructionReview({
+    options: materialized.options, construction,
+  }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
 });
 
 test('review preserves source-cut binding precedence over an oversized same-path successor', (t) => {
