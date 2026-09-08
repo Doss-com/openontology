@@ -352,7 +352,6 @@ test('an actual protected source-ref advance rejects the prior construction', ()
     input: successorInput,
     objectBackendUri: fixture.options.objectBackendUri,
     historyBackendUri: fixture.options.historyBackendUri,
-    expectedSourceVersion: before.descriptor.refVersion,
   });
   const successorOptions = {
     artifactRoot: successorRoot,

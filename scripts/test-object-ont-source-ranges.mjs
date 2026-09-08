@@ -117,6 +117,21 @@ test('ObjectOntStore readBlobRange refuses bad metadata, bounds, and delivered l
   }
 });
 
+test('ObjectOntStore readBlobRange refuses invalid numeric and interval bounds', () => {
+  const { store, descriptor } = putFixtureBlob(memoryBackend());
+  const invalidRanges = [
+    ['negative start', { start: -1, end: 2 }],
+    ['fractional start', { start: 0.5, end: 2 }],
+    ['end before start', { start: 4, end: 3 }],
+    ['end beyond descriptor', { start: 0, end: descriptor.byteLength + 1 }],
+  ];
+  for (const [label, range] of invalidRanges) {
+    assert.throws(() => store.readBlobRange(descriptor, range), {
+      code: 'OBJECT_ONT_BLOB_RANGE',
+    }, label);
+  }
+});
+
 test('matching stored checksum metadata does not certify corrupted partial bytes', () => {
   const { store, descriptor } = putFixtureBlob(memoryBackend({
     mutateGet: (result) => ({ ...result, bytes: Buffer.from('BAD') }),
@@ -126,6 +141,18 @@ test('matching stored checksum metadata does not certify corrupted partial bytes
   assert.equal(partial.objectChecksumSha256, descriptor.storedSha256);
   assert.notEqual(partial.deliveredSha256, objectBytesSha256(Buffer.from('one')));
   assert.equal(partial.completeObjectBytesVerified, false);
+});
+
+test('full-object range hashing rejects same-length corrupt bytes with matching metadata', () => {
+  const original = Buffer.from('zero\none\ntwo\n');
+  const corrupt = Buffer.from(original);
+  corrupt[0] ^= 1;
+  const { store, descriptor } = putFixtureBlob(memoryBackend({
+    mutateGet: (result) => ({ ...result, bytes: corrupt }),
+  }), original);
+  assert.throws(() => store.readBlobRange(descriptor), {
+    code: 'OBJECT_ONT_BLOB_RANGE',
+  });
 });
 
 test('ObjectOntStore range wrapper preserves a synthetic native GCS 206 response', () => {
