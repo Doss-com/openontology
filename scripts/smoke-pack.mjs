@@ -221,6 +221,7 @@ void rootOpenCanonicalObjectBackend;
   compileSourceNativeCurrentFieldChronologyVerification,
   compileSourceNativeSemanticConstruction,
   readSourceNativeConstructionLedger,
+  readSourceNativeConstructionLedgerAtArtifact,
   sourceNativeConstructionAdmissionStatement,
   evaluateProofSufficiencyContract,
   openSourceNativeExactEvidenceSession,
@@ -250,6 +251,7 @@ void rootOpenCanonicalObjectBackend;
   type SourceNativeProductRuntimeContext,
   type SourceNativeSemanticConstruction,
   type SourceNativeSemanticConstructionInput,
+  type SourceNativeSemanticSourceBinding,
   type SourceNativeConstructionLedger,
   type SourceNativeConstructionProduct,
   type SourceNativeConstructionReviewSession,
@@ -269,6 +271,26 @@ void rootOpenCanonicalObjectBackend;
 
 ${authoringExampleBody}
 const digest: string = stableObjectSha256({ contract: 'kernel' });
+const historicalLedgerRead: typeof readSourceNativeConstructionLedgerAtArtifact =
+  readSourceNativeConstructionLedgerAtArtifact;
+const expectedHistoricalBinding: SourceNativeSemanticSourceBinding = {
+  ontId: 'example',
+  namespace: 'example',
+  artifactSha256: digest,
+  sourceCommitSha256: digest,
+  sourceReplaySha256: digest,
+  sourceCatalogSha256: digest,
+  nativeObjectMapSha256: digest,
+};
+const readHistoricalAtArtifact = () => historicalLedgerRead({
+  options: { artifactRoot: './retained-artifact' }, trustRegistry: [],
+  expectedSourceBinding: expectedHistoricalBinding,
+});
+// @ts-expect-error a retained historical read requires the expected source binding.
+historicalLedgerRead({ options: { artifactRoot: './retained-artifact' }, trustRegistry: [] });
+void historicalLedgerRead;
+void readHistoricalAtArtifact;
+void expectedHistoricalBinding;
 const normalizedBackendUri: string = normalizeCanonicalObjectBackendUri('file:///tmp/oont-kernel-consumer');
 const backendEnvironment: CanonicalObjectBackendEnvironment = {
   OONT_GCS_ACCESS_TOKEN_PROVIDER: () => 'fixture-token',
@@ -719,6 +741,7 @@ assert.deepEqual(kernelKeys, [
     'openSourceNativeConstructionReview',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
     'readSourceNativeConstructionLedger',
+    'readSourceNativeConstructionLedgerAtArtifact',
     'rebindSourceNativeSemanticConstruction',
     'sourceNativeAdmissionStatement',
     'sourceNativeConstructionAdmissionStatement',
