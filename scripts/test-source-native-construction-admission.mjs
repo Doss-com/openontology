@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,7 +16,10 @@ import test from 'node:test';
 import * as kernel from '../dist/src/kernel.mjs';
 import { createConstructionLedgerReader } from '../dist/src/source-native-construction-admission.mjs';
 import { openCanonicalObjectBackend } from '../dist/src/canonical-object-backend.mjs';
-import { materializeSourceNativeObjectOnt } from '../dist/src/source-native-object-ont.mjs';
+import {
+  materializeSourceNativeObjectOnt,
+  openSourceNativeObjectOntRefAtCut,
+} from '../dist/src/source-native-object-ont.mjs';
 
 const clone = structuredClone;
 const digest = kernel.objectBytesSha256(Buffer.from('not present'));
@@ -23,6 +34,25 @@ const fileObjectPath = (objectBackendUri, key) => {
 const corruptFileObjectEnvelope = (objectBackendUri, key) => {
   writeFileSync(fileObjectPath(objectBackendUri, key), Buffer.from('{corrupt envelope\n'));
 };
+function treeSnapshot(root) {
+  const entries = [];
+  const visit = (directory, relative = '') => {
+    for (const name of readdirSync(directory).sort()) {
+      const child = join(directory, name);
+      const childRelative = relative ? `${relative}/${name}` : name;
+      const stat = lstatSync(child);
+      if (stat.isDirectory()) {
+        entries.push([`${childRelative}/`, 'directory']);
+        visit(child, childRelative);
+      } else {
+        assert(stat.isFile(), `unexpected fixture entry: ${childRelative}`);
+        entries.push([childRelative, kernel.objectBytesSha256(readFileSync(child))]);
+      }
+    }
+  };
+  visit(root);
+  return kernel.stableObjectText(entries);
+}
 
 function fixture(t, { protectedHistory = false, namespace = 'example', multiSource = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'oont-construction-admission-'));
@@ -97,6 +127,7 @@ function fixture(t, { protectedHistory = false, namespace = 'example', multiSour
   }
   const branch = `knowledge-${state.objectOnt.commitSha256.slice(7, 23)}`;
   const route = { ontId: state.descriptor.ontId, branch };
+  const sourceRoute = { ontId: state.descriptor.ontId, branch: state.descriptor.branch };
   const write = (record, extra = {}) => kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry: trust, record, ...extra });
   const read = (extra = {}) => kernel.readSourceNativeConstructionLedger({ options, trustRegistry: trust, ...extra });
   function plant(value, logicalPath = pathFor(value.recordSha256)) {
@@ -109,7 +140,7 @@ function fixture(t, { protectedHistory = false, namespace = 'example', multiSour
     return blob;
   }
   return { root, options, objectBackendUri, historyBackendUri, buildInput, state, input, keys, trust, compile, admit,
-    branch, route, write, read, plant, backend: openCanonicalObjectBackend({ uri: objectBackendUri }).backend,
+    branch, route, sourceRoute, write, read, plant, backend: openCanonicalObjectBackend({ uri: objectBackendUri }).backend,
     historyBackend: protectedHistory
       ? openCanonicalObjectBackend({ uri: historyBackendUri }).backend : undefined };
 }
@@ -152,10 +183,10 @@ function advanceOnlySecondSource(f) {
   object.fields[1].value = 'closed';
   object.fields[1].canonicalProposition.state = 'closed';
   object.fields[1].canonicalProposition.propositionKey = 'task-2-closed';
-  const before = f.state.store.readRefMetadata(f.route);
+  const before = f.state.store.readRefMetadata(f.sourceRoute);
   return materializeSourceNativeObjectOnt({
     backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
-    branch: f.state.descriptor.branch, expectedVersion: before.version,
+    branch: f.sourceRoute.branch, expectedVersion: before.version,
     sources: input.sources, nativeObjectInputs: input.nativeObjectInputs,
   });
 }
@@ -927,12 +958,16 @@ test('one-shot construction ledger API remains source-bound and unchanged', (t) 
 
 test('historical ledger read accepts a protected descendant and returns the complete A construction', (t) => {
   const f = fixture(t, { protectedHistory: true, multiSource: true });
-  const record = f.admit();
+  const original = f.admit();
+  f.write(original);
+  const record = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(4), targets: [original.recordSha256],
+  });
   f.write(record);
   const expected = sourceBinding(f);
   const originalSource = f.buildInput.sources[0].content;
   const originalSourceHash = f.state.objectOnt.sources[0].sourceSha256;
-  const sourceBefore = f.state.store.readRefMetadata(f.route);
+  const sourceBefore = f.state.store.readRefMetadata(f.sourceRoute);
   const knowledgeRoute = { ontId: f.state.descriptor.ontId, branch: f.branch };
   const knowledgeBefore = f.state.store.readRefMetadata(knowledgeRoute);
 
@@ -940,8 +975,16 @@ test('historical ledger read accepts a protected descendant and returns the comp
   assert.notEqual(descendant.receipt.commitSha256, sourceBefore.ref.commitSha256);
   assert.equal(f.buildInput.sources[0].content, originalSource);
   assert.equal(f.state.objectOnt.sources[0].sourceSha256, originalSourceHash);
+  const currentB = openSourceNativeObjectOntRefAtCut({
+    backend: f.backend, historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId, branch: f.sourceRoute.branch,
+  });
+  assert(currentB);
+  assert.equal(currentB.objectOnt.sources[0].content, originalSource);
+  assert.notEqual(currentB.objectOnt.sources[1].sourceSha256, f.state.objectOnt.sources[1].sourceSha256);
   assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
 
+  const storageBefore = treeSnapshot(f.root);
   const historical = kernel.readSourceNativeConstructionLedgerAtArtifact({
     options: f.options, trustRegistry: f.trust, expectedSourceBinding: expected,
   });
@@ -952,7 +995,8 @@ test('historical ledger read accepts a protected descendant and returns the comp
   assert.deepEqual(historical.activeRecords[0].construction.coverage, record.construction.coverage);
   assert.equal(historical.navigationOnly, true);
   assert.equal(historical.exactSourcesRemainAuthority, true);
-  assert.notDeepEqual(f.state.store.readRefMetadata(f.route), sourceBefore);
+  assert.equal(treeSnapshot(f.root), storageBefore);
+  assert.notDeepEqual(f.state.store.readRefMetadata(f.sourceRoute), sourceBefore);
   assert.deepEqual(f.state.store.readRefMetadata(knowledgeRoute), knowledgeBefore);
 });
 
@@ -969,7 +1013,7 @@ test('a B artifact does not inherit A knowledge records on its default branch', 
   materializeSourceNativeObjectOnt({
     backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
     branch: f.state.descriptor.branch,
-    expectedVersion: f.state.store.readRefMetadata(f.route).version,
+    expectedVersion: f.state.store.readRefMetadata(f.sourceRoute).version,
     sources: input.sources, nativeObjectInputs: input.nativeObjectInputs,
   });
   const bOptions = { artifactRoot: join(f.root, 'b-artifact') };
@@ -981,6 +1025,31 @@ test('a B artifact does not inherit A knowledge records on its default branch', 
   assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
     options: bOptions, trustRegistry: f.trust, expectedSourceBinding: sourceBinding(f),
   }), { code: 'CONSTRUCTION_ADMISSION_BINDING' });
+});
+
+test('a valid protected branch without A ancestry is refused', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  materializeSourceNativeObjectOnt({
+    backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
+    branch: 'unrelated', expectedVersion: null, sources: f.buildInput.sources,
+    nativeObjectInputs: f.buildInput.nativeObjectInputs,
+  });
+  const descriptorPath = join(f.options.artifactRoot, 'source-native.json');
+  const descriptor = JSON.parse(readFileSync(descriptorPath, 'utf8'));
+  const { artifactSha256: _artifactSha256, ...descriptorCore } = descriptor;
+  descriptorCore.branch = 'unrelated';
+  writeFileSync(descriptorPath, kernel.stableObjectText({
+    ...descriptorCore, artifactSha256: kernel.stableObjectSha256(descriptorCore),
+  }));
+  const expected = {
+    ontId: descriptorCore.ontId, namespace: descriptorCore.namespace,
+    artifactSha256: descriptorCore.artifactSha256, sourceCommitSha256: descriptorCore.sourceCommitSha256,
+    sourceReplaySha256: descriptorCore.sourceReplaySha256, sourceCatalogSha256: descriptorCore.sourceCatalogSha256,
+    nativeObjectMapSha256: descriptorCore.nativeObjectMapSha256,
+  };
+  assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
+    options: f.options, trustRegistry: f.trust, expectedSourceBinding: expected,
+  }), { code: 'CONSTRUCTION_ADMISSION_BRANCH' });
 });
 
 test('historical read requires protected v2 history and an exact seven-field source binding', (t) => {
@@ -1065,6 +1134,11 @@ test('historical read keeps correction, conflict, and trust eligibility decision
   });
   assert.equal(revoked.activeRecords.length, 0);
   assert.equal(revoked.state, 'degraded');
+  const proposerRevoked = readAtArtifact(f, {
+    trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'constructor'),
+  });
+  assert.equal(proposerRevoked.activeRecords.length, 0);
+  assert.equal(proposerRevoked.state, 'degraded');
 });
 
 test('old signed query proofs and new construction share the branch without reinterpretation', async (t) => {
