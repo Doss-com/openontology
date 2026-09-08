@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,6 +8,7 @@ import test from 'node:test';
 import * as kernel from '../dist/src/kernel.mjs';
 import { createConstructionLedgerReader } from '../dist/src/source-native-construction-admission.mjs';
 import { openCanonicalObjectBackend } from '../dist/src/canonical-object-backend.mjs';
+import { materializeSourceNativeObjectOnt } from '../dist/src/source-native-object-ont.mjs';
 
 const clone = structuredClone;
 const digest = kernel.objectBytesSha256(Buffer.from('not present'));
@@ -23,10 +24,11 @@ const corruptFileObjectEnvelope = (objectBackendUri, key) => {
   writeFileSync(fileObjectPath(objectBackendUri, key), Buffer.from('{corrupt envelope\n'));
 };
 
-function fixture(t, { protectedHistory = false, namespace = 'example' } = {}) {
+function fixture(t, { protectedHistory = false, namespace = 'example', multiSource = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'oont-construction-admission-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const objectBackendUri = pathToFileURL(join(root, 'objects')).href;
+  const historyBackendUri = pathToFileURL(join(root, 'history')).href;
   const options = { artifactRoot: join(root, 'ont') };
   const buildInput = {
     schemaVersion: 1, kind: 'OpenOntologySourceNativeBuildInputV1',
@@ -49,8 +51,25 @@ function fixture(t, { protectedHistory = false, namespace = 'example' } = {}) {
             extractionAuthority: 'deterministic-source-adapter-v1', relations: [] } }],
     }],
   };
+  if (multiSource) {
+    buildInput.sources.push({ relativePath: 'tracker/task-2.txt', sourceType: 'tracker', occurredAt: at(1),
+      content: 'Second allocation note. Status: open.' });
+    buildInput.nativeObjectInputs.push({ relativePath: 'tracker/task-2.txt',
+      businessEntityKeys: ['task:task-2'],
+      objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'tracker', objectType: 'task', namespace, externalId: 'task-2' },
+      fields: [{ fieldPath: 'body', value: 'Second allocation note. Status: open.' },
+        { fieldPath: 'status', value: 'open', propositionFamilyKey: 'task-status',
+          validAt: at(1), knownAt: at(1), businessEntityKeys: ['task:task-2'],
+          canonicalProposition: { kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+            propositionKey: 'task-2-open', actorHome: 'ObjectDef/InstanceRef',
+            stateHome: 'Claim/PropositionRevision-payload', actorKind: 'task', predicate: 'has-status',
+            state: 'open', dimension: 'task-status', canonicalRoles: ['state'], modality: 'observed',
+            polarity: 'positive', businessEntityKeys: ['task:task-2'],
+            extractionAuthority: 'deterministic-source-adapter-v1', relations: [] } }],
+    });
+  }
   kernel.buildSourceNativeProduct({ ...options, objectBackendUri,
-    ...(protectedHistory ? { historyBackendUri: pathToFileURL(join(root, 'history')).href } : {}), input: buildInput });
+    ...(protectedHistory ? { historyBackendUri } : {}), input: buildInput });
   const state = kernel.openProductState(options);
   const object = state.objectOnt.map.nativeObjects[0];
   const source = state.objectOnt.sources[0];
@@ -89,8 +108,10 @@ function fixture(t, { protectedHistory = false, namespace = 'example' } = {}) {
     state.store.compareAndSwapRefMetadata({ ...route, expectedVersion: snapshot?.version ?? null, commitSha256: commit.commitSha256 });
     return blob;
   }
-  return { root, options, objectBackendUri, buildInput, state, input, keys, trust, compile, admit,
-    branch, route, write, read, plant, backend: openCanonicalObjectBackend({ uri: objectBackendUri }).backend };
+  return { root, options, objectBackendUri, historyBackendUri, buildInput, state, input, keys, trust, compile, admit,
+    branch, route, write, read, plant, backend: openCanonicalObjectBackend({ uri: objectBackendUri }).backend,
+    historyBackend: protectedHistory
+      ? openCanonicalObjectBackend({ uri: historyBackendUri }).backend : undefined };
 }
 
 function rehash(record) {
@@ -104,6 +125,50 @@ function changed(f, { id, name, noAlias = false } = {}) {
   if (noAlias) input.objectDefs[0].aliases = [];
   input.claims[0].predicate = 'mentions';
   return f.compile(input);
+}
+function sourceBinding(f) {
+  return {
+    ontId: f.state.descriptor.ontId,
+    namespace: f.state.descriptor.namespace,
+    artifactSha256: f.state.descriptor.artifactSha256,
+    sourceCommitSha256: f.state.descriptor.sourceCommitSha256,
+    sourceReplaySha256: f.state.descriptor.sourceReplaySha256,
+    sourceCatalogSha256: f.state.descriptor.sourceCatalogSha256,
+    nativeObjectMapSha256: f.state.descriptor.nativeObjectMapSha256,
+  };
+}
+function readAtArtifact(f, extra = {}) {
+  return kernel.readSourceNativeConstructionLedgerAtArtifact({
+    options: f.options, trustRegistry: f.trust, expectedSourceBinding: sourceBinding(f), ...extra,
+  });
+}
+function advanceOnlySecondSource(f) {
+  const input = clone(f.buildInput);
+  const source = input.sources.find((item) => item.relativePath === 'tracker/task-2.txt');
+  const object = input.nativeObjectInputs.find((item) => item.relativePath === 'tracker/task-2.txt');
+  assert(source && object, 'multi-source fixture must include task-2');
+  source.content = 'Second allocation note changed only at descendant B. Status: closed.';
+  object.fields[0].value = source.content;
+  object.fields[1].value = 'closed';
+  object.fields[1].canonicalProposition.state = 'closed';
+  object.fields[1].canonicalProposition.propositionKey = 'task-2-closed';
+  const before = f.state.store.readRefMetadata(f.route);
+  return materializeSourceNativeObjectOnt({
+    backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
+    branch: f.state.descriptor.branch, expectedVersion: before.version,
+    sources: input.sources, nativeObjectInputs: input.nativeObjectInputs,
+  });
+}
+function mutateHistory(f, branch, mutate) {
+  const key = `ref-history/${f.state.descriptor.ontId}/${branch}.json`;
+  const head = f.historyBackend.head(key);
+  const current = JSON.parse(f.historyBackend.get(key).bytes.toString('utf8'));
+  mutate(current);
+  const { historySha256: _historySha256, ...core } = current;
+  f.historyBackend.compareAndSwap(key, {
+    expectedVersion: head.version,
+    bytes: Buffer.from(kernel.stableObjectText({ ...core, historySha256: kernel.stableObjectSha256(core) })),
+  });
 }
 
 test('only independently signed navigation is written; cold retry preserves source and original bytes', (t) => {
@@ -858,6 +923,139 @@ test('one-shot construction ledger API remains source-bound and unchanged', (t) 
   assert.deepEqual(ledger.activeRecords, [record]);
   assert.equal(ledger.navigationOnly, true);
   assert.equal(ledger.exactSourcesRemainAuthority, true);
+});
+
+test('historical ledger read accepts a protected descendant and returns the complete A construction', (t) => {
+  const f = fixture(t, { protectedHistory: true, multiSource: true });
+  const record = f.admit();
+  f.write(record);
+  const expected = sourceBinding(f);
+  const originalSource = f.buildInput.sources[0].content;
+  const originalSourceHash = f.state.objectOnt.sources[0].sourceSha256;
+  const sourceBefore = f.state.store.readRefMetadata(f.route);
+  const knowledgeRoute = { ontId: f.state.descriptor.ontId, branch: f.branch };
+  const knowledgeBefore = f.state.store.readRefMetadata(knowledgeRoute);
+
+  const descendant = advanceOnlySecondSource(f);
+  assert.notEqual(descendant.receipt.commitSha256, sourceBefore.ref.commitSha256);
+  assert.equal(f.buildInput.sources[0].content, originalSource);
+  assert.equal(f.state.objectOnt.sources[0].sourceSha256, originalSourceHash);
+  assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+
+  const historical = kernel.readSourceNativeConstructionLedgerAtArtifact({
+    options: f.options, trustRegistry: f.trust, expectedSourceBinding: expected,
+  });
+  assert.equal(historical.state, 'ready');
+  assert.deepEqual(historical.activeRecords, [record]);
+  assert.deepEqual(historical.activeRecords[0].construction.objectDefs, record.construction.objectDefs);
+  assert.deepEqual(historical.activeRecords[0].construction.claims, record.construction.claims);
+  assert.deepEqual(historical.activeRecords[0].construction.coverage, record.construction.coverage);
+  assert.equal(historical.navigationOnly, true);
+  assert.equal(historical.exactSourcesRemainAuthority, true);
+  assert.notDeepEqual(f.state.store.readRefMetadata(f.route), sourceBefore);
+  assert.deepEqual(f.state.store.readRefMetadata(knowledgeRoute), knowledgeBefore);
+});
+
+test('a B artifact does not inherit A knowledge records on its default branch', (t) => {
+  const f = fixture(t, { protectedHistory: true, multiSource: true });
+  const record = f.admit();
+  f.write(record);
+  const input = clone(f.buildInput);
+  input.sources[1].content = 'Second allocation note changed only at descendant B. Status: closed.';
+  input.nativeObjectInputs[1].fields[0].value = input.sources[1].content;
+  input.nativeObjectInputs[1].fields[1].value = 'closed';
+  input.nativeObjectInputs[1].fields[1].canonicalProposition.state = 'closed';
+  input.nativeObjectInputs[1].fields[1].canonicalProposition.propositionKey = 'task-2-closed';
+  materializeSourceNativeObjectOnt({
+    backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
+    branch: f.state.descriptor.branch,
+    expectedVersion: f.state.store.readRefMetadata(f.route).version,
+    sources: input.sources, nativeObjectInputs: input.nativeObjectInputs,
+  });
+  const bOptions = { artifactRoot: join(f.root, 'b-artifact') };
+  kernel.buildSourceNativeProduct({ artifactRoot: bOptions.artifactRoot,
+    objectBackendUri: f.objectBackendUri, historyBackendUri: f.historyBackendUri, input });
+  const currentB = kernel.readSourceNativeConstructionLedger({ options: bOptions, trustRegistry: f.trust });
+  assert.equal(currentB.activeRecords.length, 0);
+  assert.equal(currentB.commitSha256, null);
+  assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
+    options: bOptions, trustRegistry: f.trust, expectedSourceBinding: sourceBinding(f),
+  }), { code: 'CONSTRUCTION_ADMISSION_BINDING' });
+});
+
+test('historical read requires protected v2 history and an exact seven-field source binding', (t) => {
+  const unprotected = fixture(t);
+  const binding = sourceBinding(unprotected);
+  assert.throws(() => readAtArtifact(unprotected), { code: 'CONSTRUCTION_ADMISSION_HISTORY' });
+  const protectedFixture = fixture(t, { protectedHistory: true });
+  const mutations = [
+    ['missing field', (value) => { delete value.namespace; }],
+    ['extra field', (value) => { value.extra = true; }],
+    ['wrong hash', (value) => { value.artifactSha256 = 'sha256:bad'; }],
+    ['mismatched cut', (value) => { value.sourceCommitSha256 = digest; }],
+  ];
+  for (const [name, mutate] of mutations) {
+    const candidate = { ...sourceBinding(protectedFixture) };
+    mutate(candidate);
+    assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
+      options: protectedFixture.options, trustRegistry: protectedFixture.trust,
+      expectedSourceBinding: candidate,
+    }), TypeError, name);
+  }
+  assert.equal(binding.ontId, unprotected.state.descriptor.ontId);
+});
+
+test('stable absent knowledge is empty, while missing, corrupt, and pending protected history refuse', (t) => {
+  const empty = fixture(t, { protectedHistory: true });
+  assert.deepEqual(readAtArtifact(empty).activeRecords, []);
+
+  const missingSource = fixture(t, { protectedHistory: true });
+  const missingSourcePath = join(fileURLToPath(missingSource.historyBackendUri), 'ref-history',
+    missingSource.state.descriptor.ontId, 'main.json');
+  unlinkSync(missingSourcePath);
+  assert.throws(() => readAtArtifact(missingSource), { code: 'OBJECT_ONT_HISTORY_MISSING' });
+
+  const corruptKnowledge = fixture(t, { protectedHistory: true });
+  const corruptRecord = corruptKnowledge.admit();
+  corruptKnowledge.write(corruptRecord);
+  const knowledgeKey = `ref-history/${corruptKnowledge.state.descriptor.ontId}/${corruptKnowledge.branch}.json`;
+  corruptKnowledge.historyBackend.overwrite(knowledgeKey, Buffer.from('{"corrupt":true}'));
+  assert.throws(() => readAtArtifact(corruptKnowledge), { code: 'OBJECT_ONT_HISTORY_CORRUPT' });
+
+  const pendingSource = fixture(t, { protectedHistory: true });
+  mutateHistory(pendingSource, 'main', (history) => {
+    history.pending = { schemaVersion: 1, kind: 'OpenOntologyRefHistoryPendingV1',
+      baseRef: history.acceptedRef, baseVersion: null, targetRef: history.acceptedRef };
+  });
+  assert.throws(() => readAtArtifact(pendingSource), { code: 'OBJECT_ONT_HISTORY_PENDING' });
+});
+
+test('historical read keeps correction, conflict, and trust eligibility decisions current', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const original = f.admit();
+  f.write(original);
+  const correction = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(4), targets: [original.recordSha256],
+  });
+  f.write(correction);
+  assert.deepEqual(readAtArtifact(f).activeRecords, [correction]);
+
+  const conflictFixture = fixture(t, { protectedHistory: true });
+  const first = conflictFixture.admit();
+  const second = conflictFixture.admit(changed(conflictFixture, { name: 'Different allocation definition' }), {
+    admittedAt: at(4),
+  });
+  conflictFixture.write(first);
+  conflictFixture.write(second);
+  const conflict = readAtArtifact(conflictFixture);
+  assert.equal(conflict.conflictingRecordCount, 2);
+  assert.deepEqual(conflict.activeRecords, []);
+
+  const revoked = readAtArtifact(f, {
+    trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'reviewer'),
+  });
+  assert.equal(revoked.activeRecords.length, 0);
+  assert.equal(revoked.state, 'degraded');
 });
 
 test('old signed query proofs and new construction share the branch without reinterpretation', async (t) => {

@@ -190,12 +190,10 @@ function readProtectedSnapshot(state: ConstructionLedgerContext, branch: string)
 }
 function assertSourceAncestry(state: ConstructionLedgerContext,
   snapshot: ReplayMetadataSnapshot | null): void {
-  if (snapshot === null || snapshot.ref.replayStatus !== 'CLEAN'
-    || snapshot.replayMetadata.status !== 'CLEAN'
-    || snapshot.replayMetadata.ontId !== state.descriptor.ontId
-    || snapshot.replayMetadata.tipCommitSha256 !== snapshot.ref.commitSha256
-    || snapshot.replayMetadata.replaySha256 !== snapshot.ref.replaySha256
-    || !snapshot.replayMetadata.commitOrder.includes(state.objectOnt.commitSha256)) fail('BRANCH');
+  if (snapshot === null || snapshot.ref.replayStatus !== 'CLEAN') fail('BRANCH');
+  assertReplay(state, snapshot.replayMetadata);
+  if (snapshot.replayMetadata.tipCommitSha256 !== snapshot.ref.commitSha256
+    || snapshot.replayMetadata.replaySha256 !== snapshot.ref.replaySha256) fail('BRANCH');
 }
 function selectionFingerprint(snapshot: ReplayMetadataSnapshot | null): string | null {
   return snapshot === null ? null : stableObjectText({
@@ -716,7 +714,7 @@ export function readSourceNativeConstructionLedgerAtArtifact({
 }: HistoricalLedgerInput): SourceNativeConstructionLedger {
   const expected = validateExpectedSourceBinding(input);
   const state = openExactProductArtifactState(options);
-  const context = state as ConstructionLedgerContext;
+  const context: ConstructionLedgerContext = state;
   if (state.descriptor.schemaVersion !== 2 || typeof state.descriptor.historyBackend !== 'string'
     || state.descriptor.historyBackend.length === 0) fail('HISTORY');
   if (stableObjectText(expected) !== stableObjectText(descriptorSourceBinding(context))) fail('BINDING');
