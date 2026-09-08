@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import * as kernel from '../dist/src/kernel.mjs';
@@ -182,11 +182,24 @@ function envelopePath(objectRoot, key) {
   return join(objectRoot, 'objects', keySha256.slice(0, 2), `${keySha256.slice(2)}.json`);
 }
 
-function corruptFileEnvelope(fixture, key) {
+function corruptFileEnvelopeAtPackByte(fixture, key, byteOffset) {
   const path = envelopePath(fixture.objectRoot, key);
   const envelope = JSON.parse(readFileSync(path, 'utf8'));
-  const last = envelope.bytesBase64.at(-1);
-  envelope.bytesBase64 = `${envelope.bytesBase64.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`;
+  const originalPack = Buffer.from(envelope.bytesBase64, 'base64');
+  const corruptedPack = Buffer.from(originalPack);
+  corruptedPack[byteOffset] ^= 0xff;
+  assert.notEqual(corruptedPack[byteOffset], originalPack[byteOffset]);
+  return { originalPack, corruptedPack, envelopePath: path };
+}
+
+function writeCorruptFileEnvelope({ originalPack, corruptedPack, envelopePath: path }, selected) {
+  assert.deepEqual(
+    corruptedPack.subarray(selected.blobByteStart, selected.blobByteEnd),
+    originalPack.subarray(selected.blobByteStart, selected.blobByteEnd),
+    'selected source range must remain byte-identical',
+  );
+  const envelope = JSON.parse(readFileSync(path, 'utf8'));
+  envelope.bytesBase64 = corruptedPack.toString('base64');
   writeFileSync(path, `${JSON.stringify(envelope)}\n`);
 }
 
@@ -311,6 +324,15 @@ test('stale pre-advance construction is refused by canonical compile, review, an
     input,
   }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
   assert.throws(() => kernel.openSourceNativeConstructionReview({
+    options: fixture.options,
+    construction,
+  }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+  assert.throws(() => kernel.writeSourceNativeConstructionAdmission({
+    options: fixture.options,
+    trustRegistry: admission.trustRegistry,
+    record: admission.record,
+  }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+  assert.throws(() => kernel.openSourceNativeConstructionReview({
     options: successorOptions,
     construction,
   }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
@@ -329,7 +351,10 @@ test('same-pack nonselected corruption distinguishes file envelopes from native 
   const selected = sourceRow(fileFixture, SELECTED_REF);
   const unrelated = sourceRow(fileFixture, UNRELATED_REF);
   assert.equal(selected.blobDescriptor.key, unrelated.blobDescriptor.key);
-  corruptFileEnvelope(fileFixture, selected.blobDescriptor.key);
+  const corruption = corruptFileEnvelopeAtPackByte(
+    fileFixture, selected.blobDescriptor.key, unrelated.blobByteStart,
+  );
+  writeCorruptFileEnvelope(corruption, selected);
   assert.throws(() => kernel.compileSourceNativeSemanticConstruction({
     options: fileFixture.options,
     input: selectedConstructionInput(fileFixture),
@@ -388,7 +413,6 @@ test('same-pack nonselected corruption distinguishes file envelopes from native 
   assert.equal(requests.length, 1);
   assert.equal(requests[0].headers.range,
     `bytes=${selectedRange.blobByteStart}-${selectedRange.blobByteEnd - 1}`);
-  assert.equal(requests[0].headers.range.includes(String(unrelatedRange.blobByteStart)), false);
 });
 
 test('a selected source validates every native object attached to that source', (t) => {
@@ -407,9 +431,13 @@ test('structurally valid invalid field evidence on an uncited source stays scope
   const variant = variantMap(fixture, 'uncited-field-invalid', (map) => {
     corruptMapField(map, UNRELATED_REF, 0, 'not present in unrelated source');
   });
-  assert.doesNotThrow(() => kernel.compileSourceNativeSemanticConstruction({
+  const construction = kernel.compileSourceNativeSemanticConstruction({
     options: variant.options,
     input: selectedConstructionInput(fixture),
+  });
+  assert.doesNotThrow(() => kernel.openSourceNativeConstructionReview({
+    options: variant.options,
+    construction,
   }));
   assert.throws(() => kernel.openProductState(variant.options), {
     code: 'SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE',
