@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
+import fs from 'node:fs';
 import {
   lstatSync,
   mkdtempSync,
@@ -9,6 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -31,6 +33,39 @@ const fileObjectPath = (objectBackendUri, key) => {
   const keySha256 = kernel.objectBytesSha256(Buffer.from(key)).slice(7);
   return join(fileURLToPath(objectBackendUri), 'objects', keySha256.slice(0, 2), `${keySha256.slice(2)}.json`);
 };
+function interleaveReadFileSync(targetPath, shouldTrigger, effect, run) {
+  const original = fs.readFileSync;
+  let triggered = false;
+  let insideEffect = false;
+  let matchingReads = 0;
+  const pathText = (value) => typeof value === 'string' ? value : value?.toString();
+  fs.readFileSync = function interceptedReadFileSync(path, ...args) {
+    if (!insideEffect && pathText(path) === targetPath) {
+      matchingReads += 1;
+      if (!triggered && shouldTrigger(matchingReads)) {
+        triggered = true;
+        insideEffect = true;
+        try { effect(); } finally { insideEffect = false; }
+      }
+    }
+    return original.apply(this, [path, ...args]);
+  };
+  syncBuiltinESMExports();
+  try {
+    return { value: run(), matchingReads, triggered };
+  } finally {
+    fs.readFileSync = original;
+    syncBuiltinESMExports();
+    assert.strictEqual(fs.readFileSync, original);
+  }
+}
+function knowledgeRecordPath(f, record) {
+  const snapshot = f.state.store.readRefMetadataSnapshot(f.route);
+  const descriptor = snapshot?.replayMetadata.blobDescriptors.find((item) =>
+    item.logicalPath === pathFor(record.recordSha256));
+  assert(descriptor, 'signed knowledge record descriptor must exist');
+  return fileObjectPath(f.objectBackendUri, descriptor.key);
+}
 const corruptFileObjectEnvelope = (objectBackendUri, key) => {
   writeFileSync(fileObjectPath(objectBackendUri, key), Buffer.from('{corrupt envelope\n'));
 };
@@ -1018,6 +1053,59 @@ test('historical ledger read accepts a protected descendant and returns the comp
   assert.equal(treeSnapshot(f.root), storageBefore);
   assert.notDeepEqual(f.state.store.readRefMetadata(f.sourceRoute), sourceBefore);
   assert.deepEqual(f.state.store.readRefMetadata(knowledgeRoute), knowledgeBefore);
+});
+
+test('historical read refuses a source selection that advances during signed record delivery', (t) => {
+  const f = fixture(t, { protectedHistory: true, multiSource: true });
+  const record = f.admit();
+  f.write(record);
+  let descendant;
+  const result = interleaveReadFileSync(knowledgeRecordPath(f, record), () => true, () => {
+    descendant = advanceOnlySecondSource(f);
+  }, () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }));
+  assert.equal(result.triggered, true);
+  assert(descendant?.receipt.commitSha256);
+  const currentB = openSourceNativeObjectOntRefAtCut({
+    backend: f.backend, historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId, branch: f.sourceRoute.branch,
+  });
+  assert(currentB);
+  assert.equal(currentB.objectOnt.sources[0].content, f.buildInput.sources[0].content);
+  assert.equal(currentB.objectOnt.sources[1].content,
+    'Second allocation note changed only at descendant B. Status: closed.');
+});
+
+test('historical read refuses a knowledge correction that arrives during signed record delivery', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const original = f.admit();
+  f.write(original);
+  const correction = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(4), targets: [original.recordSha256],
+  });
+  const result = interleaveReadFileSync(knowledgeRecordPath(f, original), () => true, () => {
+    f.write(correction);
+  }, () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }));
+  assert.equal(result.triggered, true);
+  assert.deepEqual(f.read().activeRecords, [correction]);
+});
+
+test('historical read refuses stable empty knowledge becoming present between protected snapshots', (t) => {
+  const f = fixture(t, { protectedHistory: true });
+  const record = f.admit();
+  assert.equal(f.state.store.readRefMetadata(f.route), null);
+  const sourceHistoryPath = fileObjectPath(f.historyBackendUri,
+    `ref-history/${f.state.descriptor.ontId}/${f.sourceRoute.branch}.json`);
+  let observedError;
+  const result = interleaveReadFileSync(sourceHistoryPath, (matchingReads) => matchingReads >= 9, () => {
+    f.write(record);
+  }, () => {
+    try { readAtArtifact(f); } catch (error) { observedError = error; }
+  });
+  assert.equal(result.triggered, true);
+  assert(result.matchingReads >= 9);
+  assert.equal(observedError?.code, 'CONSTRUCTION_ADMISSION_CONCURRENT',
+    `matchingReads=${result.matchingReads} triggered=${result.triggered}`);
+  assert(f.state.store.readRefMetadata(f.route));
 });
 
 test('a B artifact does not inherit A knowledge records on its default branch', (t) => {
