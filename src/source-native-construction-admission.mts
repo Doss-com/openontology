@@ -4,7 +4,7 @@ import {
   admissionTrustRegistry, authenticateAdmissionSignatures, canonicalAdmissionSignature,
 } from './admission-authentication.mjs';
 import type { SourceNativeAdmissionTrustEntry } from './admission-authentication.mjs';
-import { openProductSourceContext } from './source-native-artifact.mjs';
+import { openExactProductArtifactState, openProductSourceContext } from './source-native-artifact.mjs';
 import type { ProductOptions, SourceNativeProductSourceContext } from './source-native-artifact.mjs';
 import type { BlobDescriptor, ReplayMetadataGraph, ReplayMetadataSnapshot } from './object-ont-store.mjs';
 import {
@@ -13,6 +13,7 @@ import {
 import type {
   SourceNativeSemanticConstruction,
   SourceNativeSemanticConstructionBindingContext,
+  SourceNativeSemanticSourceBinding,
 } from './source-native-semantic-construction.mjs';
 
 export interface SourceNativeConstructionProposalStatement {
@@ -90,9 +91,14 @@ interface LedgerInput {
   trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
   knowledgeBranch?: string;
 }
+interface HistoricalLedgerInput extends LedgerInput {
+  expectedSourceBinding: SourceNativeSemanticSourceBinding;
+}
 const PREFIX = 'blobs/knowledge-ledger/construction/';
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const RECORD_LIMIT = 2 * 1024 * 1024;
+const SOURCE_BINDING_KEYS = ['ontId', 'namespace', 'artifactSha256', 'sourceCommitSha256',
+  'sourceReplaySha256', 'sourceCatalogSha256', 'nativeObjectMapSha256'] as const;
 const KNOWN_READER_ERROR_CODES = new Set([
   'CONSTRUCTION_ADMISSION_SHAPE', 'CONSTRUCTION_ADMISSION_TEXT', 'CONSTRUCTION_ADMISSION_HASH',
   'CONSTRUCTION_ADMISSION_BRANCH', 'CONSTRUCTION_ADMISSION_EMPTY', 'CONSTRUCTION_ADMISSION_TIME',
@@ -147,6 +153,61 @@ const text = (value: unknown): string => typeof value === 'string' && value.leng
   && Buffer.from(value).toString('utf8') === value ? value : fail('TEXT');
 const hash = (value: unknown): string => typeof value === 'string' && SHA256.test(value)
   ? value : fail('HASH');
+function validateExpectedSourceBinding(value: unknown): SourceNativeSemanticSourceBinding {
+  const input = row(value, SOURCE_BINDING_KEYS);
+  return {
+    ontId: text(input.ontId),
+    namespace: text(input.namespace),
+    artifactSha256: hash(input.artifactSha256),
+    sourceCommitSha256: hash(input.sourceCommitSha256),
+    sourceReplaySha256: hash(input.sourceReplaySha256),
+    sourceCatalogSha256: hash(input.sourceCatalogSha256),
+    nativeObjectMapSha256: hash(input.nativeObjectMapSha256),
+  };
+}
+function descriptorSourceBinding(state: ConstructionLedgerContext): SourceNativeSemanticSourceBinding {
+  return {
+    ontId: state.descriptor.ontId,
+    namespace: state.descriptor.namespace,
+    artifactSha256: state.descriptor.artifactSha256,
+    sourceCommitSha256: state.descriptor.sourceCommitSha256,
+    sourceReplaySha256: state.descriptor.sourceReplaySha256,
+    sourceCatalogSha256: state.descriptor.sourceCatalogSha256,
+    nativeObjectMapSha256: state.descriptor.nativeObjectMapSha256,
+  };
+}
+function errorCode(error: unknown): string | null {
+  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+    ? error.code : null;
+}
+function readProtectedSnapshot(state: ConstructionLedgerContext, branch: string): ReplayMetadataSnapshot | null {
+  try {
+    return state.store.readRefMetadataSnapshot({ ontId: state.descriptor.ontId, branch });
+  } catch (error) {
+    if (errorCode(error) === 'OBJECT_ONT_HISTORY_CONFLICT') fail('CONCURRENT');
+    throw error;
+  }
+}
+function assertSourceAncestry(state: ConstructionLedgerContext,
+  snapshot: ReplayMetadataSnapshot | null): void {
+  if (snapshot === null || snapshot.ref.replayStatus !== 'CLEAN'
+    || snapshot.replayMetadata.status !== 'CLEAN'
+    || snapshot.replayMetadata.ontId !== state.descriptor.ontId
+    || snapshot.replayMetadata.tipCommitSha256 !== snapshot.ref.commitSha256
+    || snapshot.replayMetadata.replaySha256 !== snapshot.ref.replaySha256
+    || !snapshot.replayMetadata.commitOrder.includes(state.objectOnt.commitSha256)) fail('BRANCH');
+}
+function selectionFingerprint(snapshot: ReplayMetadataSnapshot | null): string | null {
+  return snapshot === null ? null : stableObjectText({
+    ref: snapshot.ref,
+    version: snapshot.version,
+    checksumSha256: snapshot.checksumSha256,
+  });
+}
+function assertSelectionStable(before: ReplayMetadataSnapshot | null,
+  after: ReplayMetadataSnapshot | null): void {
+  if (selectionFingerprint(before) !== selectionFingerprint(after)) fail('CONCURRENT');
+}
 function recordPath(sha256: string): string { return `${PREFIX}${sha256.slice(7)}.json`; }
 function branchFor(state: ConstructionLedgerContext, input: unknown): string {
   const branch = input === undefined ? `knowledge-${state.objectOnt.commitSha256.slice(7, 23)}` : text(input);
@@ -643,4 +704,33 @@ export function readSourceNativeConstructionLedger({
 }: LedgerInput): SourceNativeConstructionLedger {
   const state = openProductSourceContext(options);
   return createConstructionLedgerReader(state, trust, knowledgeBranch).read();
+}
+
+/**
+ * Read eligible construction records from one retained source artifact cut.
+ * The result is historical navigation input only. It is not current-source
+ * authority and cannot authorize writes, compilation, review, or Admission.
+ */
+export function readSourceNativeConstructionLedgerAtArtifact({
+  options = {}, trustRegistry: trust, knowledgeBranch, expectedSourceBinding: input,
+}: HistoricalLedgerInput): SourceNativeConstructionLedger {
+  const expected = validateExpectedSourceBinding(input);
+  const state = openExactProductArtifactState(options);
+  const context = state as ConstructionLedgerContext;
+  if (state.descriptor.schemaVersion !== 2 || typeof state.descriptor.historyBackend !== 'string'
+    || state.descriptor.historyBackend.length === 0) fail('HISTORY');
+  if (stableObjectText(expected) !== stableObjectText(descriptorSourceBinding(context))) fail('BINDING');
+
+  const sourceBranch = state.descriptor.branch;
+  const sourceBefore = readProtectedSnapshot(context, sourceBranch);
+  assertSourceAncestry(context, sourceBefore);
+  const branch = branchFor(context, knowledgeBranch);
+  const knowledgeBefore = readProtectedSnapshot(context, branch);
+  const ledger = createConstructionLedgerReader(context, trust, branch).read();
+  const sourceAfter = readProtectedSnapshot(context, sourceBranch);
+  assertSourceAncestry(context, sourceAfter);
+  assertSelectionStable(sourceBefore, sourceAfter);
+  const knowledgeAfter = readProtectedSnapshot(context, branch);
+  assertSelectionStable(knowledgeBefore, knowledgeAfter);
+  return ledger;
 }

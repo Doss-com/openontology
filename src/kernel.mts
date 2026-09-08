@@ -45,6 +45,7 @@ export type {
 export {
   compileSourceNativeConstructionAdmissionRecord,
   readSourceNativeConstructionLedger,
+  readSourceNativeConstructionLedgerAtArtifact,
   sourceNativeConstructionAdmissionStatement,
   sourceNativeConstructionProposalStatement,
   validateSourceNativeConstructionAdmissionRecord,
