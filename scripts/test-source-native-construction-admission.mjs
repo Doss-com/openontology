@@ -173,6 +173,25 @@ function readAtArtifact(f, extra = {}) {
     options: f.options, trustRegistry: f.trust, expectedSourceBinding: sourceBinding(f), ...extra,
   });
 }
+function materializeInput(input) {
+  const sources = input.sources.map((source) => ({ ...source,
+    sourceSha256: kernel.objectBytesSha256(Buffer.from(source.content)) }));
+  const sourceByPath = new Map(sources.map((source) => [source.relativePath, source]));
+  return {
+    ...input,
+    sources,
+    nativeObjectInputs: input.nativeObjectInputs.map((object) => {
+      const source = sourceByPath.get(object.relativePath);
+      assert(source, `missing source for ${object.relativePath}`);
+      return {
+        ...object,
+        fields: object.fields.map((field) => ({ ...field,
+          codeUnitStart: field.codeUnitStart ?? source.content.indexOf(field.value),
+        })),
+      };
+    }),
+  };
+}
 function advanceOnlySecondSource(f) {
   const input = clone(f.buildInput);
   const source = input.sources.find((item) => item.relativePath === 'tracker/task-2.txt');
@@ -183,11 +202,12 @@ function advanceOnlySecondSource(f) {
   object.fields[1].value = 'closed';
   object.fields[1].canonicalProposition.state = 'closed';
   object.fields[1].canonicalProposition.propositionKey = 'task-2-closed';
+  const materializedInput = materializeInput(input);
   const before = f.state.store.readRefMetadata(f.sourceRoute);
   return materializeSourceNativeObjectOnt({
     backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
     branch: f.sourceRoute.branch, expectedVersion: before.version,
-    sources: input.sources, nativeObjectInputs: input.nativeObjectInputs,
+    sources: materializedInput.sources, nativeObjectInputs: materializedInput.nativeObjectInputs,
   });
 }
 function mutateHistory(f, branch, mutate) {
@@ -1010,11 +1030,12 @@ test('a B artifact does not inherit A knowledge records on its default branch', 
   input.nativeObjectInputs[1].fields[1].value = 'closed';
   input.nativeObjectInputs[1].fields[1].canonicalProposition.state = 'closed';
   input.nativeObjectInputs[1].fields[1].canonicalProposition.propositionKey = 'task-2-closed';
+  const materializedInput = materializeInput(input);
   materializeSourceNativeObjectOnt({
     backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
     branch: f.state.descriptor.branch,
     expectedVersion: f.state.store.readRefMetadata(f.sourceRoute).version,
-    sources: input.sources, nativeObjectInputs: input.nativeObjectInputs,
+    sources: materializedInput.sources, nativeObjectInputs: materializedInput.nativeObjectInputs,
   });
   const bOptions = { artifactRoot: join(f.root, 'b-artifact') };
   kernel.buildSourceNativeProduct({ artifactRoot: bOptions.artifactRoot,
@@ -1030,12 +1051,13 @@ test('a B artifact does not inherit A knowledge records on its default branch', 
 test('a valid protected branch without A ancestry is refused', (t) => {
   const f = fixture(t, { protectedHistory: true });
   const unrelatedInput = clone(f.buildInput);
-  unrelatedInput.sources[0].content = 'Independent unrelated branch content.';
+  unrelatedInput.sources[0].content = 'Independent unrelated branch content. Status: open.';
   unrelatedInput.nativeObjectInputs[0].fields[0].value = unrelatedInput.sources[0].content;
+  const materializedInput = materializeInput(unrelatedInput);
   materializeSourceNativeObjectOnt({
     backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
-    branch: 'unrelated', expectedVersion: null, sources: unrelatedInput.sources,
-    nativeObjectInputs: unrelatedInput.nativeObjectInputs,
+    branch: 'unrelated', expectedVersion: null, sources: materializedInput.sources,
+    nativeObjectInputs: materializedInput.nativeObjectInputs,
   });
   const unrelatedSnapshot = f.state.store.readRefMetadataSnapshot({
     ontId: f.state.descriptor.ontId, branch: 'unrelated',
@@ -1084,22 +1106,25 @@ test('stable absent knowledge is empty, while missing, corrupt, and pending prot
   assert.deepEqual(readAtArtifact(empty).activeRecords, []);
 
   const missingSource = fixture(t, { protectedHistory: true });
-  const missingSourcePath = join(fileURLToPath(missingSource.historyBackendUri), 'ref-history',
-    missingSource.state.descriptor.ontId, 'main.json');
-  unlinkSync(missingSourcePath);
+  unlinkSync(fileObjectPath(missingSource.historyBackendUri,
+    `ref-history/${missingSource.state.descriptor.ontId}/main.json`));
   assert.throws(() => readAtArtifact(missingSource), { code: 'OBJECT_ONT_HISTORY_MISSING' });
 
   const corruptKnowledge = fixture(t, { protectedHistory: true });
   const corruptRecord = corruptKnowledge.admit();
   corruptKnowledge.write(corruptRecord);
   const knowledgeKey = `ref-history/${corruptKnowledge.state.descriptor.ontId}/${corruptKnowledge.branch}.json`;
-  corruptKnowledge.historyBackend.overwrite(knowledgeKey, Buffer.from('{"corrupt":true}'));
+  const knowledgeHead = corruptKnowledge.historyBackend.head(knowledgeKey);
+  corruptKnowledge.historyBackend.compareAndSwap(knowledgeKey, {
+    expectedVersion: knowledgeHead.version, bytes: Buffer.from('{"corrupt":true}'),
+  });
   assert.throws(() => readAtArtifact(corruptKnowledge), { code: 'OBJECT_ONT_HISTORY_CORRUPT' });
 
   const pendingSource = fixture(t, { protectedHistory: true });
+  const pendingBaseVersion = pendingSource.state.store.readRefMetadata(pendingSource.sourceRoute).version;
   mutateHistory(pendingSource, 'main', (history) => {
     history.pending = { schemaVersion: 1, kind: 'OpenOntologyRefHistoryPendingV1',
-      baseRef: history.acceptedRef, baseVersion: null, targetRef: history.acceptedRef };
+      baseRef: history.acceptedRef, baseVersion: pendingBaseVersion, targetRef: history.acceptedRef };
   });
   assert.throws(() => readAtArtifact(pendingSource), { code: 'OBJECT_ONT_HISTORY_PENDING' });
 });
@@ -1125,7 +1150,7 @@ test('historical read keeps correction, conflict, and trust eligibility decision
 
   const conflictFixture = fixture(t, { protectedHistory: true });
   const first = conflictFixture.admit();
-  const second = conflictFixture.admit(changed(conflictFixture, { name: 'Different allocation definition' }), {
+  const second = conflictFixture.admit(changed(conflictFixture), {
     admittedAt: at(4),
   });
   conflictFixture.write(first);
