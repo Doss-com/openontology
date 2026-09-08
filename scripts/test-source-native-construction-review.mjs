@@ -276,6 +276,39 @@ function allExamined(state) {
     sourceSha256: source.sourceSha256, disposition: 'examined' }));
 }
 
+function rehashConstruction(value) {
+  const { constructionSha256: _constructionSha256, ...core } = value;
+  return { ...core, constructionSha256: stableObjectSha256(core) };
+}
+
+test('review preserves canonical source binding precedence for a removed cited path', (t) => {
+  const fixture = cases[0];
+  const materialized = materialize(t, fixture);
+  const removed = clone(materialized.construction);
+  removed.objectDefs[0].source.evidence.sourceRef = 'docs/removed-before-review.md';
+  const construction = rehashConstruction(removed);
+  assert.throws(() => openSourceNativeConstructionReview({
+    options: materialized.options, construction,
+  }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
+});
+
+test('review preserves source-cut binding precedence over an oversized same-path successor', (t) => {
+  const fixture = cases[0];
+  const materialized = materialize(t, fixture);
+  const successor = clone(fixture.buildInput);
+  const oversized = `${successor.sources[0].content} ${'successor '.repeat(30_000)}`;
+  successor.sources[0].content = oversized;
+  successor.nativeObjectInputs[0].fields[0].value = oversized;
+  const successorOptions = {
+    artifactRoot: join(materialized.root, 'successor'),
+    objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href,
+  };
+  buildSourceNativeProduct({ ...successorOptions, input: successor });
+  assert.throws(() => openSourceNativeConstructionReview({
+    options: successorOptions, construction: materialized.construction,
+  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+});
+
 test('review limits refuse oversized item, source-document and raw-source budgets', (t) => {
   const base = cases[0];
   const materialized = materialize(t, base);

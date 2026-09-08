@@ -3,7 +3,11 @@ import { stableObjectSha256, stableObjectText } from './canonical-content.mjs';
 import { openProductSourceContext } from './source-native-artifact.mjs';
 import type { ProductOptions } from './source-native-artifact.mjs';
 import type { SourceNativeObjectIdentity, SourceNativeSource } from './source-native-object-map.mjs';
-import { assertSemanticConstructionBound, validateSourceNativeSemanticConstruction } from './source-native-semantic-construction.mjs';
+import {
+  assertSemanticConstructionBound,
+  assertSemanticConstructionMetadataBound,
+  validateSourceNativeSemanticConstruction,
+} from './source-native-semantic-construction.mjs';
 import type { SourceNativeSemanticConstruction, SourceNativeSemanticWitness } from './source-native-semantic-construction.mjs';
 
 export interface SourceNativeConstructionReviewItem {
@@ -114,9 +118,9 @@ export function openSourceNativeConstructionReview(input: {
   ].map(source => source.evidence.sourceRef));
   if (sourceRefs.size > 32) fail('LIMIT');
   const context = openProductSourceContext(input.options ?? {});
-  const sourceRows = new Map(context.objectOnt.sources.map(source => [source.relativePath, source]));
+  const binding = assertSemanticConstructionMetadataBound(construction, context);
   const sourceBytes = [...sourceRefs].reduce((total, sourceRef) => {
-    const source = sourceRows.get(sourceRef) ?? fail('BINDING');
+    const source = binding.sources.get(sourceRef) ?? fail('BINDING');
     return total + source.blobByteEnd - source.blobByteStart;
   }, 0);
   if (sourceBytes > 256 * 1024) fail('LIMIT');
