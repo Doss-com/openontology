@@ -1029,26 +1029,31 @@ test('a B artifact does not inherit A knowledge records on its default branch', 
 
 test('a valid protected branch without A ancestry is refused', (t) => {
   const f = fixture(t, { protectedHistory: true });
+  const unrelatedInput = clone(f.buildInput);
+  unrelatedInput.sources[0].content = 'Independent unrelated branch content.';
+  unrelatedInput.nativeObjectInputs[0].fields[0].value = unrelatedInput.sources[0].content;
   materializeSourceNativeObjectOnt({
     backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
-    branch: 'unrelated', expectedVersion: null, sources: f.buildInput.sources,
-    nativeObjectInputs: f.buildInput.nativeObjectInputs,
+    branch: 'unrelated', expectedVersion: null, sources: unrelatedInput.sources,
+    nativeObjectInputs: unrelatedInput.nativeObjectInputs,
   });
+  const unrelatedSnapshot = f.state.store.readRefMetadataSnapshot({
+    ontId: f.state.descriptor.ontId, branch: 'unrelated',
+  });
+  assert(unrelatedSnapshot);
+  assert(!unrelatedSnapshot.replayMetadata.commitOrder.includes(f.state.objectOnt.commitSha256));
   const descriptorPath = join(f.options.artifactRoot, 'source-native.json');
   const descriptor = JSON.parse(readFileSync(descriptorPath, 'utf8'));
   const { artifactSha256: _artifactSha256, ...descriptorCore } = descriptor;
   descriptorCore.branch = 'unrelated';
-  writeFileSync(descriptorPath, kernel.stableObjectText({
-    ...descriptorCore, artifactSha256: kernel.stableObjectSha256(descriptorCore),
-  }));
-  const expected = {
-    ontId: descriptorCore.ontId, namespace: descriptorCore.namespace,
-    artifactSha256: descriptorCore.artifactSha256, sourceCommitSha256: descriptorCore.sourceCommitSha256,
-    sourceReplaySha256: descriptorCore.sourceReplaySha256, sourceCatalogSha256: descriptorCore.sourceCatalogSha256,
-    nativeObjectMapSha256: descriptorCore.nativeObjectMapSha256,
-  };
+  const resealed = { ...descriptorCore, artifactSha256: kernel.stableObjectSha256(descriptorCore) };
+  writeFileSync(descriptorPath, kernel.stableObjectText(resealed));
   assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
-    options: f.options, trustRegistry: f.trust, expectedSourceBinding: expected,
+    options: f.options, trustRegistry: f.trust, expectedSourceBinding: {
+      ontId: resealed.ontId, namespace: resealed.namespace, artifactSha256: resealed.artifactSha256,
+      sourceCommitSha256: resealed.sourceCommitSha256, sourceReplaySha256: resealed.sourceReplaySha256,
+      sourceCatalogSha256: resealed.sourceCatalogSha256, nativeObjectMapSha256: resealed.nativeObjectMapSha256,
+    },
   }), { code: 'CONSTRUCTION_ADMISSION_BRANCH' });
 });
 
