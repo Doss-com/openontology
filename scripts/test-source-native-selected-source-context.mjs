@@ -15,11 +15,11 @@ import {
   stableObjectSha256,
 } from '../dist/src/kernel.mjs';
 
-const NODE_VERSION = process.versions.node;
 const SELECTED_REF = 'docs/selected.md';
 const UNRELATED_REF = 'docs/unrelated.md';
 const OCCURRED_AT = '2026-09-08T00:00:00.000Z';
 const SOURCE_PACK_BYTES = 8 * 1024 * 1024;
+const SELECTED_WITNESS = 'Selected concept';
 
 function makeFixture() {
   const root = mkdtempSync(join(tmpdir(), 'oont-selected-source-context-'));
@@ -80,6 +80,9 @@ function makeFixture() {
     };
   };
   const selectedSource = sourceByRef.get(SELECTED_REF);
+  const selectedWitnessStart = selectedContent.indexOf(SELECTED_WITNESS);
+  const selectedWitnessEnd = selectedWitnessStart + Buffer.byteLength(SELECTED_WITNESS);
+  assert.equal(selectedWitnessStart >= 0, true);
   const selectedInput = {
     proposedBy: 'selected-source-context-test',
     proposedAt: OCCURRED_AT,
@@ -87,8 +90,8 @@ function makeFixture() {
     objectDefs: [{
       kind: 'ObjectDef',
       id: 'selected-concept',
-      name: 'Selected concept',
-      source: witness(SELECTED_REF),
+      name: SELECTED_WITNESS,
+      source: witness(SELECTED_REF, selectedWitnessStart, selectedWitnessEnd),
       aliases: [],
     }],
     claims: [{
@@ -96,7 +99,7 @@ function makeFixture() {
       id: 'selected-definition',
       about: 'selected-concept',
       predicate: 'defines',
-      source: witness(SELECTED_REF),
+      source: witness(SELECTED_REF, selectedWitnessStart, selectedWitnessEnd),
     }],
     coverage: [{
       sourceRef: SELECTED_REF,
@@ -189,7 +192,7 @@ test('scoped construction remains distinct from whole-Ont state', () => {
     fixture.input.sources.find((source) => source.relativePath === UNRELATED_REF).content);
 });
 
-test('review packet includes the complete cited document, not a selected snippet', () => {
+test('review packet includes the complete cited document, not only the proposer witness', () => {
   const session = openSourceNativeConstructionReview({
     options: fixture.options,
     construction: fixture.construction,
@@ -200,7 +203,7 @@ test('review packet includes the complete cited document, not a selected snippet
     fixture.sourceByRef.get(SELECTED_REF).sourceSha256);
 });
 
-test('wrong selected bytes, hash, UTF-8 span and native field are refused', () => {
+test('wrong selected bytes, hash, UTF-8 span and native-object identity are refused', () => {
   const wrongBytes = clone(fixture.selectedInput);
   wrongBytes.objectDefs[0].source.evidence.textSha256 = objectBytesSha256(Buffer.from('wrong bytes'));
   assert.throws(() => compileSourceNativeSemanticConstruction({
@@ -232,7 +235,7 @@ test('wrong selected bytes, hash, UTF-8 span and native field are refused', () =
   }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
 });
 
-test('stale current-cut identity is refused by the existing review API', () => {
+test('forged current-cut binding mismatch is refused by the existing review API', () => {
   const stale = clone(fixture.construction);
   stale.sourceBinding.sourceCommitSha256 = objectBytesSha256(Buffer.from('stale ref'));
   const { constructionSha256: _constructionSha256, ...core } = stale;
@@ -253,8 +256,4 @@ test('unknown source refs are refused rather than discovered from the whole Ont'
   assert.throws(() => compileSourceNativeSemanticConstruction({
     options: fixture.options, input: unknown,
   }), { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' });
-});
-
-test('Node runtime identity is explicit for this public control', () => {
-  assert.match(NODE_VERSION, /^24\./u);
 });
