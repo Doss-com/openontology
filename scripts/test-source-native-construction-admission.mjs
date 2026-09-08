@@ -1089,6 +1089,24 @@ test('historical read refuses a knowledge correction that arrives during signed 
   assert.deepEqual(f.read().activeRecords, [correction]);
 });
 
+test('historical A read observes an A correction planted after source advances to B', (t) => {
+  const f = fixture(t, { protectedHistory: true, multiSource: true });
+  const original = f.admit();
+  f.write(original);
+  const correction = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(4), targets: [original.recordSha256],
+  });
+  const descendant = advanceOnlySecondSource(f);
+  assert(descendant.receipt.commitSha256);
+  assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+  const result = interleaveReadFileSync(knowledgeRecordPath(f, original), () => true, () => {
+    f.plant(correction);
+  }, () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }));
+  assert.equal(result.triggered, true);
+  assert.deepEqual(readAtArtifact(f).activeRecords, [correction]);
+  assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+});
+
 test('historical read refuses stable empty knowledge becoming present between protected snapshots', (t) => {
   const f = fixture(t, { protectedHistory: true });
   const record = f.admit();
