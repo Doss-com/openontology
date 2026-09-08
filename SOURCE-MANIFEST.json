@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 112,
+  "fileCount": 113,
   "files": [
     {
       "path": ".editorconfig",
@@ -162,8 +162,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3815,
-      "sha256": "18de83b5b7c45b6ac95c4bc7e5c7d4a5b4221534110402b0aeac3eb091b82a0f"
+      "bytes": 3873,
+      "sha256": "d260ca6eadef01e9b992f3ae6ad6fc73854753f06f92efe5b20b1be7c1f19875"
     },
     {
       "path": "scripts/build.mjs",
@@ -339,6 +339,11 @@
       "path": "scripts/test-source-native-resource.mjs",
       "bytes": 36872,
       "sha256": "bdc630642054a63f5dd77e4ebdf21916e7704845264695395d36111f78db657c"
+    },
+    {
+      "path": "scripts/test-source-native-selected-source-boundaries.mjs",
+      "bytes": 19151,
+      "sha256": "1d7cc5cdff05fb4193045f8579f3e8446b67dadd1a61764108c89e56e2e372b5"
     },
     {
       "path": "scripts/test-source-native-selected-source-context.mjs",
@@ -566,5 +571,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:d1a131f28106388478229d38cabc56fdaa2a5f5db5f6ac11f69a2bab8eb69757"
+  "manifestSha256": "sha256:b4609a62ec31180abfdb5066551e4a1fa02a1b27342225c26192fca4ce860594"
 }
