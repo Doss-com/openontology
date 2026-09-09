@@ -15,6 +15,7 @@ import {
   compileSourceNativeAdmittedKnowledgeBundle,
   compileSourceNativeAdmissionRecord,
   compileSourceNativeSemanticKnowledgeBundle,
+  openExactProductArtifactState,
   openSourceNativeProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
   openProductState,
@@ -470,6 +471,7 @@ function createAdmittedFixture(root, {
   question = 'What is the current issue status for issue-1?',
   evidence = (value) => value,
   buildOptions = {},
+  admitOptions = {},
 } = {}) {
   const context = buildContext(root, buildOptions);
   const prepared = context.prepareSearch({ question });
@@ -501,7 +503,7 @@ function createAdmittedFixture(root, {
     propositions: [{ revisionId: 'status-current-r1', ...item }],
     relations: [],
   });
-  const { proposerKeys, record, reviewerKeys, trustRegistry } = admitBundle(bundle);
+  const { proposerKeys, record, reviewerKeys, trustRegistry } = admitBundle(bundle, admitOptions);
   const write = writeSourceNativeAdmittedKnowledge({
     options: { artifactRoot: root },
     record,
@@ -1200,9 +1202,10 @@ function createContextUnitDenseAdmission(root, invalidatorCount = 64) {
   return { ...admitBundle(bundle), bundle, context, question };
 }
 
-function plantAdmission(root, context, record) {
-  const state = openProductState({ artifactRoot: root });
-  const branch = `knowledge-${context.objectOnt.commitSha256.slice(7, 23)}`;
+function plantAdmission(root, context, record,
+  branch = `knowledge-${context.objectOnt.commitSha256.slice(7, 23)}`,
+  openState = openProductState) {
+  const state = openState({ artifactRoot: root });
   const current = state.store.readRefMetadata({
     ontId: context.descriptor.ontId,
     branch,
@@ -3269,6 +3272,7 @@ test('historical admitted reader reuses authenticated A records and rejects B re
     };
     const b = createAdmittedFixture(bRoot, {
       buildOptions: { objectBackendUri, historyBackendUri, input: bInput },
+      admitOptions: { proposerKeys: a.proposerKeys, reviewerKeys: a.reviewerKeys },
     });
     assert.notEqual(a.context.objectOnt.commitSha256, b.context.objectOnt.commitSha256);
 
@@ -3280,6 +3284,24 @@ test('historical admitted reader reuses authenticated A records and rejects B re
       options: { artifactRoot: bRoot }, record: b.record, trustRegistry: b.trustRegistry,
       knowledgeBranch: a.write.branch,
     }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_BRANCH' });
+    const aState = openExactProductArtifactState({ artifactRoot: aRoot });
+    const bState = openProductState({ artifactRoot: bRoot });
+    const refSnapshot = () => ({
+      aSource: aState.store.readRefMetadata({
+        ontId: a.context.descriptor.ontId, branch: a.context.descriptor.branch,
+      }),
+      aKnowledge: aState.store.readRefMetadata({
+        ontId: a.context.descriptor.ontId, branch: a.write.branch,
+      }),
+      bSource: bState.store.readRefMetadata({
+        ontId: b.context.descriptor.ontId, branch: b.context.descriptor.branch,
+      }),
+      bKnowledge: bState.store.readRefMetadata({
+        ontId: b.context.descriptor.ontId, branch: b.write.branch,
+      }),
+    });
+    plantAdmission(aRoot, a.context, b.record, a.write.branch, openExactProductArtifactState);
+    const beforeHistorical = refSnapshot();
     const trustRegistry = a.trustRegistry;
     const historical = openSourceNativeProductWithAdmittedKnowledge(
       { artifactRoot: aRoot }, {
@@ -3292,7 +3314,13 @@ test('historical admitted reader reuses authenticated A records and rejects B re
     assert.equal(verification.verification.sourceCommitSha256, a.context.objectOnt.commitSha256);
     assert.equal(historical.status().cutSelection, 'exact-artifact');
     assert.equal(historical.status().admittedKnowledge.activeAdmissionRecordCount, 1);
-    assert.equal(historical.status().admittedKnowledge.invalidAdmissionRecordCount, 0);
+    assert.equal(historical.status().admittedKnowledge.invalidAdmissionRecordCount, 1);
+    assert.equal((await historical.verify({ question: a.question })).verification.admissionRecordSha256,
+      a.record.recordSha256);
+    assert.deepEqual(refSnapshot(), beforeHistorical);
+    assert.deepEqual((await openSourceNativeProductRuntime({ artifactRoot: bRoot }).verify({ question: b.question }))
+      .context.map(row => row.exactText), ['Done']);
+    assert.deepEqual(refSnapshot(), beforeHistorical);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

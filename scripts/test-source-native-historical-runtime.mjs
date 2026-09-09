@@ -170,8 +170,9 @@ test('historical opener preserves exact-pack missing and corrupt refusals withou
     backend.compareAndSwap(state.objectOnt.sources[0].blobDescriptor.key, {
       expectedVersion: stored.version, bytes: Buffer.from('corrupt'),
     });
-    assert.throws(() => openSourceNativeHistoricalProductRuntime({ artifactRoot: corrupt.aRoot }), error =>
-      ['OBJECT_BACKEND_CORRUPT', 'OBJECT_ONT_BLOB_READ', 'SOURCE_NATIVE_OBJECT_ONT_SOURCE'].includes(error.code));
+    assert.throws(() => openSourceNativeHistoricalProductRuntime({ artifactRoot: corrupt.aRoot }), {
+      code: 'OBJECT_ONT_BLOB_READ',
+    });
   } finally {
     rmSync(corrupt.root, { recursive: true, force: true });
   }

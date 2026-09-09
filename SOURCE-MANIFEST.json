@@ -257,8 +257,8 @@
     },
     {
       "path": "scripts/test-source-native-admitted-knowledge.mjs",
-      "bytes": 145650,
-      "sha256": "a5d1a30f2192053afd240850f6dfe29e2c674d77ce3597d13331a2c6f1244bef"
+      "bytes": 147078,
+      "sha256": "57ff0388db5c719dff8a055c7af060b32aa316f99b90a03c0e15cfc88c040973"
     },
     {
       "path": "scripts/test-source-native-checkpoint-opening.mjs",
@@ -297,8 +297,8 @@
     },
     {
       "path": "scripts/test-source-native-historical-runtime.mjs",
-      "bytes": 7673,
-      "sha256": "482ba6c9e8638cf98afdf6e96f2b7242a1844d6a45661693c25c2b7ef40565ea"
+      "bytes": 7595,
+      "sha256": "35720d3018284a692dfee40c10c02d75c4b009395bfedf3be300f4949f8ef439"
     },
     {
       "path": "scripts/test-source-native-historical-surfaces.mjs",
@@ -576,5 +576,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:66376121cd29056e7cf728eca9bb9e70382d0dc3e2013a55e91af4de089086bf"
+  "manifestSha256": "sha256:afc60669800fda3dd43fc1d7e22180d9fda9446245b7cc429a2559a16c52ba6b"
 }
