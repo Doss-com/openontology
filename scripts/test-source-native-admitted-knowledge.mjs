@@ -3253,3 +3253,47 @@ test('a bounded correction can supersede an oversized planted Admission', async 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('historical admitted reader reuses authenticated A records and rejects B records on the A knowledge branch', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-admission-historical-runtime-'));
+  try {
+    const objectBackendUri = pathToFileURL(join(root, 'objects')).href;
+    const historyBackendUri = pathToFileURL(join(root, 'history')).href;
+    const aRoot = join(root, 'artifact-a');
+    const bRoot = join(root, 'artifact-b');
+    const a = createAdmittedFixture(aRoot, { buildOptions: { objectBackendUri, historyBackendUri } });
+    const bInput = buildInput();
+    bInput.sources[0] = { ...bInput.sources[0], occurredAt: '2026-09-06T00:00:00.000Z', content: 'Done' };
+    bInput.nativeObjectInputs[0] = {
+      ...bInput.nativeObjectInputs[0], fields: [{ fieldPath: 'status', value: 'Done' }],
+    };
+    const b = createAdmittedFixture(bRoot, {
+      buildOptions: { objectBackendUri, historyBackendUri, input: bInput },
+    });
+    assert.notEqual(a.context.objectOnt.commitSha256, b.context.objectOnt.commitSha256);
+
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: aRoot }, record: a.record, trustRegistry: a.trustRegistry,
+    }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+
+    assert.throws(() => writeSourceNativeAdmittedKnowledge({
+      options: { artifactRoot: bRoot }, record: b.record, trustRegistry: b.trustRegistry,
+      knowledgeBranch: a.write.branch,
+    }), { code: 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_BRANCH' });
+    const trustRegistry = a.trustRegistry;
+    const historical = openSourceNativeProductWithAdmittedKnowledge(
+      { artifactRoot: aRoot }, {
+        trustRegistry, knowledgeBranch: a.write.branch, historical: true,
+      });
+    const verification = await historical.verify({ question: a.question });
+    assert.equal(verification.kind, 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1');
+    assert.equal(verification.verification.rawSearchExecuted, false);
+    assert.deepEqual(verification.context.map(row => row.exactText), ['Ready']);
+    assert.equal(verification.verification.sourceCommitSha256, a.context.objectOnt.commitSha256);
+    assert.equal(historical.status().cutSelection, 'exact-artifact');
+    assert.equal(historical.status().admittedKnowledge.activeAdmissionRecordCount, 1);
+    assert.equal(historical.status().admittedKnowledge.invalidAdmissionRecordCount, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

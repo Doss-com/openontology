@@ -228,6 +228,7 @@ void rootOpenCanonicalObjectBackend;
   openSourceNativeObjectOntIndex,
   openSourceNativeOntExplorer,
   openSourceNativeProductRuntime,
+  openSourceNativeHistoricalProductRuntime,
   openSourceNativeProductWithAdmittedKnowledge,
   openSourceNativeProductWithConstruction,
   createSourceNativeProductMcpHandler,
@@ -399,6 +400,15 @@ buildSourceNativeProduct({ artifactRoot: './new-cut', expectedSourceVersion: 1 }
 // @ts-expect-error source publication preconditions are not runtime opening options.
 openSourceNativeProductRuntime({ artifactRoot: './fixture', expectedSourceVersion: null });
 const openRuntime: typeof openSourceNativeProductRuntime = openSourceNativeProductRuntime;
+const openHistorical: typeof openSourceNativeHistoricalProductRuntime = openSourceNativeHistoricalProductRuntime;
+const inspectHistorical = (artifactRoot: string) => {
+  const product = openHistorical({ artifactRoot });
+  if (product.status().cutSelection !== 'exact-artifact') throw new Error('historical runtime must select exact artifact');
+  return 'exact-artifact' as const;
+};
+// @ts-expect-error historical is a control-plane configuration, not a product option.
+openHistorical({ artifactRoot: './fixture', historical: true });
+void inspectHistorical;
 const openAdmitted: typeof openSourceNativeProductWithAdmittedKnowledge =
   openSourceNativeProductWithAdmittedKnowledge;
 const compileChronology: typeof compileSourceNativeCurrentFieldChronologyVerification =
@@ -736,7 +746,8 @@ assert.deepEqual(kernelKeys, [
     'openProductState','openSourceNativeExactEvidenceSession','openSourceNativeObjectOntIndex',
     'openSourceNativeObjectOntRefIndex',
     'openSourceNativeOntExplorer',
-    'openSourceNativeProductRuntime','openSourceNativeProductWithAdmittedKnowledge',
+    'openSourceNativeHistoricalProductRuntime','openSourceNativeProductRuntime',
+    'openSourceNativeProductWithAdmittedKnowledge',
     'openSourceNativeProductWithConstruction',
     'openSourceNativeConstructionReview',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',

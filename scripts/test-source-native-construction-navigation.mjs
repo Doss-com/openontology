@@ -358,6 +358,28 @@ test('new source clients do not inherit prior-cut maps while an existing client 
   assert.notEqual(old.sourceCommitSha256, result.sourceCommitSha256);
 });
 
+test('historical construction navigation reopens A after the source client advances to B', async t => {
+  const f = fixture(t);
+  const original = f.record();
+  f.write(original);
+  const nextOptions = { artifactRoot: join(f.root, 'historical-next') };
+  const nextInput = clone(f.buildInput);
+  nextInput.sources[0] = { ...nextInput.sources[0], occurredAt: at(4) };
+  kernel.buildSourceNativeProduct({ ...nextOptions, objectBackendUri: f.objectBackendUri, input: nextInput });
+
+  const historical = kernel.openSourceNativeProductWithConstruction(
+    f.options, { ...f.configuration, historical: true });
+  assert.equal(historical.status().cutSelection, 'exact-artifact');
+  const page = await historical.search({ term: 'AllocationException', limit: 4 });
+  assert.equal(page.state, 'resolved-construction-navigation');
+  assert.equal(page.sourceCommitSha256, f.state.objectOnt.commitSha256);
+  const exact = await historical.read({ ref: page.matches[0].ref });
+  assert.equal(exact.binding.navigationOnly, true);
+  assert.equal(exact.binding.admissionRecordSha256, original.recordSha256);
+  assert.equal(exact.exactText,
+    f.buildInput.sources.find(source => source.relativePath === exact.evidence.sourceRef).content);
+});
+
 for (const [name, input] of [
   ['empty term', { term: '' }], ['oversized term', { term: 'a'.repeat(257) }],
   ['mixed query', { term: 'AllocationException', question: 'What is true?' }],

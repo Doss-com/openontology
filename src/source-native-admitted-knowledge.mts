@@ -17,7 +17,10 @@ import {
 } from './source-native-field-resolution.mjs';
 import type { SourceNativeFieldResolutionResult } from './source-native-field-resolution.mjs';
 import { normalizeSourceNativeHistoricalTime, resolveSourceNativeFieldAt } from './source-native-historical-field.mjs';
-import { openSourceNativeProductRuntime } from './source-native-product.mjs';
+import {
+  openSourceNativeHistoricalProductRuntime,
+  openSourceNativeProductRuntime,
+} from './source-native-product.mjs';
 import { compileProductQueryPlan } from './source-native-query-plan.mjs';
 import {
   normalizeProofAuthorityItem,
@@ -1611,18 +1614,29 @@ export function openSourceNativeProductWithAdmittedKnowledge(
   configuration: {
     trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
     knowledgeBranch?: string;
+    historical?: boolean;
   },
   createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
 ): SourceNativeAdmittedKnowledgeProduct {
   if (createLifecycleAdapter !== null && typeof createLifecycleAdapter !== 'function') {
     fail('SOURCE_NATIVE_PRODUCT_LIFECYCLE_ADAPTER');
   }
+  const configurationValue = configuration ?? fail('SOURCE_NATIVE_ADMISSION_TRUST');
+  if (typeof configurationValue !== 'object' || Array.isArray(configurationValue)
+    || Object.keys(configurationValue).some((key) => !['trustRegistry', 'knowledgeBranch', 'historical'].includes(key))) {
+    fail('SOURCE_NATIVE_ADMISSION_TRUST');
+  }
   const {
     trustRegistry: trustInput,
     knowledgeBranch: knowledgeBranchInput,
-  } = configuration ?? fail('SOURCE_NATIVE_ADMISSION_TRUST');
+    historical = false,
+  } = configurationValue;
+  if (typeof historical !== 'boolean') fail('SOURCE_NATIVE_ADMISSION_TRUST');
   let context: SourceNativeProductRuntimeContext | null = null;
-  const product = openSourceNativeProductRuntime(options, (runtimeContext) => {
+  const openRuntime = historical
+    ? openSourceNativeHistoricalProductRuntime
+    : openSourceNativeProductRuntime;
+  const product = openRuntime(options, (runtimeContext) => {
     context = runtimeContext;
     return createLifecycleAdapter?.(runtimeContext) ?? null;
   });

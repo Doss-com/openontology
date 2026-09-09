@@ -62,6 +62,7 @@ export { createSourceNativeProductMcpHandler } from './source-native-product-mcp
 export type { ProductTransport } from './source-native-product-mcp.mjs';
 export {
   buildSourceNativeProduct,
+  openSourceNativeHistoricalProductRuntime,
   openSourceNativeProductRuntime,
   SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE,
 } from './source-native-product.mjs';

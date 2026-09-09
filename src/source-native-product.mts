@@ -14,7 +14,11 @@ import {
   compileSourceNativeSemanticProofRefusal,
   evaluateSourceNativeSemanticNavigation,
 } from './source-native-semantic-verification.mjs';
-import { openProductState, productSources } from './source-native-artifact.mjs';
+import {
+  openExactProductArtifactState,
+  openProductState,
+  productSources,
+} from './source-native-artifact.mjs';
 import { compileProductQueryPlan, queryPlanner } from './source-native-query-plan.mjs';
 import { OPENONTOLOGY_RESULT_STATES } from './product-result-state.mjs';
 import type { Descriptor, ObjectOnt, ProductOptions } from './source-native-artifact.mjs';
@@ -292,8 +296,13 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
   return freeze({ ...core, resultSha256: stableObjectSha256(core) });
 }
 
-export function openSourceNativeProductRuntime(options: ProductOptions = {},
-  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
+type SourceNativeProductStateOpener = (options: ProductOptions) => SourceNativeProductState;
+type SourceNativeProductCutSelection = 'current-ref' | 'exact-artifact';
+
+function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null,
+  openState: SourceNativeProductStateOpener,
+  cutSelection: SourceNativeProductCutSelection) {
   if (!options || typeof options !== 'object' || Array.isArray(options)
     || Object.keys(options).some((name) => !PRODUCT_OPTIONS.has(name))) {
     fail('SOURCE_NATIVE_PRODUCT_OPTIONS');
@@ -307,7 +316,7 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
   if (createLifecycleAdapter !== null && typeof createLifecycleAdapter !== 'function') {
     fail('SOURCE_NATIVE_PRODUCT_LIFECYCLE_ADAPTER');
   }
-  const { descriptor, selectedBackend, backend, store, objectOnt } = openProductState({
+  const { descriptor, selectedBackend, backend, store, objectOnt } = openState({
     artifactRoot, objectBackendUri, historyBackendUri, objectBackendEnv,
   });
   const sources = productSources(objectOnt);
@@ -787,8 +796,22 @@ export function openSourceNativeProductRuntime(options: ProductOptions = {},
       canonicalSourceReadOnly: true,
       readOnly: lifecycle?.readOnly ?? true,
       ...(lifecycle?.status?.() ?? {}),
+      cutSelection,
     }),
   });
+}
+
+export function openSourceNativeProductRuntime(options: ProductOptions = {},
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
+  return openSourceNativeProductRuntimeWithState(
+    options, createLifecycleAdapter, openProductState, 'current-ref');
+}
+
+/** Open a kernel-only product runtime against the descriptor's exact immutable source cut. */
+export function openSourceNativeHistoricalProductRuntime(options: ProductOptions = {},
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
+  return openSourceNativeProductRuntimeWithState(
+    options, createLifecycleAdapter, openExactProductArtifactState, 'exact-artifact');
 }
 
 export function openSourceNativeProduct(options = {}) {

@@ -138,8 +138,9 @@ function remember<T>(map: Map<string, T>, key: string, value: T, maximum: number
 export function openSourceNativeProductWithConstruction(options: ProductOptions = {}, configuration: {
   trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
   knowledgeBranch?: string;
+  historical?: boolean;
 }, createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
-  row(configuration, ['trustRegistry', 'knowledgeBranch']);
+  row(configuration, ['trustRegistry', 'knowledgeBranch', 'historical']);
   if (createLifecycleAdapter !== null && typeof createLifecycleAdapter !== 'function') fail('INPUT');
   let captured: SourceNativeProductRuntimeContext | null = null;
   const base = openSourceNativeProductWithAdmittedKnowledge(options, configuration, (context) => {
