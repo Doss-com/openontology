@@ -47,8 +47,8 @@
     },
     {
       "path": ".github/release-notes/v0.3.0-alpha.3.md",
-      "bytes": 1794,
-      "sha256": "60bd0be2b1f6b382b26dd6aeca4ef0c4868e06f067e288a14a0bfd4c091430ca"
+      "bytes": 1865,
+      "sha256": "cb3aa1287fcccbb838bb3bb9e1c0e54689e085b69199c96cf2371f99df353245"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -576,5 +576,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:6772efafeda942cdaea1e665cb34844f86731423101a24fdf0f96f1322aeae04"
+  "manifestSha256": "sha256:4b037552c1c509705525c6db7660f10969964c140100a69404e568a0a7e8c209"
 }
