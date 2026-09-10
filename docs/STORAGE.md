@@ -7,6 +7,11 @@ Normal ObjectOnt ref publication is forward-only. An existing branch accepts
 its current commit or a descendant, and rejects an ancestor or unrelated fork
 with `OBJECT_ONT_REF_ROLLBACK`. Backend version conflicts still govern concurrent
 writes. Historical snapshots remain readable without changing current refs.
+This is commit ancestry, not content rollback: republishing older bytes can
+create a new descendant commit, advance the branch, and make descriptors bound
+to a prior descendant stale. Treat that as a new publication, not restoration;
+use exact historical opening or a separate branch or cut when preserving old
+state.
 This rule covers source and admitted-knowledge publication. The legacy profile
 does not detect a direct backend rewrite after process restart. The unpublished
 protected profile below adds independently stored accepted history.

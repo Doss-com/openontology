@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 19193,
-      "sha256": "38605a61ba13e5849e0a8ab5c540c3029ea34cff5c669653607f6ffab59b23e3"
+      "bytes": 19884,
+      "sha256": "936c2ab079941bcbeff97286b7396d97cf9ab3b7544245d3643edcfa389281a0"
     },
     {
       "path": "SECURITY.md",
@@ -127,8 +127,8 @@
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
-      "bytes": 24693,
-      "sha256": "9fef8005883472950d290c5ba5c85042c5153c8e6aaf5df381321c3d44bd75fd"
+      "bytes": 24925,
+      "sha256": "735eff400807592aaab0270d57d8517622129d44cf9444c989ce90c849bb2279"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 11903,
-      "sha256": "05cf49c6e0b584aacf0b67b2f3c6e2c714d978f783609ec05fb5a8fb7408961d"
+      "bytes": 12221,
+      "sha256": "41c79676dc47fc7347ef156b01146dabf6c6c12cc3cb1e547f6cc9e89c7321b3"
     },
     {
       "path": "examples/quickstart/semantic-map.mjs",
@@ -576,5 +576,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:ea3d93a7181c62800e4a2e89e00f1dc67b236b657502177cd593d3f112cdf77a"
+  "manifestSha256": "sha256:6772efafeda942cdaea1e665cb34844f86731423101a24fdf0f96f1322aeae04"
 }

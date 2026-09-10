@@ -40,17 +40,24 @@ npm install /path/to/openontology/oont-0.3.0-alpha.3.tgz
 
 The package and command are both named `oont`.
 The GitHub release workflow attaches a provenance attestation to its packages.
-`SOURCE-MANIFEST.json` binds the complete public file inventory. The release tag
-and GitHub attestation bind that source state to the package tarball.
+The repository `SOURCE-MANIFEST.json`, release `SHA256SUMS`, and GitHub
+attestation are release metadata, not files inside the npm tarball. Together
+with the release tag, they bind the published package to its source state.
 
 For a downloaded, published prerelease, verify its checksum and attestation
-before installation. A locally packed development build has no GitHub release
-attestation:
+before installation. The commands below apply to the published release assets,
+not to a locally packed development tarball. A local pack has no GitHub release
+attestation or release-side `SHA256SUMS` file; verify its identity with a direct
+hash of the local tarball instead:
 
 ```bash
 sha256sum -c SHA256SUMS
 gh attestation verify ./downloaded-package.tgz \
   --repo Doss-com/openontology
+```
+
+```bash
+sha256sum ./oont-0.3.0-alpha.3.tgz
 ```
 
 ## Two-minute quickstart
@@ -128,6 +135,9 @@ identity, complete identity census, source catalog, source-handle set, and
 source count. The receipt explicitly does not authorize a claim of world-wide
 absence. The complete census resolves this case before retrieval. Any adapter
 failure disables the certification and preserves the ordinary retrieval path.
+Natural-language text that merely mentions an ID does not supply this exact
+typed identity. To request the catalog-scoped absence receipt, provide
+`scope.sourceSystem`, `scope.objectType`, `scope.field`, and `scope.externalId`.
 
 `verify` answers a question against one Ont. `check` validates the Ont itself.
 
@@ -222,6 +232,10 @@ Advanced MCP exposes exactly `search` and `read`:
 ```bash
 oont serve ./verified-context --mcp --advanced
 ```
+
+The stdio server writes its startup status JSON to stderr before serving
+requests. Parse stdout for JSON-RPC protocol messages; treat stderr as
+diagnostics.
 
 Start a verification call with only `question`:
 

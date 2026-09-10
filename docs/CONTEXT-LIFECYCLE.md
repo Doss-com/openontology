@@ -434,6 +434,10 @@ const checked = await ont.verify({
 });
 ```
 
+This example uses the kernel construction product, whose verification input
+uses its internal `typedQuery` shape. The root `openOntology` client uses the
+public `scope` shape instead; do not copy `typedQuery` into the root client.
+
 This uses `oont/kernel`; it does not silently activate construction in the root
 SDK or CLI. To serve an explicitly configured client over MCP, use the same
 canonical handler:
