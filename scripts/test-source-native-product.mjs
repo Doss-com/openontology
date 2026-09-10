@@ -107,6 +107,47 @@ function buildInput() {
   };
 }
 
+function buildScopedIdentityCensusInput() {
+  const rows = [
+    ['ctl/repro/ZA-2026-01-01.txt', '2026-01-01T00:00:00.000Z', 'Zone status alpha1', 'ZA', 'status', 'alpha1'],
+    ['ctl/repro/ZA-2026-02-01.txt', '2026-02-01T00:00:00.000Z', 'Zone alpha2', 'ZA', 'status', 'alpha2'],
+    ['ctl/repro/ZB-2026-01-01.txt', '2026-01-01T00:00:00.000Z', 'Owner: beta', 'ZB', 'owner', 'beta'],
+    ['ctl/repro/ZC-2026-01-01.txt', '2026-01-01T00:00:00.000Z', 'zone gamma', 'ZC', 'status', 'gamma'],
+  ];
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'public-identity-census-q7',
+    namespace: 'repro',
+    querySchemas: [{
+      sourceSystem: 'ctl',
+      objectType: 'zone',
+      aliases: ['zone'],
+      fields: [
+        { fieldPath: 'status', aliases: ['status'] },
+        { fieldPath: 'owner', aliases: ['owner'] },
+      ],
+    }],
+    sources: rows.map(([relativePath, occurredAt, _content]) => ({
+      relativePath,
+      sourceType: 'ctl',
+      occurredAt,
+      content: _content,
+    })),
+    nativeObjectInputs: rows.map(([relativePath, _occurredAt, _content, externalId, fieldPath, value]) => ({
+      relativePath,
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'ctl',
+        objectType: 'zone',
+        namespace: 'repro',
+        externalId,
+      },
+      fields: [{ fieldPath, value }],
+    })),
+  };
+}
+
 function buildTemporalInput() {
   const revisions = [
     ['clickup/acme/status-rev-1.md', '2026-01-01T00:00:00.000Z', 'Alpha', 'Draft'],
@@ -739,6 +780,53 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
     await assert.rejects(reopened.read({ ref: current.matches[0].ref }), {
       code: 'SOURCE_NATIVE_PRODUCT_READ',
     });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refuses a scoped current field when complete identity census is ambiguous', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-identity-census-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildScopedIdentityCensusInput() });
+    const product = openSourceNativeProduct({ artifactRoot: root });
+    const typedQuery = {
+      sourceSystem: 'ctl', objectType: 'zone', namespace: 'repro', fieldPath: 'status',
+    };
+    const typedSearch = await product.search({
+      question: 'What is the current status?', typedQuery,
+    });
+    assert.equal(typedSearch.state, 'unavailable-native-object-scope-ambiguous');
+    assert.deepEqual(typedSearch.matches, []);
+    assert.equal(typedSearch.query.externalId, undefined);
+
+    const typedVerify = await product.verify({
+      question: 'What is the current status?', typedQuery,
+    });
+    assert.equal(typedVerify.answerable, false);
+    assert.equal(typedVerify.state, 'unavailable-native-object-scope-ambiguous');
+    assert.deepEqual(typedVerify.context, []);
+
+    const proseSearch = await product.search({ question: 'What is the current status of zone?' });
+    assert.equal(proseSearch.state, 'unavailable-native-object-scope-ambiguous');
+    assert.deepEqual(proseSearch.matches, []);
+    const proseVerify = await product.verify({ question: 'What is the current status of zone?' });
+    assert.equal(proseVerify.answerable, false);
+    assert.equal(proseVerify.state, 'unavailable-native-object-scope-ambiguous');
+    assert.deepEqual(proseVerify.context, []);
+
+    const explicit = await product.search({
+      question: 'What is the current status of ZA?',
+      typedQuery: { sourceSystem: 'ctl', objectType: 'zone', namespace: 'repro', externalId: 'ZA', fieldPath: 'status' },
+    });
+    assert.equal(explicit.state, 'resolved-current-field');
+    assert.equal((await product.read({ ref: explicit.matches[0].ref })).exactText, 'alpha2');
+    const retrievalMiss = await product.search({
+      question: 'What is the current status of ZC?',
+      typedQuery: { sourceSystem: 'ctl', objectType: 'zone', namespace: 'repro', externalId: 'ZC', fieldPath: 'status' },
+    });
+    assert.equal(retrievalMiss.state, 'resolved-current-field');
+    assert.equal((await product.read({ ref: retrievalMiss.matches[0].ref })).exactText, 'gamma');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

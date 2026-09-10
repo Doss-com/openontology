@@ -173,6 +173,74 @@ test('uses a unique typed scope when retrieval misses, but refuses an ambiguous 
   assert.equal(refused.current, null);
 });
 
+test('counts every scoped identity instead of trusting a singleton seed', () => {
+  const selected = source('clickup/acme/selected.md', '2026-01-01T00:00:00.000Z', '# Selected title\n');
+  const missingField = source('clickup/acme/missing-field.md', '2026-01-02T00:00:00.000Z', '# Owner beta\n');
+  const competing = source('clickup/acme/competing.md', '2026-01-03T00:00:00.000Z', '# Competing title\n');
+  const map = compileSourceNativeObjectMap({
+    sources: [selected, missingField, competing],
+    nativeObjectInputs: [
+      nativeObject(selected, 'zone-a', 'Selected title', 'acme', {
+        sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+      }),
+      nativeObject(missingField, 'zone-b', 'Owner beta', 'acme', {
+        sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'owner',
+      }),
+      nativeObject(competing, 'zone-c', 'Competing title', 'acme', {
+        sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+      }),
+    ],
+  });
+  const singletonSeed = resolveSourceNativeField({
+    sourceNativeObjectMap: map,
+    seedRelativePaths: [selected.relativePath],
+    query: {
+      namespace: 'acme', sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+    },
+  });
+  const emptySeed = resolveSourceNativeField({
+    sourceNativeObjectMap: map,
+    seedRelativePaths: [],
+    query: {
+      namespace: 'acme', sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+    },
+  });
+  assert.equal(singletonSeed.state, 'unavailable-native-object-scope-ambiguous');
+  assert.equal(emptySeed.state, 'unavailable-native-object-scope-ambiguous');
+  assert.equal(singletonSeed.policy, 'unique-source-native-object-scope-then-field-revision-v1');
+  assert.equal(singletonSeed.policy, emptySeed.policy);
+  assert.equal(singletonSeed.current, null);
+});
+
+test('omitted namespace counts duplicate external IDs across namespaces', () => {
+  const alpha = source('clickup/alpha/task.md', '2026-01-01T00:00:00.000Z', '# Shared title\n');
+  const beta = source('clickup/beta/task.md', '2026-01-02T00:00:00.000Z', '# Shared title\n');
+  const map = compileSourceNativeObjectMap({
+    sources: [alpha, beta],
+    nativeObjectInputs: [
+      nativeObject(alpha, 'shared', 'Shared title', 'alpha'),
+      nativeObject(beta, 'shared', 'Shared title', 'beta'),
+    ],
+  });
+  const omittedNamespace = resolveSourceNativeField({
+    sourceNativeObjectMap: map,
+    seedRelativePaths: [alpha.relativePath],
+    query: {
+      sourceSystem: 'clickup', objectType: 'task', externalId: 'shared', fieldPath: 'title',
+    },
+  });
+  assert.equal(omittedNamespace.state, 'unavailable-native-object-scope-ambiguous');
+  const boundNamespace = resolveSourceNativeField({
+    sourceNativeObjectMap: map,
+    seedRelativePaths: [],
+    query: {
+      namespace: 'alpha', sourceSystem: 'clickup', objectType: 'task', externalId: 'shared', fieldPath: 'title',
+    },
+  });
+  assert.equal(boundNamespace.state, 'resolved-current-field');
+  assert.equal(boundNamespace.current.value, 'Shared title');
+});
+
 test('resolves only the immediate field successor and refuses multiple anchors', () => {
   const first = source('clickup/acme/first.md', '2026-01-01T00:00:00.000Z', '# First title\n');
   const second = source('clickup/acme/second.md', '2026-02-01T00:00:00.000Z', '# Second title\n');
@@ -211,7 +279,7 @@ test('resolves only the immediate field successor and refuses multiple anchors',
   assert.equal(refused.successor, null);
 });
 
-test('refuses an explicit identity that retrieval did not seed', () => {
+test('resolves an explicit identity that retrieval did not seed', () => {
   const seeded = source('clickup/acme/seed.md', '2026-01-01T00:00:00.000Z', '# Seeded object\n');
   const requested = source('clickup/acme/requested.md', '2026-02-01T00:00:00.000Z', '# Requested object\n');
   const map = compileSourceNativeObjectMap({
@@ -231,8 +299,8 @@ test('refuses an explicit identity that retrieval did not seed', () => {
       fieldPath: 'title',
     },
   });
-  assert.equal(result.state, 'unavailable-native-object-not-seeded');
-  assert.equal(result.current, null);
+  assert.equal(result.state, 'resolved-current-field');
+  assert.equal(result.current.value, 'Requested object');
 });
 
 test('binds a large revision closure without emitting every intermediate revision', () => {

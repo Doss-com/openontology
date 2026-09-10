@@ -100,7 +100,7 @@ function resultCore({ map, query, seedRelativePaths, state, current = null,
   expandedRelativePaths = [], suppressedRelativePaths = [], revisionPath = [],
   revisionClosureCount = 0, revisionClosureSha256 = stableObjectSha256([]),
   suppressedClosureCount = 0, suppressedClosureSha256 = stableObjectSha256([]),
-  policy = 'bm25-seed-then-source-native-object-identity-and-field-revision-v1' }: {
+  policy = 'unique-source-native-object-scope-then-field-revision-v1' }: {
     map: SourceNativeObjectMap;
     query: SourceNativeFieldQuery;
     seedRelativePaths: string[];
@@ -200,34 +200,22 @@ export function resolveSourceNativeField({ sourceNativeObjectMap: mapInput,
     || query.externalId !== undefined && (typeof query.externalId !== 'string' || !query.externalId)
     || typeof query.fieldPath !== 'string' || !query.fieldPath) fail('SOURCE_NATIVE_RESOLVER_INPUT');
   const seedRelativePaths = [...seedInput].sort();
-  const seedMatches = map.nativeObjects.filter((row) => seedRelativePaths.includes(row.relativePath)
-    && row.objectIdentity.sourceSystem === query.sourceSystem
+  const scopedMatches = map.nativeObjects.filter((row) =>
+    row.objectIdentity.sourceSystem === query.sourceSystem
     && row.objectIdentity.objectType === query.objectType
     && (query.namespace === undefined || row.objectIdentity.namespace === query.namespace)
     && (query.externalId === undefined || row.objectIdentity.externalId === query.externalId));
-  const seededIdentityIds = new Set(seedMatches.map((row) => row.objectIdentitySha256));
-  const scopedMatches = query.namespace === undefined ? [] : map.nativeObjects.filter((row) =>
-    row.objectIdentity.sourceSystem === query.sourceSystem
-    && row.objectIdentity.objectType === query.objectType
-    && row.objectIdentity.namespace === query.namespace
-    && (query.externalId === undefined || row.objectIdentity.externalId === query.externalId));
   const scopedIdentityIds = new Set(scopedMatches.map((row) => row.objectIdentitySha256));
-  const useTypedScope = seededIdentityIds.size === 0 && scopedIdentityIds.size === 1;
-  const selectedIdentitySha256 = seededIdentityIds.size === 1
-    ? [...seededIdentityIds][0] : useTypedScope ? [...scopedIdentityIds][0] : null;
+  const selectedIdentitySha256 = scopedIdentityIds.size === 1 ? [...scopedIdentityIds][0] : null;
   const selectedIdentityObject = selectedIdentitySha256 === null ? null
-    : (seedMatches.find((row) => row.objectIdentitySha256 === selectedIdentitySha256)
-      ?? scopedMatches.find((row) => row.objectIdentitySha256 === selectedIdentitySha256));
+    : scopedMatches.find((row) => row.objectIdentitySha256 === selectedIdentitySha256);
   const derivedExternalId = selectedIdentityObject?.objectIdentity.externalId ?? query.externalId;
   const resolvedQuery = { ...query, externalId: derivedExternalId };
-  const policy = useTypedScope
-    ? 'unique-typed-object-scope-then-field-revision-v1'
-    : 'bm25-seed-then-source-native-object-identity-and-field-revision-v1';
+  const policy = 'unique-source-native-object-scope-then-field-revision-v1';
   if (selectedIdentitySha256 === null || derivedExternalId === undefined) {
     const core = resultCore({ map, query: resolvedQuery, seedRelativePaths,
-      state: seededIdentityIds.size > 1 ? 'unavailable-native-object-seed-ambiguous'
-        : scopedIdentityIds.size > 1 ? 'unavailable-native-object-scope-ambiguous'
-          : 'unavailable-native-object-not-seeded', policy });
+      state: scopedIdentityIds.size > 1 ? 'unavailable-native-object-scope-ambiguous'
+        : 'unavailable-native-object-not-seeded', policy });
     return freeze({ ...core, resolutionSha256: stableObjectSha256(core) });
   }
   const versions = map.nativeObjects.filter((row) => row.objectIdentitySha256 === selectedIdentitySha256)
