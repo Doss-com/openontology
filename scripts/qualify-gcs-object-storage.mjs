@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { encodeEntry, entry } from '../src/assertion-envelope.mjs';
-import { openGcsObjectBackend } from '../src/gcs-object-storage-backend.mjs';
-import { openObjectOntStore } from '../src/object-ont-store.mjs';
+import { encodeEntry, entry } from '../dist/src/assertion-envelope.mjs';
+import { openGcsObjectBackend } from '../dist/src/gcs-object-storage-backend.mjs';
+import { openObjectOntStore } from '../dist/src/object-ont-store.mjs';
 
 const backend = openGcsObjectBackend({
   bucket: process.env.OONT_GCS_BUCKET,

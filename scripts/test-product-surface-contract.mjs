@@ -7,12 +7,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 
-import * as publicSdk from '../src/openontology.mjs';
-import { buildSourceNativeProduct } from '../src/source-native-product.mjs';
-import { SOURCE_NATIVE_PRODUCT_TOOLS } from '../src/source-native-product-mcp.mjs';
+import * as publicSdk from '../dist/src/openontology.mjs';
+import { buildSourceNativeProduct } from '../dist/src/source-native-product.mjs';
+import { SOURCE_NATIVE_PRODUCT_TOOLS } from '../dist/src/source-native-product-mcp.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const bin = resolve(repositoryRoot, 'bin/oont.mjs');
+const bin = resolve(repositoryRoot, 'dist/bin/oont.mjs');
 const { openOntology } = publicSdk;
 
 function run(args) {
@@ -124,7 +124,7 @@ test('retired query verbs are not compatibility aliases', () => {
 
   const resolveCommand = run(['resolver', 'resolve', './missing', 'question']);
   assert.equal(resolveCommand.status, 2);
-  assert.match(resolveCommand.stderr, /usage: oont resolver/u);
+  assert.match(resolveCommand.stderr, /usage: oont <command>/u);
 });
 
 test('SDK exposes only the locked query interface and preserves navigation before Evidence', async () => {
@@ -237,7 +237,7 @@ test('MCP profiles expose one ordinary path or one advanced path, never both', (
     ['search', 'read']);
   assert.deepEqual(
     Object.keys(SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties).sort(),
-    ['anchorValue', 'intent', 'question', 'scope'],
+    ['anchorValue', 'at', 'intent', 'question', 'scope'],
   );
   assert.deepEqual(
     SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties.scope.required,

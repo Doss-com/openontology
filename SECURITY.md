@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | --- | --- |
-| `0.3.0-alpha.2` | Yes, developer alpha |
-| Earlier prereleases | No |
+| `0.3.0-alpha.3` | Yes, developer alpha |
+| `0.3.0-alpha.2` and earlier prereleases | No |
 
 ## Report a vulnerability
 

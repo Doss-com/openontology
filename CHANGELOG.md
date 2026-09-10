@@ -1,5 +1,87 @@
 # Changelog
 
+## Unreleased
+
+- Resolve typed scope against the complete scoped distinct-identity map rather
+  than retrieval ranking. Exact IDs, unique declared titles, and singleton
+  scopes remain usable; ambiguous subjects refuse without choosing a result.
+- Add a canonical selected-source context for construction, preserving complete
+  cited documents and native-field verification without hydrating uncited packs.
+  Whole-index validation, full product checks and protected Admission object
+  availability checks remain. Review enforces source-text limits before reads.
+- Correct `stableObjectSha256` to match the existing canonical JSON wire bytes
+  for integer-index object keys while preserving the serializer and public text
+  format. This alpha correction can change persisted identifiers, and an old
+  artifact may refuse with `SOURCE_NATIVE_MAP`; retain its old runtime, storage,
+  and Adapter input, then rebuild into a new target directory. There is no
+  in-place migration or signed-knowledge transfer.
+- Add an optional source-version precondition to the kernel builder. Delayed
+  changed publications refuse without advancing the winning source head;
+  identical-content retries remain idempotent. Root query options are unchanged.
+- Refuse disagreement between a question's declared identity/profile/field and
+  structured scope. Preserve scope-only queries and disambiguation among
+  matching declared candidates across SDK, CLI and MCP. Version the planner
+  binding so prior-plan Admissions do not silently reuse different semantics.
+  Matching typed missing IDs retain catalog-scoped absence; conflicting IDs
+  cannot issue an absence receipt for a different requested object.
+- Make repeated concept names browsable through bounded metadata pages while
+  preserving distinct identities, exact reads and explicit factual verification.
+- Expose explicitly configured construction clients through the existing MCP
+  `search` and `read` tools. Ordinary schemas and the default `verify` remain
+  unchanged; no review or signing tool is added.
+- Add a bounded full-source construction review session with complete per-item
+  decisions and exact quotation checks. Results remain unsigned and cannot
+  grant Admission; independent semantic judgment remains external.
+- Add a bounded construction profile for source-grounded concept ObjectDefs,
+  scoped aliases and `mentions` / `defines` Claims. Independently signed
+  Admission, correction and cold eligibility feed metadata-only `search` and
+  exact passage `read` through `oont/kernel`. Navigation never supplies factual
+  proof or implicitly chooses the subject of `verify`. Include a runnable
+  synthetic concept-map example; semantic-review quality remains unqualified.
+- Require ordinary ObjectOnt ref publication to preserve the accepted head in
+  candidate ancestry. Reject backward or unrelated source and knowledge writes,
+  preserve concurrent-write conflicts, and keep historical snapshots readable.
+  Direct-storage rewrites and restored-backup detection remain unqualified.
+- Bind quoted declared titles through the complete scoped native identity map.
+  Preserve exact Evidence, counterevidence, historical selection and Admission
+  reuse; refuse unknown or ambiguous names and conflicting identity qualifiers.
+- Add explicit retrospective point-in-time `at` queries across SDK, CLI, and
+  MCP. Bind selection, exact Evidence, semantic counterevidence, and Admission
+  reuse to one requested time and complete source cut. Preserve current and
+  immediate-successor behavior.
+- Bind native semantic Admission and cold reuse to the complete authority
+  projection reconstructed from the selected source field. Reject signed
+  reduced censuses and semantic drift without suppressing ordinary verification.
+- Enforce the native minimum proof profile at durable write and cold reuse.
+  Required exact support cannot replace or link only to an optional answer;
+  compatible stronger contracts and renamed obligation IDs remain supported.
+- Require counterevidence relation targets to satisfy all required support
+  modality and polarity constraints for their family, independent of obligation
+  order. Preserve the complete authoritative item and relation censuses.
+- Add stable source resource binding and validated ref-bound replay checkpoints
+  to the kernel. Ordinary product opening uses valid checkpoints and falls back
+  to full replay when a checkpoint is absent.
+
+## 0.3.0-alpha.3
+
+### Changed
+
+- Made strict TypeScript the canonical source while preserving dependency-free
+  ESM output and validated current-field and successor behavior.
+- Added declarations, declaration maps, source maps, and a clean-consumer type
+  compilation gate to the release package.
+- Added the bounded `oont/kernel` extension Interface for managed and research
+  runtimes without expanding the ordinary SDK surface.
+- Added typed public result states, exact Verification Evidence types, and
+  identity diagnostics on Verification results.
+- Refuse historical, dated, change, and ordered-time wording unless the caller
+  declares a supported intent. This prevents a temporal question from silently
+  receiving the current value.
+- Corrected the installed-package quickstart and public TypeScript names after
+  an independent context-blind package evaluation.
+- Added `oont --version` and made the GitHub release workflow derive its title
+  and notes file from the immutable tag.
+
 ## 0.3.0-alpha.2
 
 First public developer alpha. Earlier prereleases were internal development

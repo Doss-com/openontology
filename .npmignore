@@ -1,3 +1,13 @@
 **/__pycache__/
 **/*.pyc
 **/*.pyo
+
+# The package ships only generated output under dist/.
+src/
+bin/
+scripts/
+tests/
+.github/
+tsconfig*.json
+AGENTS.md
+SOURCE-MANIFEST.json

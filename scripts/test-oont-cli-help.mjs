@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const run = (args) => spawnSync(process.execPath, [resolve(repositoryRoot, 'bin/oont.mjs'), ...args], {
+const run = (args) => spawnSync(process.execPath, [resolve(repositoryRoot, 'dist/bin/oont.mjs'), ...args], {
   cwd: repositoryRoot,
   encoding: 'utf8',
 });
@@ -25,3 +25,15 @@ for (const args of [
   assert.match(result.stderr, /usage: oont/u, args.join(' '));
   assert.doesNotMatch(result.stderr, /\n\s+at\s/u, args.join(' '));
 }
+
+const version = run(['--version']);
+assert.equal(version.status, 0, version.stderr);
+assert.equal(version.stdout.trim(), '0.3.0-alpha.3');
+assert.equal(version.stderr, '');
+
+const badIntent = run([
+  'verify', './missing', 'What is current?', '--intent', 'previous',
+]);
+assert.equal(badIntent.status, 2);
+assert.match(badIntent.stderr, /^usage: oont <command>/u);
+assert.doesNotMatch(badIntent.stderr, /^usage: oont resolver <command>/u);

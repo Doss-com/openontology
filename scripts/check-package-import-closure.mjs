@@ -1,85 +1,101 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, normalize, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
-  cwd: root,
-  encoding: 'utf8',
-}))[0];
-const paths = new Set(packed.files.map((file) => file.path));
-const modules = [...paths].filter((path) => /\.(?:mjs|js)$/u.test(path));
-const missing = [];
-const importsByModule = new Map(modules.map((path) => [path, new Set()]));
+const sandbox = mkdtempSync(join(tmpdir(), 'oont-closure-'));
+const fail = (message) => {
+  process.stderr.write(`package import closure failed: ${message}\n`);
+  process.exitCode = 1;
+};
 
-function packagePath(importer, specifier) {
-  const absolute = resolve(root, dirname(importer), specifier);
-  const relative = normalize(absolute.slice(root.length + 1)).split(sep).join('/');
-  return relative;
-}
+try {
+  const packed = JSON.parse(execFileSync('npm', [
+    'pack', '--ignore-scripts', '--pack-destination', sandbox, '--json',
+  ], { cwd: root, encoding: 'utf8' }))[0];
+  const tarball = join(sandbox, packed.filename);
+  execFileSync('tar', ['-xzf', tarball, '-C', sandbox], { cwd: root });
+  const packageRoot = join(sandbox, 'package');
+  const paths = new Set(packed.files.map((file) => file.path));
+  const modules = [...paths].filter((path) => path.endsWith('.mjs'));
+  const missing = [];
+  const importsByModule = new Map(modules.map((path) => [path, new Set()]));
 
-function requirePacked(importer, specifier, kind = 'import') {
-  if (!specifier.startsWith('.')) return;
-  if (specifier.endsWith('/') || !/\.(?:mjs|js|json|node)$/u.test(specifier)) return;
-  const target = packagePath(importer, specifier);
-  if (!paths.has(target)) missing.push({ importer, kind, specifier, target });
-  else if (importsByModule.has(target)) importsByModule.get(importer).add(target);
-}
+  function packagePath(importer, specifier) {
+    const absolute = resolve(packageRoot, dirname(importer), specifier);
+    return normalize(absolute.slice(packageRoot.length + 1)).split(sep).join('/');
+  }
 
-for (const importer of modules) {
-  const source = readFileSync(join(root, importer), 'utf8');
-  const patterns = [
-    { kind: 'import', re: /(?:from\s+|import\s*\()(['"])(\.{1,2}\/[^'"]+)\1/gu },
-    { kind: 'side-effect import', re: /import\s+(['"])(\.{1,2}\/[^'"]+)\1/gu },
-    { kind: 'import.meta.url resource', re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu },
+  function requirePacked(importer, specifier, kind = 'import') {
+    if (!specifier.startsWith('.') || specifier.endsWith('/') || !/\.mjs$/u.test(specifier)) return;
+    const target = packagePath(importer, specifier);
+    if (!paths.has(target)) missing.push({ importer, kind, specifier, target });
+    else if (importsByModule.has(target)) importsByModule.get(importer).add(target);
+  }
+
+  for (const importer of modules) {
+    const source = readFileSync(join(packageRoot, importer), 'utf8');
+    const patterns = [
+      { kind: 'import', re: /(?:from\s+|import\s*\()(['"])(\.{1,2}\/[^'"]+)\1/gu },
+      { kind: 'side-effect import', re: /import\s+(['"])(\.{1,2}\/[^'"]+)\1/gu },
+      { kind: 'import.meta.url resource', re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu },
+    ];
+    for (const { kind, re } of patterns) {
+      for (const match of source.matchAll(re)) requirePacked(importer, match[2], kind);
+    }
+
+    if (importer === 'dist/bin/oont.mjs') {
+      for (const match of source.matchAll(/join\(root,\s*(['"])scripts\1,\s*(['"])([^'"]+\.mjs)\2\)/gu)) {
+        const target = `dist/scripts/${match[3]}`;
+        if (!paths.has(target)) missing.push({
+          importer, kind: 'CLI delegate', specifier: match[3], target,
+        });
+        else importsByModule.get(importer).add(target);
+      }
+    }
+  }
+
+  const runtimeRoots = [
+    'dist/bin/oont.mjs',
+    'dist/scripts/oont-resolver.mjs',
+    'dist/src/kernel.mjs',
+    'dist/src/openontology.mjs',
+    'examples/quickstart/source-lifecycle.mjs',
+    'examples/quickstart/semantic-map.mjs',
   ];
-  for (const { kind, re } of patterns) {
-    for (const match of source.matchAll(re)) requirePacked(importer, match[2], kind);
+  for (const path of runtimeRoots) {
+    if (!paths.has(path)) missing.push({
+      importer: 'package.json', kind: 'runtime root', specifier: path, target: path,
+    });
   }
 
-  if (importer === 'bin/oont.mjs') {
-    for (const match of source.matchAll(/delegate\(\s*(['"])([^'"]+\.mjs)\1/gu)) {
-      const target = `scripts/${match[2]}`;
-      if (!paths.has(target)) missing.push({ importer, kind: 'CLI delegate', specifier: match[2], target });
-    }
-    for (const match of source.matchAll(/join\(ROOT,\s*(['"])(src|scripts)\1,\s*(['"])([^'"]+)\3\)/gu)) {
-      const target = `${match[2]}/${match[4]}`;
-      if (!paths.has(target)) missing.push({ importer, kind: 'CLI dynamic import', specifier: match[4], target });
-    }
+  const reachable = new Set();
+  const pending = runtimeRoots.filter((path) => importsByModule.has(path));
+  while (pending.length) {
+    const path = pending.pop();
+    if (reachable.has(path)) continue;
+    reachable.add(path);
+    for (const imported of importsByModule.get(path)) pending.push(imported);
   }
-}
-
-const runtimeRoots = ['bin/oont.mjs', 'scripts/oont-resolver.mjs', 'src/openontology.mjs'];
-for (const path of runtimeRoots) {
-  if (!paths.has(path)) missing.push({
-    importer: 'package.json', kind: 'runtime root', specifier: path, target: path,
-  });
-}
-
-const reachable = new Set();
-const pending = runtimeRoots.filter((path) => importsByModule.has(path));
-while (pending.length) {
-  const path = pending.pop();
-  if (reachable.has(path)) continue;
-  reachable.add(path);
-  for (const imported of importsByModule.get(path)) pending.push(imported);
-}
-const unreachable = modules.filter((path) => !reachable.has(path));
-if (unreachable.length) {
-  process.stderr.write(`${unreachable.length} unreachable package module(s):\n`);
-  for (const path of unreachable) process.stderr.write(`  ${path}\n`);
-  process.exit(1);
-}
-
-if (missing.length) {
-  process.stderr.write(`${missing.length} package import closure error(s):\n`);
-  for (const item of missing) {
-    process.stderr.write(`  ${item.importer}: ${item.kind} ${item.specifier} -> missing ${item.target}\n`);
+  const unreachable = modules.filter((path) => !reachable.has(path));
+  if (unreachable.length) {
+    missing.push({
+      importer: 'package.json', kind: 'unreachable modules',
+      specifier: String(unreachable.length), target: unreachable.join(', '),
+    });
   }
-  process.exit(1);
+  if (missing.length) {
+    fail(missing.map((item) =>
+      `  ${item.importer}: ${item.kind} ${item.specifier} -> ${item.target}`).join('\n'));
+  } else {
+    process.stdout.write(`package import closure passed: ${reachable.size} reachable runtime/example modules across ${packed.entryCount} files\n`);
+  }
+} catch (error) {
+  fail(error?.message ?? String(error));
+} finally {
+  rmSync(sandbox, { recursive: true, force: true });
 }
-
-process.stdout.write(`package import closure passed: ${reachable.size} reachable modules across ${packed.entryCount} files\n`);

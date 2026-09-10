@@ -1,11 +1,19 @@
 {
   "name": "oont",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "type": "module",
   "description": "A factual context compiler that gives agents verified context or a typed refusal.",
-  "main": "src/openontology.mjs",
+  "main": "./dist/src/openontology.mjs",
+  "types": "./dist/src/openontology.d.mts",
   "exports": {
-    ".": "./src/openontology.mjs",
+    ".": {
+      "types": "./dist/src/openontology.d.mts",
+      "import": "./dist/src/openontology.mjs"
+    },
+    "./kernel": {
+      "types": "./dist/src/kernel.d.mts",
+      "import": "./dist/src/kernel.mjs"
+    },
     "./package.json": "./package.json"
   },
   "license": "Apache-2.0",
@@ -18,52 +26,42 @@
     "retrieval"
   ],
   "bin": {
-    "oont": "bin/oont.mjs"
+    "oont": "dist/bin/oont.mjs"
   },
   "engines": {
     "node": ">=24"
   },
   "files": [
-    "bin/oont.mjs",
-    "scripts/oont-resolver.mjs",
-    "src/assertion-envelope.mjs",
-    "src/bm25-index.mjs",
-    "src/canonical-object-backend.mjs",
-    "src/canonical-content.mjs",
-    "src/gcs-object-storage-backend.mjs",
-    "src/object-ont-store.mjs",
-    "src/object-storage-backend.mjs",
-    "src/openontology.mjs",
-    "src/s3-object-storage-backend.mjs",
-    "src/source-native-artifact.mjs",
-    "src/source-native-evidence-session.mjs",
-    "src/source-native-field-resolution.mjs",
-    "src/source-native-field-resolver.mjs",
-    "src/source-native-identity-census.mjs",
-    "src/source-native-object-map.mjs",
-    "src/source-native-object-ont.mjs",
-    "src/source-native-product-mcp.mjs",
-    "src/source-native-product.mjs",
-    "src/source-native-query-plan.mjs",
-    "src/source-native-query-planner.mjs",
-    "src/source-native-resolver-support.mjs",
+    "dist/",
     "docs/ARCHITECTURE.md",
+    "docs/CONTEXT-LIFECYCLE.md",
     "docs/STORAGE.md",
+    "docs/SOURCE-LIFECYCLE.md",
     "examples/quickstart/",
     "CHANGELOG.md",
     "GLOSSARY.md"
   ],
   "dependencies": {},
+  "devDependencies": {
+    "@types/node": "24.10.2",
+    "typescript": "5.9.3"
+  },
   "scripts": {
     "test": "npm run check",
-    "check": "npm run check:source-native-product && npm run check:canonical-object-backend",
-    "check:source-native-product": "node scripts/test-product-surface-contract.mjs && node scripts/test-oont-cli-help.mjs && node --test scripts/test-source-native-product.mjs scripts/test-source-native-field-resolution.mjs && node scripts/test-source-native-object-map.mjs && node scripts/test-source-native-query-planner.mjs",
-    "check:canonical-object-backend": "node --test scripts/test-canonical-content.mjs scripts/test-canonical-object-backend.mjs scripts/test-gcs-object-storage-backend.mjs",
+    "check": "npm run build && npm run check:source-native-product && npm run check:canonical-object-backend && npm run check:kernel",
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "check:source-native-product": "node scripts/test-product-surface-contract.mjs && node scripts/test-oont-cli-help.mjs && node --test scripts/test-source-native-product.mjs scripts/test-source-native-historical-runtime.mjs scripts/test-source-native-field-resolution.mjs scripts/test-source-native-historical-field.mjs scripts/test-source-native-historical-surfaces.mjs scripts/test-source-native-point-in-time.mjs scripts/test-source-native-title-query.mjs && node scripts/test-source-native-object-map.mjs && node scripts/test-source-native-query-planner.mjs",
+    "check:canonical-object-backend": "node --test scripts/test-canonical-content.mjs scripts/test-canonical-object-backend.mjs scripts/test-gcs-object-storage-backend.mjs scripts/test-object-ont-source-ranges.mjs scripts/test-object-ont-replay-checkpoint.mjs scripts/test-object-ont-history.mjs scripts/test-source-native-resource.mjs scripts/test-source-native-resource-checkpoint.mjs scripts/test-source-native-checkpoint-opening.mjs scripts/test-source-native-history.mjs",
+    "check:kernel": "node --test scripts/test-proof-sufficiency.mjs scripts/test-source-native-admitted-knowledge.mjs scripts/test-source-native-semantic-projection.mjs scripts/test-source-native-semantic-construction.mjs scripts/test-source-native-construction-admission.mjs scripts/test-source-native-construction-navigation.mjs scripts/test-source-native-construction-review.mjs scripts/test-source-native-selected-source-context.mjs scripts/test-source-native-selected-source-boundaries.mjs scripts/test-source-native-construction-mcp.mjs scripts/test-source-native-ont-explorer.mjs",
     "check:package-import-closure": "node scripts/check-package-import-closure.mjs",
     "check:public-release": "node scripts/check-public-release.mjs",
+    "manifest:update": "node scripts/update-source-manifest.mjs",
     "smoke:pack": "node scripts/smoke-pack.mjs",
+    "prepack": "npm run build",
     "release:check": "npm run check && npm run check:package-import-closure && npm run check:public-release && npm run smoke:pack && git diff --check",
-    "qualify:gcs-object-storage": "node scripts/qualify-gcs-object-storage.mjs"
+    "qualify:gcs-object-storage": "npm run build && node scripts/qualify-gcs-object-storage.mjs"
   },
   "repository": {
     "type": "git",
