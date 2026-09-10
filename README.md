@@ -267,6 +267,11 @@ aliases. It cannot override a recognized different profile or field. Those
 conflicts return the corresponding object-type or field ambiguity refusal.
 This agreement check uses your declared aliases, not general language reasoning.
 
+For typed-scope resolution, the complete scoped distinct-identity map decides
+whether a subject is unique or ambiguous; retrieval ranking cannot choose a
+subject for you. Exact external IDs, unique declared titles, and singleton
+scopes remain usable when the scoped map proves that choice.
+
 An opaque ID alone may not identify an object type. If your Adapter declares
 `task` objects with IDs such as `W-17`, ask for "the current title of task W-17"
 or provide the exact scope:

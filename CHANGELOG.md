@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Resolve typed scope against the complete scoped distinct-identity map rather
+  than retrieval ranking. Exact IDs, unique declared titles, and singleton
+  scopes remain usable; ambiguous subjects refuse without choosing a result.
 - Add a canonical selected-source context for construction, preserving complete
   cited documents and native-field verification without hydrating uncited packs.
   Whole-index validation, full product checks and protected Admission object
