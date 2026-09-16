@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 114,
+  "fileCount": 115,
   "files": [
     {
       "path": ".editorconfig",
@@ -47,8 +47,8 @@
     },
     {
       "path": ".github/release-notes/v0.3.0-alpha.3.md",
-      "bytes": 1865,
-      "sha256": "cb3aa1287fcccbb838bb3bb9e1c0e54689e085b69199c96cf2371f99df353245"
+      "bytes": 1898,
+      "sha256": "b0df54b4663c49a72146bf8d4542923e0329875cfc0b1f18d0be0c188c0ac6f9"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 8125,
-      "sha256": "72f3634363766f92d12a18b3dc209734de592b93cd54a32fc63f9710b0e25217"
+      "bytes": 8455,
+      "sha256": "7d6033e7ef32403e16c744178916ed86b2e42d15f04a97d6d0fc5179a32ffc42"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -92,13 +92,13 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 2713,
-      "sha256": "8bbdba76f7b4ccb5d98de1b68e24b271188bb5e269718cc090522d0c7eec973a"
+      "bytes": 5079,
+      "sha256": "35f4037f593782a1e91138f7451e87cf073084b303f09db9aa33847e02f844d9"
     },
     {
       "path": "GLOSSARY.md",
-      "bytes": 7933,
-      "sha256": "cdfcfdbe2529041f101ab4bb47425fe3e4943a7e80de000f27e66d1473c9394a"
+      "bytes": 7054,
+      "sha256": "d2d2a5793798ba0f95f7a5b6f545d2938f99636d5ae54730f66e6fc817262866"
     },
     {
       "path": "LICENSE",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 19884,
-      "sha256": "936c2ab079941bcbeff97286b7396d97cf9ab3b7544245d3643edcfa389281a0"
+      "bytes": 8526,
+      "sha256": "74289178d79dc917756b148397e418143798120a6936eca61046e32105ff6996"
     },
     {
       "path": "SECURITY.md",
@@ -122,23 +122,28 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 35418,
-      "sha256": "5050ee7bea2a1d88cad05e7dc3744326212657bc42e58c552a5b661a62e13212"
+      "bytes": 26007,
+      "sha256": "eefb3a491b40513fd3218a1c5547fe5dfe4965d670452996debcd9ce7c131544"
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
-      "bytes": 24925,
-      "sha256": "735eff400807592aaab0270d57d8517622129d44cf9444c989ce90c849bb2279"
+      "bytes": 22988,
+      "sha256": "17368ed0df5cf8d6f2062b52315004b1963c7a0535950afaec3c3bcecfc5af2d"
+    },
+    {
+      "path": "docs/QUERIES.md",
+      "bytes": 6491,
+      "sha256": "2c12423448668e64aef8536f01fc5d5e3e852a78df1d7f81ce116ec57560c156"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
-      "bytes": 11221,
-      "sha256": "72cab8b99b5374920055117aa4a974cc108c06ec91a2d6bf8c80efeb8e01c5a7"
+      "bytes": 9406,
+      "sha256": "440cb33fee85aa08e0188f499ca16dba702a095f4314a495b8d33e07d9293858"
     },
     {
       "path": "docs/STORAGE.md",
-      "bytes": 12221,
-      "sha256": "41c79676dc47fc7347ef156b01146dabf6c6c12cc3cb1e547f6cc9e89c7321b3"
+      "bytes": 11399,
+      "sha256": "68e54c6395cf10b9181477c76ea91c74726a02ab52d9e609d6af25f517f3d3f8"
     },
     {
       "path": "examples/quickstart/semantic-map.mjs",
@@ -162,8 +167,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3923,
-      "sha256": "b759408e106d1542db45d6d182387dc945a0aabd0c55b66425543cc849c57c9d"
+      "bytes": 3946,
+      "sha256": "3beee61698f3108b3e14c8769dd0797140eb14f458b79c1996618ee24ed035f7"
     },
     {
       "path": "scripts/build.mjs",
@@ -177,8 +182,8 @@
     },
     {
       "path": "scripts/check-public-release.mjs",
-      "bytes": 9969,
-      "sha256": "d69d115567e3ab39b72557111cd63907d4c816244a6e42e3c5761c3100cf0714"
+      "bytes": 9916,
+      "sha256": "255bc301658b1a7eb2025ca5e9156c818f11b4e5c1663dd6a5482255b8188ccc"
     },
     {
       "path": "scripts/clean.mjs",
@@ -247,8 +252,8 @@
     },
     {
       "path": "scripts/test-product-surface-contract.mjs",
-      "bytes": 9777,
-      "sha256": "98fc1377483b563a2af52d1568f7efb304a3f924dff470397b568de3c015ebcb"
+      "bytes": 10296,
+      "sha256": "8aace20ec7f5f41c7faca92af418dede07290c817f279d11aa314a7c969b59c3"
     },
     {
       "path": "scripts/test-proof-sufficiency.mjs",
@@ -327,8 +332,8 @@
     },
     {
       "path": "scripts/test-source-native-product.mjs",
-      "bytes": 77009,
-      "sha256": "58586c92f223cf9fd596cdee0b3a8a8561c79f9f28882c37c6258b23fd4e46aa"
+      "bytes": 77388,
+      "sha256": "190a575f95bac5f8242be5f753d0ee8e2cf8d9f39dbb251a250f419b29c2b6dc"
     },
     {
       "path": "scripts/test-source-native-query-planner.mjs",
@@ -427,8 +432,8 @@
     },
     {
       "path": "src/openontology.mts",
-      "bytes": 16374,
-      "sha256": "9926544afc405ad1c5c9de9118af50777a9f0b4b44b3e9cf2e75467d363c1dbc"
+      "bytes": 15811,
+      "sha256": "a9f79c118b3fc3b6c4940fbe8923dfe3db29f3d6aafbd14c84402d7e52b628cd"
     },
     {
       "path": "src/product-result-state.mts",
@@ -502,8 +507,8 @@
     },
     {
       "path": "src/source-native-field-resolver.mts",
-      "bytes": 36708,
-      "sha256": "87702a55501dcb7564f2922ad836000c48dbaf8ccac37504ea0b84655ff41922"
+      "bytes": 36380,
+      "sha256": "112547727caf751c1ca9f2a61299e56cf967571ff99b206269079fc3a43cc7cd"
     },
     {
       "path": "src/source-native-historical-field.mts",
@@ -532,13 +537,13 @@
     },
     {
       "path": "src/source-native-product-mcp.mts",
-      "bytes": 17127,
-      "sha256": "fb6ae9d55b39e7001b1e501bbc30840dbd68f9f3c41e0392e7520be018b29214"
+      "bytes": 16339,
+      "sha256": "85754a577a006fd8b082ea1351a1365ba88ac73f4ecdf9a12d037442d30a1f22"
     },
     {
       "path": "src/source-native-product.mts",
-      "bytes": 35850,
-      "sha256": "137410c7d01927a6a2b4fb2e171fc65a894f997a35f83d72de9732a0b039dee8"
+      "bytes": 35866,
+      "sha256": "6719c11a71f73b118c9c64478cbff46d986a612d3d524b3a8328d679d18f01d1"
     },
     {
       "path": "src/source-native-query-plan.mts",
@@ -576,5 +581,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:4b037552c1c509705525c6db7660f10969964c140100a69404e568a0a7e8c209"
+  "manifestSha256": "sha256:e628158aac75b394812d39e5e1f4cad08b31ac86eff5d6ee26d94b133cf72ebf"
 }

@@ -2,11 +2,9 @@
 
 For the conceptual walkthrough and diagrams, read [The life of context in an Ont](CONTEXT-LIFECYCLE.md).
 
-This walkthrough uses the installed `oont` package to build one deterministic
-source cut, query its exact context, publish an immutable successor cut, and
-show why a root client refuses to open the stale descriptor. It is an operator
-workflow for explicit Adapter output. It does not ingest arbitrary documents,
-connect to a provider, or claim automatic knowledge reuse.
+Build a source cut, query it, then publish an update using the installed `oont`
+package. The example uses explicit Adapter input and local storage. It does not
+connect to a provider or enable automatic knowledge reuse.
 
 ## Run it from an installed package
 
@@ -18,13 +16,13 @@ node ./node_modules/oont/examples/quickstart/source-lifecycle.mjs \
   ./source-lifecycle-run
 ```
 
-The parent directory must already exist. The script claims the new output root
-with a non-recursive directory create before building any child artifacts.
+Use a new output directory inside an existing parent. The script reserves it
+before building.
 
 For a single source cut, the ordinary CLI build route remains available:
 
 ```bash
-npx oont resolver build \
+npx --no-install oont resolver build \
   ./node_modules/oont/examples/quickstart/source-native-input.json \
   --out ./verified-context
 ```
@@ -48,17 +46,15 @@ The `objects/` directory is the local canonical object backend. Both
 descriptors point at it. The initial descriptor remains unchanged while the
 successor advances the same `quickstart` source branch to a new source cut.
 
-The program prints one JSON summary to stdout. Diagnostics and failures go to
-stderr. The summary includes the two source commit identities, the exact values
-observed by both cuts, the value returned by a search followed by a
-request-local `read`, the unsupported-query refusal, and the stale-open refusal.
+The JSON summary goes to stdout; diagnostics go to stderr. It includes:
 
-Run it again with a different new output root to create another independent
-walkthrough. Running it against the first output root fails with
-`SOURCE_LIFECYCLE_OUTPUT_EXISTS` and does not remove or alter that directory.
-The early existing-path check is the no-write guarantee. If a later build step
-fails after reservation, any partial synthetic output is retained for
-inspection and is not automatically resumed or removed.
+- Both source commits and their returned field values.
+- The value returned by `search` followed by `read`.
+- Unsupported-query and stale-descriptor refusals.
+
+For another run, choose a different output directory. An existing path returns
+`SOURCE_LIFECYCLE_OUTPUT_EXISTS` without changing it. If a later build step fails,
+partial output remains for inspection; it is not automatically resumed or removed.
 
 ## What the example does
 
@@ -77,22 +73,23 @@ question as a typed refusal with no context, and runs `search` followed by
 `read`. Search returns a navigation Reference. Only the request-local `read`
 returns exact authorized bytes.
 
-The successor input preserves the identity, query schema, and Ont identifier,
-then appends the dated observation `Keep context current` at
-`2026-03-01T00:00:00.000Z`. It is built in a different descriptor directory
-against the same local object backend. The updated client verifies the new
-source cut and value. A new root client opened against the old descriptor then refuses with
-`SOURCE_NATIVE_PRODUCT_REF`, because its descriptor still names the earlier
-commit while the mutable source branch now names the successor.
+The update preserves the identity, query schema and Ont identifier:
 
-`occurredAt` orders source observations in the source cut. It is not the same
-as semantic `validAt` or `knownAt` time, which belong to field or proposition
-inputs when an Adapter supplies them. A new source cut is also not an
-Admission. Publishing the successor does not transfer old-cut knowledge
-eligibility. The unreleased root client's explicit `at` query selects valid
-time within its bound cut; it does not reopen a different historical source
-commit. Exact historical opening remains an operator capability outside this
-root walkthrough. See [temporal intent](../README.md#temporal-intent).
+1. Append `Keep context current` at `2026-03-01T00:00:00.000Z`.
+2. Build a new descriptor against the same object backend.
+3. Open the new descriptor and verify the updated value.
+4. Try opening the old descriptor. It returns `SOURCE_NATIVE_PRODUCT_REF`
+   because the source branch has advanced beyond its recorded commit.
+
+Source updates and time queries are separate:
+
+- `occurredAt` orders source observations. An Adapter can also supply `validAt`
+  and `knownAt` on fields or propositions.
+- Publishing a new cut does not transfer knowledge admitted for the old cut.
+- `at` selects valid time within the client's bound cut, not another historical
+  source commit. Exact historical opening is a separate kernel operation.
+
+See [temporal intent](../README.md#temporal-intent).
 
 The root client remains read-only. Building and advancing a cut use the
 explicit extension functions from `oont/kernel`; ordinary agents need only the
@@ -140,22 +137,24 @@ UTF-16 index of the exact field value.
 }
 ```
 
-Top-level `schemaVersion`, `kind`, `ontId`, `namespace`, `querySchemas`,
-`sources`, and `nativeObjectInputs` are required. `branch` is optional and
-defaults to `main`. Each source requires a nonempty `sourceType`, logical
-`relativePath`, canonical UTC `occurredAt`, and nonempty exact `content`. The first
-path segment must equal `sourceType`, for example `tracker/...`. A supplied
-`sourceSha256` must be `sha256:` followed by 64 lowercase hexadecimal digits
-over the source's UTF-8 bytes; the builder computes it when omitted.
+Input requirements:
 
-Each native object maps one source path and requires an
-`ObjectDef/InstanceRef` identity, with `sourceSystem`, `objectType`,
-`externalId`, and the build `namespace`. Each field requires a `fieldPath` and
-nonempty source-exact `value`. Use `codeUnitStart` when the value can repeat;
-omitting it is only safe when the value occurs once. The compiler emits the
-corresponding half-open UTF-8 byte span and `textSha256`. `canonicalValue` is
-optional comparison metadata for revision grouping. It never replaces the
-source-exact `value` returned by `read` or verification.
+- Required top-level fields: `schemaVersion`, `kind`, `ontId`, `namespace`,
+  `querySchemas`, `sources` and `nativeObjectInputs`. `branch` defaults to `main`.
+- Each source needs nonempty `sourceType` and `content`, a logical `relativePath`
+  and canonical UTC `occurredAt`. The path must start with its type, such as `tracker/`.
+- Optional `sourceSha256` is `sha256:` plus 64 lowercase hexadecimal digits over
+  the UTF-8 content. The builder computes it when omitted.
+
+Each native object maps one source path:
+
+- Its `ObjectDef/InstanceRef` identity includes `sourceSystem`, `objectType`,
+  `externalId` and the build `namespace`.
+- Each field needs a `fieldPath` and nonempty `value` found exactly in the source.
+  Supply `codeUnitStart` if that value appears more than once.
+- The compiler emits a half-open UTF-8 byte span and `textSha256`.
+- Optional `canonicalValue` groups equivalent revisions. Reads and verification
+  still return the source-exact `value`.
 
 `occurredAt` must use a canonical UTC timestamp
 such as `2026-01-01T00:00:00.000Z`; use the same form for optional `validAt`
@@ -169,18 +168,12 @@ agree with the native object inputs. The builder validates the two declarations
 independently, so a mismatched profile can build but cannot answer the missing
 field. Keep the declarations aligned.
 
-Every supplied source path must be mapped by at least one native object. This
-is completeness of the supplied corpus, not proof that an upstream system had
-no other records. An explicit nonempty `adapterDiagnostics` array records
-conversion problems and disables complete chronology and absence proof. An
-absence receipt is therefore only scoped to the complete, supplied source
-catalog, and never authorizes world absence.
+Map every supplied source path to at least one native object. A nonempty
+`adapterDiagnostics` array records conversion problems and disables complete
+chronology and absence proof. Completeness and absence apply only to the supplied
+catalog, not all upstream records.
 
-The lifecycle example claims a new output root before writing child artifacts.
-An existing root fails with `SOURCE_LIFECYCLE_OUTPUT_EXISTS` and is not removed
-or altered. TypeScript authors can import the strict structural envelope from
-the bounded kernel subpath and use `satisfies` without changing the runtime
-boundary:
+TypeScript authors can check the input shape with `satisfies`:
 
 ```ts
 import { buildSourceNativeProduct } from 'oont/kernel';
@@ -219,11 +212,9 @@ const authoringInput = {
 buildSourceNativeProduct({artifactRoot: './new-cut', input: authoringInput});
 ```
 
-This checks structural field types only. It does not prove valid timestamps,
-matching namespaces, hashes, exact spans, nonempty arrays, complete coverage,
-or coherent propositions. `buildSourceNativeProduct` deliberately keeps its
-`input` parameter as `unknown`, so parsed or untrusted JSON still reaches the
-same runtime validation and diagnostics.
+Types check structure. The builder still validates timestamps, namespaces,
+hashes, spans, coverage and propositions at runtime. Its `input` parameter is
+`unknown`, so parsed JSON receives the same checks.
 
 ## Query schemas and stored source shape
 
@@ -232,20 +223,16 @@ source witnesses, and adding a witness such as `sourceText` to a native object
 does not make that field queryable. Ordinary `verify` and `search` continue to
 use only the declared source system, object type, aliases, and fields.
 
-When creating or binding a read-only resource, the allowed stored shape is the
-union of the resource's fixed `querySchemas` and the source-system, object-type,
-and field paths present in the immutable `sourceHistoryAnchorCommitSha256`
-native map. The anchor is opened and validated from the configured object
-backend. A later cut may add a field declared in `querySchemas`, retain or
-remove an anchored witness field, and reintroduce that witness later. It cannot
-add an undeclared field or object profile that was absent from both the fixed
-query declaration and anchor map. The check always uses the original anchor,
-not a mutable successor or an intermediate failed bind.
+For a read-only resource, allowed stored shapes come from its fixed
+`querySchemas` and the native map at `sourceHistoryAnchorCommitSha256`.
 
-This keeps exact source documents and witness fields available to the resource
-without expanding ordinary query behavior. Binding reads the anchor and
-successor indexes, maps, and catalogs; it does not hydrate source packs just to
-compare profile shape. Invalid anchor data, unrelated history, missing or
-rewound protected history, and namespace or profile drift refuse before a bound
-artifact descriptor is written. Resource V1 and protected V2 retain their
-existing bytes and history semantics.
+- Later cuts may add declared query fields and retain, remove or reintroduce
+  witness fields present in that anchor.
+- They cannot add a field or object profile absent from both declarations.
+- Validation always opens the original anchor from the configured backend,
+  not a mutable successor or a previously failed bind.
+
+Binding compares anchor and successor indexes, maps and catalogs without loading
+source packs. Invalid anchor data, unrelated or broken protected history, and
+namespace/profile drift refuse before writing a descriptor. V1 and protected V2
+retain their existing formats and history rules.

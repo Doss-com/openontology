@@ -1,78 +1,45 @@
 # OpenOntology
 
-OpenOntology is a factual context compiler for agents. Retrieval finds plausible
-material. An Ont resolves identity, chronology, authority, and required proof.
-The Corpus supplies exact bytes. OpenOntology returns compact verified context
-or a typed refusal.
+OpenOntology builds a typed map of source material and uses it to return
+verified context to agents. It resolves identities, checks recorded chronology
+and counterevidence, and returns the supporting source text. Questions without
+sufficient evidence receive a structured refusal.
 
 ```text
-retrieval proposes -> Ont cross-walks and verifies -> exact Evidence supports
+source observations -> Ont -> search, inspect and verify -> agent context
 ```
 
-[ACTIVE-WORK] This is an unpublished development checkout targeting the next
-release. Its package metadata still reads `0.3.0-alpha.3`; use the source revision
-and tarball checksum to identify a development build. It is suitable for local
-experimentation with explicit Adapter input, not a managed hosted service.
-
-Start with [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md), a
-`ClickupTask` walkthrough from source observation to verified context and reviewed reuse.
-
-Technical references: [Architecture](docs/ARCHITECTURE.md),
-[Storage](docs/STORAGE.md), and [Glossary](GLOSSARY.md).
+The current release is [0.3.0-alpha.3](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.3).
+This repository contains the open-source engine, CLI, SDK and MCP server.
+Hosted deployment and operation belong in a separate managed application.
 
 ## Install
 
-OpenOntology requires Node.js 24 or newer.
-
-Build and check this development checkout before packing it:
-
-```bash
-npm ci
-npm run release:check
-npm pack
-```
-
-Then install the resulting tarball from your application's directory:
+Requires Node.js 24 or newer. Install the published package from your application
+directory:
 
 ```bash
-npm install /path/to/openontology/oont-0.3.0-alpha.3.tgz
+npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.3/oont-0.3.0-alpha.3.tgz
 ```
 
-The package and command are both named `oont`.
-The GitHub release workflow attaches a provenance attestation to its packages.
-The repository `SOURCE-MANIFEST.json`, release `SHA256SUMS`, and GitHub
-attestation are release metadata, not files inside the npm tarball. Together
-with the release tag, they bind the published package to its source state.
-
-For a downloaded, published prerelease, verify its checksum and attestation
-before installation. The commands below apply to the published release assets,
-not to a locally packed development tarball. A local pack has no GitHub release
-attestation or release-side `SHA256SUMS` file; verify its identity with a direct
-hash of the local tarball instead:
-
-```bash
-sha256sum -c SHA256SUMS
-gh attestation verify ./downloaded-package.tgz \
-  --repo Doss-com/openontology
-```
-
-```bash
-sha256sum ./oont-0.3.0-alpha.3.tgz
-```
+The package and command are both named `oont`. Distribution is through GitHub
+release assets; plain `npm install oont` is not available yet. Each release
+includes checksums and a package attestation. See [release
+verification](CONTRIBUTING.md#releases) or [Develop](#develop) to build from source.
 
 ## Two-minute quickstart
 
 Build a small Ont from the included deterministic Adapter input:
 
 ```bash
-npx oont resolver build ./node_modules/oont/examples/quickstart/source-native-input.json \
+npx --no-install oont resolver build ./node_modules/oont/examples/quickstart/source-native-input.json \
   --out ./verified-context
 ```
 
 Verify a question against it:
 
 ```bash
-npx oont verify ./verified-context \
+npx --no-install oont verify ./verified-context \
   'What is the current title of task-1?'
 ```
 
@@ -80,12 +47,8 @@ OpenOntology returns a JSON Verification. A successful result contains exact
 context and proof receipts. An ambiguous, unsupported, or incomplete question
 returns a typed refusal instead of a guessed answer.
 
-For an executable walkthrough that publishes a successor source cut and handles
-stale opening, see [Source input and updates](docs/SOURCE-LIFECYCLE.md), including
-the [Authoring Adapter input reference](docs/SOURCE-LIFECYCLE.md#authoring-adapter-input).
-It uses the installed package offline and leaves its synthetic Onts in a new
-directory for inspection. Input remains explicit Adapter output, not automatic
-ingestion.
+To supply data or publish an update, use [Source input and updates](docs/SOURCE-LIFECYCLE.md)
+and its [Adapter input reference](docs/SOURCE-LIFECYCLE.md#authoring-adapter-input).
 
 ## TypeScript and JavaScript
 
@@ -102,117 +65,34 @@ if (result.answerable) {
 }
 ```
 
-The public client and result types are exported under these names:
+| Method | Use it to |
+| --- | --- |
+| `verify(query)` | Get verified source context or a reason it cannot be returned. |
+| `search(query)` | Find candidate source References. |
+| `read(ref)` | Inspect a Reference returned by the same client. |
+| `status()` | Check the opened Ont's metadata and integrity. |
 
-```ts
-interface OpenOntologyProduct {
-  verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>
-  search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>
-  read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>
-  status(): OpenOntologyStatus
-}
-```
+Start with `verify`; use `search` and `read` when you want to inspect candidates
+yourself. Results describe the recorded source snapshot, not the live source
+system. See [Queries and results](docs/QUERIES.md) for scope, time selectors and
+refusal handling.
 
-The canonical package source is strict TypeScript. The package ships
-dependency-free ESM, declarations, declaration maps, and source maps, so both
-TypeScript and JavaScript consumers use the same runtime implementation.
-CommonJS `require('oont')` is not supported.
-
-`verify` is the ordinary path. It searches, runs internal Resolvers, performs
-the required exact reads, and closes the proof obligations.
-
-`[ACTIVE-WORK]` For a current-field result, Verification also binds the stable identity's
-complete recorded chronology to the source commit, replay, catalog, and mapped
-source count. A missing source, adapter failure, or ambiguous latest value
-returns `unavailable-incomplete-recorded-field-chronology`. This proves the
-latest recorded value in the named source cut, not universal current state.
-
-`[ACTIVE-WORK]` An exact typed identity that does not occur in a complete,
-failure-free source catalog returns
-`verified-native-object-absent-from-bound-source-catalog`. The Verification is
-not answerable and contains no Evidence. Its hashed absence receipt binds the
-identity, complete identity census, source catalog, source-handle set, and
-source count. The receipt explicitly does not authorize a claim of world-wide
-absence. The complete census resolves this case before retrieval. Any adapter
-failure disables the certification and preserves the ordinary retrieval path.
-Natural-language text that merely mentions an ID does not supply this exact
-typed identity. To request the catalog-scoped absence receipt, provide
-`scope.sourceSystem`, `scope.objectType`, `scope.field`, and `scope.externalId`.
-
-`verify` answers a question against one Ont. `check` validates the Ont itself.
-
-`search` and `read` are the advanced path. Search returns navigation References,
-not Evidence. Read accepts a Reference offered by the same open client and
-returns exact authorized bytes with a receipt. Wait for the search response
-before passing one of its References to `read`. This applies to advanced MCP
-too: do not guess a Reference or send a dependent read before search returns.
-Independent reads of already-issued References can run concurrently.
+The package includes TypeScript declarations and has no runtime dependencies.
+It uses ESM; CommonJS is not supported. See [Repository structure](CONTRIBUTING.md#repository-structure)
+for the TypeScript source and JavaScript build output.
 
 ### Managed extension Interface
 
-`oont/kernel` is the bounded extension subpath for managed and research runtimes
-that attach a governed lifecycle Adapter. Ordinary applications should use the
-root `oont` client. TypeScript extension authors compile against the supported
-Node 24 type surface.
+`oont/kernel` exposes source publication, protected history, semantic construction
+and reviewed knowledge reuse for Adapters and managed applications. These exports
+ship in alpha.3; the root `oont` client is read-only.
 
-This checkout's kernel exposes product opening, exact source inspection,
-canonical object replay, hashing, and deterministic proof-sufficiency
-evaluation.
+Managed applications consume pinned package releases and own authentication,
+source scheduling, model workers, billing and deployment outside this repository.
 
-`[ACTIVE-WORK]` The post-alpha kernel adds the source-agnostic current-field
-chronology compiler used by the ordinary Verification path.
-
-`[ACTIVE-WORK]` The same ordinary path now compiles a complete, query-independent
-native-object identity census at safe open. The current-field Resolver can use
-that census to distinguish a proven catalog-scoped absence from an ordinary
-retrieval miss.
-
-`[ACTIVE-WORK]` The post-alpha kernel also compiles deterministic source-native
-canonical proposition V2 records into the existing ProofAuthorityProjection.
-The record keeps canonical roles, modality, polarity, actor identity, valid and
-known time, and its exact source span in one source-native map. This projection
-compiler is implemented and tamper-tested. Counterevidence can carry typed
-`qualifies` and `contradicts` relations to proposition identities in the same
-namespace; the proof evaluator closes the exact relation census before it
-returns a qualified or contradicted disposition. Ordinary root `verify` uses a
-selected current field as the proof root, expands its inbound counterevidence
-closure, reopens every exact Corpus span, and exposes the resulting proof
-disposition. Action, change, outcome, and state roots are supported. Broader
-semantic question planning remains active work. Ordinary semantic closure is
-bounded to 64 exact Evidence references and 64 KiB of exact Evidence. A larger
-closure returns `unavailable-semantic-proof-context-budget` with observed and
-allowed counts. It never returns a partial proof.
-
-`[ACTIVE-WORK]` The post-alpha kernel branch also contains a source-native
-admitted-knowledge path. A proposer and an independent reviewer sign one
-content-bound proof bundle using role-scoped Ed25519 keys. A cold reader accepts
-it only for the identical Ont, source cut, resolved query and answer revision,
-proof contract, and authority census. For native semantic queries, the writer
-and cold reader reconstruct that census from the selected source field; valid
-signatures cannot authorize removing counterevidence or changing its semantics.
-The contract must also retain the selected family's required answer obligation,
-linked exact support, and complete invalidator coverage. Renamed obligation IDs
-and compatible stricter requirements are allowed; an optional answer is not.
-Every Evidence reference is checked
-against Corpus bytes when admitted, every included proposition must participate
-in a required proof obligation, and every returned role is derived from that
-obligation. Exact bytes are reopened before reuse. Returned bindings contain
-fixed content hashes instead of proposer-authored semantic labels. Repeated
-proposition citations over the same role and Evidence span return one bound
-Proof unit. Reusable context is limited to 64 Proof units and 64 KiB of Exact
-Evidence, plus 64 KiB of JSON-encoded Evidence text, including a `next` anchor.
-Larger proofs are refused without truncation. Exact Evidence spans must also
-round-trip through UTF-8 without changing their bound bytes. A `next`
-Verification returns the successor as `answer` and its inspected historical
-revision as `anchor`.
-One successful ordinary semantic Verification can compile its exact query
-binding, proof contract, authority census, propositions, relations, and
-evaluation into the bundle this path accepts. Independent review and Admission
-remain separate steps.
-Untrusted or invalid records are skipped in favor of ordinary verification.
-Conflicting valid bundles produce a typed refusal. Default knowledge branches
-are isolated by immutable source commit. This kernel-only path is not exposed
-by the root client and has not been published as an alpha.3 capability.
+See [Architecture](docs/ARCHITECTURE.md) for the contracts and
+[the semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map) for
+construction and reviewed reuse.
 
 ## CLI
 
@@ -233,189 +113,77 @@ Advanced MCP exposes exactly `search` and `read`:
 oont serve ./verified-context --mcp --advanced
 ```
 
-The stdio server writes its startup status JSON to stderr before serving
-requests. Parse stdout for JSON-RPC protocol messages; treat stderr as
-diagnostics.
-
 Start a verification call with only `question`:
 
 ```json
 { "question": "What is the current title of task-1?" }
 ```
 
-Optional selectors narrow the request; they are not fields to fill by guessing.
-Use `scope` only with exact declared source-system, object-type and field names.
-If a result returns `availableFields`, it lists those names for the bound Ont.
-A scope mismatch is not proof that the object is absent.
+See [MCP usage](docs/QUERIES.md#mcp) for request options and transport details.
 
-Run `npx oont --help` for the command list and
-`npx oont <command> --help` for command-specific options. The private research
-compiler and its customer-specific compatibility commands are intentionally
-absent from this package.
+Run `npx --no-install oont --help` or
+`npx --no-install oont <command> --help` for options.
 
-Both `check` and `status` fail closed if safe opening detects corrupt storage or
-an invalid artifact. `check` emits a compact assertion-shaped receipt for
-automation. `status` emits the recorded diagnostic metadata. Neither operation
-rereads Terrain or rebuilds the Ont.
+`check` and `status` reject corrupt storage or invalid descriptors. Neither
+refreshes the original source or rebuilds the Ont.
 
 ## Typed scope
 
-Natural language can be narrowed with an explicit source scope:
-
-```bash
-oont verify ./verified-context \
-  'What is the current title?' \
-  --source-system tracker \
-  --object-type task \
-  --external-id task-1 \
-  --field title
-```
-
-Scope narrows authority. It cannot make missing proof answerable. Its names are
-case-sensitive, so `clickup` and `ClickUp` are not interchangeable. Omit scope
-when you do not know the declared profile. If the question names a native object
-ID, it must agree with `scope.externalId`; a different known ID returns
-`unavailable-native-multiple-object-identifiers` with no context. Scope can fill
-in an unspecified object profile or field, or select among matching declared
-aliases. It cannot override a recognized different profile or field. Those
-conflicts return the corresponding object-type or field ambiguity refusal.
-This agreement check uses your declared aliases, not general language reasoning.
-
-For typed-scope resolution, the complete scoped distinct-identity map decides
-whether a subject is unique or ambiguous; retrieval ranking cannot choose a
-subject for you. Exact external IDs, unique declared titles, and singleton
-scopes remain usable when the scoped map proves that choice.
-
-An opaque ID alone may not identify an object type. If your Adapter declares
-`task` objects with IDs such as `W-17`, ask for "the current title of task W-17"
-or provide the exact scope:
-
-```js
-await ont.verify({
-  question: 'What is the current title of W-17?',
-  scope: {
-    sourceSystem: 'tracker',
-    objectType: 'task',
-    externalId: 'W-17',
-    field: 'title',
-  },
-})
-```
-
-Without a declared object type, this request returns
-`unavailable-native-object-type-not-declared`, not an absence finding.
+Narrow a question with a source system, object type, field and optional native ID.
+Scope names must match the Adapter schema. Identity comes from the complete
+scoped map, not the highest-ranked search hit. See [Typed scope](docs/QUERIES.md#typed-scope)
+for SDK and CLI examples.
 
 ### Declared titles
 
-`[ACTIVE-WORK]` In the unreleased checkout, a source Adapter that declares
-complete `title` coverage can also identify an object by a quoted name:
-
-```js
-await ont.verify('What is the current status of the task titled "Release review"?')
-```
-
-Use one `titled "..."` or `named "..."` clause. Matching normalizes Unicode,
-case and whitespace, but preserves punctuation. Body mentions do not count.
-Unknown names, duplicate names on different identities, incomplete title
-coverage and conflicting explicit IDs return no context. An optional leading
-`For <namespace>,` must match the opened Ont's namespace.
-
-Recorded titles are aliases over the bound source snapshot. An earlier name
-can identify the same object; the requested field still follows current or
-explicit historical chronology. Name matching never replaces exact Evidence.
+With complete `title` coverage, a question can identify an object using
+`titled "..."` or `named "..."`. Ambiguous names return no context.
+See [Declared titles](docs/QUERIES.md#declared-titles) for matching rules.
 
 ## Temporal intent
 
-`current` is the default intent. OpenOntology does not silently infer a
-historical operation from question wording. A question that asks about a prior
-value, a date, a change, or relative ordering without a supported intent returns
-`unavailable-native-temporal-intent-not-declared` with `answerable: false`.
-
-`next` selects the field revision that immediately followed an exact anchor
-value.
-
-```bash
-npx oont verify ./verified-context \
-  'What title immediately followed Prepare launch for task-1?' \
-  --intent next
-```
-
-`[ACTIVE-WORK]` The unreleased checkout also supports a point-in-time query:
-
-```js
-await ont.verify({
-  question: 'What was the title of task-1?',
-  at: '2026-01-15T00:00:00.000Z',
-})
-```
-
-The CLI takes the same timestamp with `--at`; MCP takes `at` on `verify` or the
-ordinary-question form of advanced `search`. Use an exact UTC ISO timestamp with milliseconds. Do not
-combine it with `intent: next` or an anchor value.
-
-For `intent: next`, optional `anchorValue` is the previous recorded field value,
-such as `Prepare launch`, not the object's ID. It can be omitted when that
-value is already in the question. Current queries ignore `anchorValue`.
-Omit both temporal selectors for an ordinary
-current-value query; never substitute an invented timestamp.
-
-An `at` query selects what was valid at that instant within the bound source snapshot,
-including later-learned corrections. It does not reconstruct what was known
-then. Missing `validAt` falls back to the source observation time. Requests
-beyond the snapshot's observation horizon, before the first valid value, or
-with unresolved chronology return no context. Semantic counterevidence and
-admitted reuse are bound to the same requested time. The chronology receipt
-reports the source horizon, selected valid and known times, and fallback count.
-
-All result states are exported as `OpenOntologyResultState`. States beginning
-with `unavailable-` are normal typed refusals, not transport failures.
+Queries use the latest recorded value by default. Use `at` for a point in time
+or `intent: next` for the revision after an anchor value. Historical wording
+alone does not select a historical operation. See [Temporal intent](docs/QUERIES.md#temporal-intent)
+for examples and the recorded-time limits.
 
 ## Storage
 
-The local canonical object backend is the default and works offline. GCS is the
-first distributed backend:
+Local object storage is the default and works offline. GCS is the supported
+remote Adapter; S3-compatible storage is experimental. Both use the same
+immutable-object and conditional-ref model.
 
-```bash
-export OONT_GCS_ACCESS_TOKEN="$(gcloud auth application-default print-access-token)"
-
-npx oont resolver build ./node_modules/oont/examples/quickstart/source-native-input.json \
-  --out ./verified-context \
-  --backend gs://your-ontology-bucket
-```
-
-GCS uses native object generations for immutable writes, range reads, and
-compare-and-swap refs. Credentials are read from the environment and are never
-embedded in backend URIs.
-
-S3-compatible storage is available as an experimental Adapter. Hosted accounts,
-tenant isolation, IAM policy, lifecycle management, garbage collection, and a
-managed Turbopuffer projection are not part of this alpha.
-
-See [Storage](docs/STORAGE.md) for the provider contract and qualification path.
+See [Storage](docs/STORAGE.md) for configuration, credentials, protected history
+and recovery. Hosted accounts, quotas and deployment policy belong to the
+managed application.
 
 ## Architecture
 
-OpenOntology keeps four roles separate:
-
-1. Terrain remains authoritative.
-2. Resolvers propose candidate References or typed refusals.
-3. An Ont cross-walks identity, chronology, and typed relationships.
-4. Only exact authorized Corpus bytes can support a material claim.
-
-The implemented alpha path is:
+Adapters describe source observations. The Ont records identities, chronology
+and typed relationships. Retrieval proposes candidates; verification checks
+their source evidence before returning context.
 
 ```text
 Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 ```
 
-See [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md).
+## Documentation
+
+| I want to... | Start here |
+| --- | --- |
+| Query an Ont and handle the result | [Queries and results](docs/QUERIES.md) |
+| Bring in data and publish updates | [Source input and updates](docs/SOURCE-LIFECYCLE.md) |
+| Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md) |
+| Understand the engine | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md) |
+| Configure storage or recover a snapshot | [Storage](docs/STORAGE.md) |
+| Change the code | [Contributing](CONTRIBUTING.md) |
 
 ## Alpha limitations
 
 - Build input is explicit deterministic Adapter output. Automatic production
   connectors do not ship yet.
-- The source-native preview verifies declared fields, identity, chronology, and
-  exact Evidence. It is not a general answer generator.
+- Verification supports declared fields, identities, chronology and typed
+  counterevidence. General semantic question planning is not implemented.
 - Persisted alpha artifacts are not an in-place upgrade contract. Keep the
   Adapter input and rebuild into a new target directory after an upgrade.
 - The canonical hash wire-parity correction may change identifiers for persisted
@@ -423,34 +191,18 @@ See [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md).
   `SOURCE_NATIVE_MAP`; preserve its old runtime, storage, and Adapter input,
   then rebuild into a new target directory. There is no in-place migration or
   signed-knowledge transfer.
-- Canonical source state and the ordinary SDK, CLI, and MCP query paths are
-  read-only. Learning capture, independent review, and policy activation belong
-  to a separately developed operator control plane. Its source and API are not
-  part of this public alpha.
-- The earlier research compiler and classic Ont server do not ship in this
-  public alpha. They remain in the private evidence workbench until their
-  customer-derived annotations and assumptions are removed.
+- The root SDK, CLI and MCP query paths are read-only. Kernel operations for
+  source publication and Admission require explicit operator configuration;
+  hosted source refresh and review workers are not included.
+- The published root client opens local Ont descriptors. Remote SDK/CLI access
+  is not part of alpha.3.
 - A typed refusal is a valid integrity result, not a transport failure.
 
 ## Develop
 
-```bash
-git clone https://github.com/Doss-com/openontology.git
-cd openontology
-npm ci
-npm run typecheck
-npm test
-```
-
-Before opening a pull request:
-
-```bash
-npm run release:check
-```
-
-Read [CONTRIBUTING.md](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) for repository structure, tests, and
-review expectations. Security issues belong in a private GitHub security
-advisory, not a public issue. See [SECURITY.md](https://github.com/Doss-com/openontology/blob/main/SECURITY.md).
+See [Contributing](CONTRIBUTING.md) for setup, repository structure, tests and
+release checks. Production source is TypeScript; JavaScript tests exercise the
+compiled package. Keep generated output and private deployment code out of Git.
 
 ## Support
 

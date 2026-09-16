@@ -1,4 +1,4 @@
-/** Public SDK entrypoint over proof-closing OpenOntology products. */
+/** Public SDK for querying and inspecting an Ont. */
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -19,8 +19,11 @@ export interface OpenOntologyScopeInput {
 export interface OpenOntologyQueryInput {
   question: string;
   intent?: 'current' | 'next';
+  /** Select by valid time in the snapshot, not by what was known at that time. */
   at?: string;
+  /** Exact previous field value for `next`, not an object ID. */
   anchorValue?: string | null;
+  /** Source, type and field names must match the Adapter schema. */
   scope?: OpenOntologyScopeInput;
 }
 
@@ -336,17 +339,21 @@ export interface OpenOntologyStatus {
 }
 export interface OpenOntologyProduct {
   kind: 'OpenOntologyClientV2';
+  /** Return checked source context, or a refusal when verification cannot complete. */
   verify: (input: string | OpenOntologyQueryInput) => Promise<OpenOntologyVerificationResult>;
+  /** Find candidate References. Search results alone do not establish an answer. */
   search: (input: string | OpenOntologyQueryInput) => Promise<OpenOntologySearchResult>;
+  /** Inspect a Reference issued by this client. */
   read: (input: string | OpenOntologyReferenceInput) => Promise<OpenOntologyReadResult>;
+  /** Inspect the opened Ont without refreshing its source data. */
   status: () => OpenOntologyStatus;
 }
 
-const fail = (code: string): never => {
+function fail(code: string): never {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
-};
+}
 const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -360,32 +367,26 @@ function exactUtcMillisecondIso(value: unknown): value is string {
 
 function queryFields(record: Record<string, unknown>): Omit<OpenOntologyQuery, 'typedQuery'> {
   const {
-    question: inputQuestion,
-    intent: inputIntent,
-    at: inputAt,
+    question,
+    intent,
+    at,
     anchorValue,
   } = record;
-  if (typeof inputQuestion !== 'string' || !inputQuestion.trim()
-    || inputIntent !== undefined && inputIntent !== 'current' && inputIntent !== 'next'
-    || inputAt !== undefined && !exactUtcMillisecondIso(inputAt)
+  if (typeof question !== 'string' || !question.trim()
+    || intent !== undefined && intent !== 'current' && intent !== 'next'
+    || at !== undefined && !exactUtcMillisecondIso(at)
     || anchorValue !== undefined && anchorValue !== null && typeof anchorValue !== 'string') {
     fail('OPENONTOLOGY_QUERY');
   }
-  const question = typeof inputQuestion === 'string' ? inputQuestion : fail('OPENONTOLOGY_QUERY');
-  const at = inputAt === undefined ? undefined
-    : exactUtcMillisecondIso(inputAt) ? inputAt : fail('OPENONTOLOGY_QUERY');
-  const exactAnchorValue = anchorValue === undefined || anchorValue === null
-    ? anchorValue
-    : typeof anchorValue === 'string' ? anchorValue : fail('OPENONTOLOGY_QUERY');
-  if (at !== undefined && (inputIntent === 'next'
-    || typeof exactAnchorValue === 'string' && exactAnchorValue.trim())) {
+  if (at !== undefined && (intent === 'next'
+    || typeof anchorValue === 'string' && anchorValue.trim())) {
     fail('OPENONTOLOGY_QUERY');
   }
   return {
     question,
-    ...(inputIntent === 'current' || inputIntent === 'next' ? { intent: inputIntent } : {}),
+    ...(intent === 'current' || intent === 'next' ? { intent } : {}),
     ...(at === undefined ? {} : { at }),
-    ...(exactAnchorValue === undefined ? {} : { anchorValue: exactAnchorValue }),
+    ...(anchorValue === undefined ? {} : { anchorValue }),
   };
 }
 
@@ -402,22 +403,16 @@ function query(input: unknown): OpenOntologyQuery {
   const fields = queryFields(record);
   if (record.scope === undefined) return fields;
   const scope = isRecord(record.scope) ? record.scope : fail('OPENONTOLOGY_QUERY');
+  const { sourceSystem, objectType, externalId, field: fieldPath } = scope;
   if (Object.keys(scope).some((name) =>
       !['sourceSystem', 'objectType', 'externalId', 'field'].includes(name))
-    || typeof scope.sourceSystem !== 'string' || !scope.sourceSystem
-    || typeof scope.objectType !== 'string' || !scope.objectType
-    || typeof scope.field !== 'string' || !scope.field
-    || scope.externalId !== undefined
-      && (typeof scope.externalId !== 'string' || !scope.externalId)) {
+    || typeof sourceSystem !== 'string' || !sourceSystem
+    || typeof objectType !== 'string' || !objectType
+    || typeof fieldPath !== 'string' || !fieldPath
+    || externalId !== undefined
+      && (typeof externalId !== 'string' || !externalId)) {
     fail('OPENONTOLOGY_QUERY');
   }
-  const sourceSystem = typeof scope.sourceSystem === 'string'
-    ? scope.sourceSystem : fail('OPENONTOLOGY_QUERY');
-  const objectType = typeof scope.objectType === 'string'
-    ? scope.objectType : fail('OPENONTOLOGY_QUERY');
-  const fieldPath = typeof scope.field === 'string'
-    ? scope.field : fail('OPENONTOLOGY_QUERY');
-  const externalId = scope.externalId;
   return {
     ...fields,
     typedQuery: {
@@ -438,8 +433,7 @@ function reference(input: unknown): OpenOntologyReferenceInput {
   if (Object.keys(record).length !== 1 || typeof record.ref !== 'string' || !record.ref) {
     fail('OPENONTOLOGY_REFERENCE');
   }
-  const ref = typeof record.ref === 'string' ? record.ref : fail('OPENONTOLOGY_REFERENCE');
-  return { ref };
+  return { ref: record.ref };
 }
 
 export function openOntology(options: OpenOntologyOptions): OpenOntologyProduct;
@@ -452,8 +446,7 @@ export function openOntology(options: ProductOptions = {}): OpenOntologyProduct 
   if (typeof options?.artifactRoot !== 'string' || !options.artifactRoot) {
     fail('OPENONTOLOGY_OPTIONS');
   }
-  const artifactRoot = typeof options.artifactRoot === 'string' && options.artifactRoot
-    ? options.artifactRoot : fail('OPENONTOLOGY_OPTIONS');
+  const artifactRoot = options.artifactRoot;
   const root = resolve(artifactRoot);
   if (!existsSync(join(root, SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE))) {
     fail('OPENONTOLOGY_ARTIFACT');

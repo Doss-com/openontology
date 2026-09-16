@@ -47,9 +47,8 @@
 - **Semantic proof root** is the canonical proposition attached to the exact
   field selected by an ordinary current-field Verification. Its query-scoped
   projection contains the root and the complete inbound counterevidence
-  closure, not every semantic proposition in the namespace. Ordinary delivery
-  is bounded to 64 Exact Evidence references and 64 KiB of Exact Evidence. An
-  oversized closure is refused without partial context.
+  closure, not every semantic proposition in the namespace. See
+  [semantic proof limits](docs/ARCHITECTURE.md#source-native-semantic-projection).
 - **Semantic knowledge bundle** is the content-bound handoff compiled from one
   successful ordinary semantic Verification. It contains the exact query
   binding, proof contract, authority census, propositions, relations, and
@@ -98,28 +97,18 @@ unresolved.
 - **Vacuum** reads, identifies, normalizes, and redacts source observations.
 - **Corpus** stores immutable exact Evidence.
 - **Resolver** is an internal Module that proposes candidate References or a
-  typed refusal. It does not own truth.
+  typed refusal.
 - **Ledger** stores independently admitted semantic or procedural knowledge.
 - **Admission** is an authenticated, independently reviewed decision to make one
-  content-bound knowledge bundle eligible for later reuse. Admission does not
-  replace Terrain authority. Proposer and reviewer authority are separate trust
-  roles. In the query-proof profile, every admitted proposition must participate in a required proof
-  obligation; returned Evidence roles come from that obligation, and returned
-  provenance uses fixed content hashes rather than proposer-authored labels.
-  Reusable context is bounded to 64 Proof units, 64 KiB of raw Exact Evidence,
-  and 64 KiB of JSON-encoded Evidence text, including a `next` anchor.
-  Oversized Admissions are refused, never truncated. Internally valid but
-  ineligible records remain addressable structural history so a bounded
-  correction can supersede them. Supersession is explicit and non-transitive;
-  a correction must name every active conflicting Admission it displaces.
-  Corrections append a signed superseding Admission; they do not delete prior
-  records.
+  content-bound knowledge bundle eligible for reuse. Proposer and reviewer have
+  separate trust roles; source authority is unchanged. See
+  [reviewed knowledge reuse](docs/ARCHITECTURE.md#reviewed-knowledge-reuse) for
+  validation, limits and corrections.
 - **Construction Admission** is the query-independent navigation profile of
   Admission. Its separately versioned signatures bind a source-grounded batch
-  of ObjectDefs, scoped aliases and source-attachment Claims. It does not carry
-  proof obligations or answer a question. Correction replaces the same batch of
-  ObjectDef IDs and preserves its history. Authentication does not certify the
-  reviewer's interpretation as true.
+  of ObjectDefs, aliases and Claims, not a factual answer. See
+  [construction history](docs/ARCHITECTURE.md#construction-admission-and-history)
+  for correction and trust rules.
 - **Materialization** is a disposable derived index or projection.
 - **Adapter** is a concrete implementation of a storage, source, or Resolver
   interface.

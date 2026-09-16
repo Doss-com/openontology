@@ -382,19 +382,20 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     offered.set(evidenceRef, offer);
   };
 
-  const prepareSearch = ({ question, intent: requestedIntent = 'current', anchorValue = null,
+  const prepareSearch = ({ question, intent: requestedIntent = 'current',
+    anchorValue: inputAnchorValue = null,
     typedQuery = null, at: requestedAt = null }: ProductSearchInput) => {
     if (typeof question !== 'string' || !question.trim()
       || !['current', 'next'].includes(requestedIntent)
-      || anchorValue !== null && typeof anchorValue !== 'string'
+      || inputAnchorValue !== null && typeof inputAnchorValue !== 'string'
       || requestedAt !== null && (requestedIntent === 'next'
-        || typeof anchorValue === 'string' && anchorValue.trim().length > 0)) {
+        || typeof inputAnchorValue === 'string' && inputAnchorValue.trim().length > 0)) {
       fail('SOURCE_NATIVE_PRODUCT_SEARCH');
     }
     const at = requestedAt === null ? null : normalizeSourceNativeHistoricalTime(requestedAt);
     const intent = at === null ? requestedIntent : 'at' as const;
-    const exactAnchorValue = typeof anchorValue === 'string' && anchorValue.trim()
-      ? anchorValue.trim() : null;
+    const anchorValue = typeof inputAnchorValue === 'string' && inputAnchorValue.trim()
+      ? inputAnchorValue.trim() : null;
     const plan = compileProductQueryPlan({
       question,
       namespace: descriptor.namespace,
@@ -402,10 +403,10 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       map: objectOnt.map,
       intent,
       at,
-      anchorValue: exactAnchorValue,
+      anchorValue,
       typedQuery,
     });
-    return { question, intent, at, anchorValue: exactAnchorValue, typedQuery, plan };
+    return { question, intent, at, anchorValue, typedQuery, plan };
   };
 
   const forgetOffers = (activityId: string | null) => {

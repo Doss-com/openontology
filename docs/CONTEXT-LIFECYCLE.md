@@ -1,16 +1,27 @@
 # The life of context in an Ont
 
-An Ont gives an agent three things: a map of its sources, a way to verify what those sources establish, and a memory of reviewed work it can safely reuse.
+An Ont gives an agent three things: a map of its sources, a way to verify what
+those sources establish, and a memory of reviewed work it can safely reuse.
 
-Follow one `ClickupTask` from its original system, through construction and verification, into reviewed knowledge that a later agent can reuse.
+Follow one `ClickupTask` from its original system, through construction and
+verification, into reviewed knowledge that a later agent can reuse.
 
-This is a sanitized illustration of the Tapestry testbed lifecycle, not customer data or a benchmark. In the status walkthrough, `ClickupTask` is our readable label for an object whose canonical identity contains `sourceSystem: clickup` and `objectType: task`. The executable concept-map example below instead declares `objectType: ClickupTask` explicitly in its Adapter schema. Neither creates a new kernel class. The namespace and native ID complete the identity.
+This walkthrough uses a synthetic `ClickupTask`. It contains no customer data
+and makes no benchmark claim.
 
-The source-native construction and verification path [EXISTS] in the public kernel. Automated proposal capture and independent review [EXISTS] in the managed implementation, with production qualification still [ACTIVE-WORK]. The ordinary public `verify` call does not silently enable that managed lifecycle. Proposed extensions are marked below.
+- The status example uses `sourceSystem: clickup` and `objectType: task`.
+- The executable concept-map example declares `objectType: ClickupTask` in its
+  Adapter schema. Neither example introduces a kernel class.
+- Namespace and native ID complete the identity in both examples.
+
+Construction, verification and reviewed reuse ship in the alpha.3 kernel.
+Source capture, model workers and scheduled review require a managed application;
+the ordinary `verify` call does not start them. Later sections describe possible
+extensions separately from the working examples.
 
 ## The two loops
 
-There are two related loops, not one process that turns every agent response into truth.
+Source updates and reviewed agent work have separate lifecycles.
 
 ```text
 Source loop
@@ -28,11 +39,16 @@ Agent question -> Resolver + Verification -> verified context
                        Ledger <- Admission <- proposed knowledge
 ```
 
-The source loop updates the available observations. The agent loop preserves reviewed work so a later agent can use it without repeating the entire investigation. Neither loop makes the Ont more authoritative than the underlying sources.
+The source loop updates the available observations. The agent loop preserves
+reviewed work so a later agent can use it without repeating the entire
+investigation. Neither loop makes the Ont more authoritative than the underlying
+sources.
 
 ## 1. Terrain: something happens in the original system
 
-Imagine a `ClickupTask`, native ID `CT-17`, in the synthetic namespace `example-workspace`. One captured observation says `to do`. A later observation says `in progress`.
+Imagine a `ClickupTask`, native ID `CT-17`, in the synthetic namespace
+`example-workspace`. One captured observation says `to do`. A later observation
+says `in progress`.
 
 ```text
 ClickUp
@@ -43,15 +59,22 @@ ClickUp
         +---- May 19 observation ------ status: in progress
 ```
 
-ClickUp owns the operational object. Tapestry Bronze holds captured observations of that object. OpenOntology does not create the original work item, change its status or replace ClickUp as its authority.
+ClickUp owns the operational object. Tapestry Bronze holds captured observations
+of that object. OpenOntology does not create the original work item, change its
+status or replace ClickUp as its authority.
 
-This distinction affects the answer: the evidence can establish what the latest captured observation records. It does not, by itself, establish what the live system says right now.
+This distinction affects the answer: the evidence can establish what the latest
+captured observation records. It does not, by itself, establish what the live
+system says right now.
 
 ## 2. Vacuum: bring observations in without losing their origin
 
-Vacuum is the ingestion faculty. A source Adapter is the implementation that understands the incoming representation.
+Vacuum is the ingestion faculty. A source Adapter is the implementation that
+understands the incoming representation.
 
-For this source-native path, the Adapter preserves the complete document and declares the parts it knows how to interpret. It does not ask a model to guess what every sentence means.
+For this source-native path, the Adapter preserves the complete document and
+declares the parts it knows how to interpret. It does not ask a model to guess
+what every sentence means.
 
 ```text
 Bronze source document
@@ -90,11 +113,16 @@ ClickupTask CT-17
     support:      exact Evidence reference
 ```
 
-These canonical homes preserve the earlier taxonomy's vocabulary. The current public representation carries identity and proposition records; it does not expose a general ObjectDef or LinkDef authoring API.
+The public representation carries identity and proposition records. It does not
+expose a general ObjectDef or LinkDef authoring API.
 
-`validAt` and `knownAt` answer different questions. The first describes when the observation is valid under the Adapter's declared temporal contract. The second describes when it became known to this construction input. A capture timestamp is not automatically the exact moment the status changed.
+- `validAt` describes when the observation is valid under the Adapter's time contract.
+- `knownAt` describes when it became known to this construction input.
+- A capture timestamp does not establish the exact moment a status changed.
 
-The Tapestry Adapter's mapped `ClickupTask` status is a reported state. The rest of the document remains in Corpus, but preserving its bytes is not the same as extracting every requirement, blocker or causal assertion from its prose.
+The Tapestry Adapter's mapped `ClickupTask` status is a reported state. The rest
+of the document remains in Corpus, but preserving its bytes is not the same as
+extracting every requirement, blocker or causal assertion from its prose.
 
 ## 3. Construction: build a map over the preserved sources
 
@@ -116,9 +144,13 @@ Ledger
 reviewed investigations, Admissions and corrections
 ```
 
-Corpus preserves the exact observations. Ont supplies the typed crosswalk that lets an agent navigate and check them. Ledger holds the reviewed knowledge and its history.
+Corpus preserves the exact observations. Ont supplies the typed crosswalk that
+lets an agent navigate and check them. Ledger holds the reviewed knowledge and
+its history.
 
-The compiler groups the two observations because their complete source-native identity matches, not because their titles sound similar. It compares the same field on that same identity across ordered observations.
+The compiler groups the two observations because their complete source-native
+identity matches, not because their titles sound similar. It compares the same
+field on that same identity across ordered observations.
 
 ```text
 ClickupTask CT-17
@@ -134,15 +166,23 @@ ClickupTask CT-17
                 +--> supersedes the earlier status observation
 ```
 
-That `supersedes` relation is navigation derived from identity, field value and chronology. It is not permission to delete the older source or assume the latest document wins every kind of disagreement.
+That `supersedes` relation is navigation derived from identity, field value and
+chronology. It is not permission to delete the older source or assume the latest
+document wins every kind of disagreement.
 
-BM25 is a derived search Materialization. It helps find candidates and can be rebuilt. It is not the Ont's authority, nor is it the only useful structure in the Ont. Identity, chronology, declared semantic relations and exact source bindings do work that term ranking does not.
+BM25 is a rebuildable search Materialization for finding candidates. The Ont adds
+identity, chronology, declared semantic relations and source bindings to check
+those candidates.
 
-The normal query-time Resolver uses this constructed map. It does not automatically run an ontology-learning model over the whole Corpus whenever an agent asks a question.
+The normal query-time Resolver uses this constructed map. It does not
+automatically run an ontology-learning model over the whole Corpus whenever an
+agent asks a question.
 
 ## 4. Publication: give agents a stable source cut
 
-A source cut is the specific published version of the source collection and its map. It lets two agents know whether they are reasoning over the same observations.
+A source cut is the specific published version of the source collection and its
+map. It lets two agents know whether they are reasoning over the same
+observations.
 
 ```text
 Stable Ont address
@@ -156,15 +196,25 @@ Stable Ont address
                     +--> chronology and proof bindings
 ```
 
-The object-storage pattern writes immutable content before advancing the mutable head with compare-and-swap. An opening pins a source cut; an update does not silently change the world halfway through that opening's work.
+The object-storage pattern writes immutable content before advancing the mutable
+head with compare-and-swap. An opening pins a source cut; an update does not
+silently change the world halfway through that opening's work.
 
-The testbed walkthrough uses local object storage. A provider Adapter changes how objects and heads are stored, not the distinction between Corpus, Ont and Ledger. Hosted deployment qualification is separate from explaining or exercising this local lifecycle.
+The testbed walkthrough uses local object storage. A provider Adapter changes
+how objects and heads are stored, not the distinction between Corpus, Ont and
+Ledger. Hosted deployment qualification is separate from explaining or
+exercising this local lifecycle.
 
-There is also a scale boundary: opening the current source-native representation can hydrate corpus-sized structures. Object-storage-native does not yet mean every read is a lazy remote graph traversal.
+There is also a scale boundary: opening the current source-native representation
+can hydrate corpus-sized structures. Object-storage-native does not yet mean
+every read is a lazy remote graph traversal.
 
 ## 5. Serving: an agent asks for verified context
 
-The user-facing question could be: “What is the latest recorded status of ClickupTask CT-17?” The configured query schema maps supported source and field names to a typed query. The application supplies the namespace so a matching ID in another workspace cannot answer this question.
+The user-facing question could be: “What is the latest recorded status of
+ClickupTask CT-17?” The configured query schema maps supported source and field
+names to a typed query. The application supplies the namespace so a matching ID
+in another workspace cannot answer this question.
 
 ```text
 Agent question
@@ -194,11 +244,16 @@ Inspect exact authorized Corpus bytes
 Verification: usable context or a typed refusal
 ```
 
-The reviewed-knowledge branch requires an opening configured for admitted-knowledge reuse. Without it, verification follows the fresh path.
+The reviewed-knowledge branch requires an opening configured for
+admitted-knowledge reuse. Without it, verification follows the fresh path.
 
-For `ClickupTask CT-17`, search might return several plausible documents. The Ont identifies the observations belonging to this exact object and selects the relevant status under the time contract. Exact inspection then retrieves the bytes spelling `in progress`.
+For `ClickupTask CT-17`, search might return several plausible documents. The
+Ont identifies the observations belonging to this exact object and selects the
+relevant status under the time contract. Exact inspection then retrieves the
+bytes spelling `in progress`.
 
-The result includes the context, source cut, selected identity, source location and verification receipts. It is not just a model's answer with a citation appended afterward.
+The result includes context, source cut, selected identity, source location and
+verification receipts.
 
 ```text
 Verification
@@ -210,15 +265,26 @@ Verification
   receipts:    identity, resolution and verification
 ```
 
-This block is explanatory output, not a literal serialized API response. An agent can use that context to answer in natural language. The deterministic source-native kernel does not need an answer model to establish this field value.
+This block is explanatory output, not a literal serialized API response. An
+agent can use that context to answer in natural language. The deterministic
+source-native kernel does not need an answer model to establish this field
+value.
 
-If the ID is ambiguous, the requested field is unmapped, the census is incomplete or the required evidence cannot be verified, the result names that boundary instead of inventing an answer. A refusal is actionable information about what proof is missing.
+If verification cannot complete, the result identifies the reason:
 
-The semantic kernel can also evaluate explicitly mapped qualification and contradiction relations. Our `ClickupTask` status example has no such relations. It does not demonstrate automatic discovery of counterevidence in arbitrary prose.
+- Ambiguous identity or unmapped field.
+- Incomplete source census.
+- Missing or unverifiable Evidence.
+
+The semantic kernel can also evaluate explicitly mapped qualification and
+contradiction relations. Our `ClickupTask` status example has no such relations.
+It does not demonstrate automatic discovery of counterevidence in arbitrary
+prose.
 
 ## 6. Learning: preserve reviewed work, not just an answer
 
-The managed capture path can return valid context now and separately propose the source-grounded work for reuse. The first answer need not wait for an Admission.
+The managed capture path can return valid context now and separately propose the
+source-grounded work for reuse. The first answer need not wait for an Admission.
 
 ```text
 Fresh verified context
@@ -241,15 +307,23 @@ Reviewer signs an Admission
 Append to the knowledge branch
 ```
 
-The bundle records the question and typed query, source cut, proof obligations, proposition and relation bindings, relevant census, Evidence references and provenance.
+The bundle records the question and typed query, source cut, proof obligations,
+proposition and relation bindings, relevant census, Evidence references and
+provenance.
 
-An Admission makes that knowledge eligible for reuse under its bindings. It does not promote the stored answer above its sources. The reviewer checks the proof contract; it is not necessarily a second language model debating the business conclusion.
+An Admission makes that knowledge eligible for reuse under its bindings. It does
+not promote the stored answer above its sources. The reviewer checks the proof
+contract; it is not necessarily a second language model debating the business
+conclusion.
 
-If capture fails after verification succeeds, valid context can still be returned. If review fails, the proposal does not become admitted knowledge. These are separate outcomes.
+If capture fails after verification succeeds, valid context can still be
+returned. If review fails, the proposal does not become admitted knowledge.
+These are separate outcomes.
 
 ## 7. Next-agent reuse: shorter work, with proof checks retained
 
-When another agent asks an eligible question against the same source cut, the Resolver can consult reviewed knowledge before doing fresh raw search.
+When another agent asks an eligible question against the same source cut, the
+Resolver can consult reviewed knowledge before doing fresh raw search.
 
 ```text
 Next agent
@@ -270,11 +344,17 @@ Inspect exact source Evidence
 Return verified context
 ```
 
-For our `ClickupTask`, reuse can skip BM25 while retaining the exact source inspection. The reusable asset is the reviewed route and proof-bearing knowledge, not permission to trust a stale cached sentence.
+For this `ClickupTask`, reuse can skip BM25. Proof checks and source inspection
+still run.
 
-Current eligibility includes exact question and query bindings. It is not a general semantic cache that recognizes every paraphrase. A warm opening can refresh knowledge eligibility, while source-cut and trust bindings remain pinned to the opening's contract.
+Current eligibility includes exact question and query bindings. It is not a
+general semantic cache that recognizes every paraphrase. A warm opening can
+refresh knowledge eligibility, while source-cut and trust bindings remain pinned
+to the opening's contract.
 
-Invalid or ineligible knowledge falls back to the ordinary path when that path is available. Distinct conflicting eligible conclusions must not be resolved by arbitrarily picking one.
+Invalid or ineligible knowledge falls back to the ordinary path when that path
+is available. Distinct conflicting eligible conclusions must not be resolved by
+arbitrarily picking one.
 
 ## 8. Reconciliation: update without erasing how we got here
 
@@ -282,7 +362,8 @@ There are three different changes to keep separate.
 
 ### A new source observation
 
-Suppose a later capture records `complete`. This is a hypothetical continuation, not another observation from our testbed example.
+Suppose a later capture records `complete`. This is a hypothetical continuation,
+not another observation from our testbed example.
 
 ```text
 Commit A                         Commit B
@@ -294,9 +375,12 @@ May:   in progress               May:   in progress
 Existing opening -> A            New opening -> B
 ```
 
-Publication adds the new observation and advances the head. Earlier bytes and history remain. An existing opening does not silently move from A to B; the local product guard can require reopening when its published bindings drift.
+Publication adds the new observation and advances the head. Earlier bytes and
+history remain. An existing opening does not silently move from A to B; the
+local product guard can require reopening when its published bindings drift.
 
-Knowledge admitted for A does not automatically carry forward as proof for B. Eligibility must be established against the new source cut.
+Knowledge admitted for A does not automatically carry forward as proof for B.
+Eligibility must be established against the new source cut.
 
 ### A correction to reviewed knowledge
 
@@ -310,7 +394,8 @@ Knowledge K1 ---- superseded by ----> Knowledge K2
 Corpus bytes: unchanged by this correction
 ```
 
-This is a knowledge decision, not a rewrite of the source. “Newest timestamp wins” is not a general reconciliation policy.
+This is a knowledge decision, not a rewrite of the source. “Newest timestamp
+wins” is not a general reconciliation policy.
 
 ### Learning a better way to search
 
@@ -332,7 +417,9 @@ Explicit activation
 Later Resolver uses the policy for navigation
 ```
 
-This path [EXISTS] in research implementations. It is not the automatic behavior of every public query, and a SearchPolicy does not become factual Evidence. Moving this broader learning path into the product is distinct from the canonical proof-reuse mechanism described above.
+This path is experimental and does not ship in the public package. A SearchPolicy
+guides navigation; it does not become factual Evidence. The public kernel's
+reviewed proof reuse, described above, does not require it.
 
 ## 9. What changes when an agent touches an Ont?
 
@@ -350,13 +437,16 @@ explicit correction             May supersede earlier knowledge
 recovery                        Restores an accepted state
 ```
 
-Runtime counters and logs are not automatically trusted knowledge. Recovery does not invent Evidence. An agent merely seeing a claim does not make it more true.
+Counters and logs do not update trusted knowledge. Recovery restores accepted
+state without creating new Evidence.
 
 ## 10. What makes this an ontology, not just an index?
 
-There is real, bounded ontology work here: typed identity, declared field meanings, canonical proposition roles, temporal relations, scoped entity neighborhoods and proof-bearing links. The compiler enforces those contracts and makes them navigable.
+The compiler links typed identities, declared field meanings, proposition roles,
+temporal relations and scoped entity neighborhoods.
 
-There are several kinds of link, and they should not be collapsed into one unlabeled edge:
+There are several kinds of link, and they should not be collapsed into one
+unlabeled edge:
 
 - Identity links group observations with the same complete source-native identity.
 - Revision links connect changes to the same field of that identity.
@@ -365,15 +455,26 @@ There are several kinds of link, and they should not be collapsed into one unlab
 - Declared proposition relations express qualification and contradiction, and their targets must exist in the scoped projection.
 - Knowledge links preserve the provenance, review and supersession of reusable work.
 
-The input Adapter supplies the identities, meanings and semantic assertions it can justify. The compiler validates and links them. The Resolver navigates the constructed map. Verification checks whether that route satisfies the question's proof obligations.
+The input Adapter supplies the identities, meanings and semantic assertions it
+can justify. The compiler validates and links them. The Resolver navigates the
+constructed map. Verification checks whether that route satisfies the question's
+proof obligations.
 
-The lexicon is currently narrower than a learned domain vocabulary. Query schemas declare aliases for object types and fields; the planner also resolves supported names against the complete typed identity census. The unpublished construction path now persists bounded concept ObjectDefs, scoped aliases and source-attachment Claims. It does not automatically discover concepts, topics, synonyms or cross-system equivalence.
+The current lexicon includes:
 
-Earlier research implementations constructed richer database and code maps, including definitions and links from foreign keys and code references. Those constructors are not wired into the current public source-native kernel. The full design taxonomy is not implemented as a persistent runtime taxonomy inside each Ont; the concept profile above is a bounded subset.
+- Declared object-type and field aliases in query schemas.
+- Supported names resolved against the complete typed identity census.
+- Authored concept ObjectDefs, scoped aliases and source-attachment Claims.
+
+Automatic concept discovery, synonym learning, cross-system equivalence and
+database/code-map constructors are not part of this public kernel.
 
 ### The next layer: maps of ideas
 
-[PROPOSED] A construction-time studying process could extract candidate names, concepts and relationships from source material, attach their Evidence and scope, and propose them for review. Accepted links could then guide later Resolvers.
+A future construction-time studying process could extract candidate names,
+concepts and relationships from source material, attach their Evidence and
+scope, and propose them for review. Accepted links could then guide later
+Resolvers.
 
 ```text
 ClickupTask CT-17 ---- mentions ----> Inventory reconciliation
@@ -386,17 +487,23 @@ Each candidate link carries:
   scope + temporal applicability + review state
 ```
 
-This is an illustrative future map, not a link extracted from the status example. A `mentions` edge helps navigation; it does not prove a causal relationship. Two sources using the same phrase do not automatically describe the same entity.
+This is an illustrative future map, not a link extracted from the status
+example. A `mentions` edge helps navigation; it does not prove a causal
+relationship. Two sources using the same phrase do not automatically describe
+the same entity.
 
-We can extend the earlier canonical homes rather than invent a competing taxonomy: ObjectDef and InstanceRef for entities, Claim and PropositionRevision for assertions, typed relations for their connections, and Evidence references for exact support. Automatic semantic construction still needs an extraction, review and evaluation loop. Declaring these homes does not mean that whole loop has shipped.
+The [canonical record homes](../GLOSSARY.md#canonical-record-homes) already cover
+entities, assertions, relations and Evidence. Automatic construction still needs
+an extraction, review and evaluation loop.
 
-The tradeoff today is deliberate: inexpensive, auditable construction from declared source semantics, with less automatic conceptual discovery. The next step is to add useful semantic links without relaxing the distinction between a promising route and established Evidence.
+The current implementation favors auditable, declared semantics over automatic
+conceptual discovery.
 
 ### Executable concept map
 
-[ACTIVE-WORK, unpublished] The kernel now supports an authored version of this
-loop. Run the packaged [semantic-map example](../examples/quickstart/semantic-map.mjs)
-from an installed candidate, using a new output directory:
+Alpha.3 includes an authored version of this loop. Run the packaged
+[semantic-map example](../examples/quickstart/semantic-map.mjs)
+from the installed package, using a new output directory:
 
 ```sh
 node node_modules/oont/examples/quickstart/semantic-map.mjs ./semantic-map-demo
@@ -450,23 +557,27 @@ const handler = createSourceNativeProductMcpHandler(ont, { profile: 'advanced' }
 // Tools remain search and read. Search accepts a question OR a term, not both.
 ```
 
-The default MCP profile still exposes only `verify`. Construction-enabled
-advanced handlers offer metadata paging and exact reads, not an Admission or
-review endpoint. The example also checks pagination, refusal of an unbound
-two-object factual query, an explicit correction, invalidation of old read
-handles, cold reopen and reviewer revocation. Existing output is refused rather
-than overwritten. The retained Ont is useful for inspecting the storage layout;
-the discarded ephemeral keys are not a production review setup.
+The default MCP profile exposes only `verify`. Construction-enabled advanced
+handlers add metadata paging and exact reads, without review or Admission tools.
 
-Search matches a complete preferred name or declared alias, not an arbitrary
-question. Distinct concept IDs remain ambiguous, but their metadata and exact
-passage handles are browsable. Use `conceptId` or narrower scope to select one,
-or follow `nextCursor` to inspect more candidates. Even a page with one concept
-remains ambiguous if the full result contains several. The example selects a
-known `ClickupTask` identity explicitly; an unfamiliar target requires inspecting
-and comparing candidates first. Empty results do not prove absence. Reads are
-exact source passages, but their `mentions` or `defines` interpretation remains
-navigation. Only the later native-field Verification closes factual proof.
+The example also exercises:
+
+- Pagination and refusal of an unbound two-object factual query.
+- Correction, invalidation of old read handles, cold reopen and reviewer revocation.
+- Refusal to overwrite an existing output directory.
+
+The retained Ont can be inspected, but its discarded ephemeral keys are not a
+production review setup.
+
+When using concept search:
+
+- Supply a complete preferred name or declared alias, not an arbitrary question.
+- Inspect ambiguous candidates, then select a `conceptId` or narrower scope.
+  Use `nextCursor` for more results. Ambiguity describes the full result, not one page.
+- The example selects a known `ClickupTask`. For an unfamiliar target, inspect
+  and compare candidates first. Empty results do not prove absence.
+- Reads return source passages. Their `mentions` or `defines` interpretation
+  guides navigation; the subsequent field Verification establishes factual proof.
 
 For a source-grounded review, open a review session before asking the independent
 signer to approve the construction:
@@ -491,12 +602,17 @@ validation. A rejection cannot
 be removed to approve a smaller implicit batch. A syntactically valid response
 can still be a bad judgment; source interpretation must be independently tested.
 
-This completes executable mechanics, not independent semantic judgment,
-held-out value evaluation or managed production qualification. Automatic
-studying and semantic-review quality remain unqualified.
+The example exercises the mechanics. It does not evaluate semantic-review
+quality, automatic studying or managed production readiness.
 
 ## The whole lifecycle, in one paragraph
 
-Vacuum brings observations in. Corpus preserves them. Ont makes them navigable and checkable. Resolvers find a path. Verification produces usable context. Ledger preserves reviewed work so the next agent can get there more efficiently. Updates and corrections change what is eligible without erasing how we got there.
+Vacuum brings observations in. Corpus preserves them. Ont makes them navigable
+and checkable. Resolvers find a path. Verification produces usable context.
+Ledger preserves reviewed work so the next agent can get there more efficiently.
+Updates and corrections change what is eligible without erasing how we got
+there.
 
-For executable local steps, see [Source input and updates](SOURCE-LIFECYCLE.md). For the current public boundaries, see [Architecture](ARCHITECTURE.md), [Storage](STORAGE.md) and the [Glossary](../GLOSSARY.md).
+For executable local steps, see [Source input and updates](SOURCE-LIFECYCLE.md).
+For the current public boundaries, see [Architecture](ARCHITECTURE.md),
+[Storage](STORAGE.md) and the [Glossary](../GLOSSARY.md).

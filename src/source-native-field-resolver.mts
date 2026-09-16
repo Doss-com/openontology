@@ -43,7 +43,11 @@ export {
 } from './source-native-identity-census.mjs';
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
-const fail = (code: string): never => { const error = new TypeError(code) as TypeError & { code: string }; error.code = code; throw error; };
+function fail(code: string): never {
+  const error = new TypeError(code) as TypeError & { code: string };
+  error.code = code;
+  throw error;
+}
 const freeze = <T,>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
@@ -234,10 +238,8 @@ export function openSourceNativeRecordedFieldResolver({
     if (typeof question !== 'string' || !question.trim()
       || !Number.isSafeInteger(maximumSourceMessages) || maximumSourceMessages < 1
       || maximumSourceMessages > 1024) fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
-    const askedQuestion = typeof question === 'string' ? question
-      : fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
-    const queryPlan = validateFieldQueryPlan(await queryPlanner.plan({ question: askedQuestion }), {
-      planner: queryPlanner, namespace: boundNamespace, question: askedQuestion,
+    const queryPlan = validateFieldQueryPlan(await queryPlanner.plan({ question }), {
+      planner: queryPlanner, namespace: boundNamespace, question,
     });
     let resolution: SourceNativeFieldResolutionResult | null = null;
     let evidenceUnits: UnknownRecord[] = [];
@@ -275,7 +277,7 @@ export function openSourceNativeRecordedFieldResolver({
           : stableObjectSha256({ intent, at, query: resolvedQuery });
         const seedSearch = await runSeedSearch({
           adapter: seedSearchAdapter,
-          question: askedQuestion,
+          question,
           limit: Math.min(maximumSeedSourceMessages, maximumSourceMessages),
           maximumSeedSourceMessages,
           sourceCommitSha256: boundCommitSha256,
@@ -571,10 +573,8 @@ export function openSourceNativeHistoricalFieldResolver({
     if (typeof question !== 'string' || !question.trim()
       || !Number.isSafeInteger(maximumSourceMessages) || maximumSourceMessages < 1
       || maximumSourceMessages > 1024) fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
-    const askedQuestion = typeof question === 'string' ? question
-      : fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
-    const queryPlan = validateFieldQueryPlan(await queryPlanner.plan({ question: askedQuestion }), {
-      planner: queryPlanner, namespace: boundNamespace, question: askedQuestion,
+    const queryPlan = validateFieldQueryPlan(await queryPlanner.plan({ question }), {
+      planner: queryPlanner, namespace: boundNamespace, question,
     });
     let resolution: SourceNativeFieldSuccessorResolutionResult | null = null;
     let evidenceUnits: UnknownRecord[] = [];
@@ -594,7 +594,7 @@ export function openSourceNativeHistoricalFieldResolver({
       const bindingSha256 = queryBindingSha256('next', resolvedQuery);
       const seedSearch = await runSeedSearch({
         adapter: seedSearchAdapter,
-        question: askedQuestion,
+        question,
         limit: Math.min(maximumSeedSourceMessages, maximumSourceMessages),
         maximumSeedSourceMessages,
         sourceCommitSha256: boundCommitSha256,
