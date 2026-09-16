@@ -65,10 +65,41 @@ OpenOntology returns a JSON Verification. A successful result contains exact
 context and proof receipts. An ambiguous, unsupported, or incomplete question
 returns a typed refusal instead of a guessed answer.
 
-To supply data or publish an update, use [Source input and updates](docs/SOURCE-LIFECYCLE.md)
-and its [Adapter input reference](docs/SOURCE-LIFECYCLE.md#authoring-adapter-input).
+Selected fields from the actual command responses are shown below. Complete
+responses include hashes and receipts.
 
-## TypeScript and JavaScript
+```json
+{
+  "answerable": true,
+  "state": "resolved-current-field",
+  "context": [{ "exactText": "Ship verified context",
+    "evidence": { "relativePath": "tracker/demo/task-1-v2.txt" } }]
+}
+```
+
+An unsupported question returns a typed refusal:
+
+```bash
+npx --no-install oont verify ./verified-context 'Who owns task-1?'
+```
+
+```json
+{
+  "answerable": false,
+  "state": "unavailable-native-field-not-declared",
+  "availableFields": [{ "sourceSystem": "tracker", "objectType": "task",
+    "fieldPath": "title" }],
+  "context": []
+}
+```
+
+Next step: ask for the declared `title` field, or add and rebuild an `owner`
+field in the Adapter input. Do not treat a refusal as a guessed or partial
+answer.
+
+## First-use recipes
+
+### SDK
 
 ```js
 import { openOntology } from 'oont'
@@ -82,6 +113,36 @@ if (result.answerable) {
   console.log(result.state)
 }
 ```
+
+### MCP
+
+Start the default stdio server to expose one `verify` tool:
+
+```bash
+npx --no-install oont serve ./verified-context --mcp
+```
+
+Send `{ "question": "What is the current title of task-1?" }` as the
+`verify` tool arguments. See [MCP usage](docs/QUERIES.md#mcp).
+
+### Publish an update
+
+Run the packaged lifecycle example with a new output directory:
+
+```bash
+node ./node_modules/oont/examples/quickstart/source-lifecycle.mjs \
+  ./source-lifecycle-run
+```
+
+The fixture records `Prepare launch` first and `Ship verified context` second,
+so the current query returns the second revision. It then publishes
+`Keep context current` and reports the old descriptor as
+`SOURCE_NATIVE_PRODUCT_REF`. See [Source input and updates](docs/SOURCE-LIFECYCLE.md).
+
+## TypeScript and JavaScript
+
+The [SDK recipe](#sdk) is standard ESM JavaScript and can be saved as an
+`.mjs` file and run with Node.js 24 or newer. TypeScript uses the same API.
 
 | Method | Use it to |
 | --- | --- |
