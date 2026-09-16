@@ -17,7 +17,7 @@ const fail = (message) => {
   process.exit(1);
 };
 const semverPattern =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
 
 const tracked = execFileSync('git', ['ls-files', '-z'], {
   cwd: root,
@@ -115,7 +115,9 @@ for (const path of tracked) {
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 if (packageJson.name !== 'oont') fail('package name must be oont');
-if (typeof packageJson.version !== 'string' || !semverPattern.test(packageJson.version)) {
+const versionMatch =
+  typeof packageJson.version === 'string' ? semverPattern.exec(packageJson.version) : null;
+if (!versionMatch || versionMatch[4]?.split('.').some((identifier) => /^0\d+$/u.test(identifier))) {
   fail(`package version is not valid SemVer: ${packageJson.version}`);
 }
 const expectedTag = `v${packageJson.version}`;
