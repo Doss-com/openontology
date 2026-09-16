@@ -1,7 +1,8 @@
 # Storage
 
 OpenOntology stores immutable objects and advances named refs with
-compare-and-swap. Storage Adapters do not decide truth, ranking, or proof.
+compare-and-swap. This guide covers the storage operations in `oont` 0.3.0-alpha.3;
+query and proof semantics stay in the engine.
 
 Normal ObjectOnt ref publication is forward-only. An existing branch accepts
 its current commit or a descendant, and rejects an ancestor or unrelated fork
@@ -13,12 +14,12 @@ to a prior descendant stale. Treat that as a new publication, not restoration;
 use exact historical opening or a separate branch or cut when preserving old
 state.
 This rule covers source and admitted-knowledge publication. The legacy profile
-does not detect a direct backend rewrite after process restart. The unpublished
+does not detect a direct backend rewrite after process restart. The
 protected profile below adds independently stored accepted history.
 
 ## Protected history
 
-`[ACTIVE-WORK]` A kernel build with explicit `historyBackendUri` produces a V2
+A kernel build with explicit `historyBackendUri` produces a V2
 source descriptor. Its stable resource preserves the same required history URI
 and binds it into its content hash. Existing V1 descriptors and resources remain
 legacy; opening cannot implicitly enroll them or substitute a different history
@@ -67,7 +68,7 @@ and reachable-object metadata checks in exchange for cold-start continuity.
 
 ## Conditional source publication
 
-`[ACTIVE-WORK]` The unpublished kernel builder accepts optional
+The kernel builder accepts optional
 `expectedSourceVersion`. A delayed worker can bind a changed publication to the
 source ref it previously observed, instead of treating the newest ref as its
 base when it eventually finishes.
@@ -173,7 +174,7 @@ garbage collection remain provider responsibilities.
 
 ## Kernel resources and replay checkpoints
 
-`[ACTIVE-WORK]` The unpublished kernel extension can create a stable source
+The kernel extension can create a stable source
 resource with `createSourceNativeProductResource`, then bind its current branch
 cut into an immutable local descriptor with `bindSourceNativeProductResource`.
 The resource fixes its Ont identity, namespace, query profile, backend, and
@@ -207,7 +208,7 @@ provider operating limits require further qualification.
 
 ### Selected construction sources
 
-`[ACTIVE-WORK]` The unpublished kernel exports
+The kernel exports
 `openProductSourceContext(options)`. It checks the current artifact binding,
 protected history, map and complete catalog without hydrating every source
 pack. Its `readSource(sourceRef)` resolves only a catalog member, reads that
@@ -232,6 +233,7 @@ No total memory, latency or hosted-cost bound follows from a small range read.
 
 ## Managed storage
 
-Named hosted Onts, tenant isolation, API keys, IAM automation, interrupted-write
-recovery, garbage collection, quotas, and managed Turbopuffer projections are
-not part of `0.3.0-alpha.3`.
+Hosted accounts, tenant isolation, application credentials, IAM automation,
+quotas, garbage collection and operational recovery belong to the managed
+application. The engine supplies storage and protected-history primitives;
+a separate private deployment configures and operates them.

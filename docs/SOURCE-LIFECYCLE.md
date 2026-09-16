@@ -24,7 +24,7 @@ with a non-recursive directory create before building any child artifacts.
 For a single source cut, the ordinary CLI build route remains available:
 
 ```bash
-npx oont resolver build \
+npx --no-install oont resolver build \
   ./node_modules/oont/examples/quickstart/source-native-input.json \
   --out ./verified-context
 ```
@@ -89,7 +89,7 @@ commit while the mutable source branch now names the successor.
 as semantic `validAt` or `knownAt` time, which belong to field or proposition
 inputs when an Adapter supplies them. A new source cut is also not an
 Admission. Publishing the successor does not transfer old-cut knowledge
-eligibility. The unreleased root client's explicit `at` query selects valid
+eligibility. The root client's explicit `at` query selects valid
 time within its bound cut; it does not reopen a different historical source
 commit. Exact historical opening remains an operator capability outside this
 root walkthrough. See [temporal intent](../README.md#temporal-intent).

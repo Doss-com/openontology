@@ -1,7 +1,8 @@
 # Architecture
 
-OpenOntology separates navigation from proof. This unpublished development
-checkout implements the compact path below.
+This guide describes the engine shipped in `oont` 0.3.0-alpha.3. Root queries
+are read-only. The `oont/kernel` extension also provides source publication,
+semantic construction and reviewed knowledge reuse.
 
 ```text
 Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
@@ -27,7 +28,7 @@ current queries ignore it.
 `at` cannot be combined with `anchorValue` or `intent: next`. These meanings
 are also included in the tool parameter descriptions.
 
-`[EXISTS]` Current-field Verification compiles a content-addressed chronology
+Current-field Verification compiles a content-addressed chronology
 receipt over one stable native identity and field. The receipt binds the source
 commit, replay, catalog, complete mapped source count, every identity
 observation, the ordered field-revision closure, and the selected exact field.
@@ -37,7 +38,7 @@ returns `unavailable-incomplete-recorded-field-chronology` without Evidence.
 The scope is deliberately limited to the latest recorded value in the bound
 source cut. It does not claim universal current state.
 
-`[ACTIVE-WORK]` Point-in-time queries add an explicit `at` binding to the same
+Point-in-time queries add an explicit `at` binding to the same
 Resolver and exact-read path. The native retrospective profile uses declared
 `validAt`, or source `occurredAt` when omitted. `knownAt` is reported but does
 not limit selection. The source horizon is the complete native catalog's last
@@ -47,7 +48,7 @@ valid at the requested time. Consecutive equivalent observations share a state;
 nonconsecutive equal states stay distinct. Missing coverage, unresolved states,
 and requests outside the recorded horizon refuse without Evidence.
 
-`[ACTIVE-WORK]` The native planner recognizes a bounded set of explicit
+The native planner recognizes a bounded set of explicit
 transition-time forms, including `When did ... enter`, `When did ... change to`,
 `At what time did ... transition`, and `When did ... become`. It does not answer
 those questions by returning a field value. It returns
@@ -65,7 +66,7 @@ to an earlier state. Historical Admission and cold reuse independently repeat
 this selection and bind the exact timestamp. They cannot answer `current` or a
 different instant using the saved proof.
 
-`[EXISTS]` Safe open also compiles a complete native-object identity census over
+Safe open also compiles a complete native-object identity census over
 the bound source catalog when mapped coverage is complete and adapter failures
 are zero. An exact typed identity with zero census occurrences returns
 `verified-native-object-absent-from-bound-source-catalog`, no Evidence, and a
@@ -86,7 +87,7 @@ primitives, while control-plane policy remains outside the public package.
 The Interface's availability does not establish that every managed consumer
 already uses the same pinned package.
 
-`[EXISTS]` The unpublished planner binds one quoted `titled` or `named` literal
+The planner binds one quoted `titled` or `named` literal
 against declared title fields in the complete native map. Names select one
 identity within source system, object type and namespace; repeated observations
 of one identity are not collisions. Missing coverage, unknown names, collisions
@@ -115,7 +116,7 @@ Local legacy receipts without a count mean zero only for a zero declaration.
 This counts seed-search operations, not storage reads, SDK retries, total HTTP
 traffic, or monetary cost. Provider clients remain outside the public kernel.
 
-`[EXISTS]` The same kernel subpath exposes a source-agnostic proof-contract
+The same kernel subpath exposes a source-agnostic proof-contract
 compiler, content-addressed ProofAuthorityProjection, and evaluator. The
 projection binds every proof-relevant item field, exact Evidence reference, and
 typed relation into `proofCensusSha256`. Evaluation requires that binding to
@@ -139,7 +140,7 @@ It does not turn those references into Evidence. A product reader must still
 reopen the pinned source projection and inspect the exact Corpus bytes before a
 Verification can use the result.
 
-`[EXISTS]` The post-alpha kernel now has the generic source-native bridge into
+The kernel provides the generic source-native bridge into
 that evaluator. A canonical proposition V2 record adds explicit proposition
 identity, family, roles, modality, polarity, valid time, and known time to the
 existing source-native field and exact Evidence span. The bridge compiles those
@@ -161,7 +162,7 @@ with its observed counts and no partial context. This optimizes for complete,
 bounded proof. It gives up immediate answers for high-degree proof roots until
 adaptive or paginated proof delivery exists.
 
-`[ACTIVE-WORK]` The post-alpha kernel branch contains a bounded source-native
+The kernel contains a bounded source-native
 admitted-knowledge loop. It is not a generic early-exit hook and it does not
 change the root client. The loop is:
 
@@ -251,7 +252,7 @@ The default knowledge branch includes the immutable source-commit identity.
 Advancing an Ont on a shared backend creates a new knowledge branch for the new
 source cut instead of wedging or silently reusing prior-cut knowledge.
 
-`[EXISTS]` An open admitted-knowledge client checks its knowledge ref before each
+An open admitted-knowledge client checks its knowledge ref before each
 ordinary `verify`. An unchanged ref uses bounded ref metadata reads; it does not
 replay history or reload the source corpus. Protected profiles also validate the
 accepted-history record around that observation. A changed ref loads a validated snapshot,
@@ -266,7 +267,7 @@ reports degraded state while ordinary exact verification remains available.
 A repaired snapshot can recover. The running reader remembers its last accepted
 knowledge commit and requires later snapshots to contain that ancestry, so a
 rewound ref cannot silently restore a superseded Admission. This floor is
-process-local for legacy profiles. The unpublished V2 protected profile also
+process-local for legacy profiles. The V2 protected profile also
 checks independently stored accepted history across restarts, and requires
 explicit exact-target recovery for a pending or rewound ref. Trust changes
 require reopening the client. Changed snapshots still replay metadata and
@@ -274,16 +275,19 @@ validate records; incremental large-ledger refresh is not implemented.
 
 The ordinary query runtime does not write learning state. Source-grounded
 capture and Admission use explicit kernel control-plane calls. The root SDK,
-CLI, and MCP remain read-only. This post-alpha kernel work has not been
-published as an alpha.3 capability.
+CLI, and MCP remain read-only. The explicit operator calls are exported through
+`oont/kernel` in alpha.3.
 
 The operator lifecycle Adapter is the boundary for durable SearchEpisode capture
 and reviewed SearchPolicy reuse. Managed integration must consume this kernel
 without forking query semantics or maintaining a second Resolver implementation.
 
-The broader Terrain, Vacuum, Ledger, and Materialization lifecycle remains the
-target architecture. Automatic production connectors and hosted lifecycle
-management are not part of this alpha.
+Hosted applications supply source connectors, scheduling, authentication and
+review workers. Keep that control plane in a separate private repository and
+deploy it on separately operated infrastructure. Consume an exact published
+`oont` release with recorded integrity; do not fork the Resolver or import a
+moving source branch. These operational responsibilities are not shipped by
+the engine package.
 
 `[FUTURE]` Adaptive or paginated proof delivery can extend the bounded reuse
 path without silently dropping Evidence. The current implementation refuses a
@@ -291,7 +295,7 @@ proof that cannot be returned completely within one bounded Verification.
 
 ## Semantic construction proposals
 
-`[ACTIVE-WORK]` The unpublished kernel exposes a bounded query-independent
+The kernel exposes a bounded query-independent
 semantic-construction compiler. A minimal `ObjectDef` profile holds a stable
 local concept ID, a preferred name and source-system-scoped aliases. `Claim`
 records attach source passages to those definitions through `mentions` or
@@ -321,7 +325,7 @@ map and catalog, then verifies complete cited source documents on demand.
 It is not an incremental or streaming extractor. This profile favors bounded, inspectable proposals over
 general semantic extraction and narrower-than-source-system alias scope.
 
-`[ACTIVE-WORK]` A separate kernel construction Admission profile records a
+A separate kernel construction Admission profile records a
 proposer signature and an independent reviewer's `admitted-for-navigation`
 decision. It shares Ed25519 trust-role validation with query-proof Admission,
 including the distinct-actual-key requirement. Its versioned statements bind
@@ -416,7 +420,7 @@ their supported profiles.
 
 These are navigation-eligible records, not a new proof authority.
 
-`[ACTIVE-WORK]` The bounded kernel explorer opens one source-native product
+The bounded kernel explorer opens one source-native product
 state and consumes the same construction reader snapshot. Its `nodes`, `edges`,
 `records`, and `status` methods return metadata-only pages over native objects,
 active ObjectDefs, passage witnesses, directed Claim connectors, and safe record
@@ -447,7 +451,7 @@ clears session cursors and read handles; source-only Onts still expose native
 identity nodes and coverage. Trust keys and new root SDK, CLI or MCP operations
 remain outside this surface. Transport must enforce source authorization.
 
-`[ACTIVE-WORK]` The unpublished kernel now composes construction discovery with
+The kernel composes construction discovery with
 the existing admitted-knowledge client through
 `openSourceNativeProductWithConstruction`. `search({ term, scope?, conceptId?,
 limit?, cursor? })` matches a complete normalized name or explicit alias.
@@ -538,7 +542,7 @@ Canonical objects are immutable. Mutable branch refs advance with
 compare-and-swap. The same storage interface has local file, GCS, and
 S3-compatible Adapters. Query semantics do not depend on the selected Adapter.
 
-`[ACTIVE-WORK]` Unpublished kernel resource primitives bind a stable source
+Kernel resource primitives bind a stable source
 resource to one immutable cut, checking history ancestry and declared query
 profile. Ref-index opening can reuse a validated, ref-bound replay checkpoint.
 Ordinary and exact product opening now use validated checkpoints when present,

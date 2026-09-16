@@ -6,11 +6,11 @@ Follow one `ClickupTask` from its original system, through construction and veri
 
 This is a sanitized illustration of the Tapestry testbed lifecycle, not customer data or a benchmark. In the status walkthrough, `ClickupTask` is our readable label for an object whose canonical identity contains `sourceSystem: clickup` and `objectType: task`. The executable concept-map example below instead declares `objectType: ClickupTask` explicitly in its Adapter schema. Neither creates a new kernel class. The namespace and native ID complete the identity.
 
-The source-native construction and verification path [EXISTS] in the public kernel. Automated proposal capture and independent review [EXISTS] in the managed implementation, with production qualification still [ACTIVE-WORK]. The ordinary public `verify` call does not silently enable that managed lifecycle. Proposed extensions are marked below.
+The construction, verification and reviewed-reuse primitives ship in the public alpha.3 kernel. Source capture, model workers and scheduled review require a separately operated managed application. The ordinary public `verify` call does not enable that lifecycle. Proposed extensions are marked below.
 
 ## The two loops
 
-There are two related loops, not one process that turns every agent response into truth.
+Source updates and reviewed agent work have separate lifecycles.
 
 ```text
 Source loop
@@ -367,7 +367,7 @@ There are several kinds of link, and they should not be collapsed into one unlab
 
 The input Adapter supplies the identities, meanings and semantic assertions it can justify. The compiler validates and links them. The Resolver navigates the constructed map. Verification checks whether that route satisfies the question's proof obligations.
 
-The lexicon is currently narrower than a learned domain vocabulary. Query schemas declare aliases for object types and fields; the planner also resolves supported names against the complete typed identity census. The unpublished construction path now persists bounded concept ObjectDefs, scoped aliases and source-attachment Claims. It does not automatically discover concepts, topics, synonyms or cross-system equivalence.
+The lexicon is currently narrower than a learned domain vocabulary. Query schemas declare aliases for object types and fields; the planner also resolves supported names against the complete typed identity census. The kernel construction path persists bounded concept ObjectDefs, scoped aliases and source-attachment Claims. It does not automatically discover concepts, topics, synonyms or cross-system equivalence.
 
 Earlier research implementations constructed richer database and code maps, including definitions and links from foreign keys and code references. Those constructors are not wired into the current public source-native kernel. The full design taxonomy is not implemented as a persistent runtime taxonomy inside each Ont; the concept profile above is a bounded subset.
 
@@ -394,9 +394,8 @@ The tradeoff today is deliberate: inexpensive, auditable construction from decla
 
 ### Executable concept map
 
-[ACTIVE-WORK, unpublished] The kernel now supports an authored version of this
-loop. Run the packaged [semantic-map example](../examples/quickstart/semantic-map.mjs)
-from an installed candidate, using a new output directory:
+Alpha.3 includes an authored version of this loop. Run the packaged [semantic-map example](../examples/quickstart/semantic-map.mjs)
+from the installed package, using a new output directory:
 
 ```sh
 node node_modules/oont/examples/quickstart/semantic-map.mjs ./semantic-map-demo
