@@ -134,7 +134,14 @@ try {
   check('clean package install', consumerInstall.status === 0 && existsSync(packageRoot),
     tail(consumerInstall.stderr));
 
-  const contractPath = join(consumer, 'contract.mts');
+  const consumerPackagePath = join(consumer, 'package.json');
+  const consumerPackage = existsSync(consumerPackagePath)
+    ? JSON.parse(readFileSync(consumerPackagePath, 'utf8'))
+    : {};
+  consumerPackage.type = 'module';
+  writeFileSync(consumerPackagePath, `${JSON.stringify(consumerPackage, null, 2)}\n`);
+
+  const contractPath = join(consumer, 'contract.ts');
   writeFileSync(contractPath, `import {
   openOntology,
   type OpenOntologyProduct,
@@ -200,16 +207,17 @@ void rootOpenCanonicalObjectBackend;
     '--module', 'NodeNext',
     '--moduleResolution', 'NodeNext',
     '--target', 'ES2022',
+    '--typeRoots', join(root, 'node_modules', '@types'),
     contractPath,
   ], { cwd: consumer });
   check('installed declarations compile for a strict consumer', typedConsumer.status === 0,
     tail(typedConsumer.stderr || typedConsumer.stdout, 12));
 
-  const kernelContractPath = join(consumer, 'kernel-contract.mts');
+  const kernelContractPath = join(consumer, 'kernel-contract.ts');
   const authoringExample = readFileSync(join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md'), 'utf8')
     .match(/```ts\n([\s\S]*?)\n```/u)?.[1] ?? '';
   if (!authoringExample) throw new Error('missing installed TypeScript authoring example');
-  const authoringExamplePath = join(consumer, 'authoring-example.mts');
+  const authoringExamplePath = join(consumer, 'authoring-example.ts');
   writeFileSync(authoringExamplePath, `${authoringExample}\n`);
   const authoringExampleBody = authoringExample.replace(
     /^import \{ buildSourceNativeProduct \} from 'oont\/kernel';\nimport type \{ SourceNativeBuildInput \} from 'oont\/kernel';\n\n/u,
