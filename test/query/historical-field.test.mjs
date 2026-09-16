@@ -28,16 +28,22 @@ function nativeObject(sourceRow, externalId, value, namespace = 'acme', options 
       namespace,
       externalId,
     },
-    fields: [{
-      fieldPath: options.fieldPath ?? 'title',
-      value,
-      codeUnitStart: sourceRow.content.indexOf(value),
-      ...(options.validAt === undefined ? {} : { validAt: options.validAt }),
-      ...(options.knownAt === undefined ? {} : { knownAt: options.knownAt }),
-      ...(options.propositionFamilyKey === undefined ? {} : { propositionFamilyKey: options.propositionFamilyKey }),
-      ...(options.canonicalProposition === undefined ? {} : { canonicalProposition: options.canonicalProposition }),
-      ...(options.canonicalValue === undefined ? {} : { canonicalValue: options.canonicalValue }),
-    }],
+    fields: [
+      {
+        fieldPath: options.fieldPath ?? 'title',
+        value,
+        codeUnitStart: sourceRow.content.indexOf(value),
+        ...(options.validAt === undefined ? {} : { validAt: options.validAt }),
+        ...(options.knownAt === undefined ? {} : { knownAt: options.knownAt }),
+        ...(options.propositionFamilyKey === undefined
+          ? {}
+          : { propositionFamilyKey: options.propositionFamilyKey }),
+        ...(options.canonicalProposition === undefined
+          ? {}
+          : { canonicalProposition: options.canonicalProposition }),
+        ...(options.canonicalValue === undefined ? {} : { canonicalValue: options.canonicalValue }),
+      },
+    ],
   };
 }
 
@@ -70,9 +76,15 @@ test('selects the field valid at the requested instant and reports the complete 
   assert.equal(result.selected.knownAt, first.occurredAt);
   assert.equal(result.sourceObservedThrough, second.occurredAt);
   assert.equal(result.observationClosureCount, 2);
-  assert.equal(result.observationClosureSha256, stableObjectSha256(map.nativeObjects.map((row) => row.nativeObjectSha256)));
+  assert.equal(
+    result.observationClosureSha256,
+    stableObjectSha256(map.nativeObjects.map((row) => row.nativeObjectSha256)),
+  );
   assert.equal(result.revisionClosureCount, 1);
-  assert.equal(result.revisionClosureSha256, stableObjectSha256(map.fieldRevisions.map((row) => row.revisionSha256)));
+  assert.equal(
+    result.revisionClosureSha256,
+    stableObjectSha256(map.fieldRevisions.map((row) => row.revisionSha256)),
+  );
   assert.deepEqual(result.applicableRevisionSha256s, []);
   assert.deepEqual(result.activeSupersessionIds, []);
   assert.equal(result.complete, true);
@@ -98,9 +110,23 @@ test('uses observed time order rather than mutable native-object array order', (
     ...reorderedCore,
     nativeObjectMapSha256: stableObjectSha256(reorderedCore),
   };
-  const query = { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' };
-  const original = resolveSourceNativeFieldAt({ sourceNativeObjectMap: map, query, at: '2026-01-15T00:00:00.000Z' });
-  const reordered = resolveSourceNativeFieldAt({ sourceNativeObjectMap: reorderedMap, query, at: '2026-01-15T00:00:00.000Z' });
+  const query = {
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
+  };
+  const original = resolveSourceNativeFieldAt({
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-01-15T00:00:00.000Z',
+  });
+  const reordered = resolveSourceNativeFieldAt({
+    sourceNativeObjectMap: reorderedMap,
+    query,
+    at: '2026-01-15T00:00:00.000Z',
+  });
   assert.equal(reordered.selected.relativePath, original.selected.relativePath);
   assert.equal(reordered.selected.value, original.selected.value);
   assert.equal(reordered.observationClosureSha256, original.observationClosureSha256);
@@ -108,11 +134,26 @@ test('uses observed time order rather than mutable native-object array order', (
 });
 
 test('normalizes only exact UTC millisecond timestamps', () => {
-  assert.equal(normalizeSourceNativeHistoricalTime('2026-01-01T00:00:00.000Z'), '2026-01-01T00:00:00.000Z');
-  assert.throws(() => normalizeSourceNativeHistoricalTime('2026-01-01T00:00:00Z'), /SOURCE_NATIVE_HISTORICAL_TIME/);
-  assert.throws(() => normalizeSourceNativeHistoricalTime('2026-02-30T00:00:00.000Z'), /SOURCE_NATIVE_HISTORICAL_TIME/);
-  assert.throws(() => normalizeSourceNativeHistoricalTime('2026-13-01T00:00:00.000Z'), /SOURCE_NATIVE_HISTORICAL_TIME/);
-  assert.throws(() => normalizeSourceNativeHistoricalTime('2026-01-01T00:00:00.000+00:00'), /SOURCE_NATIVE_HISTORICAL_TIME/);
+  assert.equal(
+    normalizeSourceNativeHistoricalTime('2026-01-01T00:00:00.000Z'),
+    '2026-01-01T00:00:00.000Z',
+  );
+  assert.throws(
+    () => normalizeSourceNativeHistoricalTime('2026-01-01T00:00:00Z'),
+    /SOURCE_NATIVE_HISTORICAL_TIME/,
+  );
+  assert.throws(
+    () => normalizeSourceNativeHistoricalTime('2026-02-30T00:00:00.000Z'),
+    /SOURCE_NATIVE_HISTORICAL_TIME/,
+  );
+  assert.throws(
+    () => normalizeSourceNativeHistoricalTime('2026-13-01T00:00:00.000Z'),
+    /SOURCE_NATIVE_HISTORICAL_TIME/,
+  );
+  assert.throws(
+    () => normalizeSourceNativeHistoricalTime('2026-01-01T00:00:00.000+00:00'),
+    /SOURCE_NATIVE_HISTORICAL_TIME/,
+  );
 });
 
 test('computes the native horizon by parsed source time, including offset timestamps', () => {
@@ -127,7 +168,13 @@ test('computes the native horizon by parsed source time, including offset timest
   });
   const result = resolveSourceNativeFieldAt({
     sourceNativeObjectMap: map,
-    query: { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' },
+    query: {
+      namespace: 'acme',
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'task-1',
+      fieldPath: 'title',
+    },
     at: '2026-01-01T00:30:00.000Z',
   });
   assert.equal(result.sourceObservedThrough, second.occurredAt);
@@ -144,16 +191,26 @@ test('distinguishes not-yet-valid and beyond-source-horizon requests', () => {
       nativeObject(last, 'task-1', 'Last title'),
     ],
   });
-  const query = { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' };
+  const query = {
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
+  };
 
   const before = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2025-12-31T23:59:59.999Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2025-12-31T23:59:59.999Z',
   });
   assert.equal(before.state, 'unavailable-native-historical-field-not-yet-valid');
   assert.equal(before.selected, null);
 
   const after = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2026-02-01T00:00:00.001Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-02-01T00:00:00.001Z',
   });
   assert.equal(after.state, 'unavailable-native-historical-field-beyond-source-horizon');
   assert.equal(after.sourceObservedThrough, last.occurredAt);
@@ -162,7 +219,11 @@ test('distinguishes not-yet-valid and beyond-source-horizon requests', () => {
 
 test('uses declared valid and known times while retaining a native observation horizon', () => {
   const first = source('clickup/acme/first.md', '2026-01-01T00:00:00.000Z', '# First title\n');
-  const correction = source('clickup/acme/correction.md', '2026-02-01T00:00:00.000Z', '# Corrected title\n');
+  const correction = source(
+    'clickup/acme/correction.md',
+    '2026-02-01T00:00:00.000Z',
+    '# Corrected title\n',
+  );
   const map = compileSourceNativeObjectMap({
     sources: [first, correction],
     nativeObjectInputs: [
@@ -176,9 +237,17 @@ test('uses declared valid and known times while retaining a native observation h
       }),
     ],
   });
-  const query = { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' };
+  const query = {
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
+  };
   const result = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2026-01-07T00:00:00.000Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-01-07T00:00:00.000Z',
   });
   assert.equal(result.state, 'resolved-historical-field');
   assert.equal(result.selected.value, 'Corrected title');
@@ -199,15 +268,25 @@ test('does not bridge an ineligible intermediate revision', () => {
       nativeObject(third, 'task-1', 'C', 'acme', { validAt: '2026-01-05T00:00:00.000Z' }),
     ],
   });
-  const query = { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' };
+  const query = {
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
+  };
   const atSeven = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2026-01-07T00:00:00.000Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-01-07T00:00:00.000Z',
   });
   assert.equal(atSeven.state, 'unavailable-native-historical-field-ambiguous');
   assert.equal(atSeven.ambiguous, true);
 
   const atTen = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2026-01-10T00:00:00.000Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-01-10T00:00:00.000Z',
   });
   assert.equal(atTen.state, 'resolved-historical-field');
   assert.equal(atTen.selected.value, 'C');
@@ -226,15 +305,25 @@ test('collapses only consecutive equivalent observations and chooses the latest 
       nativeObject(changed, 'task-1', 'B'),
     ],
   });
-  const query = { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' };
+  const query = {
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
+  };
   const before = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2026-01-02T23:59:59.999Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-01-02T23:59:59.999Z',
   });
   assert.equal(before.selected.value, 'A');
   assert.equal(before.selected.relativePath, repeat.relativePath);
 
   const after = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: map, query, at: '2026-01-03T00:00:00.000Z',
+    sourceNativeObjectMap: map,
+    query,
+    at: '2026-01-03T00:00:00.000Z',
   });
   assert.equal(after.selected.value, 'B');
   assert.equal(after.activeSupersessionIds.length, 1);
@@ -254,7 +343,13 @@ test('retains a returned state after an intervening state and follows both eligi
   });
   const result = resolveSourceNativeFieldAt({
     sourceNativeObjectMap: map,
-    query: { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' },
+    query: {
+      namespace: 'acme',
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'task-1',
+      fieldPath: 'title',
+    },
     at: returned.occurredAt,
   });
   assert.equal(result.state, 'resolved-historical-field');
@@ -274,7 +369,13 @@ test('retains same-display observations with different canonical metadata as amb
   });
   const result = resolveSourceNativeFieldAt({
     sourceNativeObjectMap: map,
-    query: { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' },
+    query: {
+      namespace: 'acme',
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'task-1',
+      fieldPath: 'title',
+    },
     at: '2026-01-02T00:00:00.000Z',
   });
   assert.equal(result.state, 'unavailable-native-historical-field-ambiguous');
@@ -284,35 +385,58 @@ test('retains same-display observations with different canonical metadata as amb
 test('refuses incomplete coverage, adapter diagnostics, and a hash-consistent missing revision', () => {
   const first = source('clickup/acme/first.md', '2026-01-01T00:00:00.000Z', '# First title\n');
   const second = source('clickup/acme/second.md', '2026-02-01T00:00:00.000Z', '# Second title\n');
-  const inputs = [nativeObject(first, 'task-1', 'First title'), nativeObject(second, 'task-1', 'Second title')];
+  const inputs = [
+    nativeObject(first, 'task-1', 'First title'),
+    nativeObject(second, 'task-1', 'Second title'),
+  ];
   const incompleteMap = compileSourceNativeObjectMap({
-    sources: [first, second], nativeObjectInputs: [inputs[0]],
+    sources: [first, second],
+    nativeObjectInputs: [inputs[0]],
   });
-  const query = { namespace: 'acme', sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', fieldPath: 'title' };
+  const query = {
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
+  };
   const incomplete = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: incompleteMap, query, at: '2026-01-15T00:00:00.000Z',
+    sourceNativeObjectMap: incompleteMap,
+    query,
+    at: '2026-01-15T00:00:00.000Z',
   });
   assert.equal(incomplete.state, 'unavailable-incomplete-recorded-field-chronology');
   assert.equal(incomplete.selected, null);
   assert.equal(incomplete.complete, false);
 
   const diagnosedMap = compileSourceNativeObjectMap({
-    sources: [first, second], nativeObjectInputs: inputs, adapterDiagnostics: [{ code: 'ADAPTER_FAILURE' }],
+    sources: [first, second],
+    nativeObjectInputs: inputs,
+    adapterDiagnostics: [{ code: 'ADAPTER_FAILURE' }],
   });
   const diagnosed = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: diagnosedMap, query, at: '2026-01-15T00:00:00.000Z',
+    sourceNativeObjectMap: diagnosedMap,
+    query,
+    at: '2026-01-15T00:00:00.000Z',
   });
   assert.equal(diagnosed.state, 'unavailable-incomplete-recorded-field-chronology');
 
   const { nativeObjectMapSha256: ignored, ...mapCore } = diagnosedMap;
-  const missingRevisionCore = { ...mapCore, adapterDiagnostics: [], parseFailureCount: 0,
-    fieldRevisions: [], fieldRevisionCount: 0 };
+  const missingRevisionCore = {
+    ...mapCore,
+    adapterDiagnostics: [],
+    parseFailureCount: 0,
+    fieldRevisions: [],
+    fieldRevisionCount: 0,
+  };
   const missingRevisionMap = {
     ...missingRevisionCore,
     nativeObjectMapSha256: stableObjectSha256(missingRevisionCore),
   };
   const missingRevision = resolveSourceNativeFieldAt({
-    sourceNativeObjectMap: missingRevisionMap, query, at: '2026-01-15T00:00:00.000Z',
+    sourceNativeObjectMap: missingRevisionMap,
+    query,
+    at: '2026-01-15T00:00:00.000Z',
   });
   assert.equal(missingRevision.state, 'unavailable-incomplete-recorded-field-chronology');
   assert.equal(missingRevision.selected, null);

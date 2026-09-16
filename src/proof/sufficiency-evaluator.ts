@@ -97,22 +97,23 @@ const fail = (): never => {
   error.code = error.message;
   throw error;
 };
-const freeze = <T,>(value: T): T => {
+const freeze = <T>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
   }
   return value;
 };
-const plain = (value: unknown): value is UnknownRecord => value !== null
-  && typeof value === 'object' && !Array.isArray(value)
-  && Object.getPrototypeOf(value) === Object.prototype;
+const plain = (value: unknown): value is UnknownRecord =>
+  value !== null &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
 const exactKeys = (row: UnknownRecord, keys: string[]): boolean =>
-  Object.keys(row).length === keys.length
-  && Object.keys(row).every((key) => keys.includes(key));
-const unknownList = (value: unknown): unknown[] => Array.isArray(value) ? value : fail();
-const nonemptyString = (value: unknown): string => typeof value === 'string' && value.length > 0
-  ? value : fail();
+  Object.keys(row).length === keys.length && Object.keys(row).every((key) => keys.includes(key));
+const unknownList = (value: unknown): unknown[] => (Array.isArray(value) ? value : fail());
+const nonemptyString = (value: unknown): string =>
+  typeof value === 'string' && value.length > 0 ? value : fail();
 
 function authorityItemFromProposition(row: ProofProposition): ProofAuthorityItem {
   return freeze({
@@ -136,16 +137,21 @@ function validateProposition(value: unknown): ProofProposition {
   return freeze({ revisionId: exactRevisionId, ...authorityItem });
 }
 
-function validateProofRelation(value: unknown,
-  propositionById: Map<string, ProofProposition>): ProofRelation {
+function validateProofRelation(
+  value: unknown,
+  propositionById: Map<string, ProofProposition>,
+): ProofRelation {
   const row = plain(value) ? value : fail();
   if (!exactKeys(row, ['type', 'sourceRevisionId', 'targetRevisionId'])) fail();
   const type = nonemptyString(row.type);
   const sourceRevisionId = nonemptyString(row.sourceRevisionId);
   const targetRevisionId = nonemptyString(row.targetRevisionId);
-  if (!propositionById.has(sourceRevisionId)
-    || !propositionById.has(targetRevisionId)
-    || sourceRevisionId === targetRevisionId) fail();
+  if (
+    !propositionById.has(sourceRevisionId) ||
+    !propositionById.has(targetRevisionId) ||
+    sourceRevisionId === targetRevisionId
+  )
+    fail();
   return freeze({
     type,
     sourceRevisionId,
@@ -161,26 +167,36 @@ function normalizePropositions(value: unknown): {
   const propositionById = new Map<string, ProofProposition>(
     propositions.map((row) => [row.revisionId, row]),
   );
-  if (propositionById.size !== propositions.length
-    || new Set(propositions.map((row) => row.sourceProjectionItemId)).size
-      !== propositions.length) fail();
+  if (
+    propositionById.size !== propositions.length ||
+    new Set(propositions.map((row) => row.sourceProjectionItemId)).size !== propositions.length
+  )
+    fail();
   return { propositions, propositionById };
 }
 
-function normalizeRelations(value: unknown,
-  propositionById: Map<string, ProofProposition>): ProofRelation[] {
+function normalizeRelations(
+  value: unknown,
+  propositionById: Map<string, ProofProposition>,
+): ProofRelation[] {
   return unknownList(value).map((row) => validateProofRelation(row, propositionById));
 }
 
-function assertPropositionsMatchAuthority(propositions: ProofProposition[],
-  authorityProjection: ProofAuthorityProjection): void {
-  const authorityById = new Map(authorityProjection.items.map((row) =>
-    [row.sourceProjectionItemId, row]));
+function assertPropositionsMatchAuthority(
+  propositions: ProofProposition[],
+  authorityProjection: ProofAuthorityProjection,
+): void {
+  const authorityById = new Map(
+    authorityProjection.items.map((row) => [row.sourceProjectionItemId, row]),
+  );
   for (const proposition of propositions) {
     const authoritative = authorityById.get(proposition.sourceProjectionItemId);
-    if (authoritative === undefined
-      || stableObjectText(authorityItemFromProposition(proposition))
-        !== stableObjectText(authoritative)) fail();
+    if (
+      authoritative === undefined ||
+      stableObjectText(authorityItemFromProposition(proposition)) !==
+        stableObjectText(authoritative)
+    )
+      fail();
   }
 }
 
@@ -200,19 +216,26 @@ function matchesAuthorityFamily(row: ProofAuthorityItem, propositionFamily: stri
 }
 
 function matchesConstraints(row: MatchableRow, obligation: ProofSufficiencyObligation): boolean {
-  return (obligation.allowedModalities === undefined
-      || obligation.allowedModalities.includes(row.modality))
-    && (obligation.allowedPolarities === undefined
-      || obligation.allowedPolarities.includes(row.polarity));
+  return (
+    (obligation.allowedModalities === undefined ||
+      obligation.allowedModalities.includes(row.modality)) &&
+    (obligation.allowedPolarities === undefined ||
+      obligation.allowedPolarities.includes(row.polarity))
+  );
 }
 
-function matchesRequiredTargetConstraints<T extends MatchableRow>(row: T,
+function matchesRequiredTargetConstraints<T extends MatchableRow>(
+  row: T,
   targetFamily: string,
-  obligations: readonly ProofSufficiencyObligation[]): boolean {
+  obligations: readonly ProofSufficiencyObligation[],
+): boolean {
   return obligations
-    .filter((obligation) => obligation.required
-      && obligation.role === 'support'
-      && obligation.propositionFamily === targetFamily)
+    .filter(
+      (obligation) =>
+        obligation.required &&
+        obligation.role === 'support' &&
+        obligation.propositionFamily === targetFamily,
+    )
     .every((obligation) => matchesConstraints(row, obligation));
 }
 
@@ -235,24 +258,38 @@ function relationMatchesCandidate<T extends MatchableRow>({
   obligations: readonly ProofSufficiencyObligation[];
   familyMatcher: (row: T, family: string) => boolean;
 }): boolean {
-  if (obligation.relationshipAnyOf.length > 0
-    && !obligation.relationshipAnyOf.includes(relation.type)) return false;
+  if (
+    obligation.relationshipAnyOf.length > 0 &&
+    !obligation.relationshipAnyOf.includes(relation.type)
+  )
+    return false;
   const outbound = sourceId === candidateId;
   const inbound = targetId === candidateId;
   const direction = obligation.relationshipDirection ?? 'either';
-  if (direction === 'outbound' && !outbound
-    || direction === 'inbound' && !inbound
-    || direction === 'either' && !outbound && !inbound) return false;
+  if (
+    (direction === 'outbound' && !outbound) ||
+    (direction === 'inbound' && !inbound) ||
+    (direction === 'either' && !outbound && !inbound)
+  )
+    return false;
   if (obligation.relationshipTargetPropositionFamily === undefined) return true;
   const related = rowById.get(outbound ? targetId : sourceId);
-  return related !== undefined
-    && familyMatcher(related, obligation.relationshipTargetPropositionFamily)
-    && matchesRequiredTargetConstraints(related,
-      obligation.relationshipTargetPropositionFamily, obligations);
+  return (
+    related !== undefined &&
+    familyMatcher(related, obligation.relationshipTargetPropositionFamily) &&
+    matchesRequiredTargetConstraints(
+      related,
+      obligation.relationshipTargetPropositionFamily,
+      obligations,
+    )
+  );
 }
 
-function relationView(type: string, sourceProjectionItemId: string,
-  targetProjectionItemId: string): ProofRelationView {
+function relationView(
+  type: string,
+  sourceProjectionItemId: string,
+  targetProjectionItemId: string,
+): ProofRelationView {
   return freeze({ type, sourceProjectionItemId, targetProjectionItemId });
 }
 
@@ -260,24 +297,33 @@ function sortRelationViews(rows: ProofRelationView[]): ProofRelationView[] {
   return rows.sort((left, right) => compare(stableObjectText(left), stableObjectText(right)));
 }
 
-function relationCensusEvaluation(propositions: ProofProposition[],
-  propositionById: Map<string, ProofProposition>, relations: ProofRelation[],
-  authorityProjection: ProofAuthorityProjection): ProjectionRelationCensusEvaluation {
-  const matched = sortRelationViews(relations.map((relation) => {
-    const source = propositionById.get(relation.sourceRevisionId) ?? fail();
-    const target = propositionById.get(relation.targetRevisionId) ?? fail();
-    return relationView(relation.type, source.sourceProjectionItemId,
-      target.sourceProjectionItemId);
-  }));
-  const authoritative = sortRelationViews(authorityProjection.relations.map((relation) =>
-    relationView(relation.type, relation.sourceProjectionItemId,
-      relation.targetProjectionItemId)));
+function relationCensusEvaluation(
+  propositions: ProofProposition[],
+  propositionById: Map<string, ProofProposition>,
+  relations: ProofRelation[],
+  authorityProjection: ProofAuthorityProjection,
+): ProjectionRelationCensusEvaluation {
+  const matched = sortRelationViews(
+    relations.map((relation) => {
+      const source = propositionById.get(relation.sourceRevisionId) ?? fail();
+      const target = propositionById.get(relation.targetRevisionId) ?? fail();
+      return relationView(
+        relation.type,
+        source.sourceProjectionItemId,
+        target.sourceProjectionItemId,
+      );
+    }),
+  );
+  const authoritative = sortRelationViews(
+    authorityProjection.relations.map((relation) =>
+      relationView(relation.type, relation.sourceProjectionItemId, relation.targetProjectionItemId),
+    ),
+  );
   assertPropositionsMatchAuthority(propositions, authorityProjection);
   return freeze({
     schemaVersion: 1,
     kind: 'OpenOntologyProjectionRelationCensusEvaluationV1',
-    state: stableObjectText(matched) === stableObjectText(authoritative)
-      ? 'closed' : 'mismatch',
+    state: stableObjectText(matched) === stableObjectText(authoritative) ? 'closed' : 'mismatch',
     sourceProjectionAuthority: proofAuthorityForProjection(authorityProjection),
     authoritativeSourceProjectionRelations: freeze(authoritative),
     matchedSourceProjectionRelations: freeze(matched),
@@ -295,12 +341,16 @@ export function evaluateProjectionRelationCensus({
   return relationCensusEvaluation(propositions, propositionById, relations, authorityProjection);
 }
 
-function authorityBindingMatches(contract: ProofSufficiencyContract,
-  authorityProjection: ProofAuthorityProjection | null): boolean {
+function authorityBindingMatches(
+  contract: ProofSufficiencyContract,
+  authorityProjection: ProofAuthorityProjection | null,
+): boolean {
   if (contract.sourceProjectionAuthority === undefined) return authorityProjection === null;
-  return authorityProjection !== null
-    && stableObjectText(contract.sourceProjectionAuthority)
-      === stableObjectText(proofAuthorityForProjection(authorityProjection));
+  return (
+    authorityProjection !== null &&
+    stableObjectText(contract.sourceProjectionAuthority) ===
+      stableObjectText(proofAuthorityForProjection(authorityProjection))
+  );
 }
 
 export function evaluateProofSufficiencyContract({
@@ -310,33 +360,43 @@ export function evaluateProofSufficiencyContract({
   authorityProjection: inputAuthorityProjection = null,
 }: EvaluateProofSufficiencyContractInput = {}): ProofSufficiencyEvaluation {
   const contract = validateProofSufficiencyContract(inputContract);
-  const authorityProjection = inputAuthorityProjection === null ? null
-    : validateProofAuthorityProjection(inputAuthorityProjection);
+  const authorityProjection =
+    inputAuthorityProjection === null
+      ? null
+      : validateProofAuthorityProjection(inputAuthorityProjection);
   if (!authorityBindingMatches(contract, authorityProjection)) fail();
   const { propositions, propositionById } = normalizePropositions(inputPropositions);
   const relations = normalizeRelations(inputRelations, propositionById);
   if (authorityProjection !== null) {
     assertPropositionsMatchAuthority(propositions, authorityProjection);
   }
-  const authorityById = authorityProjection === null ? null
-    : new Map<string, ProofAuthorityItem>(authorityProjection.items.map((row) =>
-      [row.sourceProjectionItemId, row]));
+  const authorityById =
+    authorityProjection === null
+      ? null
+      : new Map<string, ProofAuthorityItem>(
+          authorityProjection.items.map((row) => [row.sourceProjectionItemId, row]),
+        );
   const matchesByObligationId = new Map<string, ProofProposition[]>();
   for (const obligation of contract.obligations) {
-    let matches = propositions.filter((row) => matchesFamily(row, obligation.propositionFamily)
-      && matchesConstraints(row, obligation));
+    let matches = propositions.filter(
+      (row) =>
+        matchesFamily(row, obligation.propositionFamily) && matchesConstraints(row, obligation),
+    );
     if (obligation.relationshipAnyOf.length > 0 && matches.length > 0) {
-      matches = matches.filter((row) => relations.some((relation) =>
-        relationMatchesCandidate({
-          relation,
-          candidateId: row.revisionId,
-          sourceId: relation.sourceRevisionId,
-          targetId: relation.targetRevisionId,
-          rowById: propositionById,
-          obligation,
-          obligations: contract.obligations,
-          familyMatcher: matchesFamily,
-        })));
+      matches = matches.filter((row) =>
+        relations.some((relation) =>
+          relationMatchesCandidate({
+            relation,
+            candidateId: row.revisionId,
+            sourceId: relation.sourceRevisionId,
+            targetId: relation.targetRevisionId,
+            rowById: propositionById,
+            obligation,
+            obligations: contract.obligations,
+            familyMatcher: matchesFamily,
+          }),
+        ),
+      );
     }
     matchesByObligationId.set(obligation.obligationId, matches);
   }
@@ -344,72 +404,104 @@ export function evaluateProofSufficiencyContract({
     (obligation): ProofObligationEvaluation => {
       let matches = matchesByObligationId.get(obligation.obligationId) ?? [];
       if (obligation.sameFamilyAsObligationId !== undefined) {
-        const referenceFamilies = new Set((matchesByObligationId
-          .get(obligation.sameFamilyAsObligationId) ?? []).map((row) => row.familyId));
+        const referenceFamilies = new Set(
+          (matchesByObligationId.get(obligation.sameFamilyAsObligationId) ?? []).map(
+            (row) => row.familyId,
+          ),
+        );
         matches = matches.filter((row) => referenceFamilies.has(row.familyId));
       }
       const matchedSourceProjectionItemIds = matches
-        .map((row) => row.sourceProjectionItemId).sort(compare);
+        .map((row) => row.sourceProjectionItemId)
+        .sort(compare);
       const expected = obligation.expectedSourceProjectionItemIds;
-      const authoritativeCensusRequired = expected !== undefined
-        || obligation.role === 'invalidator';
-      const authoritative = !authoritativeCensusRequired || authorityProjection === null ? null
-        : authorityProjection.items.filter((row) =>
-          matchesAuthorityFamily(row, obligation.propositionFamily)
-            && matchesConstraints(row, obligation))
-          .map((row) => row.sourceProjectionItemId).sort(compare);
-      const expectedMatchesAuthority = expected === undefined
-        || authoritative !== null
-          && stableObjectText(expected) === stableObjectText(authoritative);
-      const exactCensus = !authoritativeCensusRequired
-        || authoritative !== null && expectedMatchesAuthority
-          && matches.length === authoritative.length
-          && stableObjectText(matchedSourceProjectionItemIds) === stableObjectText(authoritative);
+      const authoritativeCensusRequired =
+        expected !== undefined || obligation.role === 'invalidator';
+      const authoritative =
+        !authoritativeCensusRequired || authorityProjection === null
+          ? null
+          : authorityProjection.items
+              .filter(
+                (row) =>
+                  matchesAuthorityFamily(row, obligation.propositionFamily) &&
+                  matchesConstraints(row, obligation),
+              )
+              .map((row) => row.sourceProjectionItemId)
+              .sort(compare);
+      const expectedMatchesAuthority =
+        expected === undefined ||
+        (authoritative !== null && stableObjectText(expected) === stableObjectText(authoritative));
+      const exactCensus =
+        !authoritativeCensusRequired ||
+        (authoritative !== null &&
+          expectedMatchesAuthority &&
+          matches.length === authoritative.length &&
+          stableObjectText(matchedSourceProjectionItemIds) === stableObjectText(authoritative));
       const authoritativeRelationCensusRequired = obligation.role === 'invalidator';
       let authoritativeSourceProjectionRelations: ProofRelationView[] | null = null;
       let matchedSourceProjectionRelations: ProofRelationView[] | null = null;
-      if (authoritativeRelationCensusRequired && authorityProjection !== null
-        && authorityById !== null) {
+      if (
+        authoritativeRelationCensusRequired &&
+        authorityProjection !== null &&
+        authorityById !== null
+      ) {
         const authoritativeCandidateIds = new Set(authoritative ?? []);
-        authoritativeSourceProjectionRelations = sortRelationViews(authorityProjection.relations
-          .filter((relation: ProofAuthorityRelation) =>
-            [...authoritativeCandidateIds].some((candidateId) =>
-              relationMatchesCandidate({
-                relation,
-                candidateId,
-                sourceId: relation.sourceProjectionItemId,
-                targetId: relation.targetProjectionItemId,
-                rowById: authorityById,
-                obligation,
-                obligations: contract.obligations,
-                familyMatcher: matchesAuthorityFamily,
-              })))
-          .map((relation) => relationView(relation.type,
-            relation.sourceProjectionItemId, relation.targetProjectionItemId)));
+        authoritativeSourceProjectionRelations = sortRelationViews(
+          authorityProjection.relations
+            .filter((relation: ProofAuthorityRelation) =>
+              [...authoritativeCandidateIds].some((candidateId) =>
+                relationMatchesCandidate({
+                  relation,
+                  candidateId,
+                  sourceId: relation.sourceProjectionItemId,
+                  targetId: relation.targetProjectionItemId,
+                  rowById: authorityById,
+                  obligation,
+                  obligations: contract.obligations,
+                  familyMatcher: matchesAuthorityFamily,
+                }),
+              ),
+            )
+            .map((relation) =>
+              relationView(
+                relation.type,
+                relation.sourceProjectionItemId,
+                relation.targetProjectionItemId,
+              ),
+            ),
+        );
         const matchedRevisionIds = new Set(matches.map((row) => row.revisionId));
-        matchedSourceProjectionRelations = sortRelationViews(relations
-          .filter((relation) => [...matchedRevisionIds].some((candidateId) =>
-            relationMatchesCandidate({
-              relation,
-              candidateId,
-              sourceId: relation.sourceRevisionId,
-              targetId: relation.targetRevisionId,
-              rowById: propositionById,
-              obligation,
-              obligations: contract.obligations,
-              familyMatcher: matchesFamily,
-            })))
-          .map((relation) => relationView(
-            relation.type,
-            (propositionById.get(relation.sourceRevisionId) ?? fail()).sourceProjectionItemId,
-            (propositionById.get(relation.targetRevisionId) ?? fail()).sourceProjectionItemId,
-          )));
+        matchedSourceProjectionRelations = sortRelationViews(
+          relations
+            .filter((relation) =>
+              [...matchedRevisionIds].some((candidateId) =>
+                relationMatchesCandidate({
+                  relation,
+                  candidateId,
+                  sourceId: relation.sourceRevisionId,
+                  targetId: relation.targetRevisionId,
+                  rowById: propositionById,
+                  obligation,
+                  obligations: contract.obligations,
+                  familyMatcher: matchesFamily,
+                }),
+              ),
+            )
+            .map((relation) =>
+              relationView(
+                relation.type,
+                (propositionById.get(relation.sourceRevisionId) ?? fail()).sourceProjectionItemId,
+                (propositionById.get(relation.targetRevisionId) ?? fail()).sourceProjectionItemId,
+              ),
+            ),
+        );
       }
-      const exactRelationCensus = !authoritativeRelationCensusRequired
-        || authoritativeSourceProjectionRelations !== null
-          && matchedSourceProjectionRelations !== null
-          && stableObjectText(matchedSourceProjectionRelations)
-            === stableObjectText(authoritativeSourceProjectionRelations);
+      const exactRelationCensus =
+        !authoritativeRelationCensusRequired ||
+        (authoritativeSourceProjectionRelations !== null &&
+          matchedSourceProjectionRelations !== null &&
+          stableObjectText(matchedSourceProjectionRelations) ===
+            stableObjectText(authoritativeSourceProjectionRelations));
       const minimumCount = obligation.minimumCount ?? 1;
       const closed = matches.length >= minimumCount && exactCensus && exactRelationCensus;
       return freeze({
@@ -419,58 +511,80 @@ export function evaluateProofSufficiencyContract({
         required: obligation.required,
         relationshipAnyOf: obligation.relationshipAnyOf,
         matchedSourceProjectionItemIds: freeze(matchedSourceProjectionItemIds),
-        ...(obligation.allowedModalities === undefined ? {} : {
-          allowedModalities: obligation.allowedModalities,
-        }),
-        ...(obligation.allowedPolarities === undefined ? {} : {
-          allowedPolarities: obligation.allowedPolarities,
-        }),
-        ...(!authoritativeCensusRequired || authoritative === null ? {} : {
-          ...(expected === undefined ? {} : { expectedSourceProjectionItemIds: expected }),
-          authoritativeSourceProjectionItemIds: freeze(authoritative),
-        }),
-        ...(!authoritativeRelationCensusRequired
-          || authoritativeSourceProjectionRelations === null
-          || matchedSourceProjectionRelations === null ? {} : {
-            authoritativeSourceProjectionRelations:
-              freeze(authoritativeSourceProjectionRelations),
-            matchedSourceProjectionRelations: freeze(matchedSourceProjectionRelations),
-          }),
+        ...(obligation.allowedModalities === undefined
+          ? {}
+          : {
+              allowedModalities: obligation.allowedModalities,
+            }),
+        ...(obligation.allowedPolarities === undefined
+          ? {}
+          : {
+              allowedPolarities: obligation.allowedPolarities,
+            }),
+        ...(!authoritativeCensusRequired || authoritative === null
+          ? {}
+          : {
+              ...(expected === undefined ? {} : { expectedSourceProjectionItemIds: expected }),
+              authoritativeSourceProjectionItemIds: freeze(authoritative),
+            }),
+        ...(!authoritativeRelationCensusRequired ||
+        authoritativeSourceProjectionRelations === null ||
+        matchedSourceProjectionRelations === null
+          ? {}
+          : {
+              authoritativeSourceProjectionRelations: freeze(
+                authoritativeSourceProjectionRelations,
+              ),
+              matchedSourceProjectionRelations: freeze(matchedSourceProjectionRelations),
+            }),
         ...(obligation.minimumCount === undefined ? {} : { minimumCount }),
-        ...(obligation.relationshipDirection === undefined ? {} : {
-          relationshipDirection: obligation.relationshipDirection,
-        }),
-        ...(obligation.relationshipTargetPropositionFamily === undefined ? {} : {
-          relationshipTargetPropositionFamily: obligation.relationshipTargetPropositionFamily,
-        }),
-        ...(obligation.sameFamilyAsObligationId === undefined ? {} : {
-          sameFamilyAsObligationId: obligation.sameFamilyAsObligationId,
-        }),
+        ...(obligation.relationshipDirection === undefined
+          ? {}
+          : {
+              relationshipDirection: obligation.relationshipDirection,
+            }),
+        ...(obligation.relationshipTargetPropositionFamily === undefined
+          ? {}
+          : {
+              relationshipTargetPropositionFamily: obligation.relationshipTargetPropositionFamily,
+            }),
+        ...(obligation.sameFamilyAsObligationId === undefined
+          ? {}
+          : {
+              sameFamilyAsObligationId: obligation.sameFamilyAsObligationId,
+            }),
         state: closed ? 'closed' : 'unresolved',
         propositionRevisionIds: freeze(matches.map((row) => row.revisionId).sort(compare)),
       });
     },
   );
-  const projectionRelationCensus = authorityProjection === null ? null
-    : relationCensusEvaluation(propositions, propositionById, relations, authorityProjection);
-  const proofClosed = obligationEvaluations.every((row) => !row.required || row.state === 'closed')
-    && (projectionRelationCensus === null || projectionRelationCensus.state === 'closed');
+  const projectionRelationCensus =
+    authorityProjection === null
+      ? null
+      : relationCensusEvaluation(propositions, propositionById, relations, authorityProjection);
+  const proofClosed =
+    obligationEvaluations.every((row) => !row.required || row.state === 'closed') &&
+    (projectionRelationCensus === null || projectionRelationCensus.state === 'closed');
   const invalidatorRelationTypes = new Set(
     (projectionRelationCensus?.matchedSourceProjectionRelations ?? [])
       .filter((row) => row.type === 'contradicts' || row.type === 'qualifies')
       .map((row) => row.type),
   );
-  const proofDisposition = !proofClosed ? 'unresolved'
-    : invalidatorRelationTypes.has('contradicts') ? 'contradicted'
-      : invalidatorRelationTypes.has('qualifies') ? 'qualified' : 'supported';
+  const proofDisposition = !proofClosed
+    ? 'unresolved'
+    : invalidatorRelationTypes.has('contradicts')
+      ? 'contradicted'
+      : invalidatorRelationTypes.has('qualifies')
+        ? 'qualified'
+        : 'supported';
   return freeze({
     schemaVersion: 1,
     kind: 'OpenOntologyProofSufficiencyEvaluationV1',
     contractSha256: contract.contractSha256,
     proofClosed,
     proofDisposition,
-    sourceProjectionAuthority: authorityProjection === null
-      ? null : proofAuthorityForProjection(authorityProjection),
+    sourceProjectionAuthority:
+      authorityProjection === null ? null : proofAuthorityForProjection(authorityProjection),
     projectionRelationCensus,
     obligations: freeze(obligationEvaluations),
   });

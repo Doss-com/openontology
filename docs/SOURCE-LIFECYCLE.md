@@ -113,27 +113,31 @@ UTF-16 index of the exact field value.
       "sourceSystem": "tracker",
       "objectType": "ticket",
       "aliases": ["ticket"],
-      "fields": [{"fieldPath": "status", "aliases": ["status"]}]
+      "fields": [{ "fieldPath": "status", "aliases": ["status"] }]
     }
   ],
-  "sources": [{
-    "sourceType": "tracker",
-    "relativePath": "tracker/demo/t-1.txt",
-    "occurredAt": "2026-01-01T00:00:00.000Z",
-    "content": "Ticket T-1 status: open",
-    "sourceSha256": "sha256:a1aefc2657e92b4f9740cd2d0a395d12a91cdd34e34517c78b48455cfb91ee62"
-  }],
-  "nativeObjectInputs": [{
-    "relativePath": "tracker/demo/t-1.txt",
-    "objectIdentity": {
-      "home": "ObjectDef/InstanceRef",
-      "sourceSystem": "tracker",
-      "objectType": "ticket",
-      "namespace": "demo",
-      "externalId": "T-1"
-    },
-    "fields": [{"fieldPath": "status", "value": "open", "codeUnitStart": 19}]
-  }]
+  "sources": [
+    {
+      "sourceType": "tracker",
+      "relativePath": "tracker/demo/t-1.txt",
+      "occurredAt": "2026-01-01T00:00:00.000Z",
+      "content": "Ticket T-1 status: open",
+      "sourceSha256": "sha256:a1aefc2657e92b4f9740cd2d0a395d12a91cdd34e34517c78b48455cfb91ee62"
+    }
+  ],
+  "nativeObjectInputs": [
+    {
+      "relativePath": "tracker/demo/t-1.txt",
+      "objectIdentity": {
+        "home": "ObjectDef/InstanceRef",
+        "sourceSystem": "tracker",
+        "objectType": "ticket",
+        "namespace": "demo",
+        "externalId": "T-1"
+      },
+      "fields": [{ "fieldPath": "status", "value": "open", "codeUnitStart": 19 }]
+    }
+  ]
 }
 ```
 
@@ -184,32 +188,38 @@ const authoringInput = {
   kind: 'OpenOntologySourceNativeBuildInputV1',
   ontId: 'status-demo',
   namespace: 'demo',
-  querySchemas: [{
-    sourceSystem: 'tracker',
-    objectType: 'ticket',
-    aliases: ['ticket'],
-    fields: [{fieldPath: 'status', aliases: ['status']}],
-  }],
-  sources: [{
-    sourceType: 'tracker',
-    relativePath: 'tracker/demo/t-1.txt',
-    occurredAt: '2026-01-01T00:00:00.000Z',
-    content: 'Ticket T-1 status: open',
-  }],
-  nativeObjectInputs: [{
-    relativePath: 'tracker/demo/t-1.txt',
-    objectIdentity: {
-      home: 'ObjectDef/InstanceRef',
+  querySchemas: [
+    {
       sourceSystem: 'tracker',
       objectType: 'ticket',
-      namespace: 'demo',
-      externalId: 'T-1',
+      aliases: ['ticket'],
+      fields: [{ fieldPath: 'status', aliases: ['status'] }],
     },
-    fields: [{fieldPath: 'status', value: 'open'}],
-  }],
+  ],
+  sources: [
+    {
+      sourceType: 'tracker',
+      relativePath: 'tracker/demo/t-1.txt',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      content: 'Ticket T-1 status: open',
+    },
+  ],
+  nativeObjectInputs: [
+    {
+      relativePath: 'tracker/demo/t-1.txt',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'tracker',
+        objectType: 'ticket',
+        namespace: 'demo',
+        externalId: 'T-1',
+      },
+      fields: [{ fieldPath: 'status', value: 'open' }],
+    },
+  ],
 } satisfies SourceNativeBuildInput;
 
-buildSourceNativeProduct({artifactRoot: './new-cut', input: authoringInput});
+buildSourceNativeProduct({ artifactRoot: './new-cut', input: authoringInput });
 ```
 
 Types check structure. The builder still validates timestamps, namespaces,

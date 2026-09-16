@@ -1,26 +1,19 @@
 /** Query-scoped semantic navigation and proof closure over exact source-native fields. */
 import { stableObjectSha256, stableObjectText } from '../../canonical-content.js';
-import {
-  proofAuthorityForProjection,
-} from '../../proof/authority-projection.js';
+import { proofAuthorityForProjection } from '../../proof/authority-projection.js';
 import type {
   ProofAuthorityProjection,
   ProofEvidenceReference,
 } from '../../proof/authority-projection.js';
 import { compileProofSufficiencyContract } from '../../proof/sufficiency-contract.js';
 import type { ProofSufficiencyContract } from '../../proof/sufficiency-contract.js';
-import {
-  evaluateProofSufficiencyContract,
-} from '../../proof/sufficiency-evaluator.js';
+import { evaluateProofSufficiencyContract } from '../../proof/sufficiency-evaluator.js';
 import type {
   ProofProposition,
   ProofRelation,
   ProofSufficiencyEvaluation,
 } from '../../proof/sufficiency-evaluator.js';
-import type {
-  SourceNativeField,
-  SourceNativeObjectMap,
-} from '../../source/object-map.js';
+import type { SourceNativeField, SourceNativeObjectMap } from '../../source/object-map.js';
 import { assessProofContextBudget } from '../../proof/context-budget.js';
 import { compileSourceNativeProofAuthorityProjection } from '../../source/semantic-projection.js';
 
@@ -100,7 +93,7 @@ const fail = (code: string): never => {
 };
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const freeze = <T,>(value: T): T => {
+const freeze = <T>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
@@ -110,12 +103,17 @@ const freeze = <T,>(value: T): T => {
 
 function propositionKey(field: SourceNativeField): string | null {
   const proposition = field.canonicalProposition;
-  return proposition?.kind === 'OpenOntologySourceNativeCanonicalPropositionV2'
-    && typeof proposition.propositionKey === 'string' ? proposition.propositionKey : null;
+  return proposition?.kind === 'OpenOntologySourceNativeCanonicalPropositionV2' &&
+    typeof proposition.propositionKey === 'string'
+    ? proposition.propositionKey
+    : null;
 }
 
-function exactOffer(field: SourceNativeField, sourceProjectionItemId: string,
-  role: SourceNativeSemanticEvidenceOffer['role']): SourceNativeSemanticEvidenceOffer {
+function exactOffer(
+  field: SourceNativeField,
+  sourceProjectionItemId: string,
+  role: SourceNativeSemanticEvidenceOffer['role'],
+): SourceNativeSemanticEvidenceOffer {
   return freeze({
     role,
     sourceProjectionItemId,
@@ -140,39 +138,57 @@ export function sourceNativeSemanticProofContractCoversNavigation({
   if (!navigation || !contract) return false;
   const supportFamily = navigation.authority.supportPropositionFamily;
   if (contract.questionKind !== `source-native-${supportFamily}`) return false;
-  const obligationsById = new Map(contract.obligations.map((obligation) =>
-    [obligation.obligationId, obligation]));
+  const obligationsById = new Map(
+    contract.obligations.map((obligation) => [obligation.obligationId, obligation]),
+  );
   const minimumCount = (obligation: ProofSufficiencyContract['obligations'][number]): number =>
     obligation.minimumCount ?? 1;
-  const requiredSupport = contract.obligations.filter((obligation) =>
-    obligation.required
-    && obligation.role === 'support'
-    && obligation.propositionFamily === supportFamily
-    && minimumCount(obligation) >= 1);
+  const requiredSupport = contract.obligations.filter(
+    (obligation) =>
+      obligation.required &&
+      obligation.role === 'support' &&
+      obligation.propositionFamily === supportFamily &&
+      minimumCount(obligation) >= 1,
+  );
   if (requiredSupport.length === 0) return false;
-  if (!contract.obligations.some((obligation) => {
-    if (!obligation.required || obligation.role !== 'support'
-      || obligation.propositionFamily !== 'exact-support'
-      || minimumCount(obligation) < 1
-      || obligation.sameFamilyAsObligationId === undefined) return false;
-    const linked = obligationsById.get(obligation.sameFamilyAsObligationId);
-    return linked !== undefined
-      && linked.required
-      && linked.role === 'support'
-      && linked.propositionFamily === supportFamily
-      && minimumCount(linked) >= 1;
-  })) return false;
+  if (
+    !contract.obligations.some((obligation) => {
+      if (
+        !obligation.required ||
+        obligation.role !== 'support' ||
+        obligation.propositionFamily !== 'exact-support' ||
+        minimumCount(obligation) < 1 ||
+        obligation.sameFamilyAsObligationId === undefined
+      )
+        return false;
+      const linked = obligationsById.get(obligation.sameFamilyAsObligationId);
+      return (
+        linked !== undefined &&
+        linked.required &&
+        linked.role === 'support' &&
+        linked.propositionFamily === supportFamily &&
+        minimumCount(linked) >= 1
+      );
+    })
+  )
+    return false;
   return contract.obligations.some((obligation) => {
-    if (!obligation.required || obligation.role !== 'invalidator'
-      || obligation.propositionFamily !== 'counterevidence'
-      || obligation.minimumCount !== 0
-      || obligation.relationshipDirection !== 'outbound'
-      || obligation.relationshipTargetPropositionFamily !== supportFamily
-      || obligation.allowedModalities !== undefined
-      || obligation.allowedPolarities !== undefined) return false;
-    return obligation.relationshipAnyOf.length === 2
-      && obligation.relationshipAnyOf.includes('contradicts')
-      && obligation.relationshipAnyOf.includes('qualifies');
+    if (
+      !obligation.required ||
+      obligation.role !== 'invalidator' ||
+      obligation.propositionFamily !== 'counterevidence' ||
+      obligation.minimumCount !== 0 ||
+      obligation.relationshipDirection !== 'outbound' ||
+      obligation.relationshipTargetPropositionFamily !== supportFamily ||
+      obligation.allowedModalities !== undefined ||
+      obligation.allowedPolarities !== undefined
+    )
+      return false;
+    return (
+      obligation.relationshipAnyOf.length === 2 &&
+      obligation.relationshipAnyOf.includes('contradicts') &&
+      obligation.relationshipAnyOf.includes('qualifies')
+    );
   });
 }
 
@@ -187,8 +203,13 @@ export function compileSourceNativeSemanticNavigation({
   rootFieldSha256?: string;
   at?: string | null;
 } = {}): SourceNativeSemanticNavigation | null {
-  if (!sourceNativeObjectMap || typeof namespace !== 'string' || !namespace
-    || typeof rootFieldSha256 !== 'string' || !rootFieldSha256) {
+  if (
+    !sourceNativeObjectMap ||
+    typeof namespace !== 'string' ||
+    !namespace ||
+    typeof rootFieldSha256 !== 'string' ||
+    !rootFieldSha256
+  ) {
     fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
   }
   const map = sourceNativeObjectMap ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
@@ -202,11 +223,14 @@ export function compileSourceNativeSemanticNavigation({
   if (rootPropositionKey === null) return null;
   const rootRoles = rootField.canonicalProposition?.canonicalRoles;
   const supportFamilies = Array.isArray(rootRoles)
-    ? rootRoles.filter((role): role is 'action' | 'change' | 'outcome' | 'state' =>
-      typeof role === 'string' && SUPPORT_FAMILIES.has(role)) : [];
+    ? rootRoles.filter(
+        (role): role is 'action' | 'change' | 'outcome' | 'state' =>
+          typeof role === 'string' && SUPPORT_FAMILIES.has(role),
+      )
+    : [];
   if (supportFamilies.length !== 1) return null;
-  const supportPropositionFamily = supportFamilies[0]
-    ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_ROOT');
+  const supportPropositionFamily =
+    supportFamilies[0] ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_ROOT');
   const authorityProjection = compileSourceNativeProofAuthorityProjection({
     sourceNativeObjectMap: map,
     namespace,
@@ -224,29 +248,46 @@ export function compileSourceNativeSemanticNavigation({
       fieldsByProposition.set(key, fields);
     }
   }
-  const evidenceOffers = authorityProjection.items.map((item) => {
-    if (item.exactEvidenceReferences.length !== 1) {
-      fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
-    }
-    const expected = item.exactEvidenceReferences[0]
-      ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
-    const fields = (fieldsByProposition.get(item.sourceProjectionItemId) ?? []).filter(({ evidence }) =>
-      evidence.relativePath === expected.sourceRef && evidence.sourceSha256 === expected.sourceSha256
-      && evidence.byteStart === expected.byteStart && evidence.byteEnd === expected.byteEnd
-      && evidence.textSha256 === expected.textSha256);
-    if (fields.length !== 1) fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
-    const field = fields[0] ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
-    const role = item.sourceProjectionItemId === rootPropositionKey
-      ? 'answer' as const : 'counterevidence' as const;
-    const offer = exactOffer(field, item.sourceProjectionItemId, role);
-    const { role: _role, sourceProjectionItemId: _itemId, fieldSha256: _fieldSha256,
-      fieldPath: _fieldPath, propositionFamilyKey: _family, ...reference } = offer;
-    if (stableObjectText(reference) !== stableObjectText(item.exactEvidenceReferences[0])) {
-      fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
-    }
-    return offer;
-  }).sort((left, right) => (left.role === right.role ? 0 : left.role === 'answer' ? -1 : 1)
-    || compare(left.sourceProjectionItemId, right.sourceProjectionItemId));
+  const evidenceOffers = authorityProjection.items
+    .map((item) => {
+      if (item.exactEvidenceReferences.length !== 1) {
+        fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
+      }
+      const expected =
+        item.exactEvidenceReferences[0] ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
+      const fields = (fieldsByProposition.get(item.sourceProjectionItemId) ?? []).filter(
+        ({ evidence }) =>
+          evidence.relativePath === expected.sourceRef &&
+          evidence.sourceSha256 === expected.sourceSha256 &&
+          evidence.byteStart === expected.byteStart &&
+          evidence.byteEnd === expected.byteEnd &&
+          evidence.textSha256 === expected.textSha256,
+      );
+      if (fields.length !== 1) fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
+      const field = fields[0] ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
+      const role =
+        item.sourceProjectionItemId === rootPropositionKey
+          ? ('answer' as const)
+          : ('counterevidence' as const);
+      const offer = exactOffer(field, item.sourceProjectionItemId, role);
+      const {
+        role: _role,
+        sourceProjectionItemId: _itemId,
+        fieldSha256: _fieldSha256,
+        fieldPath: _fieldPath,
+        propositionFamilyKey: _family,
+        ...reference
+      } = offer;
+      if (stableObjectText(reference) !== stableObjectText(item.exactEvidenceReferences[0])) {
+        fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_EVIDENCE');
+      }
+      return offer;
+    })
+    .sort(
+      (left, right) =>
+        (left.role === right.role ? 0 : left.role === 'answer' ? -1 : 1) ||
+        compare(left.sourceProjectionItemId, right.sourceProjectionItemId),
+    );
   const authorityCore = {
     schemaVersion: 1 as const,
     kind: 'OpenOntologySourceNativeSemanticProofAuthorityV1' as const,
@@ -278,12 +319,13 @@ export function compileSourceNativeSemanticProofRefusal({
   navigation?: SourceNativeSemanticNavigation;
 } = {}): SourceNativeSemanticProofRefusal | null {
   if (!navigation) fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
-  const exactNavigation = navigation
-    ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
+  const exactNavigation = navigation ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
   const budget = assessProofContextBudget({
     evidenceReferenceCount: exactNavigation.evidenceOffers.length,
-    exactEvidenceBytes: exactNavigation.evidenceOffers.reduce((total, offer) =>
-      total + offer.byteEnd - offer.byteStart, 0),
+    exactEvidenceBytes: exactNavigation.evidenceOffers.reduce(
+      (total, offer) => total + offer.byteEnd - offer.byteStart,
+      0,
+    ),
   });
   if (budget.withinBudget) return null;
   const core = {
@@ -319,58 +361,68 @@ export function evaluateSourceNativeSemanticNavigation({
     fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
   }
   const exactNavigation = navigation ?? fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
-  const exactVerifiedEvidence = verifiedEvidence
-    ?? fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
-  const expectedEvidence = exactNavigation.evidenceOffers.map((offer) => ({
-    role: offer.role,
-    fieldSha256: offer.fieldSha256,
-    sourceRef: offer.sourceRef,
-    sourceSha256: offer.sourceSha256,
-    byteStart: offer.byteStart,
-    byteEnd: offer.byteEnd,
-    textSha256: offer.textSha256,
-  })).sort((left, right) => compare(stableObjectText(left), stableObjectText(right)));
-  const observedEvidence = [...exactVerifiedEvidence]
+  const exactVerifiedEvidence =
+    verifiedEvidence ?? fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
+  const expectedEvidence = exactNavigation.evidenceOffers
+    .map((offer) => ({
+      role: offer.role,
+      fieldSha256: offer.fieldSha256,
+      sourceRef: offer.sourceRef,
+      sourceSha256: offer.sourceSha256,
+      byteStart: offer.byteStart,
+      byteEnd: offer.byteEnd,
+      textSha256: offer.textSha256,
+    }))
     .sort((left, right) => compare(stableObjectText(left), stableObjectText(right)));
+  const observedEvidence = [...exactVerifiedEvidence].sort((left, right) =>
+    compare(stableObjectText(left), stableObjectText(right)),
+  );
   if (stableObjectText(expectedEvidence) !== stableObjectText(observedEvidence)) {
     fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_EVIDENCE');
   }
   const contract = compileProofSufficiencyContract({
     questionKind: `source-native-${exactNavigation.authority.supportPropositionFamily}`,
-    obligations: [{
-      obligationId: 'answer',
-      propositionFamily: exactNavigation.authority.supportPropositionFamily,
-      role: 'support',
-      required: true,
-      relationshipAnyOf: [],
-      description: 'The selected canonical proposition family is present.',
-    }, {
-      obligationId: 'exact',
-      propositionFamily: 'exact-support',
-      role: 'support',
-      required: true,
-      relationshipAnyOf: [],
-      description: 'Every proof proposition has an exact Corpus reference.',
-      sameFamilyAsObligationId: 'answer',
-    }, {
-      obligationId: 'counterevidence',
-      propositionFamily: 'counterevidence',
-      role: 'invalidator',
-      required: true,
-      minimumCount: 0,
-      relationshipAnyOf: ['contradicts', 'qualifies'],
-      relationshipDirection: 'outbound',
-      relationshipTargetPropositionFamily: exactNavigation.authority.supportPropositionFamily,
-      description: 'The query-scoped counterevidence relation census is complete.',
-    }],
+    obligations: [
+      {
+        obligationId: 'answer',
+        propositionFamily: exactNavigation.authority.supportPropositionFamily,
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'The selected canonical proposition family is present.',
+      },
+      {
+        obligationId: 'exact',
+        propositionFamily: 'exact-support',
+        role: 'support',
+        required: true,
+        relationshipAnyOf: [],
+        description: 'Every proof proposition has an exact Corpus reference.',
+        sameFamilyAsObligationId: 'answer',
+      },
+      {
+        obligationId: 'counterevidence',
+        propositionFamily: 'counterevidence',
+        role: 'invalidator',
+        required: true,
+        minimumCount: 0,
+        relationshipAnyOf: ['contradicts', 'qualifies'],
+        relationshipDirection: 'outbound',
+        relationshipTargetPropositionFamily: exactNavigation.authority.supportPropositionFamily,
+        description: 'The query-scoped counterevidence relation census is complete.',
+      },
+    ],
     sourceProjectionAuthority: proofAuthorityForProjection(exactNavigation.authorityProjection),
     sufficiencyRule: 'close support only with the complete query-scoped invalidator census',
     stopWhen: 'proof closes or a required obligation remains unresolved',
   });
-  if (!sourceNativeSemanticProofContractCoversNavigation({
-    navigation: exactNavigation,
-    contract,
-  })) fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_PROFILE');
+  if (
+    !sourceNativeSemanticProofContractCoversNavigation({
+      navigation: exactNavigation,
+      contract,
+    })
+  )
+    fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_PROFILE');
   const propositions = exactNavigation.authorityProjection.items.map((item) => ({
     revisionId: `source-native:${item.sourceProjectionItemId}`,
     ...item,

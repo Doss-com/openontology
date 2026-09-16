@@ -28,13 +28,18 @@ export function assessProofContextBudget({
   evidenceReferenceCount?: number;
   exactEvidenceBytes?: number;
 } = {}): ProofContextBudgetAssessment {
-  if (!Number.isSafeInteger(evidenceReferenceCount) || evidenceReferenceCount === undefined
-    || evidenceReferenceCount < 0 || !Number.isSafeInteger(exactEvidenceBytes)
-    || exactEvidenceBytes === undefined || exactEvidenceBytes < 0) fail();
-  const exactEvidenceReferenceCount = typeof evidenceReferenceCount === 'number'
-    ? evidenceReferenceCount : fail();
-  const exactByteCount = typeof exactEvidenceBytes === 'number'
-    ? exactEvidenceBytes : fail();
+  if (
+    !Number.isSafeInteger(evidenceReferenceCount) ||
+    evidenceReferenceCount === undefined ||
+    evidenceReferenceCount < 0 ||
+    !Number.isSafeInteger(exactEvidenceBytes) ||
+    exactEvidenceBytes === undefined ||
+    exactEvidenceBytes < 0
+  )
+    fail();
+  const exactEvidenceReferenceCount =
+    typeof evidenceReferenceCount === 'number' ? evidenceReferenceCount : fail();
+  const exactByteCount = typeof exactEvidenceBytes === 'number' ? exactEvidenceBytes : fail();
   const core = {
     schemaVersion: 1 as const,
     kind: 'OpenOntologyProofContextBudgetAssessmentV1' as const,
@@ -42,8 +47,9 @@ export function assessProofContextBudget({
     observedExactEvidenceBytes: exactByteCount,
     maximumEvidenceReferenceCount: MAXIMUM_PROOF_CONTEXT_UNITS,
     maximumExactEvidenceBytes: MAXIMUM_PROOF_CONTEXT_EVIDENCE_BYTES,
-    withinBudget: exactEvidenceReferenceCount <= MAXIMUM_PROOF_CONTEXT_UNITS
-      && exactByteCount <= MAXIMUM_PROOF_CONTEXT_EVIDENCE_BYTES,
+    withinBudget:
+      exactEvidenceReferenceCount <= MAXIMUM_PROOF_CONTEXT_UNITS &&
+      exactByteCount <= MAXIMUM_PROOF_CONTEXT_EVIDENCE_BYTES,
   };
   return Object.freeze({ ...core, assessmentSha256: stableObjectSha256(core) });
 }

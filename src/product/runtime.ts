@@ -4,8 +4,10 @@ import {
   openSourceNativeRecordedFieldResolver,
   openSourceNativeHistoricalFieldResolver,
 } from '../query/field-resolver.js';
-import type { SourceNativeObjectIdentityAbsenceReceipt,
-  SourceNativeHistoricalFieldChronologyVerification } from '../query/field-resolver.js';
+import type {
+  SourceNativeObjectIdentityAbsenceReceipt,
+  SourceNativeHistoricalFieldChronologyVerification,
+} from '../query/field-resolver.js';
 import { normalizeSourceNativeHistoricalTime } from '../query/historical-field.js';
 import { openSourceNativeExactEvidenceSession } from '../query/verification/evidence-session.js';
 import { compileSourceNativeObjectIdentityCensus } from '../source/identity-census.js';
@@ -28,13 +30,21 @@ import type { UnknownRecord } from '../source/object-map.js';
 import type { SourceNativeObject } from '../source/object-map.js';
 import type { ValidatedFieldQueryPlan } from '../query/resolver-support.js';
 import type { SeedSearchAdapter } from '../query/resolver-support.js';
-import type { SourceNativeFieldResolutionResult, SourceNativeFieldSuccessorResolutionResult } from '../query/field-resolution.js';
+import type {
+  SourceNativeFieldResolutionResult,
+  SourceNativeFieldSuccessorResolutionResult,
+} from '../query/field-resolution.js';
 import type { SourceNativeCurrentFieldChronologyVerification } from '../query/verification/current-field.js';
 import type { SourceNativeObjectIdentityCensus } from '../source/identity-census.js';
 
 export type { SourceNativeObjectIdentityAbsenceReceipt } from '../query/field-resolver.js';
 
-const PRODUCT_OPTIONS = new Set(['artifactRoot', 'objectBackendUri', 'historyBackendUri', 'objectBackendEnv']);
+const PRODUCT_OPTIONS = new Set([
+  'artifactRoot',
+  'objectBackendUri',
+  'historyBackendUri',
+  'objectBackendEnv',
+]);
 const MAXIMUM_OFFERED_REFERENCES = 1024;
 export interface ProductSearchInput {
   question: string;
@@ -73,7 +83,7 @@ export interface SourceNativeProductResolution extends UnknownRecord {
   selectionMode: string;
   resultSha256: string;
   evidenceUnits: UnknownRecord[];
-  searchPath?: UnknownRecord & { searchPathSha256: string; revisionSha256?: string } | null;
+  searchPath?: (UnknownRecord & { searchPathSha256: string; revisionSha256?: string }) | null;
   navigationProposals?: UnknownRecord;
   currentFieldChronology?: SourceNativeCurrentFieldChronologyVerification | null;
   historicalFieldChronology?: SourceNativeHistoricalFieldChronologyVerification | null;
@@ -83,7 +93,13 @@ interface OfferedEvidence extends UnknownRecord {
   resolution: SourceNativeProductResolution;
   role: string;
   reference: EvidenceReference;
-  source: UnknownRecord & { content: string; contentSha256: string; occurredAt: string; relativePath: string; sourceMessageId: number };
+  source: UnknownRecord & {
+    content: string;
+    contentSha256: string;
+    occurredAt: string;
+    relativePath: string;
+    sourceMessageId: number;
+  };
   activityId: string | null;
 }
 interface ReadEvidence extends UnknownRecord {
@@ -116,16 +132,16 @@ interface ReadResult extends UnknownRecord {
   evidence: ReadEvidence;
   binding: ReadBinding;
 }
-const fail = (code: string): never => {
+function fail(code: string): never {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
-};
+}
 const isRecord = (value: unknown): value is UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 function productResultState(value: string): SourceNativeProductResultState {
   return PRODUCT_RESULT_STATES.has(value as SourceNativeProductResultState)
-    ? value as SourceNativeProductResultState
+    ? (value as SourceNativeProductResultState)
     : fail('SOURCE_NATIVE_PRODUCT_RESULT_STATE');
 }
 function exactEvidenceReferences(unit: UnknownRecord): EvidenceReference[] {
@@ -133,52 +149,51 @@ function exactEvidenceReferences(unit: UnknownRecord): EvidenceReference[] {
   if (!Array.isArray(values) || values.length !== unit.exactEvidenceReferenceCount) {
     fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
   }
-  const references: unknown[] = Array.isArray(values) ? values : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+  const references: unknown[] = values;
   return references.map((value: unknown) => {
     const reference = isRecord(value) ? value : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const { sourceMessageId, relativePath, sourceSha256, byteStart, byteEnd, textSha256,
-      fieldSha256, fieldPath, propositionFamilyKey } = reference;
-    if (!Number.isSafeInteger(sourceMessageId) || typeof sourceMessageId !== 'number'
-      || typeof relativePath !== 'string' || typeof sourceSha256 !== 'string'
-      || !Number.isSafeInteger(byteStart) || typeof byteStart !== 'number'
-      || !Number.isSafeInteger(byteEnd) || typeof byteEnd !== 'number'
-      || typeof textSha256 !== 'string' || typeof fieldSha256 !== 'string'
-      || typeof fieldPath !== 'string' || typeof propositionFamilyKey !== 'string') {
+    const {
+      sourceMessageId,
+      relativePath,
+      sourceSha256,
+      byteStart,
+      byteEnd,
+      textSha256,
+      fieldSha256,
+      fieldPath,
+      propositionFamilyKey,
+    } = reference;
+    if (
+      !Number.isSafeInteger(sourceMessageId) ||
+      typeof sourceMessageId !== 'number' ||
+      typeof relativePath !== 'string' ||
+      typeof sourceSha256 !== 'string' ||
+      !Number.isSafeInteger(byteStart) ||
+      typeof byteStart !== 'number' ||
+      !Number.isSafeInteger(byteEnd) ||
+      typeof byteEnd !== 'number' ||
+      typeof textSha256 !== 'string' ||
+      typeof fieldSha256 !== 'string' ||
+      typeof fieldPath !== 'string' ||
+      typeof propositionFamilyKey !== 'string'
+    ) {
       fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     }
-    const exactSourceMessageId = typeof sourceMessageId === 'number'
-      ? sourceMessageId : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactRelativePath = typeof relativePath === 'string'
-      ? relativePath : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactSourceSha256 = typeof sourceSha256 === 'string'
-      ? sourceSha256 : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactByteStart = typeof byteStart === 'number'
-      ? byteStart : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactByteEnd = typeof byteEnd === 'number'
-      ? byteEnd : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactTextSha256 = typeof textSha256 === 'string'
-      ? textSha256 : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactFieldSha256 = typeof fieldSha256 === 'string'
-      ? fieldSha256 : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactFieldPath = typeof fieldPath === 'string'
-      ? fieldPath : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactPropositionFamilyKey = typeof propositionFamilyKey === 'string'
-      ? propositionFamilyKey : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     return {
       ...reference,
-      sourceMessageId: exactSourceMessageId,
-      relativePath: exactRelativePath,
-      sourceSha256: exactSourceSha256,
-      byteStart: exactByteStart,
-      byteEnd: exactByteEnd,
-      textSha256: exactTextSha256,
-      fieldSha256: exactFieldSha256,
-      fieldPath: exactFieldPath,
-      propositionFamilyKey: exactPropositionFamilyKey,
+      sourceMessageId,
+      relativePath,
+      sourceSha256,
+      byteStart,
+      byteEnd,
+      textSha256,
+      fieldSha256,
+      fieldPath,
+      propositionFamilyKey,
     };
   });
 }
-const freeze = <T,>(value: T): T => {
+const freeze = <T>(value: T): T => {
   if (Buffer.isBuffer(value) || ArrayBuffer.isView(value)) return value;
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
@@ -221,8 +236,10 @@ export interface SourceNativeProductLifecycleAdapter extends UnknownRecord {
   seedSearchAdapter?: SeedSearchAdapter;
   readOnly?: boolean;
   methods?: UnknownRecord;
-  beginSearch?: (prepared: SourceNativeProductPreparedSearch,
-    investigationId: string | null) => unknown;
+  beginSearch?: (
+    prepared: SourceNativeProductPreparedSearch,
+    investigationId: string | null,
+  ) => unknown;
   recordSearch?: (value: UnknownRecord) => unknown;
   verificationMetadata?: (resolution: SourceNativeProductResolution | null) => UnknownRecord;
   resultMetadata?: (activity: unknown) => UnknownRecord;
@@ -237,26 +254,44 @@ export type SourceNativeProductLifecycleAdapterFactory = (
   context: SourceNativeProductRuntimeContext,
 ) => SourceNativeProductLifecycleAdapter | null;
 
-function productResult({ descriptor, objectOnt, intent, plan, resolution = null, matches = [],
+function productResult({
+  descriptor,
+  objectOnt,
+  intent,
+  plan,
+  resolution = null,
+  matches = [],
   stateOverride = null,
-  verificationFields = {}, resultFields = {} }: {
+  verificationFields = {},
+  resultFields = {},
+}: {
   descriptor: Descriptor;
   objectOnt: ObjectOnt;
   intent: 'current' | 'next' | 'at';
-  plan: ValidatedFieldQueryPlan & { mentionedExternalIds?: string[]; unresolvedExternalIds?: string[]; query?: SourceNativeFieldQuery | null };
+  plan: ValidatedFieldQueryPlan & {
+    mentionedExternalIds?: string[];
+    unresolvedExternalIds?: string[];
+    query?: SourceNativeFieldQuery | null;
+  };
   resolution?: SourceNativeProductResolution | null;
   matches?: SourceNativeProductMatch[];
   stateOverride?: SourceNativeProductResultState | null;
   verificationFields?: UnknownRecord;
   resultFields?: UnknownRecord;
 }) {
-  const availableFields = matches.length > 0 ? [] : descriptor.querySchemas.flatMap((schema) =>
-    schema.fields.map((field) => freeze({
-      sourceSystem: schema.sourceSystem,
-      objectType: schema.objectType,
-      fieldPath: field.fieldPath,
-      aliases: field.aliases,
-    })));
+  const availableFields =
+    matches.length > 0
+      ? []
+      : descriptor.querySchemas.flatMap((schema) =>
+          schema.fields.map((field) =>
+            freeze({
+              sourceSystem: schema.sourceSystem,
+              objectType: schema.objectType,
+              fieldPath: field.fieldPath,
+              aliases: field.aliases,
+            }),
+          ),
+        );
   const core = {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeProductSearchResultV2' as const,
@@ -279,9 +314,11 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
       resolutionSha256: resolution?.resultSha256 ?? null,
       navigationProposals: resolution?.navigationProposals ?? null,
       currentFieldChronology: resolution?.currentFieldChronology ?? null,
-      ...(resolution?.historicalFieldChronology === undefined ? {} : {
-        historicalFieldChronology: resolution.historicalFieldChronology,
-      }),
+      ...(resolution?.historicalFieldChronology === undefined
+        ? {}
+        : {
+            historicalFieldChronology: resolution.historicalFieldChronology,
+          }),
       absenceReceipt: resolution?.absenceReceipt ?? null,
       ...verificationFields,
     }),
@@ -299,12 +336,18 @@ function productResult({ descriptor, objectOnt, intent, plan, resolution = null,
 type SourceNativeProductStateOpener = (options: ProductOptions) => SourceNativeProductState;
 type SourceNativeProductCutSelection = 'current-ref' | 'exact-artifact';
 
-function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
+function openSourceNativeProductRuntimeWithState(
+  options: ProductOptions = {},
   createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null,
   openState: SourceNativeProductStateOpener,
-  cutSelection: SourceNativeProductCutSelection) {
-  if (!options || typeof options !== 'object' || Array.isArray(options)
-    || Object.keys(options).some((name) => !PRODUCT_OPTIONS.has(name))) {
+  cutSelection: SourceNativeProductCutSelection,
+) {
+  if (
+    !options ||
+    typeof options !== 'object' ||
+    Array.isArray(options) ||
+    Object.keys(options).some((name) => !PRODUCT_OPTIONS.has(name))
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_OPTIONS');
   }
   const {
@@ -317,7 +360,10 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     fail('SOURCE_NATIVE_PRODUCT_LIFECYCLE_ADAPTER');
   }
   const { descriptor, selectedBackend, backend, store, objectOnt } = openState({
-    artifactRoot, objectBackendUri, historyBackendUri, objectBackendEnv,
+    artifactRoot,
+    objectBackendUri,
+    historyBackendUri,
+    objectBackendEnv,
   });
   const sources = productSources(objectOnt);
   const sourceById = new Map(sources.map((source) => [source.sourceMessageId, source]));
@@ -328,21 +374,34 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     nativeObjectMapSha256: objectOnt.map.nativeObjectMapSha256,
     objectOnt,
     sources,
-    tokenize: (value) => String(value).normalize('NFKC').toLocaleLowerCase('en-US')
-      .split(/[^\p{L}\p{N}]+/gu).filter(Boolean),
+    tokenize: (value) =>
+      String(value)
+        .normalize('NFKC')
+        .toLocaleLowerCase('en-US')
+        .split(/[^\p{L}\p{N}]+/gu)
+        .filter(Boolean),
     retrievalAdapter: 'source-native-product-bm25-v1',
     retrievalAdapterSha256,
     maximumSearchResults: 4,
   });
   const objectIdentityCensus = (() => {
-    if (objectOnt.map.parseFailureCount !== 0
-      || objectOnt.map.mappedSourceCount !== objectOnt.map.sourceCount
-      || objectOnt.map.unsupportedSourceCount !== 0) return null;
-    const identitiesByPath = new Map<string, Map<string, {
-      sourceSystem: string;
-      objectType: string;
-      externalId: string;
-    }>>();
+    if (
+      objectOnt.map.parseFailureCount !== 0 ||
+      objectOnt.map.mappedSourceCount !== objectOnt.map.sourceCount ||
+      objectOnt.map.unsupportedSourceCount !== 0
+    )
+      return null;
+    const identitiesByPath = new Map<
+      string,
+      Map<
+        string,
+        {
+          sourceSystem: string;
+          objectType: string;
+          externalId: string;
+        }
+      >
+    >();
     for (const object of objectOnt.map.nativeObjects) {
       if (object.objectIdentity.namespace !== descriptor.namespace) continue;
       const identity = {
@@ -359,8 +418,8 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       sourceCatalogSha256: session.sourceCatalogSha256,
       sourceHandles: session.sourceHandles,
       entries: session.sourceHandles.map((handle) => {
-        const source = sourceByPath.get(handle.relativePath)
-          ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+        const source =
+          sourceByPath.get(handle.relativePath) ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
         return {
           sourceMessageId: handle.sourceMessageId,
           relativePath: handle.relativePath,
@@ -382,20 +441,30 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     offered.set(evidenceRef, offer);
   };
 
-  const prepareSearch = ({ question, intent: requestedIntent = 'current',
+  const prepareSearch = ({
+    question,
+    intent: requestedIntent = 'current',
     anchorValue: inputAnchorValue = null,
-    typedQuery = null, at: requestedAt = null }: ProductSearchInput) => {
-    if (typeof question !== 'string' || !question.trim()
-      || !['current', 'next'].includes(requestedIntent)
-      || inputAnchorValue !== null && typeof inputAnchorValue !== 'string'
-      || requestedAt !== null && (requestedIntent === 'next'
-        || typeof inputAnchorValue === 'string' && inputAnchorValue.trim().length > 0)) {
+    typedQuery = null,
+    at: requestedAt = null,
+  }: ProductSearchInput) => {
+    if (
+      typeof question !== 'string' ||
+      !question.trim() ||
+      !['current', 'next'].includes(requestedIntent) ||
+      (inputAnchorValue !== null && typeof inputAnchorValue !== 'string') ||
+      (requestedAt !== null &&
+        (requestedIntent === 'next' ||
+          (typeof inputAnchorValue === 'string' && inputAnchorValue.trim().length > 0)))
+    ) {
       fail('SOURCE_NATIVE_PRODUCT_SEARCH');
     }
     const at = requestedAt === null ? null : normalizeSourceNativeHistoricalTime(requestedAt);
-    const intent = at === null ? requestedIntent : 'at' as const;
-    const anchorValue = typeof inputAnchorValue === 'string' && inputAnchorValue.trim()
-      ? inputAnchorValue.trim() : null;
+    const intent = at === null ? requestedIntent : ('at' as const);
+    const anchorValue =
+      typeof inputAnchorValue === 'string' && inputAnchorValue.trim()
+        ? inputAnchorValue.trim()
+        : null;
     const plan = compileProductQueryPlan({
       question,
       namespace: descriptor.namespace,
@@ -414,20 +483,20 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       if (offer.activityId === activityId) offered.delete(evidenceRef);
     }
   };
-  const lifecycle = createLifecycleAdapter?.({
-    descriptor,
-    selectedBackend,
-    backend,
-    store,
-    objectOnt,
-    sources,
-    session,
-    objectIdentityCensus,
-    prepareSearch,
-    forgetOffers,
-  }) ?? null;
-  const seedSearchAdapter = lifecycle?.seedSearchAdapter
-    ?? session.sourceNativeSeedSearchAdapter;
+  const lifecycle =
+    createLifecycleAdapter?.({
+      descriptor,
+      selectedBackend,
+      backend,
+      store,
+      objectOnt,
+      sources,
+      session,
+      objectIdentityCensus,
+      prepareSearch,
+      forgetOffers,
+    }) ?? null;
+  const seedSearchAdapter = lifecycle?.seedSearchAdapter ?? session.sourceNativeSeedSearchAdapter;
 
   const search = async (input: ProductSearchInput = { question: '' }) => {
     const { investigationId = null, ...searchInput } = input;
@@ -435,11 +504,17 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     const { question, intent, at, plan } = prepared;
     if (lifecycle === null && investigationId !== null) fail('SOURCE_NATIVE_PRODUCT_SEARCH');
     const startReceipt = lifecycle?.beginSearch?.(prepared, investigationId) ?? null;
-    if (plan.state !== 'resolved-native-field-query'
-      || intent === 'next' && (plan.query === null || plan.query.externalId === undefined)) {
-      const activity = lifecycle?.recordSearch?.({
-        question, intent, plan, startReceipt,
-      }) ?? null;
+    if (
+      plan.state !== 'resolved-native-field-query' ||
+      (intent === 'next' && (plan.query === null || plan.query.externalId === undefined))
+    ) {
+      const activity =
+        lifecycle?.recordSearch?.({
+          question,
+          intent,
+          plan,
+          startReceipt,
+        }) ?? null;
       const result = productResult({
         descriptor,
         objectOnt,
@@ -459,55 +534,68 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       sourceCommitSha256: session.sourceCommitSha256,
       sourceReplaySha256: session.sourceReplaySha256,
       sourceSearchRouteMapSha256: session.sourceSearchRouteMapSha256,
-      seedSearchAdapter: resolvedPlanQuery.externalId === undefined
-        ? session.sourceNativeSeedSearchAdapter : seedSearchAdapter,
+      seedSearchAdapter:
+        resolvedPlanQuery.externalId === undefined
+          ? session.sourceNativeSeedSearchAdapter
+          : seedSearchAdapter,
       maximumSeedSourceMessages: 4,
       queryPlanner: queryPlanner({ namespace: descriptor.namespace, plan }),
     };
-    const resolver = intent !== 'next'
-      ? openSourceNativeRecordedFieldResolver({
-        ...common,
-        at,
-        sourceCatalogSha256: session.sourceCatalogSha256,
-        objectIdentityCensus,
-      })
-      : openSourceNativeHistoricalFieldResolver({
-        ...common,
-        exactSourceAvailabilitySnapshot: session.exactSourceAvailabilitySnapshot,
-    });
+    const resolver =
+      intent !== 'next'
+        ? openSourceNativeRecordedFieldResolver({
+            ...common,
+            at,
+            sourceCatalogSha256: session.sourceCatalogSha256,
+            objectIdentityCensus,
+          })
+        : openSourceNativeHistoricalFieldResolver({
+            ...common,
+            exactSourceAvailabilitySnapshot: session.exactSourceAvailabilitySnapshot,
+          });
     const resolution: SourceNativeProductResolution = await resolver.search({
       question,
       maximumSourceMessages: 4,
     });
-    const activity = lifecycle?.recordSearch?.({
-      question, intent, plan, startReceipt, resolution,
-    }) ?? null;
+    const activity =
+      lifecycle?.recordSearch?.({
+        question,
+        intent,
+        plan,
+        startReceipt,
+        resolution,
+      }) ?? null;
     const references = resolution.evidenceUnits.flatMap((unit) =>
-      exactEvidenceReferences(unit).map((reference) => ({ role: 'answer', reference })));
+      exactEvidenceReferences(unit).map((reference) => ({ role: 'answer', reference })),
+    );
     if (intent === 'next' && resolution.state === 'resolved-next-field-revision') {
-      const revision = objectOnt.map.fieldRevisions.find((row) =>
-        row.revisionSha256 === resolution.searchPath?.revisionSha256);
-      const source = revision === undefined ? null
-        : sourceByPath.get(revision.targetField.evidence.relativePath) ?? null;
+      const revision = objectOnt.map.fieldRevisions.find(
+        (row) => row.revisionSha256 === resolution.searchPath?.revisionSha256,
+      );
+      const source =
+        revision === undefined
+          ? null
+          : (sourceByPath.get(revision.targetField.evidence.relativePath) ?? null);
       if (!revision || !source) fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-      const exactRevision = revision ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-      const exactSource = source ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
       references.push({
         role: 'anchor',
         reference: {
-          sourceMessageId: exactSource.sourceMessageId,
-          relativePath: exactSource.relativePath,
-          sourceSha256: exactRevision.targetField.evidence.sourceSha256,
-          byteStart: exactRevision.targetField.evidence.byteStart,
-          byteEnd: exactRevision.targetField.evidence.byteEnd,
-          textSha256: exactRevision.targetField.evidence.textSha256,
-          fieldSha256: exactRevision.targetField.fieldSha256,
-          fieldPath: exactRevision.fieldPath,
-          propositionFamilyKey: exactRevision.targetField.propositionFamilyKey ?? exactRevision.fieldPath,
+          sourceMessageId: source.sourceMessageId,
+          relativePath: source.relativePath,
+          sourceSha256: revision.targetField.evidence.sourceSha256,
+          byteStart: revision.targetField.evidence.byteStart,
+          byteEnd: revision.targetField.evidence.byteEnd,
+          textSha256: revision.targetField.evidence.textSha256,
+          fieldSha256: revision.targetField.fieldSha256,
+          fieldPath: revision.fieldPath,
+          propositionFamilyKey: revision.targetField.propositionFamilyKey ?? revision.fieldPath,
         },
       });
     }
-    const offerReference = ({ role, reference }: {
+    const offerReference = ({
+      role,
+      reference,
+    }: {
       role: string;
       reference: EvidenceReference;
     }): SourceNativeProductMatch => {
@@ -515,7 +603,6 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       if (!source || source.relativePath !== reference.relativePath) {
         fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
       }
-      const exactSource = source ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
       const activityFields = lifecycle?.referenceMetadata?.(activity) ?? {};
       const evidenceRef = `evidence:${stableObjectSha256({
         sourceCommitSha256: objectOnt.commitSha256,
@@ -525,19 +612,22 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         role,
         ...activityFields,
       }).slice(7)}`;
-      rememberOffer(evidenceRef, freeze({
-        resolution,
-        role,
-        reference,
-        source: exactSource,
-        activityId: lifecycle?.activityId?.(activity) ?? null,
-      }));
+      rememberOffer(
+        evidenceRef,
+        freeze({
+          resolution,
+          role,
+          reference,
+          source,
+          activityId: lifecycle?.activityId?.(activity) ?? null,
+        }),
+      );
       return freeze({
         ref: evidenceRef,
         role,
         requiredForProof: true as const,
         relativePath: reference.relativePath,
-        occurredAt: exactSource.occurredAt,
+        occurredAt: source.occurredAt,
         fieldPath: reference.fieldPath,
         propositionFamilyKey: reference.propositionFamilyKey,
         sourceSha256: reference.sourceSha256,
@@ -548,8 +638,11 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     let semanticProofRefusal = null;
     let historicalSemanticCensusUnavailable = false;
     const answerReferences = references.filter((row) => row.role === 'answer');
-    if ((resolution.state === 'resolved-current-field' || resolution.state === 'resolved-historical-field')
-      && answerReferences.length === 1) {
+    if (
+      (resolution.state === 'resolved-current-field' ||
+        resolution.state === 'resolved-historical-field') &&
+      answerReferences.length === 1
+    ) {
       try {
         semanticNavigation = compileSourceNativeSemanticNavigation({
           sourceNativeObjectMap: objectOnt.map,
@@ -558,12 +651,19 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
           at,
         });
       } catch (error) {
-        if (at === null || !(error instanceof Error) || !('code' in error)
-          || error.code !== 'SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS') throw error;
+        if (
+          at === null ||
+          !(error instanceof Error) ||
+          !('code' in error) ||
+          error.code !== 'SOURCE_NATIVE_HISTORICAL_SEMANTIC_CENSUS'
+        )
+          throw error;
         historicalSemanticCensusUnavailable = true;
       }
-      semanticProofRefusal = semanticNavigation === null ? null
-        : compileSourceNativeSemanticProofRefusal({ navigation: semanticNavigation });
+      semanticProofRefusal =
+        semanticNavigation === null
+          ? null
+          : compileSourceNativeSemanticProofRefusal({ navigation: semanticNavigation });
     }
     if (semanticProofRefusal !== null || historicalSemanticCensusUnavailable) {
       const result = productResult({
@@ -573,7 +673,8 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         plan,
         resolution,
         stateOverride: historicalSemanticCensusUnavailable
-          ? 'unavailable-native-historical-semantic-census' : 'unavailable-semantic-proof-context-budget',
+          ? 'unavailable-native-historical-semantic-census'
+          : 'unavailable-semantic-proof-context-budget',
         verificationFields: {
           ...(lifecycle?.verificationMetadata?.(resolution) ?? {}),
           semanticProofRefusal,
@@ -587,22 +688,23 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     if (semanticNavigation !== null) {
       for (const offer of semanticNavigation?.evidenceOffers ?? []) {
         if (offer.role === 'answer') continue;
-        const source = sourceByPath.get(offer.sourceRef)
-          ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-        matches.push(offerReference({
-          role: offer.role,
-          reference: {
-            sourceMessageId: source.sourceMessageId,
-            relativePath: offer.sourceRef,
-            sourceSha256: offer.sourceSha256,
-            byteStart: offer.byteStart,
-            byteEnd: offer.byteEnd,
-            textSha256: offer.textSha256,
-            fieldSha256: offer.fieldSha256,
-            fieldPath: offer.fieldPath,
-            propositionFamilyKey: offer.propositionFamilyKey,
-          },
-        }));
+        const source = sourceByPath.get(offer.sourceRef) ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+        matches.push(
+          offerReference({
+            role: offer.role,
+            reference: {
+              sourceMessageId: source.sourceMessageId,
+              relativePath: offer.sourceRef,
+              sourceSha256: offer.sourceSha256,
+              byteStart: offer.byteStart,
+              byteEnd: offer.byteEnd,
+              textSha256: offer.textSha256,
+              fieldSha256: offer.fieldSha256,
+              fieldPath: offer.fieldPath,
+              propositionFamilyKey: offer.propositionFamilyKey,
+            },
+          }),
+        );
       }
     }
     const result = productResult({
@@ -614,9 +716,11 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       matches,
       verificationFields: {
         ...(lifecycle?.verificationMetadata?.(resolution) ?? {}),
-        ...(semanticNavigation === null ? {} : {
-          semanticProofAuthority: semanticNavigation.authority,
-        }),
+        ...(semanticNavigation === null
+          ? {}
+          : {
+              semanticProofAuthority: semanticNavigation.authority,
+            }),
       },
       resultFields: lifecycle?.resultMetadata?.(activity) ?? {},
     });
@@ -628,32 +732,38 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     const offeredEvidence = offered.get(evidenceRef) ?? fail('SOURCE_NATIVE_PRODUCT_READ');
     const { resolution, role, reference, source } = offeredEvidence;
     const bytes = Buffer.from(source.content);
-    if (objectBytesSha256(bytes) !== source.contentSha256
-      || reference.byteEnd > bytes.length || reference.byteStart < 0
-      || reference.byteEnd <= reference.byteStart) fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+    if (
+      objectBytesSha256(bytes) !== source.contentSha256 ||
+      reference.byteEnd > bytes.length ||
+      reference.byteStart < 0 ||
+      reference.byteEnd <= reference.byteStart
+    )
+      fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     const exactBytes = bytes.subarray(reference.byteStart, reference.byteEnd);
     if (objectBytesSha256(exactBytes) !== reference.textSha256) {
       fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     }
-    const object = objectOnt.map.nativeObjects.find((row) =>
-      row.relativePath === reference.relativePath
-      && row.fields.some((field) => field.fieldSha256 === reference.fieldSha256));
+    const object = objectOnt.map.nativeObjects.find(
+      (row) =>
+        row.relativePath === reference.relativePath &&
+        row.fields.some((field) => field.fieldSha256 === reference.fieldSha256),
+    );
     if (!object) fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactObject = object ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const resultFields = await lifecycle?.readEvidence?.({
-      offeredEvidence,
-      exactBytes,
-      object,
-    }) ?? {};
+    const resultFields =
+      (await lifecycle?.readEvidence?.({
+        offeredEvidence,
+        exactBytes,
+        object,
+      })) ?? {};
     const bindingCore = {
       schemaVersion: 1,
       kind: 'OpenOntologyVerifiedSourceNativeFieldBindingV1' as const,
       role,
       selectionMode: resolution.selectionMode,
-      sourceSystem: exactObject.objectIdentity.sourceSystem,
-      objectType: exactObject.objectIdentity.objectType,
-      namespace: exactObject.objectIdentity.namespace,
-      externalId: exactObject.objectIdentity.externalId,
+      sourceSystem: object.objectIdentity.sourceSystem,
+      objectType: object.objectIdentity.objectType,
+      namespace: object.objectIdentity.namespace,
+      externalId: object.objectIdentity.externalId,
       fieldPath: reference.fieldPath,
       fieldSha256: reference.fieldSha256,
       sourceSha256: reference.sourceSha256,
@@ -695,15 +805,16 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         reads.push(await read({ ref }));
       }
     }
-    const context = reads.map((row: ReadResult) => freeze({
-      role: row.binding.role,
-      exactText: row.exactText,
-      evidence: row.evidence,
-      binding: row.binding,
-    }));
+    const context = reads.map((row: ReadResult) =>
+      freeze({
+        role: row.binding.role,
+        exactText: row.exactText,
+        evidence: row.evidence,
+        binding: row.binding,
+      }),
+    );
     let semanticResult = null;
-    const semanticAuthority = (searchResult.verification as UnknownRecord)
-      .semanticProofAuthority;
+    const semanticAuthority = (searchResult.verification as UnknownRecord).semanticProofAuthority;
     if (semanticAuthority !== undefined) {
       const answerMatches = searchResult.matches.filter((match) => match.role === 'answer');
       if (answerMatches.length !== 1 || !isRecord(semanticAuthority)) {
@@ -715,18 +826,21 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         rootFieldSha256: answerMatches[0]?.fieldSha256,
         at: searchResult.at ?? null,
       });
-      if (navigation === null
-        || stableObjectText(navigation.authority) !== stableObjectText(semanticAuthority)) {
+      if (
+        navigation === null ||
+        stableObjectText(navigation.authority) !== stableObjectText(semanticAuthority)
+      ) {
         fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_AUTHORITY');
       }
-      const exactNavigation = navigation
-        ?? fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_AUTHORITY');
       semanticResult = evaluateSourceNativeSemanticNavigation({
-        navigation: exactNavigation,
+        navigation,
         verifiedEvidence: reads.map((row) => {
-          const role = row.binding.role === 'answer' ? 'answer' as const
-            : row.binding.role === 'counterevidence' ? 'counterevidence' as const
-              : fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_EVIDENCE');
+          const role =
+            row.binding.role === 'answer'
+              ? ('answer' as const)
+              : row.binding.role === 'counterevidence'
+                ? ('counterevidence' as const)
+                : fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_EVIDENCE');
           return {
             role,
             fieldSha256: row.binding.fieldSha256,
@@ -739,12 +853,16 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         }),
       });
     }
-    const chronologyComplete = searchResult.intent === 'next' || (searchResult.intent === 'at'
-      ? searchResult.verification.historicalFieldChronology?.proofDisposition === 'sufficient'
-      : searchResult.verification.currentFieldChronology?.proofDisposition === 'sufficient');
-    const completeProof = chronologyComplete && searchResult.matches.length > 0
-      && searchResult.matches.filter((match) => match.requiredForProof).length === context.length
-      && (semanticResult?.evaluation.proofClosed ?? true);
+    const chronologyComplete =
+      searchResult.intent === 'next' ||
+      (searchResult.intent === 'at'
+        ? searchResult.verification.historicalFieldChronology?.proofDisposition === 'sufficient'
+        : searchResult.verification.currentFieldChronology?.proofDisposition === 'sufficient');
+    const completeProof =
+      chronologyComplete &&
+      searchResult.matches.length > 0 &&
+      searchResult.matches.filter((match) => match.requiredForProof).length === context.length &&
+      (semanticResult?.evaluation.proofClosed ?? true);
     const verification = freeze({
       ...searchResult.verification,
       ...(semanticResult === null ? {} : { semanticProof: semanticResult.verification }),
@@ -763,9 +881,11 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       availableFields: searchResult.availableFields,
       verification,
       policy: searchResult.policy,
-      ...(semanticResult === null ? {} : {
-        proofDisposition: semanticResult.evaluation.proofDisposition,
-      }),
+      ...(semanticResult === null
+        ? {}
+        : {
+            proofDisposition: semanticResult.evaluation.proofDisposition,
+          }),
       ...(lifecycle?.verificationResult?.({ searchResult, reads, completeProof }) ?? {}),
     };
     return freeze({ ...core, verificationSha256: stableObjectSha256(core) });
@@ -777,42 +897,55 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
     search,
     read,
     ...(lifecycle?.methods ?? {}),
-    status: () => freeze({
-      schemaVersion: 1,
-      kind: 'OpenOntologySourceNativeProductStatusV1' as const,
-      ontId: descriptor.ontId,
-      branch: descriptor.branch,
-      namespace: descriptor.namespace,
-      sourceCount: objectOnt.catalog.sourceCount,
-      nativeObjectCount: objectOnt.map.nativeObjectCount,
-      fieldRevisionCount: objectOnt.map.fieldRevisionCount,
-      artifactSha256: descriptor.artifactSha256,
-      nativeObjectMapSha256: objectOnt.map.nativeObjectMapSha256,
-      sourceCommitSha256: objectOnt.commitSha256,
-      sourceReplaySha256: objectOnt.replaySha256,
-      sourceSearchRouteMapSha256: session.sourceSearchRouteMapSha256,
-      objectBackend: descriptor.objectBackend,
-      objectBackendCapabilities: selectedBackend.capabilities,
-      canonicalTruthMutation: false,
-      canonicalSourceReadOnly: true,
-      readOnly: lifecycle?.readOnly ?? true,
-      ...(lifecycle?.status?.() ?? {}),
-      cutSelection,
-    }),
+    status: () =>
+      freeze({
+        schemaVersion: 1,
+        kind: 'OpenOntologySourceNativeProductStatusV1' as const,
+        ontId: descriptor.ontId,
+        branch: descriptor.branch,
+        namespace: descriptor.namespace,
+        sourceCount: objectOnt.catalog.sourceCount,
+        nativeObjectCount: objectOnt.map.nativeObjectCount,
+        fieldRevisionCount: objectOnt.map.fieldRevisionCount,
+        artifactSha256: descriptor.artifactSha256,
+        nativeObjectMapSha256: objectOnt.map.nativeObjectMapSha256,
+        sourceCommitSha256: objectOnt.commitSha256,
+        sourceReplaySha256: objectOnt.replaySha256,
+        sourceSearchRouteMapSha256: session.sourceSearchRouteMapSha256,
+        objectBackend: descriptor.objectBackend,
+        objectBackendCapabilities: selectedBackend.capabilities,
+        canonicalTruthMutation: false,
+        canonicalSourceReadOnly: true,
+        readOnly: lifecycle?.readOnly ?? true,
+        ...(lifecycle?.status?.() ?? {}),
+        cutSelection,
+      }),
   });
 }
 
-export function openSourceNativeProductRuntime(options: ProductOptions = {},
-  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
+export function openSourceNativeProductRuntime(
+  options: ProductOptions = {},
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
+) {
   return openSourceNativeProductRuntimeWithState(
-    options, createLifecycleAdapter, openProductState, 'current-ref');
+    options,
+    createLifecycleAdapter,
+    openProductState,
+    'current-ref',
+  );
 }
 
 /** Open a kernel-only product runtime against the descriptor's exact immutable source cut. */
-export function openSourceNativeHistoricalProductRuntime(options: ProductOptions = {},
-  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null) {
+export function openSourceNativeHistoricalProductRuntime(
+  options: ProductOptions = {},
+  createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
+) {
   return openSourceNativeProductRuntimeWithState(
-    options, createLifecycleAdapter, openExactProductArtifactState, 'exact-artifact');
+    options,
+    createLifecycleAdapter,
+    openExactProductArtifactState,
+    'exact-artifact',
+  );
 }
 
 export function openSourceNativeProduct(options = {}) {
@@ -822,5 +955,7 @@ export function openSourceNativeProduct(options = {}) {
 export type SourceNativeProduct = ReturnType<typeof openSourceNativeProductRuntime>;
 export type SourceNativeProductSearchResult = Awaited<ReturnType<SourceNativeProduct['search']>>;
 export type SourceNativeProductReadResult = Awaited<ReturnType<SourceNativeProduct['read']>>;
-export type SourceNativeProductVerificationResult = Awaited<ReturnType<SourceNativeProduct['verify']>>;
+export type SourceNativeProductVerificationResult = Awaited<
+  ReturnType<SourceNativeProduct['verify']>
+>;
 export type SourceNativeProductStatus = ReturnType<SourceNativeProduct['status']>;

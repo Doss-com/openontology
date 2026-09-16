@@ -27,7 +27,10 @@ function multipartParts(body, contentType) {
     cursor += 2;
     const headerEnd = body.indexOf(separator, cursor);
     assert(headerEnd >= 0);
-    const next = body.indexOf(Buffer.concat([Buffer.from('\r\n'), marker]), headerEnd + separator.length);
+    const next = body.indexOf(
+      Buffer.concat([Buffer.from('\r\n'), marker]),
+      headerEnd + separator.length,
+    );
     assert(next >= 0);
     chunks.push({
       headers: body.subarray(cursor, headerEnd).toString('utf8'),
@@ -65,14 +68,18 @@ function gcsFixtureTransport() {
       return json(200, { name: bucket });
     }
 
-    const encodedKey = isUpload ? url.searchParams.get('name')
-      : isDownload ? segments.slice(2).join('/') : segments.at(-1);
+    const encodedKey = isUpload
+      ? url.searchParams.get('name')
+      : isDownload
+        ? segments.slice(2).join('/')
+        : segments.at(-1);
     const key = decodeURIComponent(encodedKey ?? '');
 
     if (isUpload) {
       const expected = url.searchParams.get('ifGenerationMatch');
       const current = objects.get(key) ?? null;
-      if (expected === '0' ? current !== null : current?.generation !== expected) return json(412, {});
+      if (expected === '0' ? current !== null : current?.generation !== expected)
+        return json(412, {});
       const parts = multipartParts(request.body, request.headers['content-type']);
       const objectMetadata = JSON.parse(parts[0].body.toString('utf8'));
       const row = {
@@ -91,8 +98,10 @@ function gcsFixtureTransport() {
       const range = /^bytes=(\d+)-(\d*)$/u.exec(request.headers.range ?? '');
       const start = range ? Number(range[1]) : 0;
       const end = range?.[2] ? Number(range[2]) + 1 : current.bytes.length;
-      if (range && (start >= current.bytes.length || end > current.bytes.length)
-        || !range && (start > current.bytes.length || end > current.bytes.length)) {
+      if (
+        (range && (start >= current.bytes.length || end > current.bytes.length)) ||
+        (!range && (start > current.bytes.length || end > current.bytes.length))
+      ) {
         return { status: 416, headers: {}, body: Buffer.alloc(0) };
       }
       const bytes = current.bytes.subarray(start, end);
@@ -106,7 +115,9 @@ function gcsFixtureTransport() {
         status: range ? 206 : 200,
         headers: {
           ...integrityHeaders,
-          ...(range ? { 'content-range': `bytes ${start}-${end - 1}/${current.bytes.length}` } : {}),
+          ...(range
+            ? { 'content-range': `bytes ${start}-${end - 1}/${current.bytes.length}` }
+            : {}),
         },
         body: bytes,
       };
@@ -123,7 +134,7 @@ test('GCS satisfies the canonical object contract with native generation precond
   let tokenCalls = 0;
   const backend = openGcsObjectBackend({
     bucket: 'customer-ontology',
-    accessTokenProvider: () => `fixture-token-${tokenCalls += 1}`,
+    accessTokenProvider: () => `fixture-token-${(tokenCalls += 1)}`,
     transport: fixture.transport,
   });
 
@@ -145,22 +156,31 @@ test('GCS satisfies the canonical object contract with native generation precond
   assert.equal(replay.created, false);
   assert.equal(replay.replayed, true);
   assert.equal(replay.version, immutable.version);
-  assert.throws(
-    () => backend.putIfAbsent('segments/sha256/example', Buffer.from('different')),
-    { code: 'OBJECT_BACKEND_PRECONDITION' },
-  );
+  assert.throws(() => backend.putIfAbsent('segments/sha256/example', Buffer.from('different')), {
+    code: 'OBJECT_BACKEND_PRECONDITION',
+  });
   assert.deepEqual(backend.get('segments/sha256/example').bytes, immutableBytes);
-  assert.equal(backend.get('segments/sha256/example', { start: 5, end: 8 }).bytes.toString(), 'one');
+  assert.equal(
+    backend.get('segments/sha256/example', { start: 5, end: 8 }).bytes.toString(),
+    'one',
+  );
   assert.equal(backend.get('segments/sha256/example', { start: 4, end: 4 }).bytes.length, 0);
 
   const key = 'refs/example/main.json';
   const one = backend.compareAndSwap(key, { expectedVersion: null, bytes: Buffer.from('one') });
-  const two = backend.compareAndSwap(key, { expectedVersion: one.version, bytes: Buffer.from('two') });
-  const oneAgain = backend.compareAndSwap(key, { expectedVersion: two.version, bytes: Buffer.from('one') });
+  const two = backend.compareAndSwap(key, {
+    expectedVersion: one.version,
+    bytes: Buffer.from('two'),
+  });
+  const oneAgain = backend.compareAndSwap(key, {
+    expectedVersion: two.version,
+    bytes: Buffer.from('one'),
+  });
   assert.notEqual(oneAgain.version, one.version);
   assert.equal(oneAgain.previousVersion, two.version);
   assert.throws(
-    () => backend.compareAndSwap(key, { expectedVersion: one.version, bytes: Buffer.from('stale') }),
+    () =>
+      backend.compareAndSwap(key, { expectedVersion: one.version, bytes: Buffer.from('stale') }),
     { code: 'OBJECT_BACKEND_PRECONDITION' },
   );
   assert.equal(backend.get(key).bytes.toString(), 'one');
@@ -232,22 +252,46 @@ test('GCS observations distinguish reads, creates, conflicts, and CAS with exact
   const replayed = backend.putIfAbsent('segments/example', bytes);
   assert.equal(replayed.replayed, true);
   assert.equal(backend.get('segments/example', { start: 2, end: 7 }).bytes.toString(), 'pha\nb');
-  const cas = backend.compareAndSwap('refs/main', { expectedVersion: null, bytes: Buffer.from('head') });
+  const cas = backend.compareAndSwap('refs/main', {
+    expectedVersion: null,
+    bytes: Buffer.from('head'),
+  });
   assert.match(cas.version, /^gcs-v1:\d+$/u);
 
-  assert.deepEqual(observations.map(({ operationClass, method, attempt, status, failureClass }) => ({
-    operationClass,
-    method,
-    attempt,
-    status,
-    failureClass,
-  })), [
-    { operationClass: 'create-if-absent', method: 'POST', attempt: 1, status: 200, failureClass: null },
-    { operationClass: 'create-if-absent', method: 'POST', attempt: 1, status: 412, failureClass: null },
-    { operationClass: 'body-read', method: 'GET', attempt: 1, status: 200, failureClass: null },
-    { operationClass: 'body-read', method: 'GET', attempt: 1, status: 206, failureClass: null },
-    { operationClass: 'compare-and-swap', method: 'POST', attempt: 1, status: 200, failureClass: null },
-  ]);
+  assert.deepEqual(
+    observations.map(({ operationClass, method, attempt, status, failureClass }) => ({
+      operationClass,
+      method,
+      attempt,
+      status,
+      failureClass,
+    })),
+    [
+      {
+        operationClass: 'create-if-absent',
+        method: 'POST',
+        attempt: 1,
+        status: 200,
+        failureClass: null,
+      },
+      {
+        operationClass: 'create-if-absent',
+        method: 'POST',
+        attempt: 1,
+        status: 412,
+        failureClass: null,
+      },
+      { operationClass: 'body-read', method: 'GET', attempt: 1, status: 200, failureClass: null },
+      { operationClass: 'body-read', method: 'GET', attempt: 1, status: 206, failureClass: null },
+      {
+        operationClass: 'compare-and-swap',
+        method: 'POST',
+        attempt: 1,
+        status: 200,
+        failureClass: null,
+      },
+    ],
+  );
   for (const [index, observation] of observations.entries()) {
     assert.equal(observation.requestBodyBytes, fixture.requests[index].body.length);
     assert.equal(observation.responseBodyBytes, responses[index].body.length);
@@ -261,10 +305,30 @@ test('GCS configuration and versions reject ambiguous or secret-bearing input', 
     { bucket: 'bad/bucket', accessToken: 'token', transport: fixture.transport },
     { bucket: 'valid-bucket', accessToken: 'line\nbreak', transport: fixture.transport },
     { bucket: 'valid-bucket', accessToken: 'token with space', transport: fixture.transport },
-    { bucket: 'valid-bucket', accessToken: 'token', endpoint: 'http://storage.example.test', transport: fixture.transport },
-    { bucket: 'valid-bucket', prefix: 'tenant-a/', accessToken: 'token', transport: fixture.transport },
-    { bucket: 'valid-bucket', prefix: 'tenant-a//ont-a', accessToken: 'token', transport: fixture.transport },
-    { bucket: 'valid-bucket', prefix: 'tenant-a/../ont-a', accessToken: 'token', transport: fixture.transport },
+    {
+      bucket: 'valid-bucket',
+      accessToken: 'token',
+      endpoint: 'http://storage.example.test',
+      transport: fixture.transport,
+    },
+    {
+      bucket: 'valid-bucket',
+      prefix: 'tenant-a/',
+      accessToken: 'token',
+      transport: fixture.transport,
+    },
+    {
+      bucket: 'valid-bucket',
+      prefix: 'tenant-a//ont-a',
+      accessToken: 'token',
+      transport: fixture.transport,
+    },
+    {
+      bucket: 'valid-bucket',
+      prefix: 'tenant-a/../ont-a',
+      accessToken: 'token',
+      transport: fixture.transport,
+    },
     {
       bucket: 'valid-bucket',
       prefix: `tenant-${'a'.repeat(510)}`,
@@ -283,7 +347,8 @@ test('GCS configuration and versions reject ambiguous or secret-bearing input', 
       observeRequest: 'not-a-callback',
       transport: fixture.transport,
     },
-  ]) assert.throws(() => openGcsObjectBackend(config), { code: 'OBJECT_BACKEND_GCS_CONFIG' });
+  ])
+    assert.throws(() => openGcsObjectBackend(config), { code: 'OBJECT_BACKEND_GCS_CONFIG' });
 
   const backend = openGcsObjectBackend({
     bucket: 'valid-bucket',
@@ -291,7 +356,11 @@ test('GCS configuration and versions reject ambiguous or secret-bearing input', 
     transport: fixture.transport,
   });
   assert.throws(
-    () => backend.compareAndSwap('refs/main', { expectedVersion: 'gcs-v1:not-a-generation', bytes: 'x' }),
+    () =>
+      backend.compareAndSwap('refs/main', {
+        expectedVersion: 'gcs-v1:not-a-generation',
+        bytes: 'x',
+      }),
     { code: 'OBJECT_BACKEND_VERSION' },
   );
 });
@@ -302,12 +371,14 @@ test('GCS scoped prefixes bind provider keys while receipts remain logical', () 
   const backend = openGcsObjectBackend({
     bucket: 'customer-ontology',
     prefix: 'tenant-a/ont-a',
-    accessTokenProvider: () => `fixture-token-${tokenCalls += 1}`,
+    accessTokenProvider: () => `fixture-token-${(tokenCalls += 1)}`,
     transport: fixture.transport,
   });
 
   const receipt = backend.putIfAbsent('refs/main', Buffer.from('scoped'));
-  const upload = fixture.requests.find((request) => new URL(request.url).pathname.startsWith('/upload/'));
+  const upload = fixture.requests.find((request) =>
+    new URL(request.url).pathname.startsWith('/upload/'),
+  );
   assert(upload);
   assert.equal(new URL(upload.url).searchParams.get('name'), 'tenant-a/ont-a/refs/main');
   assert.equal(receipt.key, 'refs/main');
@@ -316,10 +387,9 @@ test('GCS scoped prefixes bind provider keys while receipts remain logical', () 
   assert.equal(backend.get('refs/main').bytes.toString(), 'scoped');
   assert.equal(fixture.objects.has('tenant-a/ont-a/refs/main'), true);
   assert.equal(fixture.objects.has('refs/main'), false);
-  assert.throws(
-    () => backend.putIfAbsent(`${'a'.repeat(1010)}`, Buffer.from('too long')),
-    { code: 'OBJECT_BACKEND_KEY' },
-  );
+  assert.throws(() => backend.putIfAbsent(`${'a'.repeat(1010)}`, Buffer.from('too long')), {
+    code: 'OBJECT_BACKEND_KEY',
+  });
 });
 
 test('GCS full and ranged reads use one media request and validate response integrity', () => {
@@ -347,7 +417,10 @@ test('GCS full and ranged reads use one media request and validate response inte
   assert.deepEqual(emptyBackend.get('segments/sha256/empty').bytes, Buffer.alloc(0));
 
   const beforeRange = fixture.requests.length;
-  assert.equal(backend.get('segments/sha256/example', { start: 5, end: 8 }).bytes.toString(), 'one');
+  assert.equal(
+    backend.get('segments/sha256/example', { start: 5, end: 8 }).bytes.toString(),
+    'one',
+  );
   assert.equal(fixture.requests.length - beforeRange, 1);
 
   const corruptFixture = gcsFixtureTransport();
@@ -366,9 +439,12 @@ test('GCS full and ranged reads use one media request and validate response inte
   assert.throws(() => corruptBackend.get('segments/sha256/example'), {
     code: 'OBJECT_BACKEND_CORRUPT',
   });
-  assert.throws(() => corruptBackend.get('segments/sha256/example', { start: 0, end: bytes.length }), {
-    code: 'OBJECT_BACKEND_CORRUPT',
-  });
+  assert.throws(
+    () => corruptBackend.get('segments/sha256/example', { start: 0, end: bytes.length }),
+    {
+      code: 'OBJECT_BACKEND_CORRUPT',
+    },
+  );
 
   const rangeCorruptFixture = gcsFixtureTransport();
   const rangeCorruptBackend = openGcsObjectBackend({
@@ -376,8 +452,11 @@ test('GCS full and ranged reads use one media request and validate response inte
     accessToken: 'fixture-token-1',
     transport: (request) => {
       const response = rangeCorruptFixture.transport(request);
-      if (request.method === 'GET' && new URL(request.url).pathname.split('/')[1] !== 'storage'
-        && response.status === 206) {
+      if (
+        request.method === 'GET' &&
+        new URL(request.url).pathname.split('/')[1] !== 'storage' &&
+        response.status === 206
+      ) {
         response.headers['content-range'] = `bytes 0-${bytes.length - 1}/${bytes.length}`;
       }
       return response;
@@ -407,7 +486,7 @@ test('GCS retries only bounded reads and reacquires renewable credentials', () =
   };
   const backend = openGcsObjectBackend({
     bucket: 'valid-bucket',
-    accessTokenProvider: () => `fixture-token-${tokenCalls += 1}`,
+    accessTokenProvider: () => `fixture-token-${(tokenCalls += 1)}`,
     transport,
     maximumReadAttempts: 3,
     retryDelay: (attempt) => retryDelays.push(attempt),
@@ -482,21 +561,26 @@ test('GCS elapsed transport time excludes token refresh and retry backoff', () =
         return fixture.transport(request);
       },
       maximumReadAttempts: 2,
-      retryDelay: () => { clock += 200_000_000n; },
+      retryDelay: () => {
+        clock += 200_000_000n;
+      },
       observeRequest: (observation) => observations.push(observation),
     });
     assert.equal(backend.ensureBucket().available, true);
   } finally {
     process.hrtime.bigint = originalHrtimeBigint;
   }
-  assert.deepEqual(observations.map(({ attempt, status, elapsedTransportMs }) => ({
-    attempt,
-    status,
-    elapsedTransportMs,
-  })), [
-    { attempt: 1, status: 503, elapsedTransportMs: 5 },
-    { attempt: 2, status: 200, elapsedTransportMs: 5 },
-  ]);
+  assert.deepEqual(
+    observations.map(({ attempt, status, elapsedTransportMs }) => ({
+      attempt,
+      status,
+      elapsedTransportMs,
+    })),
+    [
+      { attempt: 1, status: 503, elapsedTransportMs: 5 },
+      { attempt: 2, status: 200, elapsedTransportMs: 5 },
+    ],
+  );
   assert.equal(tokenCalls, 2);
 });
 
@@ -519,20 +603,23 @@ test('GCS observations retain retry, transport, and malformed-response classific
     observeRequest: (observation) => retryObservations.push(observation),
   });
   assert.equal(retryBackend.ensureBucket().available, true);
-  assert.deepEqual(retryObservations.map(({ attempt, status, responseBodyBytes, failureClass }) => ({
-    attempt,
-    status,
-    responseBodyBytes,
-    failureClass,
-  })), [
-    { attempt: 1, status: 503, responseBodyBytes: 4, failureClass: null },
-    {
-      attempt: 2,
-      status: 200,
-      responseBodyBytes: Buffer.byteLength(JSON.stringify({ name: 'valid-bucket' })),
-      failureClass: null,
-    },
-  ]);
+  assert.deepEqual(
+    retryObservations.map(({ attempt, status, responseBodyBytes, failureClass }) => ({
+      attempt,
+      status,
+      responseBodyBytes,
+      failureClass,
+    })),
+    [
+      { attempt: 1, status: 503, responseBodyBytes: 4, failureClass: null },
+      {
+        attempt: 2,
+        status: 200,
+        responseBodyBytes: Buffer.byteLength(JSON.stringify({ name: 'valid-bucket' })),
+        failureClass: null,
+      },
+    ],
+  );
 
   const expectedError = Object.assign(new Error('transport failure'), {
     code: 'OBJECT_BACKEND_GCS_TRANSPORT',
@@ -541,23 +628,32 @@ test('GCS observations retain retry, transport, and malformed-response classific
   const transportBackend = openGcsObjectBackend({
     bucket: 'valid-bucket',
     accessToken: 'fixture-token-1',
-    transport: () => { throw expectedError; },
+    transport: () => {
+      throw expectedError;
+    },
     maximumReadAttempts: 2,
     retryDelay: () => {},
     observeRequest: (observation) => transportObservations.push(observation),
   });
   let actualError;
-  try { transportBackend.ensureBucket(); } catch (error) { actualError = error; }
+  try {
+    transportBackend.ensureBucket();
+  } catch (error) {
+    actualError = error;
+  }
   assert.equal(actualError, expectedError);
-  assert.deepEqual(transportObservations.map(({ attempt, status, responseBodyBytes, failureClass }) => ({
-    attempt,
-    status,
-    responseBodyBytes,
-    failureClass,
-  })), [
-    { attempt: 1, status: null, responseBodyBytes: null, failureClass: 'transport' },
-    { attempt: 2, status: null, responseBodyBytes: null, failureClass: 'transport' },
-  ]);
+  assert.deepEqual(
+    transportObservations.map(({ attempt, status, responseBodyBytes, failureClass }) => ({
+      attempt,
+      status,
+      responseBodyBytes,
+      failureClass,
+    })),
+    [
+      { attempt: 1, status: null, responseBodyBytes: null, failureClass: 'transport' },
+      { attempt: 2, status: null, responseBodyBytes: null, failureClass: 'transport' },
+    ],
+  );
 
   const malformedObservations = [];
   const malformedBackend = openGcsObjectBackend({
@@ -567,19 +663,24 @@ test('GCS observations retain retry, transport, and malformed-response classific
     observeRequest: (observation) => malformedObservations.push(observation),
   });
   assert.throws(() => malformedBackend.ensureBucket(), { code: 'OBJECT_BACKEND_GCS_RESPONSE' });
-  assert.deepEqual(malformedObservations.map(({ attempt, status, responseBodyBytes, failureClass }) => ({
-    attempt,
-    status,
-    responseBodyBytes,
-    failureClass,
-  })), [{ attempt: 1, status: 200, responseBodyBytes: null, failureClass: 'malformed-response' }]);
+  assert.deepEqual(
+    malformedObservations.map(({ attempt, status, responseBodyBytes, failureClass }) => ({
+      attempt,
+      status,
+      responseBodyBytes,
+      failureClass,
+    })),
+    [{ attempt: 1, status: 200, responseBodyBytes: null, failureClass: 'malformed-response' }],
+  );
 
   const authError = new Error('authentication failure');
   const authObservations = [];
   let authTransportCalls = 0;
   const authBackend = openGcsObjectBackend({
     bucket: 'valid-bucket',
-    accessTokenProvider: () => { throw authError; },
+    accessTokenProvider: () => {
+      throw authError;
+    },
     transport: () => {
       authTransportCalls += 1;
       return retryFixture.transport({
@@ -593,7 +694,11 @@ test('GCS observations retain retry, transport, and malformed-response classific
     observeRequest: (observation) => authObservations.push(observation),
   });
   let actualAuthError;
-  try { authBackend.ensureBucket(); } catch (error) { actualAuthError = error; }
+  try {
+    authBackend.ensureBucket();
+  } catch (error) {
+    actualAuthError = error;
+  }
   assert.equal(actualAuthError, authError);
   assert.equal(authTransportCalls, 0);
   assert.deepEqual(authObservations, []);
@@ -628,7 +733,9 @@ test('GCS observer failures do not alter outcomes or repeat the diagnostic', () 
     process.stderr.write = originalWrite;
   }
   assert.equal(observerCalls, 2);
-  assert.deepEqual(diagnostics, ['OpenOntology GCS request observer failed; accounting incomplete\n']);
+  assert.deepEqual(diagnostics, [
+    'OpenOntology GCS request observer failed; accounting incomplete\n',
+  ]);
 });
 
 test('GCS classifies transport parser failures without changing the original error', () => {
@@ -637,11 +744,17 @@ test('GCS classifies transport parser failures without changing the original err
   });
   const observations = [];
   const backend = openGcsObjectBackend({
-    bucket: 'valid-bucket', accessToken: 'fixture-token',
-    transport: () => { throw expectedError; },
+    bucket: 'valid-bucket',
+    accessToken: 'fixture-token',
+    transport: () => {
+      throw expectedError;
+    },
     observeRequest: (observation) => observations.push(observation),
   });
-  assert.throws(() => backend.ensureBucket(), (error) => error === expectedError);
+  assert.throws(
+    () => backend.ensureBucket(),
+    (error) => error === expectedError,
+  );
   assert.equal(observations.length, 1);
   assert.equal(observations[0].failureClass, 'malformed-response');
   assert.equal(observations[0].responseBodyBytes, null);
@@ -650,7 +763,12 @@ test('GCS classifies transport parser failures without changing the original err
 
 test('GCS async observer rejection cannot terminate a committed writer or leak its error', () => {
   const moduleUrl = new URL('../../dist/storage/gcs-backend.js', import.meta.url).href;
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+  const child = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `
     import { createHash } from 'node:crypto';
     import { openGcsObjectBackend } from ${JSON.stringify(moduleUrl)};
     const bytes = Buffer.from('committed');
@@ -664,7 +782,10 @@ test('GCS async observer rejection cannot terminate a committed writer or leak i
     const current = backend.head('refs/main');
     await new Promise(resolve => setImmediate(resolve));
     process.stdout.write(JSON.stringify({ committed: committed.version, current: current.version }));
-  `], { encoding: 'utf8', timeout: 10_000 });
+  `,
+    ],
+    { encoding: 'utf8', timeout: 10_000 },
+  );
   assert.equal(child.status, 0, child.stderr);
   assert.deepEqual(JSON.parse(child.stdout), { committed: 'gcs-v1:1', current: 'gcs-v1:1' });
   assert.equal(child.stderr, 'OpenOntology GCS request observer failed; accounting incomplete\n');
@@ -675,7 +796,7 @@ test('GCS carries a complete ObjectOnt commit, branch activation, and exact repl
   let tokenCalls = 0;
   const backend = openGcsObjectBackend({
     bucket: 'customer-ontology',
-    accessTokenProvider: () => `fixture-token-${tokenCalls += 1}`,
+    accessTokenProvider: () => `fixture-token-${(tokenCalls += 1)}`,
     transport: fixture.transport,
   });
   const store = openObjectOntStore({ backend });

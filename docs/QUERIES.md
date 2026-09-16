@@ -4,15 +4,15 @@ Build the example Ont with the [quickstart](../README.md#two-minute-quickstart),
 then open it from JavaScript or TypeScript:
 
 ```js
-import { openOntology } from 'oont'
+import { openOntology } from 'oont';
 
-const ont = openOntology({ artifactRoot: './verified-context' })
-const result = await ont.verify('What is the current title of task-1?')
+const ont = openOntology({ artifactRoot: './verified-context' });
+const result = await ont.verify('What is the current title of task-1?');
 
 if (result.answerable) {
-  console.log(result.context)
+  console.log(result.context);
 } else {
-  console.log(result.state)
+  console.log(result.state);
 }
 ```
 
@@ -45,10 +45,10 @@ Use `verify` when you want checked context. Use `search` followed by `read` when
 you want to inspect candidates yourself:
 
 ```js
-const candidates = await ont.search('What is the current title of task-1?')
+const candidates = await ont.search('What is the current title of task-1?');
 for (const match of candidates.matches) {
-  const passage = await ont.read(match.ref)
-  console.log(passage)
+  const passage = await ont.read(match.ref);
+  console.log(passage);
 }
 ```
 
@@ -61,14 +61,14 @@ The root client exposes:
 
 ```ts
 interface OpenOntologyProduct {
-  verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>
-  search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>
-  read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>
-  status(): OpenOntologyStatus
+  verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>;
+  search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>;
+  read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>;
+  status(): OpenOntologyStatus;
 }
 ```
 
-See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.3/src/openontology.mts)
+See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.4/src/openontology.ts)
 for complete result shapes.
 
 ## Typed scope
@@ -84,7 +84,7 @@ await ont.verify({
     externalId: 'task-1',
     field: 'title',
   },
-})
+});
 ```
 
 The same query through the CLI:
@@ -110,7 +110,7 @@ Identity comes from the complete scoped map, not the highest-ranked search hit.
 An Adapter with complete `title` coverage can identify an object by a quoted name:
 
 ```js
-await ont.verify('What is the current status of the task titled "Release review"?')
+await ont.verify('What is the current status of the task titled "Release review"?');
 ```
 
 This requires a source with that title and a declared `status` field; it is not
@@ -142,7 +142,7 @@ For a point-in-time query:
 await ont.verify({
   question: 'What was the title of task-1?',
   at: '2026-01-15T00:00:00.000Z',
-})
+});
 ```
 
 - CLI uses `--at`; MCP uses `at`. Supply a UTC ISO timestamp with milliseconds.

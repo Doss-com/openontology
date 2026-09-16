@@ -50,12 +50,17 @@ function usage(code = 2): never {
   process.exit(code);
 }
 
-if (['--help', '-h'].includes(tokens[0])
-  && ['build', 'status', 'check', 'search', 'verify', 'serve'].includes(command)) {
+if (
+  ['--help', '-h'].includes(tokens[0]) &&
+  ['build', 'status', 'check', 'search', 'verify', 'serve'].includes(command)
+) {
   usage(0);
 }
 
-function options(input: string[], allowedFlags: string[] = []): {
+function options(
+  input: string[],
+  allowedFlags: string[] = [],
+): {
   values: Map<string, string>;
   flags: Set<string>;
 } {
@@ -64,13 +69,19 @@ function options(input: string[], allowedFlags: string[] = []): {
   for (let index = 0; index < input.length;) {
     const name = input[index];
     if (allowedFlags.includes(name)) {
-      if (flags.has(name)) throw Object.assign(new TypeError('OONT_RESOLVER_USAGE'), { code: 'OONT_RESOLVER_USAGE' });
+      if (flags.has(name))
+        throw Object.assign(new TypeError('OONT_RESOLVER_USAGE'), { code: 'OONT_RESOLVER_USAGE' });
       flags.add(name);
       index += 1;
       continue;
     }
     const value = input[index + 1];
-    if (!name?.startsWith('--') || typeof value !== 'string' || value.startsWith('--') || values.has(name)) {
+    if (
+      !name?.startsWith('--') ||
+      typeof value !== 'string' ||
+      value.startsWith('--') ||
+      values.has(name)
+    ) {
       throw Object.assign(new TypeError('OONT_RESOLVER_USAGE'), { code: 'OONT_RESOLVER_USAGE' });
     }
     values.set(name, value);
@@ -85,7 +96,9 @@ function exactJson(pathInput: string): unknown {
   if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1) {
     throw Object.assign(new TypeError('OONT_RESOLVER_INPUT'), { code: 'OONT_RESOLVER_INPUT' });
   }
-  try { return JSON.parse(readFileSync(path, 'utf8')); } catch {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
     throw Object.assign(new TypeError('OONT_RESOLVER_INPUT'), { code: 'OONT_RESOLVER_INPUT' });
   }
 }
@@ -94,43 +107,66 @@ function print(value: object): void {
   process.stdout.write(`${stableObjectText(value)}\n`);
 }
 
-const queryOptionNames = new Set(['--intent', '--source-system', '--object-type',
-  '--external-id', '--field', '--anchor-value', '--at']);
+const queryOptionNames = new Set([
+  '--intent',
+  '--source-system',
+  '--object-type',
+  '--external-id',
+  '--field',
+  '--anchor-value',
+  '--at',
+]);
 const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
-function queryInput(question: string, values: Map<string, string>): {
+function queryInput(
+  question: string,
+  values: Map<string, string>,
+): {
   question: string;
   intent: 'current' | 'next';
   at?: string;
   anchorValue: string | null;
   scope?: { sourceSystem: string; objectType: string; field: string; externalId?: string };
 } {
-  if (typeof question !== 'string' || !question.trim()
-    || [...values.keys()].some((key) => !queryOptionNames.has(key))) usage();
+  if (
+    typeof question !== 'string' ||
+    !question.trim() ||
+    [...values.keys()].some((key) => !queryOptionNames.has(key))
+  )
+    usage();
   const typedNames = ['--source-system', '--object-type', '--field'];
   const typedCount = typedNames.filter((name) => values.has(name)).length;
-  if (![0, typedNames.length].includes(typedCount)
-    || values.has('--external-id') && typedCount !== typedNames.length) usage();
+  if (
+    ![0, typedNames.length].includes(typedCount) ||
+    (values.has('--external-id') && typedCount !== typedNames.length)
+  )
+    usage();
   const intentValue = values.get('--intent') ?? 'current';
-  const intent: 'current' | 'next' = intentValue === 'next'
-    ? 'next' : intentValue === 'current' ? 'current' : usage();
+  const intent: 'current' | 'next' =
+    intentValue === 'next' ? 'next' : intentValue === 'current' ? 'current' : usage();
   const atValue = values.get('--at');
-  const at = atValue === undefined ? undefined : exactUtcMillisecondIso(atValue) ? atValue : usage();
+  const at =
+    atValue === undefined ? undefined : exactUtcMillisecondIso(atValue) ? atValue : usage();
   const sourceSystem = values.get('--source-system');
   const objectType = values.get('--object-type');
   const field = values.get('--field');
-  if (typedCount === typedNames.length
-    && (sourceSystem === undefined || objectType === undefined || field === undefined)) usage();
+  if (
+    typedCount === typedNames.length &&
+    (sourceSystem === undefined || objectType === undefined || field === undefined)
+  )
+    usage();
   const anchorValue = values.get('--anchor-value') ?? null;
-  if (at !== undefined && (intent === 'next' || anchorValue !== null && anchorValue.trim())) usage();
-  const scope = sourceSystem !== undefined && objectType !== undefined && field !== undefined
-    ? {
-      sourceSystem,
-      objectType,
-      field,
-      ...(values.has('--external-id') ? { externalId: values.get('--external-id') } : {}),
-    }
-    : undefined;
+  if (at !== undefined && (intent === 'next' || (anchorValue !== null && anchorValue.trim())))
+    usage();
+  const scope =
+    sourceSystem !== undefined && objectType !== undefined && field !== undefined
+      ? {
+          sourceSystem,
+          objectType,
+          field,
+          ...(values.has('--external-id') ? { externalId: values.get('--external-id') } : {}),
+        }
+      : undefined;
   return {
     question,
     intent,
@@ -152,13 +188,19 @@ try {
     if (!inputPath || inputPath.startsWith('--')) usage();
     const { values, flags } = options(rest);
     const allowed = new Set(['--out', '--backend']);
-    if (flags.size !== 0 || !values.has('--out')
-      || [...values.keys()].some((key) => !allowed.has(key))) usage();
-    print(buildSourceNativeProduct({
-      artifactRoot: values.get('--out'),
-      input: exactJson(inputPath),
-      objectBackendUri: values.get('--backend') ?? null,
-    }));
+    if (
+      flags.size !== 0 ||
+      !values.has('--out') ||
+      [...values.keys()].some((key) => !allowed.has(key))
+    )
+      usage();
+    print(
+      buildSourceNativeProduct({
+        artifactRoot: values.get('--out'),
+        input: exactJson(inputPath),
+        objectBackendUri: values.get('--backend') ?? null,
+      }),
+    );
   } else if (command === 'status') {
     const [artifactRoot, ...rest] = tokens;
     if (!artifactRoot || artifactRoot.startsWith('--')) usage();
@@ -180,7 +222,8 @@ try {
     });
   } else if (command === 'verify' || command === 'search') {
     const [artifactRoot, question, ...rest] = tokens;
-    if (!artifactRoot || artifactRoot.startsWith('--') || !question || question.startsWith('--')) usage();
+    if (!artifactRoot || artifactRoot.startsWith('--') || !question || question.startsWith('--'))
+      usage();
     const { values, flags } = options(rest, ['--read']);
     if (command === 'verify' && flags.has('--read')) usage();
     const input = queryInput(question, values);
@@ -217,7 +260,8 @@ try {
   }
 } catch (error: unknown) {
   const failure = error instanceof Error ? error : new Error('OONT_RESOLVER_ERROR');
-  const code = 'code' in failure && typeof failure.code === 'string' ? failure.code : failure.message;
+  const code =
+    'code' in failure && typeof failure.code === 'string' ? failure.code : failure.message;
   process.stderr.write(`error: ${code}\n`);
   process.exit(1);
 }

@@ -34,18 +34,32 @@ function makeFixture({
     historyBackendUri: pathToFileURL(join(root, 'history')).href,
   };
   const sources = [
-    { relativePath: SELECTED_REF, sourceType: 'docs', occurredAt: OCCURRED_AT, content: selectedContent },
-    { relativePath: UNRELATED_REF, sourceType: 'docs', occurredAt: OCCURRED_AT, content: unrelatedContent },
+    {
+      relativePath: SELECTED_REF,
+      sourceType: 'docs',
+      occurredAt: OCCURRED_AT,
+      content: selectedContent,
+    },
+    {
+      relativePath: UNRELATED_REF,
+      sourceType: 'docs',
+      occurredAt: OCCURRED_AT,
+      content: unrelatedContent,
+    },
   ];
   const input = {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'selected-source-context-fixture',
     namespace: 'selected-source-context-fixture',
-    querySchemas: [{
-      sourceSystem: 'docs', objectType: 'Document', aliases: ['document'],
-      fields: [{ fieldPath: 'body', aliases: ['body'] }],
-    }],
+    querySchemas: [
+      {
+        sourceSystem: 'docs',
+        objectType: 'Document',
+        aliases: ['document'],
+        fields: [{ fieldPath: 'body', aliases: ['body'] }],
+      },
+    ],
     sources,
     nativeObjectInputs: sources.map((source, index) => ({
       relativePath: source.relativePath,
@@ -56,17 +70,23 @@ function makeFixture({
         namespace: 'selected-source-context-fixture',
         externalId: index === 0 ? 'selected' : 'unrelated',
       },
-      fields: [{
-        fieldPath: 'body',
-        value: index === 0 ? source.content : 'Unrelated source content',
-        codeUnitStart: 0,
-      }],
+      fields: [
+        {
+          fieldPath: 'body',
+          value: index === 0 ? source.content : 'Unrelated source content',
+          codeUnitStart: 0,
+        },
+      ],
     })),
   };
   buildSourceNativeProduct({ ...options, input });
   const state = openProductState(options);
-  const sourceByRef = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));
-  const objectByRef = new Map(state.objectOnt.map.nativeObjects.map((object) => [object.relativePath, object]));
+  const sourceByRef = new Map(
+    state.objectOnt.sources.map((source) => [source.relativePath, source]),
+  );
+  const objectByRef = new Map(
+    state.objectOnt.map.nativeObjects.map((object) => [object.relativePath, object]),
+  );
   const witness = (sourceRef, start = 0, end = null) => {
     const source = sourceByRef.get(sourceRef);
     const object = objectByRef.get(sourceRef);
@@ -94,25 +114,31 @@ function makeFixture({
     proposedBy: 'selected-source-context-test',
     proposedAt: OCCURRED_AT,
     method: 'authored',
-    objectDefs: [{
-      kind: 'ObjectDef',
-      id: 'selected-concept',
-      name: SELECTED_WITNESS,
-      source: witness(SELECTED_REF, selectedWitnessStart, selectedWitnessEnd),
-      aliases: [],
-    }],
-    claims: [{
-      kind: 'Claim',
-      id: 'selected-definition',
-      about: 'selected-concept',
-      predicate: 'defines',
-      source: witness(SELECTED_REF, selectedWitnessStart, selectedWitnessEnd),
-    }],
-    coverage: [{
-      sourceRef: SELECTED_REF,
-      sourceSha256: selectedSource.sourceSha256,
-      disposition: 'examined',
-    }],
+    objectDefs: [
+      {
+        kind: 'ObjectDef',
+        id: 'selected-concept',
+        name: SELECTED_WITNESS,
+        source: witness(SELECTED_REF, selectedWitnessStart, selectedWitnessEnd),
+        aliases: [],
+      },
+    ],
+    claims: [
+      {
+        kind: 'Claim',
+        id: 'selected-definition',
+        about: 'selected-concept',
+        predicate: 'defines',
+        source: witness(SELECTED_REF, selectedWitnessStart, selectedWitnessEnd),
+      },
+    ],
+    coverage: [
+      {
+        sourceRef: SELECTED_REF,
+        sourceSha256: selectedSource.sourceSha256,
+        disposition: 'examined',
+      },
+    ],
   };
   const construction = compileSourceNativeSemanticConstruction({ options, input: selectedInput });
   const selectedPackKey = selectedSource.blobDescriptor.key;
@@ -166,8 +192,10 @@ function observeSourcePackReads(callback, sourcePackKeysOfInterest) {
     if (typeof path === 'string' && path.includes('/objects/')) {
       try {
         const envelope = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : value);
-        if (envelope?.kind === 'OpenOntologyFileObjectV1'
-          && sourcePackKeysOfInterest.has(envelope.key)) {
+        if (
+          envelope?.kind === 'OpenOntologyFileObjectV1' &&
+          sourcePackKeysOfInterest.has(envelope.key)
+        ) {
           sourcePackKeys.add(envelope.key);
         }
       } catch {
@@ -191,17 +219,27 @@ function clone(value) {
 
 test('compiler selected-source scope does not hydrate an unrelated source pack', () => {
   const sourcePackKeys = new Set([fixture.selectedPackKey, fixture.unrelatedPackKey]);
-  const observed = observeSourcePackReads(() =>
-    compileSourceNativeSemanticConstruction({ options: fixture.options, input: fixture.selectedInput }),
-  sourcePackKeys);
+  const observed = observeSourcePackReads(
+    () =>
+      compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input: fixture.selectedInput,
+      }),
+    sourcePackKeys,
+  );
   assert.deepEqual(observed.sourcePackKeys, [fixture.selectedPackKey]);
 });
 
 test('review selected-source scope does not hydrate an unrelated source pack', () => {
   const sourcePackKeys = new Set([fixture.selectedPackKey, fixture.unrelatedPackKey]);
-  const observed = observeSourcePackReads(() =>
-    openSourceNativeConstructionReview({ options: fixture.options, construction: fixture.construction }),
-  sourcePackKeys);
+  const observed = observeSourcePackReads(
+    () =>
+      openSourceNativeConstructionReview({
+        options: fixture.options,
+        construction: fixture.construction,
+      }),
+    sourcePackKeys,
+  );
   assert.deepEqual(observed.sourcePackKeys, [fixture.selectedPackKey]);
 });
 
@@ -210,10 +248,14 @@ test('scoped construction remains distinct from whole-Ont state', () => {
   assert.equal(fixture.construction.coverage.examinedSourceCount, 1);
   assert.equal(fixture.construction.coverage.unexaminedSourceCount, 1);
   const state = openProductState(fixture.options);
-  assert.deepEqual(state.objectOnt.sources.map((source) => source.relativePath),
-    [SELECTED_REF, UNRELATED_REF]);
-  assert.equal(state.objectOnt.sources.find((source) => source.relativePath === UNRELATED_REF).content,
-    fixture.input.sources.find((source) => source.relativePath === UNRELATED_REF).content);
+  assert.deepEqual(
+    state.objectOnt.sources.map((source) => source.relativePath),
+    [SELECTED_REF, UNRELATED_REF],
+  );
+  assert.equal(
+    state.objectOnt.sources.find((source) => source.relativePath === UNRELATED_REF).content,
+    fixture.input.sources.find((source) => source.relativePath === UNRELATED_REF).content,
+  );
 });
 
 test('review packet includes the complete cited document, not only the proposer witness', () => {
@@ -221,24 +263,43 @@ test('review packet includes the complete cited document, not only the proposer 
     options: fixture.options,
     construction: fixture.construction,
   });
-  assert.deepEqual(session.packet.sources.map((source) => source.relativePath), [SELECTED_REF]);
+  assert.deepEqual(
+    session.packet.sources.map((source) => source.relativePath),
+    [SELECTED_REF],
+  );
   assert.equal(session.packet.sources[0].content, fixture.selectedContent);
-  assert.equal(session.packet.sources[0].sourceSha256,
-    fixture.sourceByRef.get(SELECTED_REF).sourceSha256);
+  assert.equal(
+    session.packet.sources[0].sourceSha256,
+    fixture.sourceByRef.get(SELECTED_REF).sourceSha256,
+  );
 });
 
 test('wrong selected bytes, hash, UTF-8 span and native-object identity are refused', () => {
   const wrongBytes = clone(fixture.selectedInput);
-  wrongBytes.objectDefs[0].source.evidence.textSha256 = objectBytesSha256(Buffer.from('wrong bytes'));
-  assert.throws(() => compileSourceNativeSemanticConstruction({
-    options: fixture.options, input: wrongBytes,
-  }), { code: 'SEMANTIC_CONSTRUCTION_EVIDENCE' });
+  wrongBytes.objectDefs[0].source.evidence.textSha256 = objectBytesSha256(
+    Buffer.from('wrong bytes'),
+  );
+  assert.throws(
+    () =>
+      compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input: wrongBytes,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_EVIDENCE' },
+  );
 
   const wrongHash = clone(fixture.selectedInput);
-  wrongHash.objectDefs[0].source.evidence.sourceSha256 = objectBytesSha256(Buffer.from('wrong source'));
-  assert.throws(() => compileSourceNativeSemanticConstruction({
-    options: fixture.options, input: wrongHash,
-  }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
+  wrongHash.objectDefs[0].source.evidence.sourceSha256 = objectBytesSha256(
+    Buffer.from('wrong source'),
+  );
+  assert.throws(
+    () =>
+      compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input: wrongHash,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_SOURCE' },
+  );
 
   const wrongUtf8 = clone(fixture.selectedInput);
   const bytes = Buffer.from(fixture.selectedContent);
@@ -247,16 +308,26 @@ test('wrong selected bytes, hash, UTF-8 span and native-object identity are refu
   wrongUtf8.objectDefs[0].source.evidence.byteStart = utf8Start;
   wrongUtf8.objectDefs[0].source.evidence.byteEnd = utf8Start + 1;
   wrongUtf8.objectDefs[0].source.evidence.textSha256 = objectBytesSha256(utf8Span);
-  assert.throws(() => compileSourceNativeSemanticConstruction({
-    options: fixture.options, input: wrongUtf8,
-  }), { code: 'SEMANTIC_CONSTRUCTION_EVIDENCE' });
+  assert.throws(
+    () =>
+      compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input: wrongUtf8,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_EVIDENCE' },
+  );
 
   const wrongField = clone(fixture.selectedInput);
   wrongField.objectDefs[0].source.nativeObjectSha256 =
     fixture.objectByRef.get(UNRELATED_REF).nativeObjectSha256;
-  assert.throws(() => compileSourceNativeSemanticConstruction({
-    options: fixture.options, input: wrongField,
-  }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
+  assert.throws(
+    () =>
+      compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input: wrongField,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_SOURCE' },
+  );
 });
 
 test('forged current-cut binding mismatch is refused by the existing review API', () => {
@@ -264,35 +335,53 @@ test('forged current-cut binding mismatch is refused by the existing review API'
   stale.sourceBinding.sourceCommitSha256 = objectBytesSha256(Buffer.from('stale ref'));
   const { constructionSha256: _constructionSha256, ...core } = stale;
   stale.constructionSha256 = stableObjectSha256(core);
-  assert.throws(() => openSourceNativeConstructionReview({
-    options: fixture.options,
-    construction: stale,
-  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: fixture.options,
+        construction: stale,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
 });
 
 test('unknown source refs are refused rather than discovered from the whole Ont', () => {
   const unknown = clone(fixture.selectedInput);
-  unknown.coverage = [{
-    sourceRef: 'docs/unknown.md',
-    sourceSha256: objectBytesSha256(Buffer.from('unknown source')),
-    disposition: 'examined',
-  }];
-  assert.throws(() => compileSourceNativeSemanticConstruction({
-    options: fixture.options, input: unknown,
-  }), { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' });
+  unknown.coverage = [
+    {
+      sourceRef: 'docs/unknown.md',
+      sourceSha256: objectBytesSha256(Buffer.from('unknown source')),
+      disposition: 'examined',
+    },
+  ];
+  assert.throws(
+    () =>
+      compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input: unknown,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' },
+  );
 });
 
 test('unknown source refs do not trigger arbitrary source-pack reads', () => {
   const unknown = clone(fixture.selectedInput);
-  unknown.coverage = [{
-    sourceRef: 'docs/unknown-without-payload.md',
-    sourceSha256: objectBytesSha256(Buffer.from('unknown source')),
-    disposition: 'examined',
-  }];
+  unknown.coverage = [
+    {
+      sourceRef: 'docs/unknown-without-payload.md',
+      sourceSha256: objectBytesSha256(Buffer.from('unknown source')),
+      disposition: 'examined',
+    },
+  ];
   const sourcePackKeys = new Set([fixture.selectedPackKey, fixture.unrelatedPackKey]);
-  const observed = observeSourcePackReads(() => assert.throws(() =>
-    compileSourceNativeSemanticConstruction({ options: fixture.options, input: unknown }),
-  { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' }), sourcePackKeys);
+  const observed = observeSourcePackReads(
+    () =>
+      assert.throws(
+        () => compileSourceNativeSemanticConstruction({ options: fixture.options, input: unknown }),
+        { code: 'SEMANTIC_CONSTRUCTION_COVERAGE' },
+      ),
+    sourcePackKeys,
+  );
   assert.deepEqual(observed.sourcePackKeys, []);
 });
 
@@ -304,11 +393,18 @@ test('review size refusal precedes selected source payload reads', () => {
   });
   try {
     const sourcePackKeys = new Set([oversized.selectedPackKey, oversized.unrelatedPackKey]);
-    const observed = observeSourcePackReads(() => assert.throws(() =>
-      openSourceNativeConstructionReview({
-        options: oversized.options,
-        construction: oversized.construction,
-      }), { code: 'CONSTRUCTION_REVIEW_LIMIT' }), sourcePackKeys);
+    const observed = observeSourcePackReads(
+      () =>
+        assert.throws(
+          () =>
+            openSourceNativeConstructionReview({
+              options: oversized.options,
+              construction: oversized.construction,
+            }),
+          { code: 'CONSTRUCTION_REVIEW_LIMIT' },
+        ),
+      sourcePackKeys,
+    );
     assert.deepEqual(observed.sourcePackKeys, []);
   } finally {
     rmSync(oversized.root, { recursive: true, force: true });
@@ -319,10 +415,12 @@ test('selected compile can proceed when an uncited file envelope is corrupt', ()
   const isolated = makeFixture();
   try {
     corruptEnvelope(isolated.objectBackendRoot, isolated.unrelatedPackKey);
-    assert.doesNotThrow(() => compileSourceNativeSemanticConstruction({
-      options: isolated.options,
-      input: isolated.selectedInput,
-    }));
+    assert.doesNotThrow(() =>
+      compileSourceNativeSemanticConstruction({
+        options: isolated.options,
+        input: isolated.selectedInput,
+      }),
+    );
   } finally {
     rmSync(isolated.root, { recursive: true, force: true });
   }
@@ -332,10 +430,14 @@ test('selected file-envelope corruption remains fatal to existing compile', () =
   const isolated = makeFixture();
   try {
     corruptEnvelope(isolated.objectBackendRoot, isolated.selectedPackKey);
-    assert.throws(() => compileSourceNativeSemanticConstruction({
-      options: isolated.options,
-      input: isolated.selectedInput,
-    }), { code: 'OBJECT_BACKEND_CORRUPT' });
+    assert.throws(
+      () =>
+        compileSourceNativeSemanticConstruction({
+          options: isolated.options,
+          input: isolated.selectedInput,
+        }),
+      { code: 'OBJECT_BACKEND_CORRUPT' },
+    );
   } finally {
     rmSync(isolated.root, { recursive: true, force: true });
   }
@@ -361,8 +463,12 @@ test('an actual protected source-ref advance rejects the prior construction', ()
   const after = openProductState(successorOptions);
   assert.notEqual(after.descriptor.sourceCommitSha256, before.descriptor.sourceCommitSha256);
   assert.throws(() => openProductState(fixture.options), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
-  assert.throws(() => openSourceNativeConstructionReview({
-    options: successorOptions,
-    construction: fixture.construction,
-  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: successorOptions,
+        construction: fixture.construction,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
 });

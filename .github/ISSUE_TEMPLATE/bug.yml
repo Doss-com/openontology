@@ -1,6 +1,6 @@
 name: Bug report
 description: Report a reproducible OpenOntology defect.
-title: "bug: "
+title: 'bug: '
 labels: [bug]
 body:
   - type: markdown

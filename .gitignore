@@ -4,6 +4,8 @@ dist/
 *.tsbuildinfo
 *.log
 *.tgz
+release/
+.release/
 .env
 .env.*
 !.env.example

@@ -1,4 +1,21 @@
-# OpenOntology
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Doss-com/openontology/main/docs/assets/header-dark.svg">
+    <img src="https://raw.githubusercontent.com/Doss-com/openontology/main/docs/assets/header.svg" alt="OpenOntology. Verified context for agents." width="960">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Doss-com/openontology/actions/workflows/ci.yml"><img src="https://github.com/Doss-com/openontology/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://github.com/Doss-com/openontology/releases"><img src="https://img.shields.io/github/v/release/Doss-com/openontology?include_prereleases&amp;label=release&amp;color=4d4d4d" alt="Latest release, including prereleases"></a>
+  <a href="https://github.com/Doss-com/openontology/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Doss-com/openontology?color=4d4d4d" alt="Apache-2.0 license"></a>
+</p>
+
+<p align="center">
+  <a href="#two-minute-quickstart">Quickstart</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md">Contributing</a>
+</p>
 
 OpenOntology builds a typed map of source material and uses it to return
 verified context to agents. It resolves identities, checks recorded chronology
@@ -9,7 +26,7 @@ sufficient evidence receive a structured refusal.
 source observations -> Ont -> search, inspect and verify -> agent context
 ```
 
-The current release is [0.3.0-alpha.3](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.3).
+The current release is [0.3.0-alpha.4](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.4).
 This repository contains the open-source engine, CLI, SDK and MCP server.
 Hosted deployment and operation belong in a separate managed application.
 
@@ -19,7 +36,7 @@ Requires Node.js 24 or newer. Install the published package from your applicatio
 directory:
 
 ```bash
-npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.3/oont-0.3.0-alpha.3.tgz
+npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.4/oont-0.3.0-alpha.4.tgz
 ```
 
 The package and command are both named `oont`. Distribution is through GitHub
@@ -48,30 +65,94 @@ OpenOntology returns a JSON Verification. A successful result contains exact
 context and proof receipts. An ambiguous, unsupported, or incomplete question
 returns a typed refusal instead of a guessed answer.
 
-To supply data or publish an update, use [Source input and updates](docs/SOURCE-LIFECYCLE.md)
-and its [Adapter input reference](docs/SOURCE-LIFECYCLE.md#authoring-adapter-input).
+Selected fields from the actual command responses are shown below. Complete
+responses include hashes and receipts.
 
-## TypeScript and JavaScript
-
-```js
-import { openOntology } from 'oont'
-
-const ont = openOntology({ artifactRoot: './verified-context' })
-const result = await ont.verify('What is the current title of task-1?')
-
-if (result.answerable) {
-  console.log(result.context)
-} else {
-  console.log(result.state)
+```json
+{
+  "answerable": true,
+  "state": "resolved-current-field",
+  "context": [
+    {
+      "exactText": "Ship verified context",
+      "evidence": { "relativePath": "tracker/demo/task-1-v2.txt" }
+    }
+  ]
 }
 ```
 
-| Method | Use it to |
-| --- | --- |
+An unsupported question returns a typed refusal:
+
+```bash
+npx --no-install oont verify ./verified-context 'Who owns task-1?'
+```
+
+```json
+{
+  "answerable": false,
+  "state": "unavailable-native-field-not-declared",
+  "availableFields": [{ "sourceSystem": "tracker", "objectType": "task", "fieldPath": "title" }],
+  "context": []
+}
+```
+
+Next step: ask for the declared `title` field, or add and rebuild an `owner`
+field in the Adapter input. Do not treat a refusal as a guessed or partial
+answer.
+
+## First-use recipes
+
+### SDK
+
+```js
+import { openOntology } from 'oont';
+
+const ont = openOntology({ artifactRoot: './verified-context' });
+const result = await ont.verify('What is the current title of task-1?');
+
+if (result.answerable) {
+  console.log(result.context);
+} else {
+  console.log(result.state);
+}
+```
+
+### MCP
+
+Start the default stdio server to expose one `verify` tool:
+
+```bash
+npx --no-install oont serve ./verified-context --mcp
+```
+
+Send `{ "question": "What is the current title of task-1?" }` as the
+`verify` tool arguments. See [MCP usage](docs/QUERIES.md#mcp).
+
+### Publish an update
+
+Run the packaged lifecycle example with a new output directory:
+
+```bash
+node ./node_modules/oont/examples/quickstart/source-lifecycle.mjs \
+  ./source-lifecycle-run
+```
+
+The fixture records `Prepare launch` first and `Ship verified context` second,
+so the current query returns the second revision. It then publishes
+`Keep context current` and reports the old descriptor as
+`SOURCE_NATIVE_PRODUCT_REF`. See [Source input and updates](docs/SOURCE-LIFECYCLE.md).
+
+## TypeScript and JavaScript
+
+The [SDK recipe](#sdk) is standard ESM JavaScript and can be saved as an
+`.mjs` file and run with Node.js 24 or newer. TypeScript uses the same API.
+
+| Method          | Use it to                                                      |
+| --------------- | -------------------------------------------------------------- |
 | `verify(query)` | Get verified source context or a reason it cannot be returned. |
-| `search(query)` | Find candidate source References. |
-| `read(ref)` | Inspect a Reference returned by the same client. |
-| `status()` | Check the opened Ont's metadata and integrity. |
+| `search(query)` | Find candidate source References.                              |
+| `read(ref)`     | Inspect a Reference returned by the same client.               |
+| `status()`      | Check the opened Ont's metadata and integrity.                 |
 
 Start with `verify`; use `search` and `read` when you want to inspect candidates
 yourself. Results describe the recorded source snapshot, not the live source
@@ -86,7 +167,7 @@ for the TypeScript source and JavaScript build output.
 
 `oont/kernel` exposes source publication, protected history, semantic construction
 and reviewed knowledge reuse for Adapters and managed applications. These exports
-ship in alpha.3; the root `oont` client is read-only.
+ship in the kernel; the root `oont` client is read-only.
 
 Managed applications consume pinned package releases and own authentication,
 source scheduling, model workers, billing and deployment outside this repository.
@@ -170,14 +251,14 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 
 ## Documentation
 
-| I want to... | Start here |
-| --- | --- |
-| Query an Ont and handle the result | [Queries and results](docs/QUERIES.md) |
-| Bring in data and publish updates | [Source input and updates](docs/SOURCE-LIFECYCLE.md) |
-| Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md) |
-| Understand the engine | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md) |
-| Configure storage or recover a snapshot | [Storage](docs/STORAGE.md) |
-| Change the code | [Contributing](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) |
+| I want to...                               | Start here                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Query an Ont and handle the result         | [Queries and results](docs/QUERIES.md)                                             |
+| Bring in data and publish updates          | [Source input and updates](docs/SOURCE-LIFECYCLE.md)                               |
+| Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md)                         |
+| Understand the engine                      | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md)                   |
+| Configure storage or recover a snapshot    | [Storage](docs/STORAGE.md)                                                         |
+| Change the code                            | [Contributing](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) |
 
 ## Alpha limitations
 
@@ -196,7 +277,7 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
   source publication and Admission require explicit operator configuration;
   hosted source refresh and review workers are not included.
 - The published root client opens local Ont descriptors. Remote SDK/CLI access
-  is not part of alpha.3.
+  is not included yet.
 - A typed refusal is a valid integrity result, not a transport failure.
 
 ## Develop

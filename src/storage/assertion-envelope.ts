@@ -36,9 +36,10 @@ export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null);
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   const record = value as Record<string, unknown>;
-  const keys = Object.keys(record).filter((key) => record[key] !== undefined).sort();
-  return `{${keys.map((key) =>
-    `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
+  const keys = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
 }
 
 export function sha256Hex(value: string): string {
@@ -83,9 +84,11 @@ export function entry({
 }: AssertionInput): AssertionEntry {
   const when = occurredAt ?? validFrom;
   if (CONCLUSION_KINDS.has(kind) && !((evidence?.length ?? 0) > 0)) {
-    throw new Error(`a '${kind}' conclusion cannot be written without evidence `
-      + `[G29, ED19]. Two evidence-free conclusions about one element are indistinguishable by `
-      + `construction, so this would also collide with any other. About: ${about ?? 'ont'}`);
+    throw new Error(
+      `a '${kind}' conclusion cannot be written without evidence ` +
+        `[G29, ED19]. Two evidence-free conclusions about one element are indistinguishable by ` +
+        `construction, so this would also collide with any other. About: ${about ?? 'ont'}`,
+    );
   }
   const core = {
     kind,
@@ -123,8 +126,10 @@ export function entryProblem(entry: unknown): string | null {
   }
   const expected = mintEntryId(record);
   if (expected !== record.id) {
-    return `id ${record.id} does not match its content (expected ${expected}); `
-      + 'the line was edited without re-hashing';
+    return (
+      `id ${record.id} does not match its content (expected ${expected}); ` +
+      'the line was edited without re-hashing'
+    );
   }
   return null;
 }

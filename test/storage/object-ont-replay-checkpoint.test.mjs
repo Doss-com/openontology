@@ -19,16 +19,17 @@ function fail(code) {
 
 function openMemoryObjectBackend() {
   const objects = new Map();
-  const receipt = (key, object, extra = {}) => Object.freeze({
-    schemaVersion: 1,
-    kind: 'OpenOntologyObjectWriteReceiptV1',
-    key,
-    version: `memory-v1:${object.generation}`,
-    checksumSha256: objectBytesSha256(object.bytes),
-    byteLength: object.bytes.length,
-    generation: object.generation,
-    ...extra,
-  });
+  const receipt = (key, object, extra = {}) =>
+    Object.freeze({
+      schemaVersion: 1,
+      kind: 'OpenOntologyObjectWriteReceiptV1',
+      key,
+      version: `memory-v1:${object.generation}`,
+      checksumSha256: objectBytesSha256(object.bytes),
+      byteLength: object.bytes.length,
+      generation: object.generation,
+      ...extra,
+    });
   return {
     capabilities: Object.freeze({ backend: 'memory-test' }),
     head(key) {
@@ -39,8 +40,13 @@ function openMemoryObjectBackend() {
       const object = objects.get(key);
       if (object === undefined) fail('OBJECT_BACKEND_NOT_FOUND');
       const finalEnd = end ?? object.bytes.length;
-      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(finalEnd)
-        || start < 0 || finalEnd < start || finalEnd > object.bytes.length) {
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(finalEnd) ||
+        start < 0 ||
+        finalEnd < start ||
+        finalEnd > object.bytes.length
+      ) {
         fail('OBJECT_BACKEND_RANGE');
       }
       return Object.freeze({
@@ -74,14 +80,10 @@ function openMemoryObjectBackend() {
   };
 }
 
-function instrumentBackend(raw, {
-  heads = [],
-  reads = [],
-  onHead = null,
-  onGet = null,
-  onPut = null,
-  onCas = null,
-} = {}) {
+function instrumentBackend(
+  raw,
+  { heads = [], reads = [], onHead = null, onGet = null, onPut = null, onCas = null } = {},
+) {
   return {
     capabilities: raw.capabilities,
     head(key, ...args) {
@@ -143,10 +145,20 @@ function basicCheckpointFixture({ payloads = true } = {}) {
   const raw = openMemoryObjectBackend();
   const store = openObjectOntStore({ backend: raw });
   const manifest = manifestFor(store);
-  const blobs = payloads ? [
-    store.putBlob({ logicalPath: 'blobs/a.json', bytes: Buffer.from('{"a":1}'), mediaType: 'application/json' }),
-    store.putBlob({ logicalPath: 'blobs/b.json', bytes: Buffer.from('{"b":2}'), mediaType: 'application/json' }),
-  ] : [];
+  const blobs = payloads
+    ? [
+        store.putBlob({
+          logicalPath: 'blobs/a.json',
+          bytes: Buffer.from('{"a":1}'),
+          mediaType: 'application/json',
+        }),
+        store.putBlob({
+          logicalPath: 'blobs/b.json',
+          bytes: Buffer.from('{"b":2}'),
+          mediaType: 'application/json',
+        }),
+      ]
+    : [];
   const commit = commitFor(store, manifest, 'checkpoint-fixture', { blobs });
   const activated = store.compareAndSwapRefMetadataCheckpointed({
     ontId: 'checkpoint-fixture',
@@ -171,20 +183,32 @@ test('publishes managed-compatible checkpoint bytes, hashes, and object key', ()
   assert.equal(checkpoint.schemaVersion, 1);
   assert.equal(checkpoint.kind, 'OpenOntologyObjectReplayIndexCheckpointV1');
   assert.deepEqual(Object.keys(checkpoint).sort(), [
-    'blobDescriptors', 'checkpointSha256', 'kind', 'manifestDescriptor',
-    'replayIdentity', 'schemaVersion',
+    'blobDescriptors',
+    'checkpointSha256',
+    'kind',
+    'manifestDescriptor',
+    'replayIdentity',
+    'schemaVersion',
   ]);
   assert.equal(checkpointSha256, stableObjectSha256(core));
   assert.equal(checkpoint.replayIdentity.kind, 'OpenOntologyObjectReplayV1');
   assert.equal(stableObjectSha256(checkpoint.replayIdentity), replay.replaySha256);
   assert.equal(checkpoint.manifestDescriptor.storedSha256, replay.ontManifestSha256);
-  assert.deepEqual(checkpoint.blobDescriptors.map((row) => row.key), replay.blobKeys);
+  assert.deepEqual(
+    checkpoint.blobDescriptors.map((row) => row.key),
+    replay.blobKeys,
+  );
   assert.equal(stableObjectText(checkpoint), bytes.toString('utf8'));
   assert.equal(activated.key, 'refs/checkpoint-fixture/main.json');
   assert.equal(activated.replayIndexCheckpointSha256, checkpointSha256);
-  assert.equal(store.readReplayIndexCheckpoint({
-    ontId: 'checkpoint-fixture', tipCommitSha256: commit.commitSha256, replaySha256: replay.replaySha256,
-  }).checksumSha256, objectBytesSha256(bytes));
+  assert.equal(
+    store.readReplayIndexCheckpoint({
+      ontId: 'checkpoint-fixture',
+      tipCommitSha256: commit.commitSha256,
+      replaySha256: replay.replaySha256,
+    }).checksumSha256,
+    objectBytesSha256(bytes),
+  );
   assert.equal(activated.replayMetadataSource, 'graph');
 });
 
@@ -197,11 +221,19 @@ test('returns equivalent graph metadata and preserves legacy missing-checkpoint 
   });
   assert.equal(checkpointSnapshot.replayMetadataSource, 'checkpoint');
   assert.deepEqual(checkpointSnapshot.replayMetadata, graphMetadata);
-  assert.deepEqual(store.readRefMetadataSnapshot({ ontId: 'checkpoint-fixture', branch: 'main' }).replayMetadata, graphMetadata);
+  assert.deepEqual(
+    store.readRefMetadataSnapshot({ ontId: 'checkpoint-fixture', branch: 'main' }).replayMetadata,
+    graphMetadata,
+  );
 
-  const legacyCommit = commitFor(store, store.readCommit(commit.commitSha256).commit.ontManifest, 'checkpoint-fixture', {
-    parents: [commit.commitSha256],
-  });
+  const legacyCommit = commitFor(
+    store,
+    store.readCommit(commit.commitSha256).commit.ontManifest,
+    'checkpoint-fixture',
+    {
+      parents: [commit.commitSha256],
+    },
+  );
   store.compareAndSwapRefMetadata({
     ontId: 'checkpoint-fixture',
     branch: 'legacy',
@@ -239,9 +271,11 @@ test('keeps all ref publication variants forward-only with stale-version precede
     });
     const fork = commitFor(store, forkManifest, `continuity-${name}-first`);
     assert.notEqual(fork.commitSha256, first.commitSha256, name);
-    assert.equal(store.replayMetadata(fork.commitSha256).commitOrder.includes(
-      first.commitSha256,
-    ), false, name);
+    assert.equal(
+      store.replayMetadata(fork.commitSha256).commitOrder.includes(first.commitSha256),
+      false,
+      name,
+    );
     const initial = publish(store, {
       ontId: `continuity-${name}-first`,
       branch: 'main',
@@ -260,24 +294,36 @@ test('keeps all ref publication variants forward-only with stale-version precede
       commitSha256: second.commitSha256,
     });
     assert.equal(equal.ref.commitSha256, second.commitSha256, name);
-    expectCode(() => publish(store, {
-      ontId: `continuity-${name}-first`,
-      branch: 'main',
-      expectedVersion: equal.version,
-      commitSha256: first.commitSha256,
-    }), 'OBJECT_ONT_REF_ROLLBACK');
-    expectCode(() => publish(store, {
-      ontId: `continuity-${name}-first`,
-      branch: 'main',
-      expectedVersion: initial.version,
-      commitSha256: fork.commitSha256,
-    }), 'OBJECT_BACKEND_PRECONDITION');
-    expectCode(() => publish(store, {
-      ontId: `continuity-${name}-first`,
-      branch: 'main',
-      expectedVersion: equal.version,
-      commitSha256: fork.commitSha256,
-    }), 'OBJECT_ONT_REF_ROLLBACK');
+    expectCode(
+      () =>
+        publish(store, {
+          ontId: `continuity-${name}-first`,
+          branch: 'main',
+          expectedVersion: equal.version,
+          commitSha256: first.commitSha256,
+        }),
+      'OBJECT_ONT_REF_ROLLBACK',
+    );
+    expectCode(
+      () =>
+        publish(store, {
+          ontId: `continuity-${name}-first`,
+          branch: 'main',
+          expectedVersion: initial.version,
+          commitSha256: fork.commitSha256,
+        }),
+      'OBJECT_BACKEND_PRECONDITION',
+    );
+    expectCode(
+      () =>
+        publish(store, {
+          ontId: `continuity-${name}-first`,
+          branch: 'main',
+          expectedVersion: equal.version,
+          commitSha256: fork.commitSha256,
+        }),
+      'OBJECT_ONT_REF_ROLLBACK',
+    );
     const fresh = publish(store, {
       ontId: `continuity-${name}-first`,
       branch: 'new',
@@ -302,7 +348,9 @@ test('preserves the winning head when it advances between ancestry read and CAS'
   const winner = commitFor(baseStore, winnerManifest, ontId, { parents: [first.commitSha256] });
   assert.notEqual(candidate.commitSha256, winner.commitSha256);
   const initial = baseStore.compareAndSwapRefMetadata({
-    ontId, branch: 'main', commitSha256: first.commitSha256,
+    ontId,
+    branch: 'main',
+    commitSha256: first.commitSha256,
   });
   const winnerReplay = baseStore.replayMetadata(winner.commitSha256);
   let injected = false;
@@ -316,27 +364,35 @@ test('preserves the winning head when it advances between ancestry read and CAS'
         injected = true;
         raw.compareAndSwap(key, {
           expectedVersion: initial.version,
-          bytes: Buffer.from(stableObjectText({
-            ...initial.ref,
-            commitSha256: winner.commitSha256,
-            replayStatus: winnerReplay.status,
-            replaySha256: winnerReplay.replaySha256,
-          })),
+          bytes: Buffer.from(
+            stableObjectText({
+              ...initial.ref,
+              commitSha256: winner.commitSha256,
+              replayStatus: winnerReplay.status,
+              replaySha256: winnerReplay.replaySha256,
+            }),
+          ),
         });
       }
       return raw.compareAndSwap(key, options);
     },
   };
   const raceStore = openObjectOntStore({ backend: refBackend });
-  expectCode(() => raceStore.compareAndSwapRefMetadata({
-    ontId,
-    branch: 'main',
-    expectedVersion: initial.version,
-    commitSha256: candidate.commitSha256,
-  }), 'OBJECT_BACKEND_PRECONDITION');
+  expectCode(
+    () =>
+      raceStore.compareAndSwapRefMetadata({
+        ontId,
+        branch: 'main',
+        expectedVersion: initial.version,
+        commitSha256: candidate.commitSha256,
+      }),
+    'OBJECT_BACKEND_PRECONDITION',
+  );
   assert.equal(injected, true);
-  assert.equal(baseStore.readRefMetadata({ ontId, branch: 'main' }).ref.commitSha256,
-    winner.commitSha256);
+  assert.equal(
+    baseStore.readRefMetadata({ ontId, branch: 'main' }).ref.commitSha256,
+    winner.commitSha256,
+  );
 });
 
 test('uses one ref, checkpoint, and tip commit read over a 10000-cut history', () => {
@@ -380,61 +436,97 @@ test('fails closed for poisoned, wrongly bound, and non-canonical checkpoints', 
   const replay = store.replayMetadata(commit.commitSha256);
 
   const poisoned = instrumentBackend(raw, {
-    onGet: (key, result) => key.startsWith('replay-indexes/')
-      ? rewriteCheckpoint(result, (value) => { value.checkpointSha256 = `sha256:${'0'.repeat(64)}`; })
-      : result,
+    onGet: (key, result) =>
+      key.startsWith('replay-indexes/')
+        ? rewriteCheckpoint(result, (value) => {
+            value.checkpointSha256 = `sha256:${'0'.repeat(64)}`;
+          })
+        : result,
   });
-  expectCode(() => openObjectOntStore({ backend: poisoned }).readRefMetadataCheckpointSnapshot({
-    ontId: 'checkpoint-fixture', branch: 'main',
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  expectCode(
+    () =>
+      openObjectOntStore({ backend: poisoned }).readRefMetadataCheckpointSnapshot({
+        ontId: 'checkpoint-fixture',
+        branch: 'main',
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
 
   const reordered = instrumentBackend(raw, {
-    onGet: (key, result) => key.startsWith('replay-indexes/')
-      ? rewriteCheckpoint(result, (value) => { value.blobDescriptors.reverse(); })
-      : result,
+    onGet: (key, result) =>
+      key.startsWith('replay-indexes/')
+        ? rewriteCheckpoint(result, (value) => {
+            value.blobDescriptors.reverse();
+          })
+        : result,
   });
-  expectCode(() => openObjectOntStore({ backend: reordered }).readRefMetadataCheckpointSnapshot({
-    ontId: 'checkpoint-fixture', branch: 'main',
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  expectCode(
+    () =>
+      openObjectOntStore({ backend: reordered }).readRefMetadataCheckpointSnapshot({
+        ontId: 'checkpoint-fixture',
+        branch: 'main',
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
 
   const wrongOntStore = openObjectOntStore({ backend: raw });
-  expectCode(() => wrongOntStore.readReplayIndexCheckpoint({
-    ontId: 'different-ont', tipCommitSha256: commit.commitSha256, replaySha256: replay.replaySha256,
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
-  expectCode(() => wrongOntStore.readReplayIndexCheckpoint({
-    ontId: 'checkpoint-fixture',
-    tipCommitSha256: objectBytesSha256(Buffer.from('wrong-tip')),
-    replaySha256: replay.replaySha256,
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  expectCode(
+    () =>
+      wrongOntStore.readReplayIndexCheckpoint({
+        ontId: 'different-ont',
+        tipCommitSha256: commit.commitSha256,
+        replaySha256: replay.replaySha256,
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
+  expectCode(
+    () =>
+      wrongOntStore.readReplayIndexCheckpoint({
+        ontId: 'checkpoint-fixture',
+        tipCommitSha256: objectBytesSha256(Buffer.from('wrong-tip')),
+        replaySha256: replay.replaySha256,
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
 
   const wrongReplay = objectBytesSha256(Buffer.from('wrong-replay'));
   const aliased = instrumentBackend(raw, {
-    onHead: (key, args, backend) => key.startsWith('replay-indexes/')
-      ? backend.head(`replay-indexes/sha256/${replay.replaySha256.slice(7)}.json`, ...args)
-      : backend.head(key, ...args),
+    onHead: (key, args, backend) =>
+      key.startsWith('replay-indexes/')
+        ? backend.head(`replay-indexes/sha256/${replay.replaySha256.slice(7)}.json`, ...args)
+        : backend.head(key, ...args),
     onGet: (key, result, backend) => {
       if (!key.startsWith('replay-indexes/')) return result;
       return { ...backend.get(`replay-indexes/sha256/${replay.replaySha256.slice(7)}.json`), key };
     },
   });
-  expectCode(() => openObjectOntStore({ backend: aliased }).readReplayIndexCheckpoint({
-    ontId: 'checkpoint-fixture', tipCommitSha256: commit.commitSha256, replaySha256: wrongReplay,
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  expectCode(
+    () =>
+      openObjectOntStore({ backend: aliased }).readReplayIndexCheckpoint({
+        ontId: 'checkpoint-fixture',
+        tipCommitSha256: commit.commitSha256,
+        replaySha256: wrongReplay,
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
 
   const originalCheckpointKey = `replay-indexes/sha256/${replay.replaySha256.slice(7)}.json`;
   const forgedCheckpoint = JSON.parse(checkpointBytes(raw, originalCheckpointKey).toString('utf8'));
-  forgedCheckpoint.replayIdentity.assertionRows = [{
-    assertionId: 'as_forged',
-    lineSha256s: [`sha256:${'1'.repeat(64)}`],
-  }];
+  forgedCheckpoint.replayIdentity.assertionRows = [
+    {
+      assertionId: 'as_forged',
+      lineSha256s: [`sha256:${'1'.repeat(64)}`],
+    },
+  ];
   const forgedReplaySha256 = stableObjectSha256(forgedCheckpoint.replayIdentity);
   const { checkpointSha256: _oldCheckpointSha256, ...forgedCore } = forgedCheckpoint;
   forgedCheckpoint.checkpointSha256 = stableObjectSha256(forgedCore);
   const forgedBytes = Buffer.from(stableObjectText(forgedCheckpoint));
   const forged = instrumentBackend(raw, {
-    onHead: (key, args, backend) => key.startsWith('replay-indexes/')
-      ? backend.head(originalCheckpointKey, ...args)
-      : backend.head(key, ...args),
+    onHead: (key, args, backend) =>
+      key.startsWith('replay-indexes/')
+        ? backend.head(originalCheckpointKey, ...args)
+        : backend.head(key, ...args),
     onGet: (key, result, backend) => {
       if (!key.startsWith('replay-indexes/')) return result;
       const original = result ?? backend.get(originalCheckpointKey);
@@ -447,9 +539,15 @@ test('fails closed for poisoned, wrongly bound, and non-canonical checkpoints', 
       });
     },
   });
-  expectCode(() => openObjectOntStore({ backend: forged }).readReplayIndexCheckpoint({
-    ontId: 'checkpoint-fixture', tipCommitSha256: commit.commitSha256, replaySha256: forgedReplaySha256,
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT');
+  expectCode(
+    () =>
+      openObjectOntStore({ backend: forged }).readReplayIndexCheckpoint({
+        ontId: 'checkpoint-fixture',
+        tipCommitSha256: commit.commitSha256,
+        replaySha256: forgedReplaySha256,
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT',
+  );
 });
 
 test('rejects assertion-bearing replay and publishes checkpoint before CAS', () => {
@@ -462,21 +560,35 @@ test('rejects assertion-bearing replay and publishes checkpoint before CAS', () 
     jsonlBytes: Buffer.from(`${JSON.stringify(assertion)}\n`),
   });
   const assertionCommit = commitFor(writer, manifest, 'assertion-fixture', { segments: [segment] });
-  expectCode(() => writer.compareAndSwapRefMetadataCheckpointed({
-    ontId: 'assertion-fixture', branch: 'main', commitSha256: assertionCommit.commitSha256,
-  }), 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_ELIGIBILITY');
+  expectCode(
+    () =>
+      writer.compareAndSwapRefMetadataCheckpointed({
+        ontId: 'assertion-fixture',
+        branch: 'main',
+        commitSha256: assertionCommit.commitSha256,
+      }),
+    'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_ELIGIBILITY',
+  );
   assert.equal(raw.head('refs/assertion-fixture/main.json'), null);
 
   const failRaw = openMemoryObjectBackend();
   const failedWrites = instrumentBackend(failRaw, {
-    onPut: (key) => { if (key.startsWith('replay-indexes/')) fail('TEST_CHECKPOINT_WRITE'); },
+    onPut: (key) => {
+      if (key.startsWith('replay-indexes/')) fail('TEST_CHECKPOINT_WRITE');
+    },
   });
   const failedWriter = openObjectOntStore({ backend: failedWrites });
   const failedManifest = manifestFor(failedWriter);
   const failedCommit = commitFor(failedWriter, failedManifest, 'write-failure-fixture');
-  expectCode(() => failedWriter.compareAndSwapRefMetadataCheckpointed({
-    ontId: 'write-failure-fixture', branch: 'main', commitSha256: failedCommit.commitSha256,
-  }), 'TEST_CHECKPOINT_WRITE');
+  expectCode(
+    () =>
+      failedWriter.compareAndSwapRefMetadataCheckpointed({
+        ontId: 'write-failure-fixture',
+        branch: 'main',
+        commitSha256: failedCommit.commitSha256,
+      }),
+    'TEST_CHECKPOINT_WRITE',
+  );
   assert.equal(failRaw.head('refs/write-failure-fixture/main.json'), null);
 
   const loserRaw = openMemoryObjectBackend();
@@ -484,14 +596,21 @@ test('rejects assertion-bearing replay and publishes checkpoint before CAS', () 
   const loserManifest = manifestFor(loserWriter);
   const loserCommit = commitFor(loserWriter, loserManifest, 'cas-loser-fixture');
   const loserReplay = loserWriter.replayMetadata(loserCommit.commitSha256);
-  expectCode(() => loserWriter.compareAndSwapRefMetadataCheckpointed({
-    ontId: 'cas-loser-fixture',
-    branch: 'main',
-    expectedVersion: 'memory-v1:99',
-    commitSha256: loserCommit.commitSha256,
-  }), 'OBJECT_BACKEND_PRECONDITION');
+  expectCode(
+    () =>
+      loserWriter.compareAndSwapRefMetadataCheckpointed({
+        ontId: 'cas-loser-fixture',
+        branch: 'main',
+        expectedVersion: 'memory-v1:99',
+        commitSha256: loserCommit.commitSha256,
+      }),
+    'OBJECT_BACKEND_PRECONDITION',
+  );
   assert.equal(loserRaw.head('refs/cas-loser-fixture/main.json'), null);
-  assert.equal(loserRaw.head(`replay-indexes/sha256/${loserReplay.replaySha256.slice(7)}.json`) !== null, true);
+  assert.equal(
+    loserRaw.head(`replay-indexes/sha256/${loserReplay.replaySha256.slice(7)}.json`) !== null,
+    true,
+  );
 });
 
 test('refuses checkpoint-key poisoning before advancing a ref', () => {
@@ -504,8 +623,14 @@ test('refuses checkpoint-key poisoning before advancing a ref', () => {
     `replay-indexes/sha256/${replay.replaySha256.slice(7)}.json`,
     Buffer.from('poison'),
   );
-  expectCode(() => store.compareAndSwapRefMetadataCheckpointed({
-    ontId: 'poison-fixture', branch: 'main', commitSha256: commit.commitSha256,
-  }), 'OBJECT_BACKEND_PRECONDITION');
+  expectCode(
+    () =>
+      store.compareAndSwapRefMetadataCheckpointed({
+        ontId: 'poison-fixture',
+        branch: 'main',
+        commitSha256: commit.commitSha256,
+      }),
+    'OBJECT_BACKEND_PRECONDITION',
+  );
   assert.equal(raw.head('refs/poison-fixture/main.json'), null);
 });

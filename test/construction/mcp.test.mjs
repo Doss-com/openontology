@@ -11,12 +11,9 @@ import {
   SOURCE_NATIVE_PRODUCT_TOOLS,
 } from '../../dist/product/mcp.js';
 
-const at = day => `2026-09-${String(day).padStart(2, '0')}T00:00:00.000Z`;
-const signature = (statement, key) => sign(
-  null,
-  Buffer.from(kernel.stableObjectText(statement)),
-  key,
-).toString('base64');
+const at = (day) => `2026-09-${String(day).padStart(2, '0')}T00:00:00.000Z`;
+const signature = (statement, key) =>
+  sign(null, Buffer.from(kernel.stableObjectText(statement)), key).toString('base64');
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'oont-construction-mcp-'));
@@ -76,18 +73,24 @@ function fixture(t) {
       },
       fields: [
         { fieldPath: 'body', value: source.content },
-        ...(index === 0 ? [] : [{
-          fieldPath: 'status',
-          value: index === 1 ? 'open' : 'closed',
-        }]),
+        ...(index === 0
+          ? []
+          : [
+              {
+                fieldPath: 'status',
+                value: index === 1 ? 'open' : 'closed',
+              },
+            ]),
       ],
     })),
   };
   kernel.buildSourceNativeProduct({ ...options, input: buildInput });
   const state = kernel.openProductState(options);
-  const witness = relativePath => {
-    const object = state.objectOnt.map.nativeObjects.find(item => item.relativePath === relativePath);
-    const source = sources.find(item => item.relativePath === relativePath);
+  const witness = (relativePath) => {
+    const object = state.objectOnt.map.nativeObjects.find(
+      (item) => item.relativePath === relativePath,
+    );
+    const source = sources.find((item) => item.relativePath === relativePath);
     return {
       nativeObjectSha256: object.nativeObjectSha256,
       evidence: {
@@ -103,17 +106,21 @@ function fixture(t) {
     proposedBy: 'constructor',
     proposedAt: at(2),
     method: 'authored',
-    objectDefs: [{
-      kind: 'ObjectDef',
-      id: 'allocation-exception',
-      name: 'AllocationException',
-      source: witness('docs/guide.txt'),
-      aliases: [{
-        value: 'allocation mismatch',
-        sourceSystem: 'clickup',
-        source: witness('clickup/CT-17.txt'),
-      }],
-    }],
+    objectDefs: [
+      {
+        kind: 'ObjectDef',
+        id: 'allocation-exception',
+        name: 'AllocationException',
+        source: witness('docs/guide.txt'),
+        aliases: [
+          {
+            value: 'allocation mismatch',
+            sourceSystem: 'clickup',
+            source: witness('clickup/CT-17.txt'),
+          },
+        ],
+      },
+    ],
     claims: [
       {
         kind: 'Claim',
@@ -130,7 +137,7 @@ function fixture(t) {
         source: witness(source.relativePath),
       })),
     ],
-    coverage: state.objectOnt.sources.map(source => ({
+    coverage: state.objectOnt.sources.map((source) => ({
       sourceRef: source.relativePath,
       sourceSha256: source.sourceSha256,
       disposition: 'examined',
@@ -194,25 +201,30 @@ function errorCode(response) {
   return response.result.content[0].text;
 }
 
-test('construction advanced MCP forwards navigation and ordinary operations through one client', async t => {
+test('construction advanced MCP forwards navigation and ordinary operations through one client', async (t) => {
   const fixtureState = fixture(t);
   const { product } = fixtureState;
   const handler = createSourceNativeProductMcpHandler(product, { profile: 'advanced' });
   const listed = await handler.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
-  assert.deepEqual(listed.result.tools.map(tool => tool.name), ['search', 'read']);
+  assert.deepEqual(
+    listed.result.tools.map((tool) => tool.name),
+    ['search', 'read'],
+  );
   assert.equal(listed.result.tools[0].inputSchema.type, 'object');
   assert.equal(listed.result.tools[0].inputSchema.oneOf.length, 2);
-  assert.deepEqual(listed.result.tools[0].inputSchema.oneOf.map(schema => schema.required), [
-    ['question'],
-    ['term'],
-  ]);
+  assert.deepEqual(
+    listed.result.tools[0].inputSchema.oneOf.map((schema) => schema.required),
+    [['question'], ['term']],
+  );
   assert.match(listed.result.tools[1].inputSchema.properties.ref.pattern, /construction:/u);
 
-  const constructionSearch = resultValue(await call(handler, 2, 'search', {
-    term: 'allocation mismatch',
-    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
-    limit: 1,
-  }));
+  const constructionSearch = resultValue(
+    await call(handler, 2, 'search', {
+      term: 'allocation mismatch',
+      scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
+      limit: 1,
+    }),
+  );
   assert.equal(constructionSearch.kind, 'OpenOntologyConstructionSearchResultV1');
   assert.equal(constructionSearch.state, 'resolved-construction-navigation');
   assert.equal(constructionSearch.matches.length, 1);
@@ -227,21 +239,26 @@ test('construction advanced MCP forwards navigation and ordinary operations thro
   assert.equal(constructionRead.binding.navigationOnly, true);
   assert.equal(constructionRead.binding.exactSourcesRemainAuthority, true);
 
-  const secondProduct = kernel.openSourceNativeProductWithConstruction(
-    fixtureState.options,
-    { trustRegistry: fixtureState.trustRegistry },
-  );
+  const secondProduct = kernel.openSourceNativeProductWithConstruction(fixtureState.options, {
+    trustRegistry: fixtureState.trustRegistry,
+  });
   const secondHandler = createSourceNativeProductMcpHandler(secondProduct, { profile: 'advanced' });
-  const secondSearch = resultValue(await call(secondHandler, 30, 'search', {
-    term: 'allocation mismatch',
-    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
-    limit: 1,
-  }));
+  const secondSearch = resultValue(
+    await call(secondHandler, 30, 'search', {
+      term: 'allocation mismatch',
+      scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
+      limit: 1,
+    }),
+  );
   const secondRef = secondSearch.matches[0].ref;
-  assert.equal(resultValue(await call(secondHandler, 31, 'read', { ref: secondRef })).kind,
-    'OpenOntologyConstructionReadResultV1');
-  assert.equal(errorCode(await call(handler, 32, 'read', { ref: secondRef })),
-    'CONSTRUCTION_NAVIGATION_REFERENCE');
+  assert.equal(
+    resultValue(await call(secondHandler, 31, 'read', { ref: secondRef })).kind,
+    'OpenOntologyConstructionReadResultV1',
+  );
+  assert.equal(
+    errorCode(await call(handler, 32, 'read', { ref: secondRef })),
+    'CONSTRUCTION_NAVIGATION_REFERENCE',
+  );
 
   const ordinaryQuery = {
     question: 'What is the current status for CT-17?',
@@ -255,30 +272,42 @@ test('construction advanced MCP forwards navigation and ordinary operations thro
   const ordinarySearch = resultValue(await call(handler, 4, 'search', ordinaryQuery));
   assert.equal(ordinarySearch.kind, 'OpenOntologySourceNativeProductSearchResultV2');
   assert.equal(ordinarySearch.matches[0].requiredForProof, true);
-  const ordinaryRead = resultValue(await call(handler, 5, 'read', {
-    ref: ordinarySearch.matches[0].ref,
-  }));
+  const ordinaryRead = resultValue(
+    await call(handler, 5, 'read', {
+      ref: ordinarySearch.matches[0].ref,
+    }),
+  );
   assert.equal(ordinaryRead.exactText, 'open');
 
   const verifyHandler = createSourceNativeProductMcpHandler(product, { profile: 'verify' });
   const verifyTools = await verifyHandler.handle({ jsonrpc: '2.0', id: 6, method: 'tools/list' });
-  assert.deepEqual(verifyTools.result.tools.map(tool => tool.name), ['verify']);
+  assert.deepEqual(
+    verifyTools.result.tools.map((tool) => tool.name),
+    ['verify'],
+  );
   const verification = resultValue(await call(verifyHandler, 7, 'verify', ordinaryQuery));
   assert.equal(verification.answerable, true);
   assert.equal(verification.context[0].exactText, 'open');
 
-  const unbound = resultValue(await call(verifyHandler, 8, 'verify', {
-    question: 'What is the current status?',
-    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask', field: 'status' },
-  }));
+  const unbound = resultValue(
+    await call(verifyHandler, 8, 'verify', {
+      question: 'What is the current status?',
+      scope: { sourceSystem: 'clickup', objectType: 'ClickupTask', field: 'status' },
+    }),
+  );
   assert.equal(unbound.answerable, false);
   assert.equal(unbound.context.length, 0);
-  assert.equal(errorCode(await call(verifyHandler, 9, 'verify', {
-    term: 'allocation mismatch',
-  })), 'SOURCE_NATIVE_PRODUCT_QUERY');
+  assert.equal(
+    errorCode(
+      await call(verifyHandler, 9, 'verify', {
+        term: 'allocation mismatch',
+      }),
+    ),
+    'SOURCE_NATIVE_PRODUCT_QUERY',
+  );
 });
 
-test('construction MCP rejects mixed, invalid and foreign inputs without changing ordinary clients', async t => {
+test('construction MCP rejects mixed, invalid and foreign inputs without changing ordinary clients', async (t) => {
   const { product } = fixture(t);
   const constructionHandler = createSourceNativeProductMcpHandler(product, { profile: 'advanced' });
   for (const argumentsValue of [
@@ -291,38 +320,78 @@ test('construction MCP rejects mixed, invalid and foreign inputs without changin
     { term: 'allocation mismatch', limit: 1.5 },
     { term: 'allocation mismatch', conceptId: '../other' },
   ]) {
-    assert.equal(errorCode(await call(constructionHandler, randomUUID(), 'search', argumentsValue)),
-      'SOURCE_NATIVE_PRODUCT_QUERY');
+    assert.equal(
+      errorCode(await call(constructionHandler, randomUUID(), 'search', argumentsValue)),
+      'SOURCE_NATIVE_PRODUCT_QUERY',
+    );
   }
-  assert.equal(errorCode(await call(constructionHandler, 20, 'verify', {
-    question: 'What is true?',
-  })), 'SOURCE_NATIVE_PRODUCT_TOOL_NOT_FOUND');
-  assert.equal(errorCode(await call(constructionHandler, 21, 'read', {
-    ref: `construction:${randomUUID()}`,
-  })), 'CONSTRUCTION_NAVIGATION_REFERENCE');
-  const offered = resultValue(await call(constructionHandler, 24, 'search', {
-    term: 'allocation mismatch',
-    scope: { sourceSystem: 'clickup' },
-    limit: 1,
-  })).matches[0].ref;
-  assert.equal(errorCode(await call(constructionHandler, 25, 'read', {
-    ref: offered,
-    extra: true,
-  })), 'SOURCE_NATIVE_PRODUCT_QUERY');
+  assert.equal(
+    errorCode(
+      await call(constructionHandler, 20, 'verify', {
+        question: 'What is true?',
+      }),
+    ),
+    'SOURCE_NATIVE_PRODUCT_TOOL_NOT_FOUND',
+  );
+  assert.equal(
+    errorCode(
+      await call(constructionHandler, 21, 'read', {
+        ref: `construction:${randomUUID()}`,
+      }),
+    ),
+    'CONSTRUCTION_NAVIGATION_REFERENCE',
+  );
+  const offered = resultValue(
+    await call(constructionHandler, 24, 'search', {
+      term: 'allocation mismatch',
+      scope: { sourceSystem: 'clickup' },
+      limit: 1,
+    }),
+  ).matches[0].ref;
+  assert.equal(
+    errorCode(
+      await call(constructionHandler, 25, 'read', {
+        ref: offered,
+        extra: true,
+      }),
+    ),
+    'SOURCE_NATIVE_PRODUCT_QUERY',
+  );
 
-  const ordinary = createSourceNativeProductMcpHandler({
-    ...product,
-    kind: 'OpenOntologySourceNativeAdmittedKnowledgeProductV1',
-  }, { profile: 'advanced' });
-  assert.deepEqual(ordinary.tools.map(tool => tool.name), ['search', 'read']);
-  assert.equal(errorCode(await call(ordinary, 22, 'search', {
-    term: 'allocation mismatch',
-  })), 'SOURCE_NATIVE_PRODUCT_QUERY');
-  assert.equal(errorCode(await call(ordinary, 23, 'read', {
-    ref: `construction:${randomUUID()}`,
-  })), 'SOURCE_NATIVE_PRODUCT_READ');
-  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.advanced.map(tool => tool.name), ['search', 'read']);
+  const ordinary = createSourceNativeProductMcpHandler(
+    {
+      ...product,
+      kind: 'OpenOntologySourceNativeAdmittedKnowledgeProductV1',
+    },
+    { profile: 'advanced' },
+  );
+  assert.deepEqual(
+    ordinary.tools.map((tool) => tool.name),
+    ['search', 'read'],
+  );
+  assert.equal(
+    errorCode(
+      await call(ordinary, 22, 'search', {
+        term: 'allocation mismatch',
+      }),
+    ),
+    'SOURCE_NATIVE_PRODUCT_QUERY',
+  );
+  assert.equal(
+    errorCode(
+      await call(ordinary, 23, 'read', {
+        ref: `construction:${randomUUID()}`,
+      }),
+    ),
+    'SOURCE_NATIVE_PRODUCT_READ',
+  );
+  assert.deepEqual(
+    SOURCE_NATIVE_PRODUCT_TOOLS.advanced.map((tool) => tool.name),
+    ['search', 'read'],
+  );
   assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.advanced[0].inputSchema.required, ['question']);
-  assert.equal(SOURCE_NATIVE_PRODUCT_TOOLS.advanced[1].inputSchema.properties.ref.pattern,
-    '^evidence:[0-9a-f]{64}$');
+  assert.equal(
+    SOURCE_NATIVE_PRODUCT_TOOLS.advanced[1].inputSchema.properties.ref.pattern,
+    '^evidence:[0-9a-f]{64}$',
+  );
 });

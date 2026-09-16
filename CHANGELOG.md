@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.4
+
+- Add checked first-use examples and light/dark README headers with live badges.
+- Add formatting and focused rebuild/test commands, including watch mode.
+- Generate source inventories at release time and remove frozen version,
+  script-count and package-file-count checks.
+- Prepare manual npm publication of the existing attested GitHub release archive.
+- Remove repeated evidence type guards and centralize knowledge correction checks.
 - Build with TypeScript 7.0.2 while retaining the Node 24 runtime minimum.
 - Organize production source by responsibility and use `.ts` files with ESM
   `.js` output and `.d.ts` declarations. Public imports and query behavior are unchanged.

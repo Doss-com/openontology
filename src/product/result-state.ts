@@ -28,4 +28,4 @@ export const OPENONTOLOGY_RESULT_STATES = [
   'verified-native-object-absent-from-bound-source-catalog',
 ] as const;
 
-export type OpenOntologyResultState = typeof OPENONTOLOGY_RESULT_STATES[number];
+export type OpenOntologyResultState = (typeof OPENONTOLOGY_RESULT_STATES)[number];

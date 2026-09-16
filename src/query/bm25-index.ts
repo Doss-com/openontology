@@ -27,21 +27,31 @@ export interface Bm25Index<TDocument> {
 const DEFAULTS = Object.freeze({ k1: 1.2, b: 0.75 });
 
 export const bm25Tokens = (text: unknown): string[] =>
-  String(text ?? '').toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? [];
+  String(text ?? '')
+    .toLowerCase()
+    .match(/[\p{L}\p{N}_-]+/gu) ?? [];
 
-export function createBm25Index<TDocument extends object>(documents: TDocument[], {
-  idOf = (row) => Reflect.get(row, 'id'),
-  textOf = (row) => Reflect.get(row, 'text'),
-  tokenize = bm25Tokens,
-  k1 = DEFAULTS.k1,
-  b = DEFAULTS.b,
-}: Bm25IndexOptions<TDocument> = {}): Bm25Index<TDocument> {
-  if (!Array.isArray(documents)
-    || typeof idOf !== 'function'
-    || typeof textOf !== 'function'
-    || typeof tokenize !== 'function'
-    || !Number.isFinite(k1) || k1 <= 0
-    || !Number.isFinite(b) || b < 0 || b > 1) {
+export function createBm25Index<TDocument extends object>(
+  documents: TDocument[],
+  {
+    idOf = (row) => Reflect.get(row, 'id'),
+    textOf = (row) => Reflect.get(row, 'text'),
+    tokenize = bm25Tokens,
+    k1 = DEFAULTS.k1,
+    b = DEFAULTS.b,
+  }: Bm25IndexOptions<TDocument> = {},
+): Bm25Index<TDocument> {
+  if (
+    !Array.isArray(documents) ||
+    typeof idOf !== 'function' ||
+    typeof textOf !== 'function' ||
+    typeof tokenize !== 'function' ||
+    !Number.isFinite(k1) ||
+    k1 <= 0 ||
+    !Number.isFinite(b) ||
+    b < 0 ||
+    b > 1
+  ) {
     throw new TypeError('documents/options');
   }
 
@@ -81,7 +91,7 @@ export function createBm25Index<TDocument extends object>(documents: TDocument[]
   const documentFrequency = new Map<string, number>(
     [...postings].map(([token, posting]) => [token, posting.length]),
   );
-  const score = (row: typeof rows[number], queryTokens: string[]): number => {
+  const score = (row: (typeof rows)[number], queryTokens: string[]): number => {
     let value = 0;
     for (const token of queryTokens) {
       const termFrequency = row.frequency.get(token) ?? 0;
@@ -90,9 +100,9 @@ export function createBm25Index<TDocument extends object>(documents: TDocument[]
       const inverseDocumentFrequency = Math.log(
         1 + (rows.length - matchingDocuments + 0.5) / (matchingDocuments + 0.5),
       );
-      const denominator = termFrequency
-        + k1 * (1 - b + b * row.tokens.length / (averageLength || 1));
-      value += inverseDocumentFrequency * termFrequency * (k1 + 1) / denominator;
+      const denominator =
+        termFrequency + k1 * (1 - b + (b * row.tokens.length) / (averageLength || 1));
+      value += (inverseDocumentFrequency * termFrequency * (k1 + 1)) / denominator;
     }
     return value;
   };

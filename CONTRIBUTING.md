@@ -22,23 +22,35 @@ npm ci
 npm test
 ```
 
+For an iterative source and test loop, run `npm run dev` once or
+`npm run dev:watch` to rebuild and run the Node test suite after changes. The
+watch loop cleans and rebuilds `dist/` before every test run, so a failed
+compile never executes stale generated output. Stop it with Ctrl-C.
+
+Pass a test file to keep the loop focused:
+
+```bash
+npm run dev -- test/query/field-resolution.test.mjs
+npm run dev:watch -- test/query/field-resolution.test.mjs
+```
+
 ## Repository structure
 
-| Location | Contents |
-| --- | --- |
-| [src/openontology.ts](src/openontology.ts), [src/kernel.ts](src/kernel.ts) | Public SDK and kernel exports. |
-| [src/cli/](src/cli/) | CLI entrypoint and command handling. |
-| [src/product/](src/product/) | Query runtime and MCP transport. |
-| [src/source/](src/source/) | Source maps, identity census, publication and snapshot opening. |
-| [src/query/](src/query/) | Planning, retrieval, field resolution and source-bound verification. |
-| [src/proof/](src/proof/) | Proof contracts, authority projections and evaluation. |
-| [src/ledger/](src/ledger/) | Admission authentication and reviewed knowledge reuse. |
-| [src/construction/](src/construction/) | Concept construction, review, Admission, navigation and exploration. |
-| [src/storage/](src/storage/) | Object store, history and backend Adapters. |
-| [test/](test/) | Tests grouped by the source area they exercise. |
-| [scripts/](scripts/) | Build, release and provider-qualification tools. |
-| [examples/quickstart/](examples/quickstart/) | Runnable examples and synthetic source input. |
-| [docs/](docs/) | Query, architecture, lifecycle and storage guides. |
+| Location                                                                   | Contents                                                             |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [src/openontology.ts](src/openontology.ts), [src/kernel.ts](src/kernel.ts) | Public SDK and kernel exports.                                       |
+| [src/cli/](src/cli/)                                                       | CLI entrypoint and command handling.                                 |
+| [src/product/](src/product/)                                               | Query runtime and MCP transport.                                     |
+| [src/source/](src/source/)                                                 | Source maps, identity census, publication and snapshot opening.      |
+| [src/query/](src/query/)                                                   | Planning, retrieval, field resolution and source-bound verification. |
+| [src/proof/](src/proof/)                                                   | Proof contracts, authority projections and evaluation.               |
+| [src/ledger/](src/ledger/)                                                 | Admission authentication and reviewed knowledge reuse.               |
+| [src/construction/](src/construction/)                                     | Concept construction, review, Admission, navigation and exploration. |
+| [src/storage/](src/storage/)                                               | Object store, history and backend Adapters.                          |
+| [test/](test/)                                                             | Tests grouped by the source area they exercise.                      |
+| [scripts/](scripts/)                                                       | Build, release and provider-qualification tools.                     |
+| [examples/quickstart/](examples/quickstart/)                               | Runnable examples and synthetic source input.                        |
+| [docs/](docs/)                                                             | Query, architecture, lifecycle and storage guides.                   |
 
 All production source, including the CLI, uses `.ts`. `npm run build` compiles
 `src/` to ESM `.js`, `.d.ts` declarations and source maps under `dist/`.
@@ -93,6 +105,16 @@ npm run release:check
 TypeScript and Node type versions are pinned in `package.json`. When updating
 them, keep the Node 24 runtime floor and Node 24/26 CI checks passing.
 
+Formatting is development-only and does not add runtime dependencies:
+
+```bash
+npm run format
+npm run format:check
+```
+
+The repository uses Prettier with the existing two-space, single-quote and
+semicolon style. Do not commit `dist/`, package archives or release output.
+
 GCS qualification is optional and credentialed:
 
 ```bash
@@ -113,28 +135,57 @@ line.
 
 ## Releases
 
-After editing tracked source or documentation, refresh the source inventory
-before running the release checks:
+To prepare a release:
+
+1. Update the version in `package.json` and `package-lock.json`.
+2. Add `.github/release-notes/v<version>.md`, update `CHANGELOG.md` and the install links.
+3. Run `npm run release:check`, then merge the reviewed PR after CI passes.
+4. Tag the merged commit as `v<version>` and push that tag. The release workflow
+   builds, verifies and publishes the GitHub release assets.
+
+The release workflow generates a source inventory into the release output and
+attaches it beside the package archive and `SHA256SUMS`. It is release
+metadata, not a committed source file or npm package entry. A local check is:
 
 ```bash
-npm run manifest:update
+mkdir -p release
+node scripts/update-source-manifest.mjs --output release/SOURCE-MANIFEST.json
 npm run release:check
 npm pack
 ```
 
-Stage any new source files before updating the manifest. It records tracked
-paths and hashes; generated packages and `dist/` must remain untracked. A local
-pack uses the checkout's package version but is not a published release.
-
-Published prereleases have a tag, package archive, `SHA256SUMS` and a GitHub
-attestation. Download the archive and checksum file from the same release, then
-verify them before installation:
+Published releases have a version tag, package archive, `SHA256SUMS`, source
+inventory and a GitHub package attestation. Verify the downloaded package before
+installation. For example, in a clean directory:
 
 ```bash
+VERSION=0.3.0-alpha.4
+gh release download "v${VERSION}" --repo Doss-com/openontology \
+  --pattern "oont-${VERSION}.tgz" --pattern SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-gh attestation verify ./oont-0.3.0-alpha.3.tgz --repo Doss-com/openontology
+gh attestation verify "./oont-${VERSION}.tgz" --repo Doss-com/openontology
 ```
 
-The source inventory, release checksums and attestation are release metadata,
-not files inside the npm archive. A locally packed archive has no GitHub release
-attestation; use `shasum -a 256 ./oont-0.3.0-alpha.3.tgz` to record its identity.
+The manual `npm-publish.yml` workflow publishes only a reviewed immutable tag.
+It requires the `PUBLISH` confirmation, an `npm-release` environment that
+repository administrators must configure with the intended reviewers, and npm
+trusted-publisher configuration for this repository. It downloads the exact
+attested GitHub release archive, then selects the `next` dist-tag for
+prereleases and `latest` for stable versions. The archival GitHub release
+workflow does not publish to npm.
+
+The first npm publication requires an authorized npm account. Once the package
+exists, configure its trusted publisher to use `Doss-com/openontology`, the
+`npm-publish.yml` workflow and the `npm-release` environment. Later publications
+use GitHub's short-lived identity, not a stored npm token.
+
+Dispatch from the same version tag so npm provenance identifies the released
+source commit:
+
+```bash
+gh workflow run npm-publish.yml --repo Doss-com/openontology \
+  --ref "v${VERSION}" -f tag="v${VERSION}" -f confirm=PUBLISH
+```
+
+A locally packed archive has no GitHub release attestation; use
+`shasum -a 256 ./oont-${VERSION}.tgz` to record its identity.

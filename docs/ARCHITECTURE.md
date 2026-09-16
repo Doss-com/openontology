@@ -1,7 +1,7 @@
 # Architecture
 
 OpenOntology compiles source observations into a typed map, then uses that map
-to return verified context. This guide describes `oont` 0.3.0-alpha.3.
+to return verified context. This guide describes `oont` 0.3.0-alpha.4.
 
 - Root SDK, CLI and MCP queries are read-only.
 - `oont/kernel` adds explicit source publication, semantic construction and

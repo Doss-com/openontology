@@ -10,8 +10,13 @@ export type CanonicalJsonValue = null | boolean | number | string | object;
 const stringifyStableObjectText = (value: unknown): string | undefined =>
   JSON.stringify(value, (_key: string, row: unknown) =>
     row && typeof row === 'object' && !Array.isArray(row)
-      ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
-      : row);
+      ? Object.fromEntries(
+          Object.keys(row)
+            .sort(compare)
+            .map((key) => [key, (row as Record<string, unknown>)[key]]),
+        )
+      : row,
+  );
 
 export const stableObjectText = (value: CanonicalJsonValue): string => {
   const text = stringifyStableObjectText(value);
@@ -24,15 +29,24 @@ export const objectBytesSha256 = (bytes: Uint8Array): string =>
 
 const STREAM_HASH_FALLBACK = Symbol('STREAM_HASH_FALLBACK');
 
-function updateStableObjectHash(hash: Hash, input: unknown, key: string, ancestors: Set<object>): void {
+function updateStableObjectHash(
+  hash: Hash,
+  input: unknown,
+  key: string,
+  ancestors: Set<object>,
+): void {
   let value = input;
-  const objectWithToJson = value && typeof value === 'object'
-    ? value as { toJSON?: (key: string) => unknown } : null;
+  const objectWithToJson =
+    value && typeof value === 'object' ? (value as { toJSON?: (key: string) => unknown }) : null;
   if (typeof objectWithToJson?.toJSON === 'function') {
     value = objectWithToJson.toJSON(key);
   }
-  if (value === null || typeof value === 'boolean' || typeof value === 'number'
-    || typeof value === 'string') {
+  if (
+    value === null ||
+    typeof value === 'boolean' ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
     hash.update(JSON.stringify(value));
     return;
   }
@@ -57,7 +71,8 @@ function updateStableObjectHash(hash: Hash, input: unknown, key: string, ancesto
     hash.update(']');
   } else {
     const ordered = Object.fromEntries(
-      Object.keys(value).sort(compare)
+      Object.keys(value)
+        .sort(compare)
         .map((childKey) => [childKey, (value as Record<string, unknown>)[childKey]]),
     );
     hash.update('{');

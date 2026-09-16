@@ -28,7 +28,10 @@ function memoryBackend({ mutateGet = null } = {}) {
   });
   const rawGet = (key, { start = 0, end = null } = {}) => {
     const row = rows.get(key);
-    if (!row) throw Object.assign(new Error('OBJECT_BACKEND_NOT_FOUND'), { code: 'OBJECT_BACKEND_NOT_FOUND' });
+    if (!row)
+      throw Object.assign(new Error('OBJECT_BACKEND_NOT_FOUND'), {
+        code: 'OBJECT_BACKEND_NOT_FOUND',
+      });
     const finalEnd = end === null ? row.bytes.length : end;
     return {
       ...makeReceipt(key, row),
@@ -42,7 +45,12 @@ function memoryBackend({ mutateGet = null } = {}) {
       kind: 'OpenOntologyObjectBackendCapabilitiesV1',
       backend: 'memory-test',
       contractSha256: 'sha256:' + '0'.repeat(64),
-      operations: { putIfAbsent: 'required', compareAndSwap: 'required', rangeGet: 'required', checksummedBytes: 'required' },
+      operations: {
+        putIfAbsent: 'required',
+        compareAndSwap: 'required',
+        rangeGet: 'required',
+        checksummedBytes: 'required',
+      },
       distributedObjectStore: false,
       multiProcessCas: false,
       singleProcessCas: true,
@@ -61,7 +69,9 @@ function memoryBackend({ mutateGet = null } = {}) {
       const existing = rows.get(key);
       if (existing) {
         if (!existing.bytes.equals(bytes)) {
-          throw Object.assign(new Error('OBJECT_BACKEND_PRECONDITION'), { code: 'OBJECT_BACKEND_PRECONDITION' });
+          throw Object.assign(new Error('OBJECT_BACKEND_PRECONDITION'), {
+            code: 'OBJECT_BACKEND_PRECONDITION',
+          });
         }
         return { ...makeReceipt(key, existing), replayed: true };
       }
@@ -73,7 +83,9 @@ function memoryBackend({ mutateGet = null } = {}) {
       const existing = rows.get(key);
       const actual = existing ? makeReceipt(key, existing).version : null;
       if (actual !== expectedVersion) {
-        throw Object.assign(new Error('OBJECT_BACKEND_PRECONDITION'), { code: 'OBJECT_BACKEND_PRECONDITION' });
+        throw Object.assign(new Error('OBJECT_BACKEND_PRECONDITION'), {
+          code: 'OBJECT_BACKEND_PRECONDITION',
+        });
       }
       const bytes = Buffer.from(input);
       const row = { bytes, checksumSha256: objectBytesSha256(bytes), generation: ++generation };
@@ -114,16 +126,29 @@ test('ObjectOntStore readBlobRange preserves full and partial range authority', 
 
 test('ObjectOntStore readBlobRange refuses bad metadata, bounds, and delivered length', () => {
   const cases = [
-    ['bad checksum metadata', (result) => ({ ...result, checksumSha256: 'sha256:' + 'f'.repeat(64) })],
+    [
+      'bad checksum metadata',
+      (result) => ({ ...result, checksumSha256: 'sha256:' + 'f'.repeat(64) }),
+    ],
     ['bad total length metadata', (result) => ({ ...result, byteLength: result.byteLength + 1 })],
-    ['truncated delivered body', (result) => ({ ...result, bytes: result.bytes.subarray(0, result.bytes.length - 1) })],
-    ['echoed range mismatch', (result) => ({ ...result, range: { start: result.range.start + 1, end: result.range.end } })],
+    [
+      'truncated delivered body',
+      (result) => ({ ...result, bytes: result.bytes.subarray(0, result.bytes.length - 1) }),
+    ],
+    [
+      'echoed range mismatch',
+      (result) => ({ ...result, range: { start: result.range.start + 1, end: result.range.end } }),
+    ],
   ];
   for (const [label, mutateGet] of cases) {
     const { store, descriptor } = putFixtureBlob(memoryBackend({ mutateGet }));
-    assert.throws(() => store.readBlobRange(descriptor, { start: 5, end: 8 }), {
-      code: 'OBJECT_ONT_BLOB_RANGE',
-    }, label);
+    assert.throws(
+      () => store.readBlobRange(descriptor, { start: 5, end: 8 }),
+      {
+        code: 'OBJECT_ONT_BLOB_RANGE',
+      },
+      label,
+    );
   }
 });
 
@@ -136,16 +161,22 @@ test('ObjectOntStore readBlobRange refuses invalid numeric and interval bounds',
     ['end beyond descriptor', { start: 0, end: descriptor.byteLength + 1 }],
   ];
   for (const [label, range] of invalidRanges) {
-    assert.throws(() => store.readBlobRange(descriptor, range), {
-      code: 'OBJECT_ONT_BLOB_RANGE',
-    }, label);
+    assert.throws(
+      () => store.readBlobRange(descriptor, range),
+      {
+        code: 'OBJECT_ONT_BLOB_RANGE',
+      },
+      label,
+    );
   }
 });
 
 test('matching stored checksum metadata does not certify corrupted partial bytes', () => {
-  const { store, descriptor } = putFixtureBlob(memoryBackend({
-    mutateGet: (result) => ({ ...result, bytes: Buffer.from('BAD') }),
-  }));
+  const { store, descriptor } = putFixtureBlob(
+    memoryBackend({
+      mutateGet: (result) => ({ ...result, bytes: Buffer.from('BAD') }),
+    }),
+  );
   const partial = store.readBlobRange(descriptor, { start: 5, end: 8 });
   assert.deepEqual(partial.bytes, Buffer.from('BAD'));
   assert.equal(partial.objectChecksumSha256, descriptor.storedSha256);
@@ -157,9 +188,12 @@ test('full-object range hashing rejects same-length corrupt bytes with matching 
   const original = Buffer.from('zero\none\ntwo\n');
   const corrupt = Buffer.from(original);
   corrupt[0] ^= 1;
-  const { store, descriptor } = putFixtureBlob(memoryBackend({
-    mutateGet: (result) => ({ ...result, bytes: corrupt }),
-  }), original);
+  const { store, descriptor } = putFixtureBlob(
+    memoryBackend({
+      mutateGet: (result) => ({ ...result, bytes: corrupt }),
+    }),
+    original,
+  );
   assert.throws(() => store.readBlobRange(descriptor), {
     code: 'OBJECT_ONT_BLOB_RANGE',
   });
@@ -213,8 +247,11 @@ test('ObjectOntStore range wrapper preserves a synthetic native GCS 206 response
 test('source reader rejects matching-header corrupt selected ranges and does not read unknown refs', async () => {
   const { createSourceNativeObjectOntSourceReader } =
     await import('../../dist/source/object-ont.js');
-  assert.equal(typeof createSourceNativeObjectOntSourceReader, 'function',
-    'source-reader factory is supplied by the selected-source implementation lane');
+  assert.equal(
+    typeof createSourceNativeObjectOntSourceReader,
+    'function',
+    'source-reader factory is supplied by the selected-source implementation lane',
+  );
 
   const root = mkdtempSync(join(tmpdir(), 'oont-source-reader-range-'));
   try {
@@ -241,10 +278,14 @@ test('source reader rejects matching-header corrupt selected ranges and does not
       kind: 'OpenOntologySourceNativeBuildInputV1',
       ontId: 'source-reader-range-fixture',
       namespace: 'source-reader-range-fixture',
-      querySchemas: [{
-        sourceSystem: 'docs', objectType: 'Document', aliases: ['document'],
-        fields: [{ fieldPath: 'body', aliases: ['body'] }],
-      }],
+      querySchemas: [
+        {
+          sourceSystem: 'docs',
+          objectType: 'Document',
+          aliases: ['document'],
+          fields: [{ fieldPath: 'body', aliases: ['body'] }],
+        },
+      ],
       sources,
       nativeObjectInputs: sources.map((source, index) => ({
         relativePath: source.relativePath,
@@ -273,10 +314,12 @@ test('source reader rejects matching-header corrupt selected ranges and does not
       branch: 'main',
     });
     assert(refIndex);
-    const selected = refIndex.objectOnt.sources.find((source) =>
-      source.relativePath === 'docs/a-selected.md');
-    const other = refIndex.objectOnt.sources.find((source) =>
-      source.relativePath === 'docs/b-other.md');
+    const selected = refIndex.objectOnt.sources.find(
+      (source) => source.relativePath === 'docs/a-selected.md',
+    );
+    const other = refIndex.objectOnt.sources.find(
+      (source) => source.relativePath === 'docs/b-other.md',
+    );
     assert(selected);
     assert(other);
     assert.equal(selected.blobDescriptor.key, other.blobDescriptor.key);
@@ -318,8 +361,10 @@ test('source reader rejects matching-header corrupt selected ranges and does not
       code: 'SOURCE_NATIVE_OBJECT_ONT_SOURCE',
     });
     assert.equal(requests.length, 1);
-    assert.equal(requests[0].headers.range,
-      `bytes=${selected.blobByteStart}-${selected.blobByteEnd - 1}`);
+    assert.equal(
+      requests[0].headers.range,
+      `bytes=${selected.blobByteStart}-${selected.blobByteEnd - 1}`,
+    );
 
     requests.length = 0;
     assert.throws(() => reader('docs/unknown.md'), {

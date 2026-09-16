@@ -1,0 +1,73 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Immutable reviewed release tag, for example v1.2.3 or v1.2.3-alpha.1
+        required: true
+        type: string
+      confirm:
+        description: Type PUBLISH to authorize publication of this tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: inputs.confirm == 'PUBLISH'
+    runs-on: ubuntu-latest
+    environment: npm-release
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Validate release and download attested asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const { execFileSync } = require('node:child_process')
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+          const tag = process.env.RELEASE_TAG
+          if (!/^v/.test(tag) || !semver.test(tag.slice(1))) throw new Error(`invalid release tag ${tag}`)
+          if (process.env.GITHUB_REF !== `refs/tags/${tag}`) throw new Error(`dispatch this workflow from tag ${tag}, not from a branch`)
+          const release = JSON.parse(execFileSync('gh', ['release', 'view', tag, '--repo', process.env.GITHUB_REPOSITORY, '--json', 'isDraft,tagName'], { encoding: 'utf8' }))
+          if (release.tagName !== tag || release.isDraft) throw new Error(`release ${tag} is missing or still a draft`)
+          fs.mkdirSync('release', { recursive: true })
+          execFileSync('gh', ['release', 'download', tag, '--repo', process.env.GITHUB_REPOSITORY, '--pattern', 'oont-*.tgz', '--pattern', 'SHA256SUMS', '--dir', 'release'], { stdio: 'inherit' })
+          const archives = fs.readdirSync('release').filter((name) => /^oont-.*\.tgz$/u.test(name))
+          if (archives.length !== 1) throw new Error(`expected one package archive, found ${archives.length}`)
+          fs.writeFileSync(process.env.GITHUB_ENV, `PACKAGE_FILE=release/${archives[0]}\n`, { flag: 'a' })
+          NODE
+          (cd release && shasum -a 256 -c SHA256SUMS)
+          PACKAGE_FILE="$(find release -maxdepth 1 -type f -name 'oont-*.tgz' -print -quit)"
+          gh attestation verify "$PACKAGE_FILE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --source-ref "refs/tags/$RELEASE_TAG" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+      - name: Verify archive identity and npm authority
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          tar -xOf "$PACKAGE_FILE" package/package.json > release/package.json
+          node <<'NODE'
+          const fs = require('node:fs')
+          const { execFileSync } = require('node:child_process')
+          const packageJson = JSON.parse(fs.readFileSync('release/package.json', 'utf8'))
+          const tag = process.env.RELEASE_TAG
+          if (packageJson.name !== 'oont') throw new Error(`unexpected package ${packageJson.name}`)
+          if (tag !== `v${packageJson.version}`) throw new Error(`tag ${tag} does not match package ${packageJson.version}`)
+          const [major, minor, patch] = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number)
+          if (major < 11 || major === 11 && (minor < 5 || minor === 5 && patch < 1)) throw new Error('npm 11.5.1 or newer is required for trusted publishing')
+          if (execFileSync('npm', ['config', 'get', 'registry'], { encoding: 'utf8' }).trim() !== 'https://registry.npmjs.org/') throw new Error('npm registry is not registry.npmjs.org')
+          fs.appendFileSync(process.env.GITHUB_ENV, `NPM_TAG=${packageJson.version.split('+', 1)[0].includes('-') ? 'next' : 'latest'}\n`)
+          NODE
+      - name: Publish reviewed release
+        run: npm publish "$PACKAGE_FILE" --ignore-scripts --access public --provenance --tag "$NPM_TAG"

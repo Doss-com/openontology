@@ -2,10 +2,8 @@
 
 ## Supported versions
 
-| Version | Supported |
-| --- | --- |
-| `0.3.0-alpha.3` | Yes, developer alpha |
-| `0.3.0-alpha.2` and earlier prereleases | No |
+Security fixes target the latest developer alpha. Older prereleases may require
+upgrading and rebuilding their Onts.
 
 ## Report a vulnerability
 

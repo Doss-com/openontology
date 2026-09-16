@@ -39,16 +39,23 @@ const fail = (code: string): never => {
 const nonempty = (value: unknown, code: string): string =>
   typeof value === 'string' && value.length > 0 ? value : fail(code);
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[], code: string): void => {
-  if (Object.keys(value).length !== keys.length
-    || Object.keys(value).some((key) => !keys.includes(key))) fail(code);
+  if (
+    Object.keys(value).length !== keys.length ||
+    Object.keys(value).some((key) => !keys.includes(key))
+  )
+    fail(code);
 };
-const plain = (value: unknown): value is Record<string, unknown> => value !== null
-  && typeof value === 'object' && !Array.isArray(value)
-  && Object.getPrototypeOf(value) === Object.prototype;
+const plain = (value: unknown): value is Record<string, unknown> =>
+  value !== null &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
 
 export function canonicalAdmissionSignature(value: unknown): string {
-  const signature = typeof value === 'string' && value.length > 0 && BASE64.test(value)
-    ? value : fail('SOURCE_NATIVE_ADMISSION_SIGNATURE');
+  const signature =
+    typeof value === 'string' && value.length > 0 && BASE64.test(value)
+      ? value
+      : fail('SOURCE_NATIVE_ADMISSION_SIGNATURE');
   const bytes = Buffer.from(signature, 'base64');
   if (bytes.length !== 64 || bytes.toString('base64') !== signature) {
     fail('SOURCE_NATIVE_ADMISSION_SIGNATURE');
@@ -68,17 +75,26 @@ export function admissionTrustRegistry(value: unknown): AdmissionTrustRegistry {
     const issuerId = nonempty(entry.issuerId, 'SOURCE_NATIVE_ADMISSION_TRUST');
     const publicKeyPem = nonempty(entry.publicKeyPem, 'SOURCE_NATIVE_ADMISSION_TRUST');
     const roleRows: unknown[] = Array.isArray(entry.roles)
-      ? entry.roles : fail('SOURCE_NATIVE_ADMISSION_TRUST');
-    const roles = roleRows.map((role): SourceNativeAdmissionTrustRole =>
-      role === 'proposer' || role === 'reviewer'
-        ? role : fail('SOURCE_NATIVE_ADMISSION_TRUST')).sort(compare);
+      ? entry.roles
+      : fail('SOURCE_NATIVE_ADMISSION_TRUST');
+    const roles = roleRows
+      .map((role): SourceNativeAdmissionTrustRole =>
+        role === 'proposer' || role === 'reviewer' ? role : fail('SOURCE_NATIVE_ADMISSION_TRUST'),
+      )
+      .sort(compare);
     const key: ReturnType<typeof createPublicKey> = (() => {
-      try { return createPublicKey(publicKeyPem); } catch {
+      try {
+        return createPublicKey(publicKeyPem);
+      } catch {
         return fail('SOURCE_NATIVE_ADMISSION_TRUST');
       }
     })();
-    if (key.asymmetricKeyType !== 'ed25519' || registry.has(issuerId)
-      || roles.length < 1 || new Set(roles).size !== roles.length) {
+    if (
+      key.asymmetricKeyType !== 'ed25519' ||
+      registry.has(issuerId) ||
+      roles.length < 1 ||
+      new Set(roles).size !== roles.length
+    ) {
       fail('SOURCE_NATIVE_ADMISSION_TRUST');
     }
     registry.set(issuerId, { key, roles: new Set(roles) });
@@ -86,36 +102,47 @@ export function admissionTrustRegistry(value: unknown): AdmissionTrustRegistry {
   return registry;
 }
 
-export function authenticateAdmissionSignatures({
-  proposerId,
-  issuerId,
-  proposalStatement,
-  statement,
-  proposalSignatureBase64,
-  signatureBase64,
-}: AdmissionSignatureAuthenticationInput, registry: AdmissionTrustRegistry): void {
+export function authenticateAdmissionSignatures(
+  {
+    proposerId,
+    issuerId,
+    proposalStatement,
+    statement,
+    proposalSignatureBase64,
+    signatureBase64,
+  }: AdmissionSignatureAuthenticationInput,
+  registry: AdmissionTrustRegistry,
+): void {
   const proposalSignature = canonicalAdmissionSignature(proposalSignatureBase64);
   const signature = canonicalAdmissionSignature(signatureBase64);
   const proposer = registry.get(proposerId);
   const reviewer = registry.get(issuerId);
   const proposerKey = proposer?.key;
   const reviewerKey = reviewer?.key;
-  const sameKey = proposerKey !== undefined && reviewerKey !== undefined
-    && Buffer.from(proposerKey.export({ type: 'spki', format: 'der' }))
-      .equals(Buffer.from(reviewerKey.export({ type: 'spki', format: 'der' })));
-  if (proposerKey === undefined || reviewerKey === undefined
-    || proposer?.roles.has('proposer') !== true
-    || reviewer?.roles.has('reviewer') !== true || sameKey
-    || !verifySignature(
+  const sameKey =
+    proposerKey !== undefined &&
+    reviewerKey !== undefined &&
+    Buffer.from(proposerKey.export({ type: 'spki', format: 'der' })).equals(
+      Buffer.from(reviewerKey.export({ type: 'spki', format: 'der' })),
+    );
+  if (
+    proposerKey === undefined ||
+    reviewerKey === undefined ||
+    proposer?.roles.has('proposer') !== true ||
+    reviewer?.roles.has('reviewer') !== true ||
+    sameKey ||
+    !verifySignature(
       null,
       Buffer.from(stableObjectText(proposalStatement)),
       proposerKey,
       Buffer.from(proposalSignature, 'base64'),
-    )
-    || !verifySignature(
+    ) ||
+    !verifySignature(
       null,
       Buffer.from(stableObjectText(statement)),
       reviewerKey,
       Buffer.from(signature, 'base64'),
-    )) fail('SOURCE_NATIVE_ADMISSION_AUTHENTICATION');
+    )
+  )
+    fail('SOURCE_NATIVE_ADMISSION_AUTHENTICATION');
 }
