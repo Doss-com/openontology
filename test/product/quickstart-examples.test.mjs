@@ -61,15 +61,7 @@ test('quickstart CLI, SDK, MCP, and lifecycle recipes remain executable', async 
     }]);
 
     const ont = openOntology({ artifactRoot });
-    const sdkResult = await ont.verify({
-      question: 'What is the current title?',
-      scope: {
-        sourceSystem: 'tracker',
-        objectType: 'task',
-        externalId: 'task-1',
-        field: 'title',
-      },
-    });
+    const sdkResult = await ont.verify('What is the current title of task-1?');
     assert.equal(sdkResult.answerable, true);
     assert.equal(sdkResult.context[0].exactText, 'Ship verified context');
 
