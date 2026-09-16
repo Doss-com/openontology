@@ -162,6 +162,7 @@ try {
   fail(`could not inspect the exact packed tarball: ${error?.message ?? String(error)}`);
 }
 const packedPaths = packed.files.map((file) => file.path);
+const generatedResultState = /^dist\/product\/result-state\.(?:js|d\.ts)(?:\.map)?$/u;
 const required = [
   'README.md', 'LICENSE', 'package.json', 'dist/cli/oont.js',
   'dist/cli/oont.d.ts', 'dist/cli/resolver.js', 'dist/cli/resolver.d.ts',
@@ -177,7 +178,7 @@ for (const path of required) {
 const forbiddenPacked = packedPaths.filter((path) =>
   /^(eval|evidence|design|site|test|tests|src|bin|scripts)\//u.test(path)
   || path === 'PASTE-PROMPT.md'
-  || /(?:^|\/)(?:RESULT|REPORT)(?:[._-]|$)/iu.test(path)
+  || (!generatedResultState.test(path) && /(?:^|\/)(?:RESULT|REPORT)(?:[._-]|$)/iu.test(path))
   || /(?:^|[._/-])private(?:[._/-]|$)|\.raw$/iu.test(path));
 if (forbiddenPacked.length) fail(`forbidden package files: ${forbiddenPacked.join(', ')}`);
 const invalidGenerated = packedPaths.filter((path) => path.startsWith('dist/')
