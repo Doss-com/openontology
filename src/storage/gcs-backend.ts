@@ -5,8 +5,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { GCS_REQUEST_OBSERVATION_KIND } from './gcs-request-observation.js';
-import type { GcsRequestOperationClass, GcsRequestObservation, GcsRequestObserver } from './gcs-request-observation.js';
-export type { GcsRequestOperationClass, GcsRequestFailureClass, GcsRequestObservation, GcsRequestObserver } from './gcs-request-observation.js';
+import type {
+  GcsRequestOperationClass,
+  GcsRequestObservation,
+  GcsRequestObserver,
+} from './gcs-request-observation.js';
+export type {
+  GcsRequestOperationClass,
+  GcsRequestFailureClass,
+  GcsRequestObservation,
+  GcsRequestObserver,
+} from './gcs-request-observation.js';
 import {
   CANONICAL_OBJECT_BACKEND_CONTRACT,
   type ObjectBackend,
@@ -64,14 +73,22 @@ const GENERATION = /^[1-9][0-9]*$/u;
 const BUCKET = /^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$/u;
 const PREFIX = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$/u;
 const RETRYABLE_READ_STATUS = new Set([408, 429, 500, 502, 503, 504]);
-const OBSERVER_FAILURE_DIAGNOSTIC = 'OpenOntology GCS request observer failed; accounting incomplete\n';
+const OBSERVER_FAILURE_DIAGNOSTIC =
+  'OpenOntology GCS request observer failed; accounting incomplete\n';
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const stable = (value: unknown): string => JSON.stringify(value, (_key: string, row: unknown) =>
-  row && typeof row === 'object' && !Array.isArray(row)
-    ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
-    : row) as string;
-const sha256 = (bytes: Uint8Array): string => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+const stable = (value: unknown): string =>
+  JSON.stringify(value, (_key: string, row: unknown) =>
+    row && typeof row === 'object' && !Array.isArray(row)
+      ? Object.fromEntries(
+          Object.keys(row)
+            .sort(compare)
+            .map((key) => [key, (row as Record<string, unknown>)[key]]),
+        )
+      : row,
+  ) as string;
+const sha256 = (bytes: Uint8Array): string =>
+  `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 const digest = (value: unknown): string => sha256(Buffer.from(stable(value)));
 const fail = (code: string, details: unknown = null): never => {
   const error = new Error(code) as Error & { code: string; details?: unknown };
@@ -81,7 +98,7 @@ const fail = (code: string, details: unknown = null): never => {
 };
 
 const defaultRetryDelay = (attempt: number): void => {
-  const milliseconds = Math.min(1_000, 100 * (2 ** (attempt - 1)));
+  const milliseconds = Math.min(1_000, 100 * 2 ** (attempt - 1));
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 };
 
@@ -93,8 +110,15 @@ function exactBytes(value: ObjectBackendInput | undefined): Buffer {
 }
 
 function validateKey(key: string): string {
-  if (typeof key !== 'string' || key.length < 1 || Buffer.byteLength(key) > 1024 || key.includes('\0')
-    || key.startsWith('/') || key.includes('\\')) fail('OBJECT_BACKEND_KEY');
+  if (
+    typeof key !== 'string' ||
+    key.length < 1 ||
+    Buffer.byteLength(key) > 1024 ||
+    key.includes('\0') ||
+    key.startsWith('/') ||
+    key.includes('\\')
+  )
+    fail('OBJECT_BACKEND_KEY');
   const segments = key.split('/');
   if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
     fail('OBJECT_BACKEND_KEY');
@@ -104,16 +128,27 @@ function validateKey(key: string): string {
 
 function validatePrefix(value: string | null): string | null {
   if (value === null) return null;
-  if (typeof value !== 'string' || !PREFIX.test(value) || value.endsWith('/')
-    || value.includes('//') || value.split('/').some((part) => ['.', '..'].includes(part))) {
+  if (
+    typeof value !== 'string' ||
+    !PREFIX.test(value) ||
+    value.endsWith('/') ||
+    value.includes('//') ||
+    value.split('/').some((part) => ['.', '..'].includes(part))
+  ) {
     fail('OBJECT_BACKEND_GCS_CONFIG');
   }
   return value;
 }
 
 function exactToken(value: string): string {
-  if (typeof value !== 'string' || !value || value.length > 16_384 || /\s/u.test(value)
-    || /[\u0000-\u001f\u007f]/u.test(value)) fail('OBJECT_BACKEND_GCS_AUTH');
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    value.length > 16_384 ||
+    /\s/u.test(value) ||
+    /[\u0000-\u001f\u007f]/u.test(value)
+  )
+    fail('OBJECT_BACKEND_GCS_AUTH');
   return value;
 }
 
@@ -129,7 +164,10 @@ function decodeVersion(version: string): { generation: string } {
 }
 
 function parseHeaders(bytes: Uint8Array): { status: number; headers: Record<string, string> } {
-  const blocks = Buffer.from(bytes).toString('latin1').split(/\r?\n\r?\n/u).filter((block) => /^HTTP\//u.test(block));
+  const blocks = Buffer.from(bytes)
+    .toString('latin1')
+    .split(/\r?\n\r?\n/u)
+    .filter((block) => /^HTTP\//u.test(block));
   if (!blocks.length) fail('OBJECT_BACKEND_GCS_RESPONSE');
   const block = blocks.at(-1);
   if (!block) return fail('OBJECT_BACKEND_GCS_RESPONSE');
@@ -147,7 +185,13 @@ function parseHeaders(bytes: Uint8Array): { status: number; headers: Record<stri
   return { status: Number(statusMatch?.[1]), headers };
 }
 
-function curlTransport({ method, url, headers, body = Buffer.alloc(0), curlPath = '/usr/bin/curl' }: GcsTransportRequest): GcsTransportResponse {
+function curlTransport({
+  method,
+  url,
+  headers,
+  body = Buffer.alloc(0),
+  curlPath = '/usr/bin/curl',
+}: GcsTransportRequest): GcsTransportResponse {
   const scratch = mkdtempSync(join(tmpdir(), 'oont-gcs-request-'));
   const requestPath = join(scratch, 'request.bin');
   const requestHeadersPath = join(scratch, 'request-headers.txt');
@@ -156,17 +200,29 @@ function curlTransport({ method, url, headers, body = Buffer.alloc(0), curlPath 
   writeFileSync(requestPath, body, { mode: 0o600 });
   writeFileSync(
     requestHeadersPath,
-    `${Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join('\n')}\n`,
+    `${Object.entries(headers)
+      .map(([name, value]) => `${name}: ${value}`)
+      .join('\n')}\n`,
     { mode: 0o600 },
   );
   try {
     const args = [
-      '--silent', '--show-error', '--connect-timeout', '5', '--max-time', '120',
-      '--request', method,
-      '--header', `@${requestHeadersPath}`,
-      '--dump-header', responseHeadersPath,
-      '--output', responsePath,
-      '--write-out', '%{http_code}',
+      '--silent',
+      '--show-error',
+      '--connect-timeout',
+      '5',
+      '--max-time',
+      '120',
+      '--request',
+      method,
+      '--header',
+      `@${requestHeadersPath}`,
+      '--dump-header',
+      responseHeadersPath,
+      '--output',
+      responsePath,
+      '--write-out',
+      '%{http_code}',
     ];
     if (method !== 'GET' || body.length) args.push('--data-binary', `@${requestPath}`);
     args.push(url);
@@ -181,24 +237,34 @@ function curlTransport({ method, url, headers, body = Buffer.alloc(0), curlPath 
 }
 
 function parseJson<T>(response: GcsTransportResponse, code: string): T {
-  try { return JSON.parse(exactBytes(response.body).toString('utf8')) as T; } catch { return fail(code); }
+  try {
+    return JSON.parse(exactBytes(response.body).toString('utf8')) as T;
+  } catch {
+    return fail(code);
+  }
 }
 
-function multipartUpload(key: string, bytes: Buffer, checksumSha256: string): { contentType: string; body: Buffer } {
+function multipartUpload(
+  key: string,
+  bytes: Buffer,
+  checksumSha256: string,
+): { contentType: string; body: Buffer } {
   let boundary;
   let marker;
   do {
     boundary = `oont-${randomUUID()}`;
     marker = Buffer.from(`--${boundary}`);
   } while (bytes.includes(marker));
-  const metadata = Buffer.from(JSON.stringify({
-    name: key,
-    contentType: 'application/octet-stream',
-    metadata: {
-      'oont-byte-length': String(bytes.length),
-      'oont-sha256': checksumSha256,
-    },
-  }));
+  const metadata = Buffer.from(
+    JSON.stringify({
+      name: key,
+      contentType: 'application/octet-stream',
+      metadata: {
+        'oont-byte-length': String(bytes.length),
+        'oont-sha256': checksumSha256,
+      },
+    }),
+  );
   const body = Buffer.concat([
     marker,
     Buffer.from('\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'),
@@ -227,22 +293,41 @@ export function openGcsObjectBackend({
   observeRequest = null,
 }: GcsObjectBackendOptions = {}): GcsObjectBackend {
   let endpoint: URL;
-  try { endpoint = new URL(endpointInput); } catch { return fail('OBJECT_BACKEND_GCS_CONFIG'); }
-  if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search
-    || endpoint.hash || endpoint.pathname !== '/' || typeof bucket !== 'string' || !BUCKET.test(bucket)
-    || typeof transport !== 'function' || typeof curlPath !== 'string' || !curlPath
-    || !Number.isSafeInteger(maximumReadAttempts) || maximumReadAttempts < 1 || maximumReadAttempts > 10
-    || typeof retryDelay !== 'function'
-    || observeRequest !== null && typeof observeRequest !== 'function'
-    || (accessToken === null) === (accessTokenProvider === null)
-    || accessTokenProvider !== null && typeof accessTokenProvider !== 'function') {
+  try {
+    endpoint = new URL(endpointInput);
+  } catch {
+    return fail('OBJECT_BACKEND_GCS_CONFIG');
+  }
+  if (
+    endpoint.protocol !== 'https:' ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    endpoint.pathname !== '/' ||
+    typeof bucket !== 'string' ||
+    !BUCKET.test(bucket) ||
+    typeof transport !== 'function' ||
+    typeof curlPath !== 'string' ||
+    !curlPath ||
+    !Number.isSafeInteger(maximumReadAttempts) ||
+    maximumReadAttempts < 1 ||
+    maximumReadAttempts > 10 ||
+    typeof retryDelay !== 'function' ||
+    (observeRequest !== null && typeof observeRequest !== 'function') ||
+    (accessToken === null) === (accessTokenProvider === null) ||
+    (accessTokenProvider !== null && typeof accessTokenProvider !== 'function')
+  ) {
     fail('OBJECT_BACKEND_GCS_CONFIG');
   }
   if (accessToken !== null) {
-    try { exactToken(accessToken); } catch { fail('OBJECT_BACKEND_GCS_CONFIG'); }
+    try {
+      exactToken(accessToken);
+    } catch {
+      fail('OBJECT_BACKEND_GCS_CONFIG');
+    }
   }
-  const configuredBucket = typeof bucket === 'string'
-    ? bucket : fail('OBJECT_BACKEND_GCS_CONFIG');
+  const configuredBucket = typeof bucket === 'string' ? bucket : fail('OBJECT_BACKEND_GCS_CONFIG');
   const prefix = validatePrefix(prefixInput);
   const providerKey = (keyInput: string): string => {
     const key = validateKey(keyInput);
@@ -269,17 +354,27 @@ export function openGcsObjectBackend({
     boundedReadRetries: true,
     maximumReadAttempts,
   };
-  const capabilities = Object.freeze({ ...capabilitiesCore, capabilitiesSha256: digest(capabilitiesCore) });
-  const token = (): string => accessTokenProvider === null
-    ? exactToken(accessToken ?? fail('OBJECT_BACKEND_GCS_CONFIG'))
-    : exactToken(accessTokenProvider());
+  const capabilities = Object.freeze({
+    ...capabilitiesCore,
+    capabilitiesSha256: digest(capabilitiesCore),
+  });
+  const token = (): string =>
+    accessTokenProvider === null
+      ? exactToken(accessToken ?? fail('OBJECT_BACKEND_GCS_CONFIG'))
+      : exactToken(accessTokenProvider());
   let observerFailureReported = false;
   const safeStatus = (value: unknown): number | null => {
     const status = typeof value === 'number' ? value : null;
-    return status !== null && Number.isInteger(status) && Number.isSafeInteger(status)
-      && status >= 100 && status <= 999 ? status : null;
+    return status !== null &&
+      Number.isInteger(status) &&
+      Number.isSafeInteger(status) &&
+      status >= 100 &&
+      status <= 999
+      ? status
+      : null;
   };
-  const safeBodyBytes = (value: unknown): number | null => Buffer.isBuffer(value) ? value.length : null;
+  const safeBodyBytes = (value: unknown): number | null =>
+    Buffer.isBuffer(value) ? value.length : null;
   const elapsedTransportMs = (startedAt: bigint): number => {
     const elapsed = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
@@ -287,7 +382,11 @@ export function openGcsObjectBackend({
   const reportObserverFailure = (): void => {
     if (observerFailureReported) return;
     observerFailureReported = true;
-    try { process.stderr.write(OBSERVER_FAILURE_DIAGNOSTIC); } catch { /* diagnostic is best effort */ }
+    try {
+      process.stderr.write(OBSERVER_FAILURE_DIAGNOSTIC);
+    } catch {
+      /* diagnostic is best effort */
+    }
   };
   const observe = (fields: GcsRequestObservationFields): void => {
     if (observeRequest === null) return;
@@ -300,15 +399,25 @@ export function openGcsObjectBackend({
     });
     try {
       const result: unknown = observeRequest(observation);
-      if (result !== null && (typeof result === 'object' || typeof result === 'function')
-        && 'then' in result && typeof result.then === 'function') {
+      if (
+        result !== null &&
+        (typeof result === 'object' || typeof result === 'function') &&
+        'then' in result &&
+        typeof result.then === 'function'
+      ) {
         void Promise.resolve(result).catch(reportObserverFailure);
       }
     } catch {
       reportObserverFailure();
     }
   };
-  const call = ({ operationClass, method, url, headers = {}, body = Buffer.alloc(0) }: {
+  const call = ({
+    operationClass,
+    method,
+    url,
+    headers = {},
+    body = Buffer.alloc(0),
+  }: {
     operationClass: GcsRequestOperationClass;
     method: string;
     url: string;
@@ -340,19 +449,36 @@ export function openGcsObjectBackend({
             requestBodyBytes: body.length,
             responseBodyBytes: null,
             elapsedTransportMs: elapsedTransportMs(startedAt),
-            failureClass: error && typeof error === 'object' && 'code' in error
-              && error.code === 'OBJECT_BACKEND_GCS_RESPONSE' ? 'malformed-response' : 'transport',
+            failureClass:
+              error &&
+              typeof error === 'object' &&
+              'code' in error &&
+              error.code === 'OBJECT_BACKEND_GCS_RESPONSE'
+                ? 'malformed-response'
+                : 'transport',
           });
         }
-        if (method !== 'GET' || !(error && typeof error === 'object' && 'code' in error
-          && error.code === 'OBJECT_BACKEND_GCS_TRANSPORT') || attempt === maximumReadAttempts) {
+        if (
+          method !== 'GET' ||
+          !(
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'OBJECT_BACKEND_GCS_TRANSPORT'
+          ) ||
+          attempt === maximumReadAttempts
+        ) {
           throw error;
         }
         retryDelay(attempt);
         continue;
       }
-      if (!response || !Number.isInteger(response.status) || !response.headers
-        || !Buffer.isBuffer(response.body)) {
+      if (
+        !response ||
+        !Number.isInteger(response.status) ||
+        !response.headers ||
+        !Buffer.isBuffer(response.body)
+      ) {
         if (startedAt !== null) {
           observe({
             operationClass,
@@ -379,8 +505,11 @@ export function openGcsObjectBackend({
           failureClass: null,
         });
       }
-      if (method === 'GET' && RETRYABLE_READ_STATUS.has(response.status)
-        && attempt < maximumReadAttempts) {
+      if (
+        method === 'GET' &&
+        RETRYABLE_READ_STATUS.has(response.status) &&
+        attempt < maximumReadAttempts
+      ) {
         retryDelay(attempt);
         continue;
       }
@@ -389,41 +518,61 @@ export function openGcsObjectBackend({
     return fail('OBJECT_BACKEND_GCS_TRANSPORT');
   };
   const bucketUrl = `${endpoint.origin}/storage/v1/b/${encodeURIComponent(configuredBucket)}`;
-  const objectUrl = (key: string): string => `${bucketUrl}/o/${encodeURIComponent(providerKey(key))}`;
-  const downloadUrl = (key: string): string => `${endpoint.origin}/${encodeURIComponent(configuredBucket)}/${
-    providerKey(key).split('/').map(encodeURIComponent).join('/')}`;
+  const objectUrl = (key: string): string =>
+    `${bucketUrl}/o/${encodeURIComponent(providerKey(key))}`;
+  const downloadUrl = (key: string): string =>
+    `${endpoint.origin}/${encodeURIComponent(configuredBucket)}/${providerKey(key)
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
   const uploadUrl = (key: string, expectedGeneration: string): string => {
-    const url = new URL(`${endpoint.origin}/upload/storage/v1/b/${encodeURIComponent(configuredBucket)}/o`);
+    const url = new URL(
+      `${endpoint.origin}/upload/storage/v1/b/${encodeURIComponent(configuredBucket)}/o`,
+    );
     url.searchParams.set('uploadType', 'multipart');
     url.searchParams.set('name', providerKey(key));
     url.searchParams.set('ifGenerationMatch', expectedGeneration);
     return url.href;
   };
 
-  const exactMetadata = (value: Record<string, unknown>, expectedProviderKey: string | null = null,
-    logicalKey: string = expectedProviderKey ?? fail('OBJECT_BACKEND_CORRUPT')): {
+  const exactMetadata = (
+    value: Record<string, unknown>,
+    expectedProviderKey: string | null = null,
+    logicalKey: string = expectedProviderKey ?? fail('OBJECT_BACKEND_CORRUPT'),
+  ): {
     key: string;
     generation: string;
     version: string;
     byteLength: number;
     checksumSha256: string;
   } => {
-    const metadata = value.metadata && typeof value.metadata === 'object'
-      ? value.metadata as Record<string, unknown> : {};
+    const metadata =
+      value.metadata && typeof value.metadata === 'object'
+        ? (value.metadata as Record<string, unknown>)
+        : {};
     const lengthText = metadata['oont-byte-length'];
     const sizeText = value.size;
     const generation = value.generation;
     const name = value.name;
     const checksumSha256 = metadata['oont-sha256'];
-    const safeName = value.bucket === configuredBucket && typeof name === 'string'
-      && (expectedProviderKey === null || name === expectedProviderKey)
-      ? name : fail('OBJECT_BACKEND_CORRUPT');
-    const safeGeneration = typeof generation === 'string' && GENERATION.test(generation)
-      ? generation : fail('OBJECT_BACKEND_CORRUPT');
-    const safeSizeText = typeof sizeText === 'string' && /^(0|[1-9][0-9]*)$/u.test(sizeText)
-      && lengthText === sizeText ? sizeText : fail('OBJECT_BACKEND_CORRUPT');
-    const safeChecksumSha256 = typeof checksumSha256 === 'string' && SHA256.test(checksumSha256)
-      ? checksumSha256 : fail('OBJECT_BACKEND_CORRUPT');
+    const safeName =
+      value.bucket === configuredBucket &&
+      typeof name === 'string' &&
+      (expectedProviderKey === null || name === expectedProviderKey)
+        ? name
+        : fail('OBJECT_BACKEND_CORRUPT');
+    const safeGeneration =
+      typeof generation === 'string' && GENERATION.test(generation)
+        ? generation
+        : fail('OBJECT_BACKEND_CORRUPT');
+    const safeSizeText =
+      typeof sizeText === 'string' && /^(0|[1-9][0-9]*)$/u.test(sizeText) && lengthText === sizeText
+        ? sizeText
+        : fail('OBJECT_BACKEND_CORRUPT');
+    const safeChecksumSha256 =
+      typeof checksumSha256 === 'string' && SHA256.test(checksumSha256)
+        ? checksumSha256
+        : fail('OBJECT_BACKEND_CORRUPT');
     const byteLength = Number(safeSizeText);
     if (!Number.isSafeInteger(byteLength) || byteLength < 0) fail('OBJECT_BACKEND_CORRUPT');
     return {
@@ -434,23 +583,33 @@ export function openGcsObjectBackend({
       checksumSha256: safeChecksumSha256,
     };
   };
-  const receipt = (metadata: ReturnType<typeof exactMetadata>, extra: Record<string, unknown> = {}): GcsWriteReceipt => Object.freeze({
-    schemaVersion: 1,
-    kind: 'OpenOntologyObjectWriteReceiptV1',
-    key: metadata.key,
-    version: metadata.version,
-    checksumSha256: metadata.checksumSha256,
-    byteLength: metadata.byteLength,
-    generation: metadata.generation,
-    ...extra,
-  });
-  const downloadMetadata = (headers: Record<string, string>, key: string): ReturnType<typeof exactMetadata> => {
+  const receipt = (
+    metadata: ReturnType<typeof exactMetadata>,
+    extra: Record<string, unknown> = {},
+  ): GcsWriteReceipt =>
+    Object.freeze({
+      schemaVersion: 1,
+      kind: 'OpenOntologyObjectWriteReceiptV1',
+      key: metadata.key,
+      version: metadata.version,
+      checksumSha256: metadata.checksumSha256,
+      byteLength: metadata.byteLength,
+      generation: metadata.generation,
+      ...extra,
+    });
+  const downloadMetadata = (
+    headers: Record<string, string>,
+    key: string,
+  ): ReturnType<typeof exactMetadata> => {
     const generation = headers['x-goog-generation'];
     const byteLengthText = headers['x-goog-meta-oont-byte-length'];
     const checksumSha256 = headers['x-goog-meta-oont-sha256'];
-    if (!GENERATION.test(generation ?? '')
-      || !/^(?:0|[1-9][0-9]*)$/u.test(byteLengthText ?? '')
-      || !SHA256.test(checksumSha256 ?? '')) fail('OBJECT_BACKEND_CORRUPT');
+    if (
+      !GENERATION.test(generation ?? '') ||
+      !/^(?:0|[1-9][0-9]*)$/u.test(byteLengthText ?? '') ||
+      !SHA256.test(checksumSha256 ?? '')
+    )
+      fail('OBJECT_BACKEND_CORRUPT');
     const byteLength = Number(byteLengthText);
     if (!Number.isSafeInteger(byteLength)) fail('OBJECT_BACKEND_CORRUPT');
     return {
@@ -463,17 +622,32 @@ export function openGcsObjectBackend({
   };
   const head = (keyInput: string): GcsWriteReceipt | null => {
     const key = validateKey(keyInput);
-    const response = call({ operationClass: 'object-metadata', method: 'GET', url: objectUrl(key) });
+    const response = call({
+      operationClass: 'object-metadata',
+      method: 'GET',
+      url: objectUrl(key),
+    });
     if (response.status === 404) return null;
     if (response.status !== 200) fail('OBJECT_BACKEND_GCS_STATUS', response.status);
-    return receipt(exactMetadata(
-      parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE'), providerKey(key), key,
-    ));
+    return receipt(
+      exactMetadata(
+        parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE'),
+        providerKey(key),
+        key,
+      ),
+    );
   };
-  const get = (keyInput: string, { start = 0, end = null }: { start?: number; end?: number | null } = {}): ObjectReadResult => {
+  const get = (
+    keyInput: string,
+    { start = 0, end = null }: { start?: number; end?: number | null } = {},
+  ): ObjectReadResult => {
     const key = validateKey(keyInput);
-    if (!Number.isSafeInteger(start) || start < 0
-      || end !== null && (!Number.isSafeInteger(end) || end < start)) fail('OBJECT_BACKEND_RANGE');
+    if (
+      !Number.isSafeInteger(start) ||
+      start < 0 ||
+      (end !== null && (!Number.isSafeInteger(end) || end < start))
+    )
+      fail('OBJECT_BACKEND_RANGE');
     if (end === start) {
       const current = head(key) ?? fail('OBJECT_BACKEND_NOT_FOUND');
       if (end > current.byteLength) fail('OBJECT_BACKEND_RANGE');
@@ -503,25 +677,40 @@ export function openGcsObjectBackend({
         fail('OBJECT_BACKEND_CORRUPT');
       }
     } else {
-      const range = /^bytes (0|[1-9][0-9]*)-(0|[1-9][0-9]*)\/(0|[1-9][0-9]*)$/u
-        .exec(response.headers['content-range'] ?? '');
+      const range = /^bytes (0|[1-9][0-9]*)-(0|[1-9][0-9]*)\/(0|[1-9][0-9]*)$/u.exec(
+        response.headers['content-range'] ?? '',
+      );
       const rangeStart = Number(range?.[1]);
       const rangeEnd = Number(range?.[2]) + 1;
       const total = Number(range?.[3]);
       finalEnd = end ?? total;
-      if (!range || !Number.isSafeInteger(total) || rangeStart !== start
-        || rangeEnd !== finalEnd || total !== current.byteLength
-        || finalEnd > total || bytes.length !== finalEnd - start) {
+      if (
+        !range ||
+        !Number.isSafeInteger(total) ||
+        rangeStart !== start ||
+        rangeEnd !== finalEnd ||
+        total !== current.byteLength ||
+        finalEnd > total ||
+        bytes.length !== finalEnd - start
+      ) {
         fail('OBJECT_BACKEND_CORRUPT');
       }
-      if (start === 0 && finalEnd === current.byteLength && sha256(bytes) !== current.checksumSha256) {
+      if (
+        start === 0 &&
+        finalEnd === current.byteLength &&
+        sha256(bytes) !== current.checksumSha256
+      ) {
         fail('OBJECT_BACKEND_CORRUPT');
       }
     }
     return Object.freeze({ ...current, bytes, range: Object.freeze({ start, end: finalEnd }) });
   };
-  const put = (key: string, bytes: Buffer, expectedGeneration: string,
-    operationClass: GcsRequestOperationClass): GcsWriteReceipt | null => {
+  const put = (
+    key: string,
+    bytes: Buffer,
+    expectedGeneration: string,
+    operationClass: GcsRequestOperationClass,
+  ): GcsWriteReceipt | null => {
     const checksumSha256 = sha256(bytes);
     const multipart = multipartUpload(providerKey(key), bytes, checksumSha256);
     const response = call({
@@ -534,7 +723,9 @@ export function openGcsObjectBackend({
     if (response.status === 412) return null;
     if (![200, 201].includes(response.status)) fail('OBJECT_BACKEND_GCS_STATUS', response.status);
     const metadata = exactMetadata(
-      parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE'), providerKey(key), key,
+      parseJson<Record<string, unknown>>(response, 'OBJECT_BACKEND_GCS_RESPONSE'),
+      providerKey(key),
+      key,
     );
     if (metadata.checksumSha256 !== checksumSha256 || metadata.byteLength !== bytes.length) {
       fail('OBJECT_BACKEND_CORRUPT');
@@ -563,10 +754,16 @@ export function openGcsObjectBackend({
       const { bytes: _bytes, range: _range, ...currentReceipt } = current;
       return Object.freeze({ ...currentReceipt, created: false, replayed: true });
     },
-    compareAndSwap(keyInput: string, { expectedVersion = null, bytes: bytesInput }: {
-      expectedVersion?: string | null;
-      bytes?: ObjectBackendInput;
-    } = {}): ObjectWriteReceipt {
+    compareAndSwap(
+      keyInput: string,
+      {
+        expectedVersion = null,
+        bytes: bytesInput,
+      }: {
+        expectedVersion?: string | null;
+        bytes?: ObjectBackendInput;
+      } = {},
+    ): ObjectWriteReceipt {
       const key = validateKey(keyInput);
       const bytes = exactBytes(bytesInput);
       const expected = expectedVersion === null ? null : decodeVersion(expectedVersion);

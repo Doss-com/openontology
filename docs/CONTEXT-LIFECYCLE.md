@@ -526,16 +526,21 @@ const found = await ont.search({
 });
 // Totals describe the full result; matches and concepts describe this page.
 // Both resolved and ambiguous results can be inspected without merging identities.
-if (found.state === 'unavailable-construction-navigation' || found.state === 'no-construction-match') {
+if (
+  found.state === 'unavailable-construction-navigation' ||
+  found.state === 'no-construction-match'
+) {
   throw new Error(found.state);
 }
-const selected = found.matches.find(match => match.nativeObject.externalId === 'CT-17');
+const selected = found.matches.find((match) => match.nativeObject.externalId === 'CT-17');
 if (!selected) throw new Error('Requested ClickupTask is not in this page');
 const passage = await ont.read({ ref: selected.ref });
 const checked = await ont.verify({
   question: 'What is the current status?',
   typedQuery: {
-    sourceSystem: 'clickup', objectType: 'ClickupTask', fieldPath: 'status',
+    sourceSystem: 'clickup',
+    objectType: 'ClickupTask',
+    fieldPath: 'status',
     externalId: passage.binding.nativeObject.externalId,
   },
 });

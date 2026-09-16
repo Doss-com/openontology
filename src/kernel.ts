@@ -108,12 +108,8 @@ export type {
   CanonicalObjectBackendEnvironment,
   CanonicalObjectBackendSelection,
 } from './storage/canonical-backend.js';
-export {
-  openSourceNativeExactEvidenceSession,
-} from './query/verification/evidence-session.js';
-export {
-  compileSourceNativeCurrentFieldChronologyVerification,
-} from './query/verification/current-field.js';
+export { openSourceNativeExactEvidenceSession } from './query/verification/evidence-session.js';
+export { compileSourceNativeCurrentFieldChronologyVerification } from './query/verification/current-field.js';
 export type {
   SourceNativeCurrentFieldChronologyVerification,
   SourceNativeCurrentFieldProofDisposition,
@@ -182,12 +178,8 @@ export type {
   ProofRelationView,
   ProofSufficiencyEvaluation,
 } from './proof/sufficiency-evaluator.js';
-export {
-  compileSourceNativeProofAuthorityProjection,
-} from './source/semantic-projection.js';
-export type {
-  CompileSourceNativeProofAuthorityProjectionInput,
-} from './source/semantic-projection.js';
+export { compileSourceNativeProofAuthorityProjection } from './source/semantic-projection.js';
+export type { CompileSourceNativeProofAuthorityProjectionInput } from './source/semantic-projection.js';
 export type {
   SourceNativeCanonicalRole,
   SourceNativeCanonicalPropositionV2,

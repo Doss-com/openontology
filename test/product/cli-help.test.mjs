@@ -6,10 +6,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const repositoryRoot = resolve(import.meta.dirname, '..', '..');
-const run = (args) => spawnSync(process.execPath, [resolve(repositoryRoot, 'dist/cli/oont.js'), ...args], {
-  cwd: repositoryRoot,
-  encoding: 'utf8',
-});
+const run = (args) =>
+  spawnSync(process.execPath, [resolve(repositoryRoot, 'dist/cli/oont.js'), ...args], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+  });
 
 for (const args of [
   ['--help'],
@@ -33,9 +34,7 @@ const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.jso
 assert.equal(version.stdout.trim(), packageJson.version);
 assert.equal(version.stderr, '');
 
-const badIntent = run([
-  'verify', './missing', 'What is current?', '--intent', 'previous',
-]);
+const badIntent = run(['verify', './missing', 'What is current?', '--intent', 'previous']);
 assert.equal(badIntent.status, 2);
 assert.match(badIntent.stderr, /^usage: oont <command>/u);
 assert.doesNotMatch(badIntent.stderr, /^usage: oont resolver <command>/u);

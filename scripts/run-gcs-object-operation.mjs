@@ -4,7 +4,9 @@ import { openGcsObjectBackend } from '../dist/storage/gcs-backend.js';
 
 let operation;
 try {
-  operation = JSON.parse(Buffer.from(process.env.OONT_GCS_OPERATION_BASE64 ?? '', 'base64').toString('utf8'));
+  operation = JSON.parse(
+    Buffer.from(process.env.OONT_GCS_OPERATION_BASE64 ?? '', 'base64').toString('utf8'),
+  );
 } catch {
   process.stderr.write('invalid OONT_GCS_OPERATION_BASE64\n');
   process.exit(2);
@@ -26,11 +28,15 @@ try {
   } else if (operation.mode === 'put') {
     receipt = backend.putIfAbsent(operation.key, Buffer.from(operation.bytesBase64, 'base64'));
   } else throw new Error('OPERATION_MODE');
-  process.stdout.write(`${JSON.stringify({ status: 'PASS', workerId: operation.workerId, receipt })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ status: 'PASS', workerId: operation.workerId, receipt })}\n`,
+  );
 } catch (error) {
-  process.stdout.write(`${JSON.stringify({
-    status: 'ERROR',
-    workerId: operation.workerId,
-    code: error?.code ?? error?.message,
-  })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({
+      status: 'ERROR',
+      workerId: operation.workerId,
+      code: error?.code ?? error?.message,
+    })}\n`,
+  );
 }

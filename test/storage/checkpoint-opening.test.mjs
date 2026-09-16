@@ -80,7 +80,8 @@ function rehashedTimestampMismatch({ store, receipt, expectedVersion, occurredAt
   const originalCommit = store.readCommit(receipt.commitSha256).commit;
   const originalReplay = store.replayMetadata(receipt.commitSha256);
   const originalMapDescriptor = originalReplay.blobDescriptors.find((descriptor) =>
-    descriptor.logicalPath.startsWith('blobs/source-native/maps/sha256/'));
+    descriptor.logicalPath.startsWith('blobs/source-native/maps/sha256/'),
+  );
   assert.ok(originalMapDescriptor);
   const originalMap = JSON.parse(store.readBlob(originalMapDescriptor).bytes.toString('utf8'));
   const nativeObjects = originalMap.nativeObjects.map((object, index) => {
@@ -99,7 +100,9 @@ function rehashedTimestampMismatch({ store, receipt, expectedVersion, occurredAt
     bytes: Buffer.from(stableObjectText(map)),
     mediaType: 'application/json',
   });
-  const originalManifest = JSON.parse(store.readBlob(originalCommit.ontManifest, { manifest: true }).bytes.toString('utf8'));
+  const originalManifest = JSON.parse(
+    store.readBlob(originalCommit.ontManifest, { manifest: true }).bytes.toString('utf8'),
+  );
   const manifest = {
     ...originalManifest,
     nativeObjectMapSha256,
@@ -139,17 +142,25 @@ test('present checkpoint corruption fails ordinary and exact opens without graph
       expectedVersion: checkpoint.version,
       bytes: Buffer.from('corrupt checkpoint'),
     });
-    assert.throws(() => openSourceNativeObjectOntRefAtCut({
-      backend,
-      ontId: first.receipt.ontId,
-      branch: 'main',
-    }), { code: 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ' });
-    assert.throws(() => openSourceNativeObjectOntAtCut({
-      backend,
-      ontId: first.receipt.ontId,
-      commitSha256: first.receipt.commitSha256,
-      replaySha256: first.receipt.replaySha256,
-    }), { code: 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ' });
+    assert.throws(
+      () =>
+        openSourceNativeObjectOntRefAtCut({
+          backend,
+          ontId: first.receipt.ontId,
+          branch: 'main',
+        }),
+      { code: 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ' },
+    );
+    assert.throws(
+      () =>
+        openSourceNativeObjectOntAtCut({
+          backend,
+          ontId: first.receipt.ontId,
+          commitSha256: first.receipt.commitSha256,
+          replaySha256: first.receipt.replaySha256,
+        }),
+      { code: 'OBJECT_ONT_REPLAY_INDEX_CHECKPOINT_READ' },
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -217,7 +228,8 @@ test('checkpointed cut openings avoid ancestor commit reads and still fetch sour
     const third = materialize(['Alpha', 'Beta', 'Gamma'], second.receipt.refVersion);
     const thirdCommit = store.readCommit(third.receipt.commitSha256).commit;
     const sourcePack = thirdCommit.blobs.find((blob) =>
-      blob.logicalPath.includes('/source-packs/'));
+      blob.logicalPath.includes('/source-packs/'),
+    );
     assert.ok(sourcePack);
     const reads = [];
     const instrumented = {
@@ -284,17 +296,25 @@ test('catalog occurredAt binds ordinary and checkpoint-backed map openings', () 
       expectedVersion: first.receipt.refVersion,
       occurredAt: '2026-02-01T00:00:00.000Z',
     });
-    assert.throws(() => openSourceNativeObjectOnt({
-      backend,
-      ontId: first.receipt.ontId,
-      commitSha256: tampered.commit.commitSha256,
-    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_CATALOG' });
-    assert.throws(() => openSourceNativeObjectOntAtCut({
-      backend,
-      ontId: first.receipt.ontId,
-      commitSha256: tampered.commit.commitSha256,
-      replaySha256: tampered.activated.ref.replaySha256,
-    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_CATALOG' });
+    assert.throws(
+      () =>
+        openSourceNativeObjectOnt({
+          backend,
+          ontId: first.receipt.ontId,
+          commitSha256: tampered.commit.commitSha256,
+        }),
+      { code: 'SOURCE_NATIVE_OBJECT_ONT_CATALOG' },
+    );
+    assert.throws(
+      () =>
+        openSourceNativeObjectOntAtCut({
+          backend,
+          ontId: first.receipt.ontId,
+          commitSha256: tampered.commit.commitSha256,
+          replaySha256: tampered.activated.ref.replaySha256,
+        }),
+      { code: 'SOURCE_NATIVE_OBJECT_ONT_CATALOG' },
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

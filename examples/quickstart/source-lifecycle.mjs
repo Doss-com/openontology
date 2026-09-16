@@ -63,19 +63,19 @@ async function run(outputRootArgument) {
     input: readInput(),
   });
   const initialClient = openOntology({ artifactRoot: initialRoot });
-  const initialVerification = await initialClient.verify(
-    'What is the current title of task-1?',
-  );
+  const initialVerification = await initialClient.verify('What is the current title of task-1?');
   const unsupported = await initialClient.verify('Who owns task-1?');
   const searched = await initialClient.search('What is the current title of task-1?');
   const firstMatch = searched.matches[0] ?? fail('SOURCE_LIFECYCLE_SEARCH');
   const searchRead = await initialClient.read({ ref: firstMatch.ref });
-  if (!initialVerification.answerable
-    || initialVerification.context[0]?.exactText !== 'Ship verified context'
-    || unsupported.answerable
-    || unsupported.state !== 'unavailable-native-field-not-declared'
-    || unsupported.context.length !== 0
-    || searchRead.exactText !== 'Ship verified context') {
+  if (
+    !initialVerification.answerable ||
+    initialVerification.context[0]?.exactText !== 'Ship verified context' ||
+    unsupported.answerable ||
+    unsupported.state !== 'unavailable-native-field-not-declared' ||
+    unsupported.context.length !== 0 ||
+    searchRead.exactText !== 'Ship verified context'
+  ) {
     fail('SOURCE_LIFECYCLE_INITIAL_ASSERTION');
   }
 
@@ -92,8 +92,10 @@ async function run(outputRootArgument) {
   const successorVerification = await successorClient.verify(
     'What is the current title of task-1?',
   );
-  if (!successorVerification.answerable
-    || successorVerification.context[0]?.exactText !== 'Keep context current') {
+  if (
+    !successorVerification.answerable ||
+    successorVerification.context[0]?.exactText !== 'Keep context current'
+  ) {
     fail('SOURCE_LIFECYCLE_SUCCESSOR_ASSERTION');
   }
 

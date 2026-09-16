@@ -9,10 +9,7 @@ import test from 'node:test';
 import * as kernel from '../../dist/kernel.js';
 
 import { openOntology } from '../../dist/openontology.js';
-import {
-  buildSourceNativeProduct,
-  openSourceNativeProduct,
-} from '../../dist/product/runtime.js';
+import { buildSourceNativeProduct, openSourceNativeProduct } from '../../dist/product/runtime.js';
 import { runSourceNativeProductMcp } from '../../dist/product/mcp.js';
 
 const repositoryRoot = resolve(import.meta.dirname, '..', '..');
@@ -20,10 +17,14 @@ const publicCli = join(repositoryRoot, 'dist', 'cli', 'oont.js');
 const AT = '2026-02-15T00:00:00.000Z';
 const TITLE_AT = '2026-01-15T00:00:00.000Z';
 const CLI_SCOPE = [
-  '--source-system', 'clickup',
-  '--object-type', 'task',
-  '--external-id', 'task-1',
-  '--field', 'title',
+  '--source-system',
+  'clickup',
+  '--object-type',
+  'task',
+  '--external-id',
+  'task-1',
+  '--field',
+  'title',
 ];
 
 function buildInput() {
@@ -37,12 +38,14 @@ function buildInput() {
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'historical-surfaces',
     namespace: 'acme',
-    querySchemas: [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: [{ fieldPath: 'title', aliases: ['title'] }],
-    }],
+    querySchemas: [
+      {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: [{ fieldPath: 'title', aliases: ['title'] }],
+      },
+    ],
     sources: revisions.map(([relativePath, occurredAt, content]) => ({
       relativePath,
       sourceType: 'clickup',
@@ -58,12 +61,14 @@ function buildInput() {
         namespace: 'acme',
         externalId: 'task-1',
       },
-      fields: [{
-        fieldPath: 'title',
-        value: content,
-        validAt: occurredAt,
-        knownAt: occurredAt,
-      }],
+      fields: [
+        {
+          fieldPath: 'title',
+          value: content,
+          validAt: occurredAt,
+          knownAt: occurredAt,
+        },
+      ],
     })),
   };
 }
@@ -83,8 +88,13 @@ function titleParityRow({ relativePath, occurredAt, externalId, title, status, b
       },
       fields: [
         { fieldPath: 'title', value: title, codeUnitStart: content.indexOf(title) },
-        { fieldPath: 'status', value: status, codeUnitStart: content.indexOf(status),
-          validAt: occurredAt, knownAt: occurredAt },
+        {
+          fieldPath: 'status',
+          value: status,
+          codeUnitStart: content.indexOf(status),
+          validAt: occurredAt,
+          knownAt: occurredAt,
+        },
       ],
     },
   };
@@ -95,17 +105,23 @@ function buildTitleParityInput() {
     titleParityRow({
       relativePath: 'clickup/acme/task-1-r1.md',
       occurredAt: '2026-01-01T00:00:00.000Z',
-      externalId: 'task-1', title: 'Legacy review', status: 'Ready',
+      externalId: 'task-1',
+      title: 'Legacy review',
+      status: 'Ready',
     }),
     titleParityRow({
       relativePath: 'clickup/acme/task-1-r2.md',
       occurredAt: '2026-02-01T00:00:00.000Z',
-      externalId: 'task-1', title: 'Renamed review', status: 'Done',
+      externalId: 'task-1',
+      title: 'Renamed review',
+      status: 'Done',
     }),
     titleParityRow({
       relativePath: 'clickup/acme/task-2.md',
       occurredAt: '2026-02-02T00:00:00.000Z',
-      externalId: 'task-2', title: 'Dependency cleanup', status: 'Blocked',
+      externalId: 'task-2',
+      title: 'Dependency cleanup',
+      status: 'Blocked',
       body: 'Legacy review appears in this dependency note.',
     }),
   ];
@@ -114,15 +130,17 @@ function buildTitleParityInput() {
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'historical-title-surfaces',
     namespace: 'acme',
-    querySchemas: [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: [
-        { fieldPath: 'title', aliases: ['title'] },
-        { fieldPath: 'status', aliases: ['status'] },
-      ],
-    }],
+    querySchemas: [
+      {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: [
+          { fieldPath: 'title', aliases: ['title'] },
+          { fieldPath: 'status', aliases: ['status'] },
+        ],
+      },
+    ],
     sources: rows.map(({ source }) => source),
     nativeObjectInputs: rows.map(({ nativeObjectInput }) => nativeObjectInput),
   };
@@ -183,14 +201,23 @@ test('kernel MCP handler exposes and verifies canonical point-in-time queries', 
     const listed = await handler.handle({ id: 1, method: 'tools/list' });
     assert.ok(listed.result.tools[0].inputSchema.properties.at);
     assert.equal(await handler.handle(null), null);
-    const response = await handler.handle({ id: 2, method: 'tools/call',
-      params: { name: 'verify', arguments: query({ at: AT, intent: 'current' }) } });
+    const response = await handler.handle({
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'verify', arguments: query({ at: AT, intent: 'current' }) },
+    });
     assert.equal(response.result.isError, undefined);
     const verified = JSON.parse(response.result.content[0].text);
     assert.equal(verified.at, AT);
-    assert.deepEqual(verified.context.map((row) => row.exactText), ['Beta']);
-    const invalid = await handler.handle({ id: 3, method: 'tools/call',
-      params: { name: 'verify', arguments: query({ at: AT, intent: 'next' }) } });
+    assert.deepEqual(
+      verified.context.map((row) => row.exactText),
+      ['Beta'],
+    );
+    const invalid = await handler.handle({
+      id: 3,
+      method: 'tools/call',
+      params: { name: 'verify', arguments: query({ at: AT, intent: 'next' }) },
+    });
     assert.equal(invalid.result.isError, true);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -203,9 +230,7 @@ test('SDK historical selection returns the earlier exact value while current sta
     const client = openOntology({ artifactRoot: root });
     const latest = await client.verify(query());
     assert.equal(latest.context[0].exactText, 'Gamma');
-    const cliLatest = runCli([
-      'verify', root, 'What is the task title for task-1?', ...CLI_SCOPE,
-    ]);
+    const cliLatest = runCli(['verify', root, 'What is the task title for task-1?', ...CLI_SCOPE]);
     assert.equal(cliLatest.status, 0, cliLatest.stderr);
     assert.equal(JSON.parse(cliLatest.stdout).context[0].exactText, 'Gamma');
 
@@ -215,7 +240,12 @@ test('SDK historical selection returns the earlier exact value while current sta
     assert.equal(historical.intent, 'at');
     assert.ok(historical.verification.historicalFieldChronology);
     const cliHistorical = runCli([
-      'verify', root, 'What is the task title for task-1?', ...CLI_SCOPE, '--at', AT,
+      'verify',
+      root,
+      'What is the task title for task-1?',
+      ...CLI_SCOPE,
+      '--at',
+      AT,
     ]);
     assert.equal(cliHistorical.status, 0, cliHistorical.stderr);
     assert.equal(JSON.parse(cliHistorical.stdout).context[0].exactText, 'Beta');
@@ -245,7 +275,8 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
     assert.equal(sdkHistorical.context[0].binding.externalId, 'task-1');
 
     const renamedHistorical = await client.verify({
-      question: 'What was the status of the task titled "Renamed review"?', at: TITLE_AT,
+      question: 'What was the status of the task titled "Renamed review"?',
+      at: TITLE_AT,
     });
     assert.equal(renamedHistorical.state, 'resolved-historical-field');
     assert.equal(renamedHistorical.answerable, true);
@@ -274,15 +305,21 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
     const output = new PassThrough();
     const outputLines = createInterface({ input: output });
     const server = runSourceNativeProductMcp(openSourceNativeProduct({ artifactRoot: root }), {
-      input, output, profile: 'advanced',
+      input,
+      output,
+      profile: 'advanced',
     });
     try {
       await mcpCall(input, outputLines, {
-        jsonrpc: '2.0', id: 1, method: 'initialize',
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
         params: { protocolVersion: '2024-11-05' },
       });
       const mcpCurrentResponse = await mcpCall(input, outputLines, {
-        jsonrpc: '2.0', id: 2, method: 'tools/call',
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
         params: { name: 'search', arguments: { question: currentQuestion } },
       });
       const mcpCurrent = JSON.parse(mcpCurrentResponse.result.content[0].text);
@@ -290,7 +327,9 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
       assert.equal(mcpCurrent.query.externalId, 'task-1');
       assert.equal(mcpCurrent.matches.length, 1);
       const mcpCurrentReadResponse = await mcpCall(input, outputLines, {
-        jsonrpc: '2.0', id: 3, method: 'tools/call',
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
         params: { name: 'read', arguments: { ref: mcpCurrent.matches[0].ref } },
       });
       const mcpCurrentRead = JSON.parse(mcpCurrentReadResponse.result.content[0].text);
@@ -298,7 +337,9 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
       assert.equal(mcpCurrentRead.binding.externalId, 'task-1');
 
       const mcpHistoricalResponse = await mcpCall(input, outputLines, {
-        jsonrpc: '2.0', id: 4, method: 'tools/call',
+        jsonrpc: '2.0',
+        id: 4,
+        method: 'tools/call',
         params: { name: 'search', arguments: { question: historicalQuestion, at: TITLE_AT } },
       });
       const mcpHistorical = JSON.parse(mcpHistoricalResponse.result.content[0].text);
@@ -307,7 +348,9 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
       assert.equal(mcpHistorical.at, TITLE_AT);
       assert.equal(mcpHistorical.matches.length, 1);
       const mcpHistoricalReadResponse = await mcpCall(input, outputLines, {
-        jsonrpc: '2.0', id: 5, method: 'tools/call',
+        jsonrpc: '2.0',
+        id: 5,
+        method: 'tools/call',
         params: { name: 'read', arguments: { ref: mcpHistorical.matches[0].ref } },
       });
       const mcpHistoricalRead = JSON.parse(mcpHistoricalReadResponse.result.content[0].text);
@@ -329,11 +372,15 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
     );
     try {
       await mcpCall(verifyInput, verifyOutputLines, {
-        jsonrpc: '2.0', id: 6, method: 'initialize',
+        jsonrpc: '2.0',
+        id: 6,
+        method: 'initialize',
         params: { protocolVersion: '2024-11-05' },
       });
       const verifiedCurrentResponse = await mcpCall(verifyInput, verifyOutputLines, {
-        jsonrpc: '2.0', id: 7, method: 'tools/call',
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
         params: { name: 'verify', arguments: { question: currentQuestion } },
       });
       const verifiedCurrent = JSON.parse(verifiedCurrentResponse.result.content[0].text);
@@ -344,9 +391,12 @@ test('title-only current and historical queries keep SDK, CLI and MCP on one ide
       assert.equal(verifiedCurrent.context[0].binding.externalId, 'task-1');
 
       const verifiedHistoricalResponse = await mcpCall(verifyInput, verifyOutputLines, {
-        jsonrpc: '2.0', id: 8, method: 'tools/call',
+        jsonrpc: '2.0',
+        id: 8,
+        method: 'tools/call',
         params: {
-          name: 'verify', arguments: { question: historicalQuestion, at: TITLE_AT },
+          name: 'verify',
+          arguments: { question: historicalQuestion, at: TITLE_AT },
         },
       });
       const verifiedHistorical = JSON.parse(verifiedHistoricalResponse.result.content[0].text);
@@ -376,10 +426,13 @@ test('title-only unknown and wrong-namespace refusals match across SDK, CLI and 
   try {
     const client = openOntology({ artifactRoot: root });
     const sdkResults = await Promise.all(questions.map((question) => client.verify(question)));
-    assert.deepEqual(sdkResults.map((result) => result.state), [
-      'unavailable-native-object-identifier-not-declared',
-      'unavailable-native-object-identifier-not-declared',
-    ]);
+    assert.deepEqual(
+      sdkResults.map((result) => result.state),
+      [
+        'unavailable-native-object-identifier-not-declared',
+        'unavailable-native-object-identifier-not-declared',
+      ],
+    );
     for (const result of sdkResults) {
       assert.equal(result.answerable, false);
       assert.deepEqual(result.context, []);
@@ -390,7 +443,10 @@ test('title-only unknown and wrong-namespace refusals match across SDK, CLI and 
       assert.equal(result.status, 0, result.stderr);
       return JSON.parse(result.stdout);
     });
-    assert.deepEqual(cliResults.map((result) => result.state), sdkResults.map((result) => result.state));
+    assert.deepEqual(
+      cliResults.map((result) => result.state),
+      sdkResults.map((result) => result.state),
+    );
     for (const result of cliResults) {
       assert.equal(result.answerable, false);
       assert.deepEqual(result.context, []);
@@ -400,16 +456,22 @@ test('title-only unknown and wrong-namespace refusals match across SDK, CLI and 
     const output = new PassThrough();
     const outputLines = createInterface({ input: output });
     const server = runSourceNativeProductMcp(openSourceNativeProduct({ artifactRoot: root }), {
-      input, output, profile: 'advanced',
+      input,
+      output,
+      profile: 'advanced',
     });
     try {
       await mcpCall(input, outputLines, {
-        jsonrpc: '2.0', id: 10, method: 'initialize',
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'initialize',
         params: { protocolVersion: '2024-11-05' },
       });
       for (const [index, question] of questions.entries()) {
         const response = await mcpCall(input, outputLines, {
-          jsonrpc: '2.0', id: 11 + index, method: 'tools/call',
+          jsonrpc: '2.0',
+          id: 11 + index,
+          method: 'tools/call',
           params: { name: 'search', arguments: { question } },
         });
         const result = JSON.parse(response.result.content[0].text);
@@ -432,12 +494,16 @@ test('title-only unknown and wrong-namespace refusals match across SDK, CLI and 
     );
     try {
       await mcpCall(verifyInput, verifyOutputLines, {
-        jsonrpc: '2.0', id: 20, method: 'initialize',
+        jsonrpc: '2.0',
+        id: 20,
+        method: 'initialize',
         params: { protocolVersion: '2024-11-05' },
       });
       for (const [index, question] of questions.entries()) {
         const response = await mcpCall(verifyInput, verifyOutputLines, {
-          jsonrpc: '2.0', id: 21 + index, method: 'tools/call',
+          jsonrpc: '2.0',
+          id: 21 + index,
+          method: 'tools/call',
           params: { name: 'verify', arguments: { question } },
         });
         const result = JSON.parse(response.result.content[0].text);
@@ -513,9 +579,15 @@ test('advanced MCP search and read carry the historical query', async () => {
     });
     assert.equal(initialized.result.serverInfo.name, 'openontology-source-native');
     const listed = await mcpCall(input, outputLines, {
-      jsonrpc: '2.0', id: 2, method: 'tools/list', params: {},
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/list',
+      params: {},
     });
-    assert.deepEqual(listed.result.tools.map((tool) => tool.name), ['search', 'read']);
+    assert.deepEqual(
+      listed.result.tools.map((tool) => tool.name),
+      ['search', 'read'],
+    );
     assert.ok(listed.result.tools[0].inputSchema.properties.at);
 
     for (const argumentsValue of [

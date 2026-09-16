@@ -19,16 +19,24 @@ if (!/^(?:release|\.release)\/SOURCE-MANIFEST\.json$/u.test(normalizedOutput)) {
   throw new Error(`Source inventory output must be release/SOURCE-MANIFEST.json: ${outputPath}`);
 }
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const canonical = (value) => JSON.stringify(value, (_key, item) =>
-  item && typeof item === 'object' && !Array.isArray(item)
-    ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]]))
-    : item);
+const canonical = (value) =>
+  JSON.stringify(value, (_key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
+        )
+      : item,
+  );
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const paths = execFileSync('git', ['ls-files', '-z'], {
   cwd: root,
   encoding: 'utf8',
-}).split('\0').filter(Boolean);
+})
+  .split('\0')
+  .filter(Boolean);
 const files = paths.map((path) => {
   const bytes = readFileSync(join(root, path));
   return { path, bytes: bytes.length, sha256: sha256(bytes) };

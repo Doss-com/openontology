@@ -28,29 +28,35 @@ function buildInput() {
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'product-surface-contract',
     namespace: 'contract',
-    querySchemas: [{
-      sourceSystem: 'linear',
-      objectType: 'issue',
-      aliases: ['issue'],
-      fields: [{ fieldPath: 'status', aliases: ['status'] }],
-    }],
-    sources: [{
-      relativePath: 'linear/contract/issue-1.txt',
-      sourceType: 'linear',
-      occurredAt: '2026-09-03T12:00:00.000Z',
-      content: 'Ready',
-    }],
-    nativeObjectInputs: [{
-      relativePath: 'linear/contract/issue-1.txt',
-      objectIdentity: {
-        home: 'ObjectDef/InstanceRef',
+    querySchemas: [
+      {
         sourceSystem: 'linear',
         objectType: 'issue',
-        namespace: 'contract',
-        externalId: 'issue-1',
+        aliases: ['issue'],
+        fields: [{ fieldPath: 'status', aliases: ['status'] }],
       },
-      fields: [{ fieldPath: 'status', value: 'Ready' }],
-    }],
+    ],
+    sources: [
+      {
+        relativePath: 'linear/contract/issue-1.txt',
+        sourceType: 'linear',
+        occurredAt: '2026-09-03T12:00:00.000Z',
+        content: 'Ready',
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath: 'linear/contract/issue-1.txt',
+        objectIdentity: {
+          home: 'ObjectDef/InstanceRef',
+          sourceSystem: 'linear',
+          objectType: 'issue',
+          namespace: 'contract',
+          externalId: 'issue-1',
+        },
+        fields: [{ fieldPath: 'status', value: 'Ready' }],
+      },
+    ],
   };
 }
 
@@ -153,8 +159,10 @@ test('SDK exposes only the locked query interface and preserves navigation befor
     assert.equal(search.matches.length, 1);
 
     const nullAnchorSearch = await ont.search({ ...query, anchorValue: null });
-    assert.equal(nullAnchorSearch.verification.queryPlanSha256,
-      search.verification.queryPlanSha256);
+    assert.equal(
+      nullAnchorSearch.verification.queryPlanSha256,
+      search.verification.queryPlanSha256,
+    );
     assert.throws(
       () => ont.search({ ...query, anchorValue: 7 }),
       (error) => error instanceof TypeError && error.code === 'OPENONTOLOGY_QUERY',
@@ -202,9 +210,7 @@ test('top-level search and status delegate to the read-only product surface', ()
     assert.equal(searchResult.matches.length, 1);
     assert.doesNotMatch(search.stdout, /Ready/u);
 
-    const searchWithRead = run([
-      'search', root, 'What is the current issue status?', '--read',
-    ]);
+    const searchWithRead = run(['search', root, 'What is the current issue status?', '--read']);
     assert.equal(searchWithRead.status, 0, searchWithRead.stderr);
     const searchWithReadResult = JSON.parse(searchWithRead.stdout);
     assert.equal(searchWithReadResult.evidence.length, 1);
@@ -244,15 +250,21 @@ test('public SDK rejects control-plane and unknown options', () => {
 });
 
 test('MCP profiles expose one ordinary path or one advanced path, never both', () => {
-  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.verify.map((tool) => tool.name), ['verify']);
-  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.advanced.map((tool) => tool.name),
-    ['search', 'read']);
+  assert.deepEqual(
+    SOURCE_NATIVE_PRODUCT_TOOLS.verify.map((tool) => tool.name),
+    ['verify'],
+  );
+  assert.deepEqual(
+    SOURCE_NATIVE_PRODUCT_TOOLS.advanced.map((tool) => tool.name),
+    ['search', 'read'],
+  );
   assert.deepEqual(
     Object.keys(SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties).sort(),
     ['anchorValue', 'at', 'intent', 'question', 'scope'],
   );
-  assert.deepEqual(
-    SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties.scope.required,
-    ['sourceSystem', 'objectType', 'field'],
-  );
+  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.verify[0].inputSchema.properties.scope.required, [
+    'sourceSystem',
+    'objectType',
+    'field',
+  ]);
 });

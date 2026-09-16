@@ -1,13 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -29,10 +22,7 @@ function source(relativePath, content) {
 }
 
 function buildInput({ selectedContent, unrelatedContent, extraSelectedObjects = 0 }) {
-  const sources = [
-    source(SELECTED_REF, selectedContent),
-    source(UNRELATED_REF, unrelatedContent),
-  ];
+  const sources = [source(SELECTED_REF, selectedContent), source(UNRELATED_REF, unrelatedContent)];
   const selectedObjects = Array.from({ length: extraSelectedObjects + 1 }, (_, index) => ({
     relativePath: SELECTED_REF,
     objectIdentity: {
@@ -49,8 +39,14 @@ function buildInput({ selectedContent, unrelatedContent, extraSelectedObjects = 
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'selected-source-boundaries-fixture',
     namespace: 'selected-source-boundaries',
-    querySchemas: [{ sourceSystem: 'docs', objectType: 'Document', aliases: ['document'],
-      fields: [{ fieldPath: 'body', aliases: ['body'] }] }],
+    querySchemas: [
+      {
+        sourceSystem: 'docs',
+        objectType: 'Document',
+        aliases: ['document'],
+        fields: [{ fieldPath: 'body', aliases: ['body'] }],
+      },
+    ],
     sources,
     nativeObjectInputs: [
       ...selectedObjects,
@@ -69,12 +65,15 @@ function buildInput({ selectedContent, unrelatedContent, extraSelectedObjects = 
   };
 }
 
-function makeFixture(t, {
-  selectedContent = `${SELECTED_WITNESS} is defined by this source.\n`,
-  unrelatedContent = 'Unrelated source content.\n',
-  extraSelectedObjects = 0,
-  protectedHistory = true,
-} = {}) {
+function makeFixture(
+  t,
+  {
+    selectedContent = `${SELECTED_WITNESS} is defined by this source.\n`,
+    unrelatedContent = 'Unrelated source content.\n',
+    extraSelectedObjects = 0,
+    protectedHistory = true,
+  } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), 'oont-selected-source-boundaries-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const objectRoot = join(root, 'objects');
@@ -107,13 +106,16 @@ function makeFixture(t, {
 }
 
 function sourceRow(fixture, sourceRef) {
-  return fixture.state.objectOnt.sources.find((sourceValue) => sourceValue.relativePath === sourceRef)
-    ?? assert.fail(`missing source ${sourceRef}`);
+  return (
+    fixture.state.objectOnt.sources.find((sourceValue) => sourceValue.relativePath === sourceRef) ??
+    assert.fail(`missing source ${sourceRef}`)
+  );
 }
 
 function nativeObject(fixture, sourceRef, index = 0) {
-  const rows = fixture.state.objectOnt.map.nativeObjects
-    .filter((object) => object.relativePath === sourceRef);
+  const rows = fixture.state.objectOnt.map.nativeObjects.filter(
+    (object) => object.relativePath === sourceRef,
+  );
   return rows[index] ?? assert.fail(`missing native object ${sourceRef} #${index}`);
 }
 
@@ -138,11 +140,27 @@ function selectedConstructionInput(fixture) {
     proposedBy: 'constructor',
     proposedAt: OCCURRED_AT,
     method: 'authored',
-    objectDefs: [{ kind: 'ObjectDef', id: 'selected-concept', name: SELECTED_WITNESS,
-      source: witness(fixture, SELECTED_REF), aliases: [] }],
-    claims: [{ kind: 'Claim', id: 'selected-definition', about: 'selected-concept',
-      predicate: 'defines', source: witness(fixture, SELECTED_REF) }],
-    coverage: [{ sourceRef: SELECTED_REF, sourceSha256: sourceValue.sourceSha256, disposition: 'examined' }],
+    objectDefs: [
+      {
+        kind: 'ObjectDef',
+        id: 'selected-concept',
+        name: SELECTED_WITNESS,
+        source: witness(fixture, SELECTED_REF),
+        aliases: [],
+      },
+    ],
+    claims: [
+      {
+        kind: 'Claim',
+        id: 'selected-definition',
+        about: 'selected-concept',
+        predicate: 'defines',
+        source: witness(fixture, SELECTED_REF),
+      },
+    ],
+    coverage: [
+      { sourceRef: SELECTED_REF, sourceSha256: sourceValue.sourceSha256, disposition: 'examined' },
+    ],
   };
 }
 
@@ -155,7 +173,9 @@ function signature(statement, privateKey) {
 }
 
 function admissionFixture(fixture, construction) {
-  const keys = Object.fromEntries(['constructor', 'reviewer'].map((id) => [id, generateKeyPairSync('ed25519')]));
+  const keys = Object.fromEntries(
+    ['constructor', 'reviewer'].map((id) => [id, generateKeyPairSync('ed25519')]),
+  );
   const trustRegistry = Object.entries(keys).map(([issuerId, pair]) => ({
     issuerId,
     publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
@@ -225,7 +245,9 @@ function variantMap(fixture, name, mutate) {
     mediaType: 'application/json',
   });
   const currentCommit = fixture.state.store.readCommit(fixture.state.objectOnt.commitSha256).commit;
-  const oldManifest = JSON.parse(fixture.state.store.readBlob(currentCommit.ontManifest, { manifest: true }).bytes);
+  const oldManifest = JSON.parse(
+    fixture.state.store.readBlob(currentCommit.ontManifest, { manifest: true }).bytes,
+  );
   const manifestValue = {
     ...oldManifest,
     nativeObjectMapSha256: mapSha256,
@@ -273,15 +295,20 @@ function variantMap(fixture, name, mutate) {
       nativeObjectMapSha256: mapSha256,
     }),
   };
-  writeFileSync(join(artifactRoot, 'source-native.json'), `${kernel.stableObjectText(descriptor)}\n`);
+  writeFileSync(
+    join(artifactRoot, 'source-native.json'),
+    `${kernel.stableObjectText(descriptor)}\n`,
+  );
   return {
     artifactRoot,
     options: {
       artifactRoot,
       objectBackendUri: fixture.objectBackendUri,
-      ...(fixture.options.historyBackendUri === undefined ? {} : {
-        historyBackendUri: fixture.historyBackendUri,
-      }),
+      ...(fixture.options.historyBackendUri === undefined
+        ? {}
+        : {
+            historyBackendUri: fixture.historyBackendUri,
+          }),
     },
     map,
     commit,
@@ -291,23 +318,30 @@ function variantMap(fixture, name, mutate) {
 
 function corruptMapField(map, sourceRef, objectIndex, value) {
   const objectIndexes = map.nativeObjects
-    .map((object, index) => object.relativePath === sourceRef ? index : -1)
+    .map((object, index) => (object.relativePath === sourceRef ? index : -1))
     .filter((index) => index >= 0);
-  const index = objectIndexes[objectIndex] ?? assert.fail(`missing map object ${sourceRef} #${objectIndex}`);
+  const index =
+    objectIndexes[objectIndex] ?? assert.fail(`missing map object ${sourceRef} #${objectIndex}`);
   const object = map.nativeObjects[index];
-  const fields = object.fields.map((field) => field.fieldPath === 'body'
-    ? rehashField(field, value) : field);
+  const fields = object.fields.map((field) =>
+    field.fieldPath === 'body' ? rehashField(field, value) : field,
+  );
   map.nativeObjects[index] = rehashObject(object, fields);
 }
 
 test('stale pre-advance construction is refused by canonical compile, review, and Admission', (t) => {
   const fixture = makeFixture(t);
   const input = selectedConstructionInput(fixture);
-  const construction = kernel.compileSourceNativeSemanticConstruction({ options: fixture.options, input });
-  assert.doesNotThrow(() => kernel.openSourceNativeConstructionReview({
+  const construction = kernel.compileSourceNativeSemanticConstruction({
     options: fixture.options,
-    construction,
-  }));
+    input,
+  });
+  assert.doesNotThrow(() =>
+    kernel.openSourceNativeConstructionReview({
+      options: fixture.options,
+      construction,
+    }),
+  );
   const admission = admissionFixture(fixture, construction);
   const successorInput = clone(fixture.input);
   successorInput.sources[1].content = `${successorInput.sources[1].content} successor\n`;
@@ -319,28 +353,48 @@ test('stale pre-advance construction is refused by canonical compile, review, an
     historyBackendUri: fixture.historyBackendUri,
   };
   kernel.buildSourceNativeProduct({ ...successorOptions, input: successorInput });
-  assert.throws(() => kernel.compileSourceNativeSemanticConstruction({
-    options: fixture.options,
-    input,
-  }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
-  assert.throws(() => kernel.openSourceNativeConstructionReview({
-    options: fixture.options,
-    construction,
-  }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
-  assert.throws(() => kernel.writeSourceNativeConstructionAdmission({
-    options: fixture.options,
-    trustRegistry: admission.trustRegistry,
-    record: admission.record,
-  }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
-  assert.throws(() => kernel.openSourceNativeConstructionReview({
-    options: successorOptions,
-    construction,
-  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
-  assert.throws(() => kernel.writeSourceNativeConstructionAdmission({
-    options: successorOptions,
-    trustRegistry: admission.trustRegistry,
-    record: admission.record,
-  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  assert.throws(
+    () =>
+      kernel.compileSourceNativeSemanticConstruction({
+        options: fixture.options,
+        input,
+      }),
+    { code: 'SOURCE_NATIVE_PRODUCT_REF' },
+  );
+  assert.throws(
+    () =>
+      kernel.openSourceNativeConstructionReview({
+        options: fixture.options,
+        construction,
+      }),
+    { code: 'SOURCE_NATIVE_PRODUCT_REF' },
+  );
+  assert.throws(
+    () =>
+      kernel.writeSourceNativeConstructionAdmission({
+        options: fixture.options,
+        trustRegistry: admission.trustRegistry,
+        record: admission.record,
+      }),
+    { code: 'SOURCE_NATIVE_PRODUCT_REF' },
+  );
+  assert.throws(
+    () =>
+      kernel.openSourceNativeConstructionReview({
+        options: successorOptions,
+        construction,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
+  assert.throws(
+    () =>
+      kernel.writeSourceNativeConstructionAdmission({
+        options: successorOptions,
+        trustRegistry: admission.trustRegistry,
+        record: admission.record,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
 });
 
 test('same-pack nonselected corruption distinguishes file envelopes from native range delivery', (t) => {
@@ -352,13 +406,19 @@ test('same-pack nonselected corruption distinguishes file envelopes from native 
   const unrelated = sourceRow(fileFixture, UNRELATED_REF);
   assert.equal(selected.blobDescriptor.key, unrelated.blobDescriptor.key);
   const corruption = corruptFileEnvelopeAtPackByte(
-    fileFixture, selected.blobDescriptor.key, unrelated.blobByteStart,
+    fileFixture,
+    selected.blobDescriptor.key,
+    unrelated.blobByteStart,
   );
   writeCorruptFileEnvelope(corruption, selected);
-  assert.throws(() => kernel.compileSourceNativeSemanticConstruction({
-    options: fileFixture.options,
-    input: selectedConstructionInput(fileFixture),
-  }), { code: 'OBJECT_BACKEND_CORRUPT' });
+  assert.throws(
+    () =>
+      kernel.compileSourceNativeSemanticConstruction({
+        options: fileFixture.options,
+        input: selectedConstructionInput(fileFixture),
+      }),
+    { code: 'OBJECT_BACKEND_CORRUPT' },
+  );
 
   const rangeFixture = makeFixture(t, {
     unrelatedContent: 'Unrelated source in the same pack.\n',
@@ -367,20 +427,28 @@ test('same-pack nonselected corruption distinguishes file envelopes from native 
   const fileSelection = kernel.openCanonicalObjectBackend({ uri: rangeFixture.objectBackendUri });
   const fileIndex = kernel.openSourceNativeObjectOntRefIndex({
     backend: fileSelection.backend,
-    historyBackend: kernel.openCanonicalObjectBackend({ uri: rangeFixture.historyBackendUri }).backend,
+    historyBackend: kernel.openCanonicalObjectBackend({ uri: rangeFixture.historyBackendUri })
+      .backend,
     ontId: rangeFixture.state.descriptor.ontId,
     branch: rangeFixture.state.descriptor.branch,
   });
   assert(fileIndex);
-  const selectedRange = fileIndex.objectOnt.sources.find((sourceValue) => sourceValue.relativePath === SELECTED_REF);
-  const unrelatedRange = fileIndex.objectOnt.sources.find((sourceValue) => sourceValue.relativePath === UNRELATED_REF);
+  const selectedRange = fileIndex.objectOnt.sources.find(
+    (sourceValue) => sourceValue.relativePath === SELECTED_REF,
+  );
+  const unrelatedRange = fileIndex.objectOnt.sources.find(
+    (sourceValue) => sourceValue.relativePath === UNRELATED_REF,
+  );
   assert(selectedRange);
   assert(unrelatedRange);
   assert.equal(selectedRange.blobDescriptor.key, unrelatedRange.blobDescriptor.key);
   const originalPack = fileSelection.backend.get(selectedRange.blobDescriptor.key).bytes;
   const corruptPack = Buffer.from(originalPack);
   corruptPack[unrelatedRange.blobByteStart] ^= 0xff;
-  assert.notEqual(corruptPack[unrelatedRange.blobByteStart], originalPack[unrelatedRange.blobByteStart]);
+  assert.notEqual(
+    corruptPack[unrelatedRange.blobByteStart],
+    originalPack[unrelatedRange.blobByteStart],
+  );
   const requests = [];
   const gcsBackend = openGcsObjectBackend({
     bucket: 'selected-source-boundaries',
@@ -411,8 +479,10 @@ test('same-pack nonselected corruption distinguishes file envelopes from native 
   });
   assert.equal(reader(SELECTED_REF).content, rangeFixture.input.sources[0].content);
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].headers.range,
-    `bytes=${selectedRange.blobByteStart}-${selectedRange.blobByteEnd - 1}`);
+  assert.equal(
+    requests[0].headers.range,
+    `bytes=${selectedRange.blobByteStart}-${selectedRange.blobByteEnd - 1}`,
+  );
 });
 
 test('a selected source validates every native object attached to that source', (t) => {
@@ -420,10 +490,14 @@ test('a selected source validates every native object attached to that source', 
   const variant = variantMap(fixture, 'selected-field-invalid', (map) => {
     corruptMapField(map, SELECTED_REF, 1, 'not present in selected source');
   });
-  assert.throws(() => kernel.compileSourceNativeSemanticConstruction({
-    options: variant.options,
-    input: selectedConstructionInput(fixture),
-  }), { code: 'SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE' });
+  assert.throws(
+    () =>
+      kernel.compileSourceNativeSemanticConstruction({
+        options: variant.options,
+        input: selectedConstructionInput(fixture),
+      }),
+    { code: 'SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE' },
+  );
 });
 
 test('structurally valid invalid field evidence on an uncited source stays scoped, while full open refuses', (t) => {
@@ -435,10 +509,12 @@ test('structurally valid invalid field evidence on an uncited source stays scope
     options: variant.options,
     input: selectedConstructionInput(fixture),
   });
-  assert.doesNotThrow(() => kernel.openSourceNativeConstructionReview({
-    options: variant.options,
-    construction,
-  }));
+  assert.doesNotThrow(() =>
+    kernel.openSourceNativeConstructionReview({
+      options: variant.options,
+      construction,
+    }),
+  );
   assert.throws(() => kernel.openProductState(variant.options), {
     code: 'SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE',
   });
@@ -468,11 +544,18 @@ test('protected Admission refuses when an unrelated source pack is unavailable',
   });
   const admission = admissionFixture(fixture, construction);
   const unrelated = sourceRow(fixture, UNRELATED_REF);
-  assert.notEqual(unrelated.blobDescriptor.key, sourceRow(fixture, SELECTED_REF).blobDescriptor.key);
+  assert.notEqual(
+    unrelated.blobDescriptor.key,
+    sourceRow(fixture, SELECTED_REF).blobDescriptor.key,
+  );
   unlinkSync(envelopePath(fixture.objectRoot, unrelated.blobDescriptor.key));
-  assert.throws(() => kernel.writeSourceNativeConstructionAdmission({
-    options: fixture.options,
-    trustRegistry: admission.trustRegistry,
-    record: admission.record,
-  }), { code: 'OBJECT_ONT_HISTORY_TARGET' });
+  assert.throws(
+    () =>
+      kernel.writeSourceNativeConstructionAdmission({
+        options: fixture.options,
+        trustRegistry: admission.trustRegistry,
+        record: admission.record,
+      }),
+    { code: 'OBJECT_ONT_HISTORY_TARGET' },
+  );
 });

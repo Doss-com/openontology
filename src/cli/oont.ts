@@ -12,8 +12,14 @@ const command = argv[0];
 const args = argv.slice(1);
 const packageVersion = (() => {
   const value: unknown = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || !('version' in value) || typeof value.version !== 'string' || !value.version) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    !('version' in value) ||
+    typeof value.version !== 'string' ||
+    !value.version
+  ) {
     throw new TypeError('OONT_PACKAGE_VERSION');
   }
   return value.version;
@@ -40,19 +46,21 @@ Run oont --version to print the installed package version.
 }
 
 function runResolver(resolverArgs: string[]): void {
-  const child = spawn(process.execPath, [
-    join(distRoot, 'cli', 'resolver.js'),
-    ...resolverArgs,
-  ], { stdio: 'inherit' });
+  const child = spawn(process.execPath, [join(distRoot, 'cli', 'resolver.js'), ...resolverArgs], {
+    stdio: 'inherit',
+  });
   child.on('exit', (code: number | null, signal: NodeJS.Signals | null) =>
-    process.exit(signal ? 1 : (code ?? 1)));
+    process.exit(signal ? 1 : (code ?? 1)),
+  );
 }
 
 type ProductCommand = 'verify' | 'search' | 'status' | 'check' | 'serve';
 function commandHelp(name: ProductCommand): never {
   const lines: Record<ProductCommand, string> = {
-    verify: 'usage: oont verify <ont> <question> [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
-    search: 'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
+    verify:
+      'usage: oont verify <ont> <question> [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
+    search:
+      'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
     status: 'usage: oont status <ont>',
     check: 'usage: oont check <ont>',
     serve: 'usage: oont serve <ont> --mcp [--advanced]',

@@ -7,9 +7,7 @@ import {
   resolveSourceNativeField,
   resolveSourceNativeFieldSuccessor,
 } from '../../dist/query/field-resolution.js';
-import {
-  compileSourceNativeCurrentFieldChronologyVerification,
-} from '../../dist/query/verification/current-field.js';
+import { compileSourceNativeCurrentFieldChronologyVerification } from '../../dist/query/verification/current-field.js';
 
 function source(relativePath, occurredAt, content, sourceType = 'clickup') {
   return {
@@ -21,11 +19,13 @@ function source(relativePath, occurredAt, content, sourceType = 'clickup') {
   };
 }
 
-function nativeObject(sourceRow, externalId, value, namespace = 'acme', {
-  sourceSystem = 'clickup',
-  objectType = 'task',
-  fieldPath = 'title',
-} = {}) {
+function nativeObject(
+  sourceRow,
+  externalId,
+  value,
+  namespace = 'acme',
+  { sourceSystem = 'clickup', objectType = 'task', fieldPath = 'title' } = {},
+) {
   return {
     relativePath: sourceRow.relativePath,
     objectIdentity: {
@@ -35,20 +35,18 @@ function nativeObject(sourceRow, externalId, value, namespace = 'acme', {
       namespace,
       externalId,
     },
-    fields: [{
-      fieldPath,
-      value,
-      codeUnitStart: sourceRow.content.indexOf(value),
-    }],
+    fields: [
+      {
+        fieldPath,
+        value,
+        codeUnitStart: sourceRow.content.indexOf(value),
+      },
+    ],
   };
 }
 
 test('uses a stale seed to traverse one native identity to its current field', () => {
-  const oldSource = source(
-    'clickup/acme/old.md',
-    '2026-01-01T00:00:00.000Z',
-    '# Obsolete title\n',
-  );
+  const oldSource = source('clickup/acme/old.md', '2026-01-01T00:00:00.000Z', '# Obsolete title\n');
   const currentSource = source(
     'clickup/acme/current.md',
     '2026-02-01T00:00:00.000Z',
@@ -174,20 +172,38 @@ test('uses a unique typed scope when retrieval misses, but refuses an ambiguous 
 });
 
 test('counts every scoped identity instead of trusting a singleton seed', () => {
-  const selected = source('clickup/acme/selected.md', '2026-01-01T00:00:00.000Z', '# Selected title\n');
-  const missingField = source('clickup/acme/missing-field.md', '2026-01-02T00:00:00.000Z', '# Owner beta\n');
-  const competing = source('clickup/acme/competing.md', '2026-01-03T00:00:00.000Z', '# Competing title\n');
+  const selected = source(
+    'clickup/acme/selected.md',
+    '2026-01-01T00:00:00.000Z',
+    '# Selected title\n',
+  );
+  const missingField = source(
+    'clickup/acme/missing-field.md',
+    '2026-01-02T00:00:00.000Z',
+    '# Owner beta\n',
+  );
+  const competing = source(
+    'clickup/acme/competing.md',
+    '2026-01-03T00:00:00.000Z',
+    '# Competing title\n',
+  );
   const map = compileSourceNativeObjectMap({
     sources: [selected, missingField, competing],
     nativeObjectInputs: [
       nativeObject(selected, 'zone-a', 'Selected title', 'acme', {
-        sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+        sourceSystem: 'clickup',
+        objectType: 'zone',
+        fieldPath: 'title',
       }),
       nativeObject(missingField, 'zone-b', 'Owner beta', 'acme', {
-        sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'owner',
+        sourceSystem: 'clickup',
+        objectType: 'zone',
+        fieldPath: 'owner',
       }),
       nativeObject(competing, 'zone-c', 'Competing title', 'acme', {
-        sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+        sourceSystem: 'clickup',
+        objectType: 'zone',
+        fieldPath: 'title',
       }),
     ],
   });
@@ -195,14 +211,20 @@ test('counts every scoped identity instead of trusting a singleton seed', () => 
     sourceNativeObjectMap: map,
     seedRelativePaths: [selected.relativePath],
     query: {
-      namespace: 'acme', sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+      namespace: 'acme',
+      sourceSystem: 'clickup',
+      objectType: 'zone',
+      fieldPath: 'title',
     },
   });
   const emptySeed = resolveSourceNativeField({
     sourceNativeObjectMap: map,
     seedRelativePaths: [],
     query: {
-      namespace: 'acme', sourceSystem: 'clickup', objectType: 'zone', fieldPath: 'title',
+      namespace: 'acme',
+      sourceSystem: 'clickup',
+      objectType: 'zone',
+      fieldPath: 'title',
     },
   });
   assert.equal(singletonSeed.state, 'unavailable-native-object-scope-ambiguous');
@@ -226,7 +248,10 @@ test('omitted namespace counts duplicate external IDs across namespaces', () => 
     sourceNativeObjectMap: map,
     seedRelativePaths: [alpha.relativePath],
     query: {
-      sourceSystem: 'clickup', objectType: 'task', externalId: 'shared', fieldPath: 'title',
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'shared',
+      fieldPath: 'title',
     },
   });
   assert.equal(omittedNamespace.state, 'unavailable-native-object-scope-ambiguous');
@@ -234,7 +259,11 @@ test('omitted namespace counts duplicate external IDs across namespaces', () => 
     sourceNativeObjectMap: map,
     seedRelativePaths: [],
     query: {
-      namespace: 'alpha', sourceSystem: 'clickup', objectType: 'task', externalId: 'shared', fieldPath: 'title',
+      namespace: 'alpha',
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'shared',
+      fieldPath: 'title',
     },
   });
   assert.equal(boundNamespace.state, 'resolved-current-field');
@@ -281,7 +310,11 @@ test('resolves only the immediate field successor and refuses multiple anchors',
 
 test('resolves an explicit identity that retrieval did not seed', () => {
   const seeded = source('clickup/acme/seed.md', '2026-01-01T00:00:00.000Z', '# Seeded object\n');
-  const requested = source('clickup/acme/requested.md', '2026-02-01T00:00:00.000Z', '# Requested object\n');
+  const requested = source(
+    'clickup/acme/requested.md',
+    '2026-02-01T00:00:00.000Z',
+    '# Requested object\n',
+  );
   const map = compileSourceNativeObjectMap({
     sources: [seeded, requested],
     nativeObjectInputs: [
@@ -304,15 +337,16 @@ test('resolves an explicit identity that retrieval did not seed', () => {
 });
 
 test('binds a large revision closure without emitting every intermediate revision', () => {
-  const sources = Array.from({ length: 40 }, (_, index) => source(
-    `clickup/acme/version-${String(index).padStart(2, '0')}.md`,
-    new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
-    `# State ${index}\n`,
-  ));
+  const sources = Array.from({ length: 40 }, (_, index) =>
+    source(
+      `clickup/acme/version-${String(index).padStart(2, '0')}.md`,
+      new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      `# State ${index}\n`,
+    ),
+  );
   const map = compileSourceNativeObjectMap({
     sources,
-    nativeObjectInputs: sources.map((row, index) =>
-      nativeObject(row, 'task-1', `State ${index}`)),
+    nativeObjectInputs: sources.map((row, index) => nativeObject(row, 'task-1', `State ${index}`)),
   });
   const result = resolveSourceNativeField({
     sourceNativeObjectMap: map,
@@ -334,11 +368,23 @@ test('binds a large revision closure without emitting every intermediate revisio
 
 test('verifies current field chronology only over a complete bound source cut', () => {
   const first = source('clickup/acme/first.md', '2026-01-01T00:00:00.000Z', '# First title\n');
-  const current = source('clickup/acme/current.md', '2026-02-01T00:00:00.000Z', '# Current title\n');
-  const unsupported = source('slack/acme/unmapped.md', '2026-03-01T00:00:00.000Z', 'Mentioned task-1.\n', 'slack');
+  const current = source(
+    'clickup/acme/current.md',
+    '2026-02-01T00:00:00.000Z',
+    '# Current title\n',
+  );
+  const unsupported = source(
+    'slack/acme/unmapped.md',
+    '2026-03-01T00:00:00.000Z',
+    'Mentioned task-1.\n',
+    'slack',
+  );
   const query = {
-    namespace: 'acme', sourceSystem: 'clickup', objectType: 'task',
-    externalId: 'task-1', fieldPath: 'title',
+    namespace: 'acme',
+    sourceSystem: 'clickup',
+    objectType: 'task',
+    externalId: 'task-1',
+    fieldPath: 'title',
   };
   const completeMap = compileSourceNativeObjectMap({
     sources: [first, current],
@@ -411,8 +457,16 @@ test('verifies current field chronology only over a complete bound source cut', 
   assert.deepEqual(insufficient.unmetRequirements, ['complete-source-coverage']);
   assert.equal(insufficient.currentFieldSha256, incompleteResolution.current.fieldSha256);
 
-  const tiedLeft = source('clickup/acme/tied-left.md', '2026-04-01T00:00:00.000Z', '# Display left\n');
-  const tiedRight = source('clickup/acme/tied-right.md', '2026-04-01T00:00:00.000Z', '# Display right\n');
+  const tiedLeft = source(
+    'clickup/acme/tied-left.md',
+    '2026-04-01T00:00:00.000Z',
+    '# Display left\n',
+  );
+  const tiedRight = source(
+    'clickup/acme/tied-right.md',
+    '2026-04-01T00:00:00.000Z',
+    '# Display right\n',
+  );
   const tiedObjects = [
     nativeObject(tiedLeft, 'task-1', 'Display left'),
     nativeObject(tiedRight, 'task-1', 'Display right'),

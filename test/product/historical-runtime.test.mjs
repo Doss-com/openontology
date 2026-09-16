@@ -24,22 +24,35 @@ function input(value) {
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'historical-runtime-test',
     namespace: 'example',
-    querySchemas: [{
-      sourceSystem: 'fixture', objectType: 'task', aliases: ['task'],
-      fields: [{ fieldPath: 'status', aliases: ['status'] }],
-    }],
-    sources: [{
-      relativePath: 'fixture/example/task-1.txt', sourceType: 'fixture',
-      occurredAt: '2026-09-09T00:00:00.000Z', content: `status: ${value}`,
-    }],
-    nativeObjectInputs: [{
-      relativePath: 'fixture/example/task-1.txt',
-      objectIdentity: {
-        home: 'ObjectDef/InstanceRef', sourceSystem: 'fixture', objectType: 'task',
-        namespace: 'example', externalId: 'task-1',
+    querySchemas: [
+      {
+        sourceSystem: 'fixture',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: [{ fieldPath: 'status', aliases: ['status'] }],
       },
-      fields: [{ fieldPath: 'status', value }],
-    }],
+    ],
+    sources: [
+      {
+        relativePath: 'fixture/example/task-1.txt',
+        sourceType: 'fixture',
+        occurredAt: '2026-09-09T00:00:00.000Z',
+        content: `status: ${value}`,
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath: 'fixture/example/task-1.txt',
+        objectIdentity: {
+          home: 'ObjectDef/InstanceRef',
+          sourceSystem: 'fixture',
+          objectType: 'task',
+          namespace: 'example',
+          externalId: 'task-1',
+        },
+        fields: [{ fieldPath: 'status', value }],
+      },
+    ],
   };
 }
 
@@ -47,18 +60,23 @@ function query() {
   return {
     question: 'What is the current status for task-1?',
     typedQuery: {
-      sourceSystem: 'fixture', objectType: 'task', externalId: 'task-1', fieldPath: 'status',
+      sourceSystem: 'fixture',
+      objectType: 'task',
+      externalId: 'task-1',
+      fieldPath: 'status',
     },
   };
 }
 
 function trustRegistry() {
   const pair = generateKeyPairSync('ed25519');
-  return [{
-    issuerId: 'historical-reviewer',
-    publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
-    roles: ['reviewer'],
-  }];
+  return [
+    {
+      issuerId: 'historical-reviewer',
+      publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
+      roles: ['reviewer'],
+    },
+  ];
 }
 
 function fixture() {
@@ -70,17 +88,30 @@ function fixture() {
   const aRoot = join(root, 'artifact-a');
   const bRoot = join(root, 'artifact-b');
   const a = buildSourceNativeProduct({
-    artifactRoot: aRoot, objectBackendUri, historyBackendUri, input: input('A'),
+    artifactRoot: aRoot,
+    objectBackendUri,
+    historyBackendUri,
+    input: input('A'),
   });
   const b = buildSourceNativeProduct({
-    artifactRoot: bRoot, objectBackendUri, historyBackendUri, input: input('B'),
+    artifactRoot: bRoot,
+    objectBackendUri,
+    historyBackendUri,
+    input: input('B'),
   });
   return { root, aRoot, bRoot, objectRoot, objectBackendUri, historyBackendUri, a, b };
 }
 
 function removeBlob(objectRoot, key) {
   const digest = createHash('sha256').update(key).digest('hex');
-  rmSync(join(fileURLToPath(pathToFileURL(objectRoot)), 'objects', digest.slice(0, 2), `${digest.slice(2)}.json`));
+  rmSync(
+    join(
+      fileURLToPath(pathToFileURL(objectRoot)),
+      'objects',
+      digest.slice(0, 2),
+      `${digest.slice(2)}.json`,
+    ),
+  );
 }
 
 test('historical runtime reopens A after main advances to B while current/root remain stale-refused', async () => {
@@ -103,7 +134,10 @@ test('historical runtime reopens A after main advances to B while current/root r
     assert.equal(historical.status().sourceCommitSha256, f.a.receipt.commitSha256);
     const result = await historical.verify(query());
     assert.equal(result.answerable, true);
-    assert.deepEqual(result.context.map(row => row.exactText), ['A']);
+    assert.deepEqual(
+      result.context.map((row) => row.exactText),
+      ['A'],
+    );
     const search = await historical.search(query());
     assert.equal(search.verification.sourceCommitSha256, f.a.receipt.commitSha256);
     const exact = await historical.read({ ref: search.matches[0].ref });
@@ -119,30 +153,61 @@ test('historical selection is confined to admitted and construction control-plan
   try {
     const trust = trustRegistry();
     const admitted = openSourceNativeProductWithAdmittedKnowledge(
-      { artifactRoot: f.aRoot }, { trustRegistry: trust, historical: true });
+      { artifactRoot: f.aRoot },
+      { trustRegistry: trust, historical: true },
+    );
     assert.equal(admitted.status().cutSelection, 'exact-artifact');
-    assert.deepEqual((await admitted.verify(query())).context.map(row => row.exactText), ['A']);
+    assert.deepEqual(
+      (await admitted.verify(query())).context.map((row) => row.exactText),
+      ['A'],
+    );
 
     const construction = openSourceNativeProductWithConstruction(
-      { artifactRoot: f.aRoot }, { trustRegistry: trust, historical: true });
+      { artifactRoot: f.aRoot },
+      { trustRegistry: trust, historical: true },
+    );
     assert.equal(construction.status().cutSelection, 'exact-artifact');
-    assert.deepEqual((await construction.verify(query())).context.map(row => row.exactText), ['A']);
+    assert.deepEqual(
+      (await construction.verify(query())).context.map((row) => row.exactText),
+      ['A'],
+    );
 
-    assert.throws(() => openSourceNativeProductRuntime({ artifactRoot: f.aRoot, historical: true }), {
-      code: 'SOURCE_NATIVE_PRODUCT_OPTIONS',
-    });
-    assert.throws(() => openSourceNativeProductWithAdmittedKnowledge(
-      { artifactRoot: f.aRoot }, { trustRegistry: trust, historical: 'yes' }), {
-      code: 'SOURCE_NATIVE_ADMISSION_TRUST',
-    });
-    assert.throws(() => openSourceNativeProductWithAdmittedKnowledge(
-      { artifactRoot: f.aRoot }, { trustRegistry: trust, unexpected: true }), {
-      code: 'SOURCE_NATIVE_ADMISSION_TRUST',
-    });
-    assert.throws(() => openSourceNativeProductWithConstruction(
-      { artifactRoot: f.aRoot }, { trustRegistry: trust, unexpected: true }), {
-      code: 'CONSTRUCTION_NAVIGATION_INPUT',
-    });
+    assert.throws(
+      () => openSourceNativeProductRuntime({ artifactRoot: f.aRoot, historical: true }),
+      {
+        code: 'SOURCE_NATIVE_PRODUCT_OPTIONS',
+      },
+    );
+    assert.throws(
+      () =>
+        openSourceNativeProductWithAdmittedKnowledge(
+          { artifactRoot: f.aRoot },
+          { trustRegistry: trust, historical: 'yes' },
+        ),
+      {
+        code: 'SOURCE_NATIVE_ADMISSION_TRUST',
+      },
+    );
+    assert.throws(
+      () =>
+        openSourceNativeProductWithAdmittedKnowledge(
+          { artifactRoot: f.aRoot },
+          { trustRegistry: trust, unexpected: true },
+        ),
+      {
+        code: 'SOURCE_NATIVE_ADMISSION_TRUST',
+      },
+    );
+    assert.throws(
+      () =>
+        openSourceNativeProductWithConstruction(
+          { artifactRoot: f.aRoot },
+          { trustRegistry: trust, unexpected: true },
+        ),
+      {
+        code: 'CONSTRUCTION_NAVIGATION_INPUT',
+      },
+    );
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -156,8 +221,12 @@ test('historical opener preserves exact-pack missing and corrupt refusals withou
     assert.throws(() => openSourceNativeHistoricalProductRuntime({ artifactRoot: missing.aRoot }), {
       code: 'OBJECT_BACKEND_NOT_FOUND',
     });
-    assert.deepEqual((await openSourceNativeProduct({ artifactRoot: missing.bRoot }).verify(query())).context
-      .map(row => row.exactText), ['B']);
+    assert.deepEqual(
+      (await openSourceNativeProduct({ artifactRoot: missing.bRoot }).verify(query())).context.map(
+        (row) => row.exactText,
+      ),
+      ['B'],
+    );
   } finally {
     rmSync(missing.root, { recursive: true, force: true });
   }
@@ -168,7 +237,8 @@ test('historical opener preserves exact-pack missing and corrupt refusals withou
     const backend = openCanonicalObjectBackend({ uri: corrupt.objectBackendUri }).backend;
     const stored = backend.get(state.objectOnt.sources[0].blobDescriptor.key);
     backend.compareAndSwap(state.objectOnt.sources[0].blobDescriptor.key, {
-      expectedVersion: stored.version, bytes: Buffer.from('corrupt'),
+      expectedVersion: stored.version,
+      bytes: Buffer.from('corrupt'),
     });
     assert.throws(() => openSourceNativeHistoricalProductRuntime({ artifactRoot: corrupt.aRoot }), {
       code: 'OBJECT_ONT_BLOB_READ',

@@ -14,9 +14,12 @@ const fail = (message) => {
 };
 
 try {
-  const packed = JSON.parse(execFileSync('npm', [
-    'pack', '--ignore-scripts', '--pack-destination', sandbox, '--json',
-  ], { cwd: root, encoding: 'utf8' }))[0];
+  const packed = JSON.parse(
+    execFileSync('npm', ['pack', '--ignore-scripts', '--pack-destination', sandbox, '--json'], {
+      cwd: root,
+      encoding: 'utf8',
+    }),
+  )[0];
   const tarball = join(sandbox, packed.filename);
   execFileSync('tar', ['-xzf', tarball, '-C', sandbox], { cwd: root });
   const packageRoot = join(sandbox, 'package');
@@ -28,11 +31,14 @@ try {
 
   function packagePath(importer, specifier) {
     const absolute = resolve(packageRoot, dirname(importer), specifier);
-    return normalize(absolute.slice(packageRoot.length + 1)).split(sep).join('/');
+    return normalize(absolute.slice(packageRoot.length + 1))
+      .split(sep)
+      .join('/');
   }
 
   function requirePacked(importer, specifier, kind = 'import') {
-    if (!specifier.startsWith('.') || specifier.endsWith('/') || !/\.(?:js|mjs)$/u.test(specifier)) return;
+    if (!specifier.startsWith('.') || specifier.endsWith('/') || !/\.(?:js|mjs)$/u.test(specifier))
+      return;
     const target = packagePath(importer, specifier);
     if (!paths.has(target)) missing.push({ importer, kind, specifier, target });
     else if (importsByModule.has(target)) importsByModule.get(importer).add(target);
@@ -43,18 +49,27 @@ try {
     const patterns = [
       { kind: 'import', re: /(?:from\s+|import\s*\()(['"])(\.{1,2}\/[^'"]+)\1/gu },
       { kind: 'side-effect import', re: /import\s+(['"])(\.{1,2}\/[^'"]+)\1/gu },
-      { kind: 'import.meta.url resource', re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu },
+      {
+        kind: 'import.meta.url resource',
+        re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu,
+      },
     ];
     for (const { kind, re } of patterns) {
       for (const match of source.matchAll(re)) requirePacked(importer, match[2], kind);
     }
 
     if (importer === 'dist/cli/oont.js') {
-      for (const match of source.matchAll(/join\(distRoot,\s*(['"])cli\1,\s*(['"])([^'"]+\.js)\2\)/gu)) {
+      for (const match of source.matchAll(
+        /join\(distRoot,\s*(['"])cli\1,\s*(['"])([^'"]+\.js)\2\)/gu,
+      )) {
         const target = `dist/cli/${match[3]}`;
-        if (!paths.has(target)) missing.push({
-          importer, kind: 'CLI delegate', specifier: match[3], target,
-        });
+        if (!paths.has(target))
+          missing.push({
+            importer,
+            kind: 'CLI delegate',
+            specifier: match[3],
+            target,
+          });
         else importsByModule.get(importer).add(target);
       }
     }
@@ -64,7 +79,10 @@ try {
     const source = readFileSync(join(packageRoot, importer), 'utf8');
     const patterns = [
       { kind: 'declaration import', re: /(?:from\s+|import\s*\()(['"])(\.{1,2}\/[^'"]+)\1/gu },
-      { kind: 'declaration import.meta.url resource', re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu },
+      {
+        kind: 'declaration import.meta.url resource',
+        re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu,
+      },
     ];
     for (const { kind, re } of patterns) {
       for (const match of source.matchAll(re)) requirePacked(importer, match[2], kind);
@@ -78,9 +96,13 @@ try {
       runtime.replace(/\.js$/u, '.d.ts'),
       runtime.replace(/\.js$/u, '.d.ts.map'),
     ]) {
-      if (!paths.has(generated)) missing.push({
-        importer: runtime, kind: 'generated output', specifier: generated, target: generated,
-      });
+      if (!paths.has(generated))
+        missing.push({
+          importer: runtime,
+          kind: 'generated output',
+          specifier: generated,
+          target: generated,
+        });
     }
   }
 
@@ -93,9 +115,13 @@ try {
     'examples/quickstart/semantic-map.mjs',
   ];
   for (const path of runtimeRoots) {
-    if (!paths.has(path)) missing.push({
-      importer: 'package.json', kind: 'runtime root', specifier: path, target: path,
-    });
+    if (!paths.has(path))
+      missing.push({
+        importer: 'package.json',
+        kind: 'runtime root',
+        specifier: path,
+        target: path,
+      });
   }
 
   const reachable = new Set();
@@ -109,15 +135,22 @@ try {
   const unreachable = modules.filter((path) => !reachable.has(path));
   if (unreachable.length) {
     missing.push({
-      importer: 'package.json', kind: 'unreachable modules',
-      specifier: String(unreachable.length), target: unreachable.join(', '),
+      importer: 'package.json',
+      kind: 'unreachable modules',
+      specifier: String(unreachable.length),
+      target: unreachable.join(', '),
     });
   }
   if (missing.length) {
-    fail(missing.map((item) =>
-      `  ${item.importer}: ${item.kind} ${item.specifier} -> ${item.target}`).join('\n'));
+    fail(
+      missing
+        .map((item) => `  ${item.importer}: ${item.kind} ${item.specifier} -> ${item.target}`)
+        .join('\n'),
+    );
   } else {
-    process.stdout.write(`package import closure passed: ${reachable.size} reachable runtime/example modules across ${packed.entryCount} files\n`);
+    process.stdout.write(
+      `package import closure passed: ${reachable.size} reachable runtime/example modules across ${packed.entryCount} files\n`,
+    );
   }
 } catch (error) {
   fail(error?.message ?? String(error));

@@ -59,21 +59,31 @@ export interface ObjectBackend {
   head(key: string): ObjectWriteReceipt | null;
   get(key: string, options?: { start?: number; end?: number | null }): ObjectReadResult;
   putIfAbsent(key: string, bytes: ObjectBackendInput): ObjectWriteReceipt;
-  compareAndSwap(key: string, options: {
-    expectedVersion?: string | null;
-    bytes: ObjectBackendInput;
-  }): ObjectWriteReceipt;
+  compareAndSwap(
+    key: string,
+    options: {
+      expectedVersion?: string | null;
+      bytes: ObjectBackendInput;
+    },
+  ): ObjectWriteReceipt;
   ensureBucket?: () => { bucket: string; status: number; available: true };
 }
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const canonical = (value: unknown): string => JSON.stringify(value, (_key: string, row: unknown) =>
-  row && typeof row === 'object' && !Array.isArray(row)
-    ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
-    : row) as string;
-const sha256 = (bytes: Uint8Array): string => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_key: string, row: unknown) =>
+    row && typeof row === 'object' && !Array.isArray(row)
+      ? Object.fromEntries(
+          Object.keys(row)
+            .sort(compare)
+            .map((key) => [key, (row as Record<string, unknown>)[key]]),
+        )
+      : row,
+  ) as string;
+const sha256 = (bytes: Uint8Array): string =>
+  `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 const objectSha256 = (value: unknown): string =>
   `sha256:${createHash('sha256').update(canonical(value), 'utf8').digest('hex')}`;
 const fail = (code: string): never => {
@@ -83,10 +93,18 @@ const fail = (code: string): never => {
 };
 
 function validateKey(key: string): string {
-  if (typeof key !== 'string' || key.length < 1 || key.length > 1024 || key.includes('\0')
-    || key.startsWith('/') || key.includes('\\')) fail('OBJECT_BACKEND_KEY');
+  if (
+    typeof key !== 'string' ||
+    key.length < 1 ||
+    key.length > 1024 ||
+    key.includes('\0') ||
+    key.startsWith('/') ||
+    key.includes('\\')
+  )
+    fail('OBJECT_BACKEND_KEY');
   const segments = key.split('/');
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) fail('OBJECT_BACKEND_KEY');
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..'))
+    fail('OBJECT_BACKEND_KEY');
   return key;
 }
 
@@ -110,7 +128,11 @@ function ensureDirectory(path: string): void {
 
 function syncDirectory(path: string): void {
   const descriptor = openSync(path, constants.O_RDONLY);
-  try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 function atomicReplace(path: string, bytes: Uint8Array): void {
@@ -145,7 +167,9 @@ function withKeyLock<T>(lockPath: string, operation: () => T): T {
     }
     throw error;
   }
-  writeFileSync(join(lockPath, 'owner.json'), `${canonical({ pid: process.pid })}\n`, { mode: 0o600 });
+  writeFileSync(join(lockPath, 'owner.json'), `${canonical({ pid: process.pid })}\n`, {
+    mode: 0o600,
+  });
   syncDirectory(dirname(lockPath));
   try {
     return operation();
@@ -166,7 +190,11 @@ interface FileObjectEnvelope {
   envelopeSha256: string;
 }
 
-function makeEnvelope({ key, bytes, generation }: {
+function makeEnvelope({
+  key,
+  bytes,
+  generation,
+}: {
   key: string;
   bytes: Buffer;
   generation: number;
@@ -183,23 +211,40 @@ function makeEnvelope({ key, bytes, generation }: {
   return { ...core, envelopeSha256: objectSha256(core) } as FileObjectEnvelope;
 }
 
-function validateEnvelope(value: unknown, expectedKey: string): { value: FileObjectEnvelope; bytes: Buffer } {
-  const { envelopeSha256, ...core } = value && typeof value === 'object'
-    ? value as Record<string, unknown> : {};
+function validateEnvelope(
+  value: unknown,
+  expectedKey: string,
+): { value: FileObjectEnvelope; bytes: Buffer } {
+  const { envelopeSha256, ...core } =
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const generation = core.generation;
   const byteLength = core.byteLength;
   const checksumSha256 = core.checksumSha256;
   const bytesBase64 = core.bytesBase64;
-  if (core.schemaVersion !== 1 || core.kind !== 'OpenOntologyFileObjectV1'
-    || core.key !== expectedKey || typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 1
-    || typeof byteLength !== 'number' || !Number.isSafeInteger(byteLength) || byteLength < 0
-    || typeof checksumSha256 !== 'string' || !SHA256.test(checksumSha256)
-    || objectSha256(core) !== envelopeSha256) fail('OBJECT_BACKEND_CORRUPT');
-  const safeBytesBase64 = typeof bytesBase64 === 'string'
-    ? bytesBase64 : fail('OBJECT_BACKEND_CORRUPT');
+  if (
+    core.schemaVersion !== 1 ||
+    core.kind !== 'OpenOntologyFileObjectV1' ||
+    core.key !== expectedKey ||
+    typeof generation !== 'number' ||
+    !Number.isSafeInteger(generation) ||
+    generation < 1 ||
+    typeof byteLength !== 'number' ||
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    typeof checksumSha256 !== 'string' ||
+    !SHA256.test(checksumSha256) ||
+    objectSha256(core) !== envelopeSha256
+  )
+    fail('OBJECT_BACKEND_CORRUPT');
+  const safeBytesBase64 =
+    typeof bytesBase64 === 'string' ? bytesBase64 : fail('OBJECT_BACKEND_CORRUPT');
   const bytes = Buffer.from(safeBytesBase64, 'base64');
-  if (bytes.toString('base64') !== safeBytesBase64 || bytes.length !== byteLength
-    || sha256(bytes) !== checksumSha256) fail('OBJECT_BACKEND_CORRUPT');
+  if (
+    bytes.toString('base64') !== safeBytesBase64 ||
+    bytes.length !== byteLength ||
+    sha256(bytes) !== checksumSha256
+  )
+    fail('OBJECT_BACKEND_CORRUPT');
   return { value: value as FileObjectEnvelope, bytes };
 }
 
@@ -226,8 +271,9 @@ export const CANONICAL_OBJECT_BACKEND_CONTRACT = Object.freeze({
 
 export function openFileObjectBackend({ root: rootInput }: { root?: string } = {}): ObjectBackend {
   if (typeof rootInput !== 'string' || !rootInput) fail('OBJECT_BACKEND_ROOT');
-  const root = resolve(typeof rootInput === 'string' && rootInput
-    ? rootInput : fail('OBJECT_BACKEND_ROOT'));
+  const root = resolve(
+    typeof rootInput === 'string' && rootInput ? rootInput : fail('OBJECT_BACKEND_ROOT'),
+  );
   if (dirname(root) === root) fail('OBJECT_BACKEND_ROOT');
   ensureDirectory(root);
   const objectsRoot = join(root, 'objects');
@@ -253,7 +299,8 @@ export function openFileObjectBackend({ root: rootInput }: { root?: string } = {
   const capabilitiesPath = join(root, 'BACKEND.json');
   const capabilitiesBytes = Buffer.from(`${canonical(capabilities)}\n`);
   if (!existsSync(capabilitiesPath)) atomicReplace(capabilitiesPath, capabilitiesBytes);
-  else if (!readFileSync(capabilitiesPath).equals(capabilitiesBytes)) fail('OBJECT_BACKEND_CAPABILITIES');
+  else if (!readFileSync(capabilitiesPath).equals(capabilitiesBytes))
+    fail('OBJECT_BACKEND_CAPABILITIES');
 
   const pathsFor = (keyInput: string): { key: string; objectPath: string; lockPath: string } => {
     const key = validateKey(keyInput);
@@ -265,23 +312,39 @@ export function openFileObjectBackend({ root: rootInput }: { root?: string } = {
       lockPath: join(locksRoot, `${hex}.lock`),
     };
   };
-  const readCurrent = ({ key, objectPath }: { key: string; objectPath: string }): { value: FileObjectEnvelope; bytes: Buffer } | null => {
+  const readCurrent = ({
+    key,
+    objectPath,
+  }: {
+    key: string;
+    objectPath: string;
+  }): { value: FileObjectEnvelope; bytes: Buffer } | null => {
     if (!existsSync(objectPath)) return null;
     const status = lstatSync(objectPath);
-    if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1) fail('OBJECT_BACKEND_CORRUPT');
+    if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1)
+      fail('OBJECT_BACKEND_CORRUPT');
     let parsed;
-    try { parsed = JSON.parse(readFileSync(objectPath, 'utf8')); } catch { fail('OBJECT_BACKEND_CORRUPT'); }
+    try {
+      parsed = JSON.parse(readFileSync(objectPath, 'utf8'));
+    } catch {
+      fail('OBJECT_BACKEND_CORRUPT');
+    }
     return validateEnvelope(parsed, key);
   };
-  const receipt = (key: string, envelope: FileObjectEnvelope, extra: Record<string, unknown> = {}): ObjectWriteReceipt => Object.freeze({
-    schemaVersion: 1,
-    kind: 'OpenOntologyObjectWriteReceiptV1',
-    key,
-    version: versionOf(envelope),
-    checksumSha256: envelope.checksumSha256,
-    byteLength: envelope.byteLength,
-    ...extra,
-  });
+  const receipt = (
+    key: string,
+    envelope: FileObjectEnvelope,
+    extra: Record<string, unknown> = {},
+  ): ObjectWriteReceipt =>
+    Object.freeze({
+      schemaVersion: 1,
+      kind: 'OpenOntologyObjectWriteReceiptV1',
+      key,
+      version: versionOf(envelope),
+      checksumSha256: envelope.checksumSha256,
+      byteLength: envelope.byteLength,
+      ...extra,
+    });
 
   return Object.freeze({
     capabilities,
@@ -291,13 +354,22 @@ export function openFileObjectBackend({ root: rootInput }: { root?: string } = {
       if (current === null) return null;
       return receipt(paths.key, current.value, { generation: current.value.generation });
     },
-    get(keyInput: string, { start = 0, end = null }: { start?: number; end?: number | null } = {}): ObjectReadResult {
+    get(
+      keyInput: string,
+      { start = 0, end = null }: { start?: number; end?: number | null } = {},
+    ): ObjectReadResult {
       const paths = pathsFor(keyInput);
       const current = readCurrent(paths);
       if (current === null) return fail('OBJECT_BACKEND_NOT_FOUND');
       const finalEnd = end === null ? current.bytes.length : end;
-      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(finalEnd)
-        || start < 0 || finalEnd < start || finalEnd > current.bytes.length) fail('OBJECT_BACKEND_RANGE');
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(finalEnd) ||
+        start < 0 ||
+        finalEnd < start ||
+        finalEnd > current.bytes.length
+      )
+        fail('OBJECT_BACKEND_RANGE');
       return Object.freeze({
         ...receipt(paths.key, current.value, { generation: current.value.generation }),
         bytes: current.bytes.subarray(start, finalEnd),
@@ -310,7 +382,8 @@ export function openFileObjectBackend({ root: rootInput }: { root?: string } = {
       return withKeyLock(paths.lockPath, () => {
         const current = readCurrent(paths);
         if (current !== null) {
-          if (current.bytes.equals(bytes)) return receipt(paths.key, current.value, { created: false, replayed: true });
+          if (current.bytes.equals(bytes))
+            return receipt(paths.key, current.value, { created: false, replayed: true });
           fail('OBJECT_BACKEND_PRECONDITION');
         }
         const envelope = makeEnvelope({ key: paths.key, bytes, generation: 1 });
@@ -318,10 +391,16 @@ export function openFileObjectBackend({ root: rootInput }: { root?: string } = {
         return receipt(paths.key, envelope, { created: true, replayed: false });
       });
     },
-    compareAndSwap(keyInput: string, { expectedVersion = null, bytes: bytesInput }: {
-      expectedVersion?: string | null;
-      bytes?: ObjectBackendInput;
-    } = {}): ObjectWriteReceipt {
+    compareAndSwap(
+      keyInput: string,
+      {
+        expectedVersion = null,
+        bytes: bytesInput,
+      }: {
+        expectedVersion?: string | null;
+        bytes?: ObjectBackendInput;
+      } = {},
+    ): ObjectWriteReceipt {
       const paths = pathsFor(keyInput);
       const bytes = exactBytes(bytesInput);
       if (expectedVersion !== null && (typeof expectedVersion !== 'string' || !expectedVersion)) {

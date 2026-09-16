@@ -72,8 +72,12 @@ responses include hashes and receipts.
 {
   "answerable": true,
   "state": "resolved-current-field",
-  "context": [{ "exactText": "Ship verified context",
-    "evidence": { "relativePath": "tracker/demo/task-1-v2.txt" } }]
+  "context": [
+    {
+      "exactText": "Ship verified context",
+      "evidence": { "relativePath": "tracker/demo/task-1-v2.txt" }
+    }
+  ]
 }
 ```
 
@@ -87,8 +91,7 @@ npx --no-install oont verify ./verified-context 'Who owns task-1?'
 {
   "answerable": false,
   "state": "unavailable-native-field-not-declared",
-  "availableFields": [{ "sourceSystem": "tracker", "objectType": "task",
-    "fieldPath": "title" }],
+  "availableFields": [{ "sourceSystem": "tracker", "objectType": "task", "fieldPath": "title" }],
   "context": []
 }
 ```
@@ -102,15 +105,15 @@ answer.
 ### SDK
 
 ```js
-import { openOntology } from 'oont'
+import { openOntology } from 'oont';
 
-const ont = openOntology({ artifactRoot: './verified-context' })
-const result = await ont.verify('What is the current title of task-1?')
+const ont = openOntology({ artifactRoot: './verified-context' });
+const result = await ont.verify('What is the current title of task-1?');
 
 if (result.answerable) {
-  console.log(result.context)
+  console.log(result.context);
 } else {
-  console.log(result.state)
+  console.log(result.state);
 }
 ```
 
@@ -144,12 +147,12 @@ so the current query returns the second revision. It then publishes
 The [SDK recipe](#sdk) is standard ESM JavaScript and can be saved as an
 `.mjs` file and run with Node.js 24 or newer. TypeScript uses the same API.
 
-| Method | Use it to |
-| --- | --- |
+| Method          | Use it to                                                      |
+| --------------- | -------------------------------------------------------------- |
 | `verify(query)` | Get verified source context or a reason it cannot be returned. |
-| `search(query)` | Find candidate source References. |
-| `read(ref)` | Inspect a Reference returned by the same client. |
-| `status()` | Check the opened Ont's metadata and integrity. |
+| `search(query)` | Find candidate source References.                              |
+| `read(ref)`     | Inspect a Reference returned by the same client.               |
+| `status()`      | Check the opened Ont's metadata and integrity.                 |
 
 Start with `verify`; use `search` and `read` when you want to inspect candidates
 yourself. Results describe the recorded source snapshot, not the live source
@@ -248,14 +251,14 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 
 ## Documentation
 
-| I want to... | Start here |
-| --- | --- |
-| Query an Ont and handle the result | [Queries and results](docs/QUERIES.md) |
-| Bring in data and publish updates | [Source input and updates](docs/SOURCE-LIFECYCLE.md) |
-| Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md) |
-| Understand the engine | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md) |
-| Configure storage or recover a snapshot | [Storage](docs/STORAGE.md) |
-| Change the code | [Contributing](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) |
+| I want to...                               | Start here                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Query an Ont and handle the result         | [Queries and results](docs/QUERIES.md)                                             |
+| Bring in data and publish updates          | [Source input and updates](docs/SOURCE-LIFECYCLE.md)                               |
+| Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md)                         |
+| Understand the engine                      | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md)                   |
+| Configure storage or recover a snapshot    | [Storage](docs/STORAGE.md)                                                         |
+| Change the code                            | [Contributing](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) |
 
 ## Alpha limitations
 

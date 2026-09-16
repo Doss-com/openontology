@@ -1,17 +1,10 @@
 /** Resolver orchestration over source-native field selection and Exact Evidence. */
 import { stableObjectSha256 } from '../canonical-content.js';
-import {
-  compileSourceNativeCurrentFieldChronologyVerification,
-} from './verification/current-field.js';
-import type {
-  SourceNativeCurrentFieldChronologyVerification,
-} from './verification/current-field.js';
+import { compileSourceNativeCurrentFieldChronologyVerification } from './verification/current-field.js';
+import type { SourceNativeCurrentFieldChronologyVerification } from './verification/current-field.js';
 import { validateSourceNativeExactSourceAvailabilitySnapshot } from './verification/evidence-session.js';
 import type { ExactSourceAvailabilitySnapshot } from './verification/evidence-session.js';
-import {
-  resolveSourceNativeField,
-  resolveSourceNativeFieldSuccessor,
-} from './field-resolution.js';
+import { resolveSourceNativeField, resolveSourceNativeFieldSuccessor } from './field-resolution.js';
 import type {
   SourceNativeFieldResolutionResult,
   SourceNativeFieldSuccessorResolutionResult,
@@ -25,10 +18,11 @@ import type {
 } from './resolver-support.js';
 import type { SourceNativeObjectIdentityCensus } from '../source/identity-census.js';
 import type { SourceNativeFieldQuery } from './planner.js';
-import { normalizeSourceNativeHistoricalTime, resolveSourceNativeFieldAt } from './historical-field.js';
 import {
-  validateSourceNativeObjectIdentityCensus as validateObjectIdentityCensus,
-} from '../source/identity-census.js';
+  normalizeSourceNativeHistoricalTime,
+  resolveSourceNativeFieldAt,
+} from './historical-field.js';
+import { validateSourceNativeObjectIdentityCensus as validateObjectIdentityCensus } from '../source/identity-census.js';
 import {
   learnedRouteMatchesIdentity,
   navigationProposalSummary,
@@ -38,9 +32,7 @@ import {
   validateFieldQueryPlan,
 } from './resolver-support.js';
 
-export {
-  compileSourceNativeObjectIdentityCensus,
-} from '../source/identity-census.js';
+export { compileSourceNativeObjectIdentityCensus } from '../source/identity-census.js';
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 function fail(code: string): never {
@@ -48,7 +40,7 @@ function fail(code: string): never {
   error.code = code;
   throw error;
 }
-const freeze = <T,>(value: T): T => {
+const freeze = <T>(value: T): T => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
@@ -124,15 +116,15 @@ function compileObjectIdentityAbsenceReceipt({
 }): SourceNativeObjectIdentityAbsenceReceipt | null {
   if (query.externalId === undefined || census === null) return null;
   const matches = (row: { sourceSystem: string; objectType: string; externalId: string }) =>
-    row.sourceSystem === query.sourceSystem
-    && row.objectType === query.objectType
-    && row.externalId === query.externalId;
+    row.sourceSystem === query.sourceSystem &&
+    row.objectType === query.objectType &&
+    row.externalId === query.externalId;
   const censusContainsIdentity = census.objectIdentities.some(matches);
-  const mapContainsIdentity = map.nativeObjects.some((row) =>
-    row.objectIdentity.namespace === namespace && matches(row.objectIdentity));
+  const mapContainsIdentity = map.nativeObjects.some(
+    (row) => row.objectIdentity.namespace === namespace && matches(row.objectIdentity),
+  );
   if (censusContainsIdentity || mapContainsIdentity) return null;
-  const catalogSha256 = sourceCatalogSha256
-    ?? fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING');
+  const catalogSha256 = sourceCatalogSha256 ?? fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING');
   const core: Omit<SourceNativeObjectIdentityAbsenceReceipt, 'receiptSha256'> = {
     schema: 1,
     kind: 'OpenOntologySourceNativeObjectIdentityAbsenceReceiptV1',
@@ -191,10 +183,12 @@ export function openSourceNativeRecordedFieldResolver({
   const at = atInput === null ? null : normalizeSourceNativeHistoricalTime(atInput);
   const intent = at === null ? 'current' : 'at';
   const boundNamespace = namespace ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
-  const boundCommitSha256 = sourceCommitSha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
-  const boundReplaySha256 = sourceReplaySha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
-  const boundRouteMapSha256 = sourceSearchRouteMapSha256
-    ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
+  const boundCommitSha256 =
+    sourceCommitSha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
+  const boundReplaySha256 =
+    sourceReplaySha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
+  const boundRouteMapSha256 =
+    sourceSearchRouteMapSha256 ?? fail('SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT');
   const {
     map,
     queryPlanner,
@@ -218,28 +212,42 @@ export function openSourceNativeRecordedFieldResolver({
     queryPlannerInput,
     invalidInputCode: 'SOURCE_NATIVE_CURRENT_FIELD_RESOLVER_INPUT',
   });
-  const objectIdentityCensus = objectIdentityCensusInput === null ? null
-    : validateObjectIdentityCensus(objectIdentityCensusInput);
-  if (objectIdentityCensus !== null
-    && (!SHA256.test(sourceCatalogSha256 ?? '')
-      || objectIdentityCensus.namespace !== boundNamespace
-      || objectIdentityCensus.sourceCatalogSha256 !== sourceCatalogSha256
-      || objectIdentityCensus.sourceHandleSetSha256 !== sourceHandleSetSha256
-      || objectIdentityCensus.sourceCount !== sourceHandles.length
-      || map.mappedSourceCount !== map.sourceCount
-      || map.unsupportedSourceCount !== 0
-      || map.parseFailureCount !== 0)) {
+  const objectIdentityCensus =
+    objectIdentityCensusInput === null
+      ? null
+      : validateObjectIdentityCensus(objectIdentityCensusInput);
+  if (
+    objectIdentityCensus !== null &&
+    (!SHA256.test(sourceCatalogSha256 ?? '') ||
+      objectIdentityCensus.namespace !== boundNamespace ||
+      objectIdentityCensus.sourceCatalogSha256 !== sourceCatalogSha256 ||
+      objectIdentityCensus.sourceHandleSetSha256 !== sourceHandleSetSha256 ||
+      objectIdentityCensus.sourceCount !== sourceHandles.length ||
+      map.mappedSourceCount !== map.sourceCount ||
+      map.unsupportedSourceCount !== 0 ||
+      map.parseFailureCount !== 0)
+  ) {
     fail('SOURCE_NATIVE_OBJECT_IDENTITY_CENSUS_BINDING');
   }
-  const search = async ({ question, maximumSourceMessages = 64 }: {
+  const search = async ({
+    question,
+    maximumSourceMessages = 64,
+  }: {
     question?: unknown;
     maximumSourceMessages?: number;
   } = {}) => {
-    if (typeof question !== 'string' || !question.trim()
-      || !Number.isSafeInteger(maximumSourceMessages) || maximumSourceMessages < 1
-      || maximumSourceMessages > 1024) fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
+    if (
+      typeof question !== 'string' ||
+      !question.trim() ||
+      !Number.isSafeInteger(maximumSourceMessages) ||
+      maximumSourceMessages < 1 ||
+      maximumSourceMessages > 1024
+    )
+      fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
     const queryPlan = validateFieldQueryPlan(await queryPlanner.plan({ question }), {
-      planner: queryPlanner, namespace: boundNamespace, question,
+      planner: queryPlanner,
+      namespace: boundNamespace,
+      question,
     });
     let resolution: SourceNativeFieldResolutionResult | null = null;
     let evidenceUnits: UnknownRecord[] = [];
@@ -258,9 +266,14 @@ export function openSourceNativeRecordedFieldResolver({
     let selectionLabel = 'unresolved source-native current field';
     if (queryPlan.state === 'resolved-native-field-query' && queryPlan.query !== null) {
       const resolvedQuery = queryPlan.query;
-      selectionLabel = [resolvedQuery.sourceSystem, resolvedQuery.objectType,
-        resolvedQuery.externalId, resolvedQuery.fieldPath]
-        .filter((value) => value !== undefined).join(' ');
+      selectionLabel = [
+        resolvedQuery.sourceSystem,
+        resolvedQuery.objectType,
+        resolvedQuery.externalId,
+        resolvedQuery.fieldPath,
+      ]
+        .filter((value) => value !== undefined)
+        .join(' ');
       absenceReceipt = compileObjectIdentityAbsenceReceipt({
         map,
         census: objectIdentityCensus,
@@ -273,8 +286,10 @@ export function openSourceNativeRecordedFieldResolver({
         state = 'verified-native-object-absent-from-bound-source-catalog';
         absenceAuthorized = true;
       } else {
-        const bindingSha256 = at === null ? queryBindingSha256('current', resolvedQuery)
-          : stableObjectSha256({ intent, at, query: resolvedQuery });
+        const bindingSha256 =
+          at === null
+            ? queryBindingSha256('current', resolvedQuery)
+            : stableObjectSha256({ intent, at, query: resolvedQuery });
         const seedSearch = await runSeedSearch({
           adapter: seedSearchAdapter,
           question,
@@ -288,47 +303,70 @@ export function openSourceNativeRecordedFieldResolver({
           queryBindingSha256: bindingSha256,
         });
         seedSourceMessageIds = seedSearch.rows.map((row) => row.sourceMessageId);
-        policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows
-          .map((row) => row.sourceMessageId);
+        policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows.map(
+          (row) => row.sourceMessageId,
+        );
         seedSearchReceiptSha256 = seedSearch.receiptSha256;
         seedSearchNetworkCalls = seedSearch.networkCalls;
         rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
-        const historical = at === null ? null : resolveSourceNativeFieldAt({
-          sourceNativeObjectMap: map, query: resolvedQuery, at,
-        });
-        resolution = historical === null ? resolveSourceNativeField({
-          sourceNativeObjectMap: map,
-          seedRelativePaths: seedSearch.traversalRows.map((row) => row.relativePath),
-          query: resolvedQuery,
-        }) : { ...historical, current: historical.selected, suppressedRelativePaths: [],
-          policy: historical.temporalProfile };
+        const historical =
+          at === null
+            ? null
+            : resolveSourceNativeFieldAt({
+                sourceNativeObjectMap: map,
+                query: resolvedQuery,
+                at,
+              });
+        resolution =
+          historical === null
+            ? resolveSourceNativeField({
+                sourceNativeObjectMap: map,
+                seedRelativePaths: seedSearch.traversalRows.map((row) => row.relativePath),
+                query: resolvedQuery,
+              })
+            : {
+                ...historical,
+                current: historical.selected,
+                suppressedRelativePaths: [],
+                policy: historical.temporalProfile,
+              };
         state = resolution.state;
-        if ((resolution.state === 'resolved-current-field' || resolution.state === 'resolved-historical-field')
-          && resolution.current !== null
-          && resolution.current !== undefined) {
-          if (historical === null) currentFieldChronology = compileSourceNativeCurrentFieldChronologyVerification({
-            sourceNativeObjectMap: map,
-            resolution,
-            sourceCommitSha256: boundCommitSha256,
-            sourceReplaySha256: boundReplaySha256,
-            sourceCatalogSha256,
-            sourceHandles,
-          });
+        if (
+          (resolution.state === 'resolved-current-field' ||
+            resolution.state === 'resolved-historical-field') &&
+          resolution.current !== null &&
+          resolution.current !== undefined
+        ) {
+          if (historical === null)
+            currentFieldChronology = compileSourceNativeCurrentFieldChronologyVerification({
+              sourceNativeObjectMap: map,
+              resolution,
+              sourceCommitSha256: boundCommitSha256,
+              sourceReplaySha256: boundReplaySha256,
+              sourceCatalogSha256,
+              sourceHandles,
+            });
           else {
-            const selected = historical.selected ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_SELECTION');
+            const selected =
+              historical.selected ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_SELECTION');
             const paths = new Set(map.nativeObjects.map((object) => object.relativePath));
-            const completeCatalog = SHA256.test(sourceCatalogSha256 ?? '')
-              && sourceHandles.length === map.sourceCount && paths.size === sourceHandles.length
-              && sourceHandles.every((handle) => paths.has(handle.relativePath));
+            const completeCatalog =
+              SHA256.test(sourceCatalogSha256 ?? '') &&
+              sourceHandles.length === map.sourceCount &&
+              paths.size === sourceHandles.length &&
+              sourceHandles.every((handle) => paths.has(handle.relativePath));
             const core = {
               schema: 1 as const,
               kind: 'OpenOntologySourceNativeHistoricalFieldChronologyVerificationV1' as const,
-              proofDisposition: completeCatalog ? 'sufficient' as const : 'insufficient' as const,
+              proofDisposition: completeCatalog
+                ? ('sufficient' as const)
+                : ('insufficient' as const),
               scope: 'retrospective-valid-time-over-bound-source-cut' as const,
               temporalProfile: historical.temporalProfile,
               at: historical.at,
-              sourceObservedThrough: historical.sourceObservedThrough
-                ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_SELECTION'),
+              sourceObservedThrough:
+                historical.sourceObservedThrough ??
+                fail('SOURCE_NATIVE_HISTORICAL_FIELD_SELECTION'),
               knownAtLimitsSelection: false as const,
               sourceCommitSha256: boundCommitSha256,
               sourceReplaySha256: boundReplaySha256,
@@ -348,55 +386,72 @@ export function openSourceNativeRecordedFieldResolver({
               exactInspectRequired: true as const,
               exactSourcesRemainAuthority: true as const,
             };
-            historicalFieldChronology = freeze({ ...core, verificationSha256: stableObjectSha256(core) });
+            historicalFieldChronology = freeze({
+              ...core,
+              verificationSha256: stableObjectSha256(core),
+            });
           }
-          const chronology = historicalFieldChronology ?? currentFieldChronology
-            ?? fail('SOURCE_NATIVE_FIELD_CHRONOLOGY');
+          const chronology =
+            historicalFieldChronology ??
+            currentFieldChronology ??
+            fail('SOURCE_NATIVE_FIELD_CHRONOLOGY');
           if (chronology.proofDisposition === 'insufficient') {
             state = 'unavailable-incomplete-recorded-field-chronology';
           } else {
-            const currentHandle = handleByPath.get(resolution.current.relativePath)
-              ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE');
-            const suppressedSourceMessageIds = resolution.suppressedRelativePaths.map((relativePath: string) => {
-              const handle = handleByPath.get(relativePath);
-              return (handle ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE')).sourceMessageId;
-            }).sort((left: number, right: number) => left - right);
+            const currentHandle =
+              handleByPath.get(resolution.current.relativePath) ??
+              fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE');
+            const suppressedSourceMessageIds = resolution.suppressedRelativePaths
+              .map((relativePath: string) => {
+                const handle = handleByPath.get(relativePath);
+                return (handle ?? fail('SOURCE_NATIVE_OBJECT_RESOLVER_SOURCE_COVERAGE'))
+                  .sourceMessageId;
+              })
+              .sort((left: number, right: number) => left - right);
             const unitCore = {
               schema: 1,
-              kind: at === null ? 'OpenOntologySourceNativeCurrentFieldEvidenceUnitV1'
-                : 'OpenOntologySourceNativeHistoricalFieldEvidenceUnitV1',
+              kind:
+                at === null
+                  ? 'OpenOntologySourceNativeCurrentFieldEvidenceUnitV1'
+                  : 'OpenOntologySourceNativeHistoricalFieldEvidenceUnitV1',
               selectionLabel,
               representativeSourceMessageId: currentHandle.sourceMessageId,
               referenceSourceMessageIds: freeze([currentHandle.sourceMessageId]),
               evidenceReferenceCount: 1,
-              exactEvidenceReferences: freeze([freeze({
-                sourceMessageId: currentHandle.sourceMessageId,
-                relativePath: resolution.current.relativePath,
-                sourceSha256: resolution.current.evidence.sourceSha256,
-                byteStart: resolution.current.evidence.byteStart,
-                byteEnd: resolution.current.evidence.byteEnd,
-                textSha256: resolution.current.evidence.textSha256,
-                fieldSha256: resolution.current.fieldSha256,
-                fieldPath: resolution.query.fieldPath,
-                propositionFamilyKey: resolution.query.fieldPath,
-                businessEntityKeys: freeze([]),
-              })]),
+              exactEvidenceReferences: freeze([
+                freeze({
+                  sourceMessageId: currentHandle.sourceMessageId,
+                  relativePath: resolution.current.relativePath,
+                  sourceSha256: resolution.current.evidence.sourceSha256,
+                  byteStart: resolution.current.evidence.byteStart,
+                  byteEnd: resolution.current.evidence.byteEnd,
+                  textSha256: resolution.current.evidence.textSha256,
+                  fieldSha256: resolution.current.fieldSha256,
+                  fieldPath: resolution.query.fieldPath,
+                  propositionFamilyKey: resolution.query.fieldPath,
+                  businessEntityKeys: freeze([]),
+                }),
+              ]),
               exactEvidenceReferenceCount: 1,
               suppressedSourceMessageIds: freeze(suppressedSourceMessageIds),
               revisionClosureCount: resolution.revisionClosureCount,
               revisionClosureSha256: resolution.revisionClosureSha256,
-              ...(at === null ? {
-                currentFieldChronologyVerificationSha256: chronology.verificationSha256,
-                currentFieldSha256: resolution.current.fieldSha256,
-              } : {
-                historicalFieldChronologyVerificationSha256: chronology.verificationSha256,
-                selectedFieldSha256: resolution.current.fieldSha256,
-              }),
+              ...(at === null
+                ? {
+                    currentFieldChronologyVerificationSha256: chronology.verificationSha256,
+                    currentFieldSha256: resolution.current.fieldSha256,
+                  }
+                : {
+                    historicalFieldChronologyVerificationSha256: chronology.verificationSha256,
+                    selectedFieldSha256: resolution.current.fieldSha256,
+                  }),
               navigationOnly: true,
               exactInspectRequired: true,
               exactSourcesRemainAuthority: true,
             };
-            evidenceUnits = [freeze({ ...unitCore, evidenceUnitSha256: stableObjectSha256(unitCore) })];
+            evidenceUnits = [
+              freeze({ ...unitCore, evidenceUnitSha256: stableObjectSha256(unitCore) }),
+            ];
             selectedSourceMessageIds = [currentHandle.sourceMessageId];
             allReferenceSourceMessageIds = [currentHandle.sourceMessageId];
           }
@@ -404,9 +459,11 @@ export function openSourceNativeRecordedFieldResolver({
       }
     }
     const current = resolution?.current;
-    const selectedIdentitySha256 = current === undefined || current === null ? null
-      : map.nativeObjects.find((row) => row.relativePath === current.relativePath)
-        ?.objectIdentitySha256 ?? null;
+    const selectedIdentitySha256 =
+      current === undefined || current === null
+        ? null
+        : (map.nativeObjects.find((row) => row.relativePath === current.relativePath)
+            ?.objectIdentitySha256 ?? null);
     const core = {
       schema: 1,
       kind: 'OpenOntologySourceNativeObjectResolverResultV1',
@@ -421,8 +478,10 @@ export function openSourceNativeRecordedFieldResolver({
       queryPlannerAdapter: queryPlanner.adapter,
       queryPlannerSha256: queryPlanner.plannerSha256,
       queryPlan,
-      queryBindingSha256: at === null ? queryBindingSha256('current', queryPlan.query)
-        : stableObjectSha256({ intent, at, query: queryPlan.query }),
+      queryBindingSha256:
+        at === null
+          ? queryBindingSha256('current', queryPlan.query)
+          : stableObjectSha256({ intent, at, query: queryPlan.query }),
       resolutionSha256: resolution?.resolutionSha256 ?? null,
       fieldResolutionPolicy: resolution?.policy ?? null,
       businessEntityKey: null,
@@ -456,8 +515,10 @@ export function openSourceNativeRecordedFieldResolver({
       searchPathAnchorSourceMessageIds: freeze([]),
       identityRejectedSeedSourceMessageIds: freeze([]),
       searchPathExpandedSourceMessageIds: freeze([]),
-      exactEvidenceReferenceCount: evidenceUnits.reduce((sum, unit) =>
-        sum + Number(unit.exactEvidenceReferenceCount), 0),
+      exactEvidenceReferenceCount: evidenceUnits.reduce(
+        (sum, unit) => sum + Number(unit.exactEvidenceReferenceCount),
+        0,
+      ),
       uniqueEvidenceUnitCount: evidenceUnits.length,
       redundantEvidenceReferenceCount: 0,
       maximumSourceMessages,
@@ -480,8 +541,10 @@ export function openSourceNativeRecordedFieldResolver({
 
   return freeze({
     kind: 'OpenOntologySourceNativeObjectResolverModuleV1',
-    implementation: at === null ? 'OpenOntologySourceNativeCurrentFieldResolverV1'
-      : 'OpenOntologySourceNativePointInTimeFieldResolverV1',
+    implementation:
+      at === null
+        ? 'OpenOntologySourceNativeCurrentFieldResolverV1'
+        : 'OpenOntologySourceNativePointInTimeFieldResolverV1',
     nativeObjectMapSha256: map.nativeObjectMapSha256,
     namespace: boundNamespace,
     sourceCommitSha256: boundCommitSha256,
@@ -531,10 +594,12 @@ export function openSourceNativeHistoricalFieldResolver({
   queryPlanner?: FieldQueryPlanner;
 } = {}) {
   const boundNamespace = namespace ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
-  const boundCommitSha256 = sourceCommitSha256 ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
-  const boundReplaySha256 = sourceReplaySha256 ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
-  const boundRouteMapSha256 = sourceSearchRouteMapSha256
-    ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
+  const boundCommitSha256 =
+    sourceCommitSha256 ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
+  const boundReplaySha256 =
+    sourceReplaySha256 ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
+  const boundRouteMapSha256 =
+    sourceSearchRouteMapSha256 ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT');
   const {
     map,
     queryPlanner,
@@ -558,23 +623,36 @@ export function openSourceNativeHistoricalFieldResolver({
     queryPlannerInput,
     invalidInputCode: 'SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT',
   });
-  const availability = validateSourceNativeExactSourceAvailabilitySnapshot(availabilityInput ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT'), {
-    sourceCommitSha256: boundCommitSha256,
-    sourceReplaySha256: boundReplaySha256,
-    sourceSearchRouteMapSha256: boundRouteMapSha256,
-    sourceHandleSetSha256,
-    sourceCount: sourceHandles.length,
-  });
+  const availability = validateSourceNativeExactSourceAvailabilitySnapshot(
+    availabilityInput ?? fail('SOURCE_NATIVE_HISTORICAL_FIELD_RESOLVER_INPUT'),
+    {
+      sourceCommitSha256: boundCommitSha256,
+      sourceReplaySha256: boundReplaySha256,
+      sourceSearchRouteMapSha256: boundRouteMapSha256,
+      sourceHandleSetSha256,
+      sourceCount: sourceHandles.length,
+    },
+  );
   const unavailableIds = new Set(availability.unavailableSourceMessageIds);
-  const search = async ({ question, maximumSourceMessages = 64 }: {
+  const search = async ({
+    question,
+    maximumSourceMessages = 64,
+  }: {
     question?: unknown;
     maximumSourceMessages?: number;
   } = {}) => {
-    if (typeof question !== 'string' || !question.trim()
-      || !Number.isSafeInteger(maximumSourceMessages) || maximumSourceMessages < 1
-      || maximumSourceMessages > 1024) fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
+    if (
+      typeof question !== 'string' ||
+      !question.trim() ||
+      !Number.isSafeInteger(maximumSourceMessages) ||
+      maximumSourceMessages < 1 ||
+      maximumSourceMessages > 1024
+    )
+      fail('SOURCE_NATIVE_OBJECT_RESOLVER_SEARCH');
     const queryPlan = validateFieldQueryPlan(await queryPlanner.plan({ question }), {
-      planner: queryPlanner, namespace: boundNamespace, question,
+      planner: queryPlanner,
+      namespace: boundNamespace,
+      question,
     });
     let resolution: SourceNativeFieldSuccessorResolutionResult | null = null;
     let evidenceUnits: UnknownRecord[] = [];
@@ -605,14 +683,21 @@ export function openSourceNativeHistoricalFieldResolver({
         queryBindingSha256: bindingSha256,
       });
       seedSourceMessageIds = seedSearch.rows.map((row) => row.sourceMessageId);
-      policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows
-        .map((row) => row.sourceMessageId);
+      policyPreferredSeedSourceMessageIds = seedSearch.policyPreferredRows.map(
+        (row) => row.sourceMessageId,
+      );
       seedSearchReceiptSha256 = seedSearch.receiptSha256;
       seedSearchNetworkCalls = seedSearch.networkCalls;
       rawSeedSearchExecuted = seedSearch.rawSearchExecuted;
-      selectionLabel = [resolvedQuery.sourceSystem, resolvedQuery.objectType,
-        resolvedQuery.externalId, resolvedQuery.fieldPath, 'next recorded revision']
-        .filter((value) => value !== undefined).join(' ');
+      selectionLabel = [
+        resolvedQuery.sourceSystem,
+        resolvedQuery.objectType,
+        resolvedQuery.externalId,
+        resolvedQuery.fieldPath,
+        'next recorded revision',
+      ]
+        .filter((value) => value !== undefined)
+        .join(' ');
       if (seedSearch.traversalRows.length === 0 && resolvedQuery.anchorFieldSha256 === undefined) {
         state = 'unavailable-native-object-not-seeded';
       } else {
@@ -626,29 +711,37 @@ export function openSourceNativeHistoricalFieldResolver({
       if (resolution?.state === 'resolved-next-field-revision') {
         const anchor = resolution.anchor ?? fail('SOURCE_NATIVE_SUCCESSOR_PROOF_CLOSURE');
         const successor = resolution.successor ?? fail('SOURCE_NATIVE_SUCCESSOR_PROOF_CLOSURE');
-        const anchorHandle = handleByPath.get(anchor.relativePath)
-          ?? fail('SOURCE_NATIVE_SUCCESSOR_PROOF_CLOSURE');
+        const anchorHandle =
+          handleByPath.get(anchor.relativePath) ?? fail('SOURCE_NATIVE_SUCCESSOR_PROOF_CLOSURE');
         anchorSourceMessageIds = [anchorHandle.sourceMessageId];
         const proofRows = resolution.proofRelativePaths.map((relativePath) => {
           const handle = handleByPath.get(relativePath);
-          const object = map.nativeObjects.find((row) => row.relativePath === relativePath
-            && row.objectIdentitySha256 === successor.objectIdentitySha256);
+          const object = map.nativeObjects.find(
+            (row) =>
+              row.relativePath === relativePath &&
+              row.objectIdentitySha256 === successor.objectIdentitySha256,
+          );
           const field = object?.fields.find((row) => row.fieldPath === resolvedQuery.fieldPath);
           return {
             handle: handle ?? fail('SOURCE_NATIVE_SUCCESSOR_PROOF_CLOSURE'),
             field: field ?? fail('SOURCE_NATIVE_SUCCESSOR_PROOF_CLOSURE'),
           };
         });
-        allReferenceSourceMessageIds = proofRows.map((row) => row.handle.sourceMessageId)
+        allReferenceSourceMessageIds = proofRows
+          .map((row) => row.handle.sourceMessageId)
           .sort((left, right) => left - right);
-        const proofClosureSourceMessageIds = [...new Set([
-          ...anchorSourceMessageIds,
-          ...allReferenceSourceMessageIds,
-        ])].sort((left, right) => left - right);
-        const availableProofRows = proofRows.filter((row) => !unavailableIds.has(row.handle.sourceMessageId));
-        const representative = availableProofRows.find((row) =>
-          row.handle.relativePath === successor.relativePath) ?? availableProofRows[0] ?? null;
-        const proofAvailable = representative !== null && !unavailableIds.has(anchorHandle.sourceMessageId);
+        const proofClosureSourceMessageIds = [
+          ...new Set([...anchorSourceMessageIds, ...allReferenceSourceMessageIds]),
+        ].sort((left, right) => left - right);
+        const availableProofRows = proofRows.filter(
+          (row) => !unavailableIds.has(row.handle.sourceMessageId),
+        );
+        const representative =
+          availableProofRows.find((row) => row.handle.relativePath === successor.relativePath) ??
+          availableProofRows[0] ??
+          null;
+        const proofAvailable =
+          representative !== null && !unavailableIds.has(anchorHandle.sourceMessageId);
         state = proofAvailable ? 'resolved-next-field-revision' : 'unavailable-exact-source';
         if (proofAvailable) {
           selectedSourceMessageIds = [representative.handle.sourceMessageId];
@@ -659,28 +752,33 @@ export function openSourceNativeHistoricalFieldResolver({
             representativeSourceMessageId: representative.handle.sourceMessageId,
             referenceSourceMessageIds: freeze(allReferenceSourceMessageIds),
             evidenceReferenceCount: allReferenceSourceMessageIds.length,
-            exactEvidenceReferences: freeze([freeze({
-              sourceMessageId: representative.handle.sourceMessageId,
-              relativePath: representative.handle.relativePath,
-              sourceSha256: representative.field.evidence.sourceSha256,
-              byteStart: representative.field.evidence.byteStart,
-              byteEnd: representative.field.evidence.byteEnd,
-              textSha256: representative.field.evidence.textSha256,
-              fieldSha256: representative.field.fieldSha256,
-              fieldPath: resolvedQuery.fieldPath,
-              propositionFamilyKey: resolvedQuery.fieldPath,
-              businessEntityKeys: freeze([]),
-            })]),
+            exactEvidenceReferences: freeze([
+              freeze({
+                sourceMessageId: representative.handle.sourceMessageId,
+                relativePath: representative.handle.relativePath,
+                sourceSha256: representative.field.evidence.sourceSha256,
+                byteStart: representative.field.evidence.byteStart,
+                byteEnd: representative.field.evidence.byteEnd,
+                textSha256: representative.field.evidence.textSha256,
+                fieldSha256: representative.field.fieldSha256,
+                fieldPath: resolvedQuery.fieldPath,
+                propositionFamilyKey: resolvedQuery.fieldPath,
+                businessEntityKeys: freeze([]),
+              }),
+            ]),
             exactEvidenceReferenceCount: 1,
             proofClosureSourceMessageIds: freeze(proofClosureSourceMessageIds),
-            unavailableProofSourceMessageIds: freeze(proofClosureSourceMessageIds
-              .filter((id) => unavailableIds.has(id))),
+            unavailableProofSourceMessageIds: freeze(
+              proofClosureSourceMessageIds.filter((id) => unavailableIds.has(id)),
+            ),
             revisionSha256: successor.revisionSha256,
             navigationOnly: true,
             exactInspectRequired: true,
             exactSourcesRemainAuthority: true,
           };
-          evidenceUnits = [freeze({ ...unitCore, evidenceUnitSha256: stableObjectSha256(unitCore) })];
+          evidenceUnits = [
+            freeze({ ...unitCore, evidenceUnitSha256: stableObjectSha256(unitCore) }),
+          ];
         }
         const searchPathCore = {
           schema: 1,
@@ -691,15 +789,19 @@ export function openSourceNativeHistoricalFieldResolver({
           seedSourceMessageIds: freeze(seedSourceMessageIds),
           anchorSourceMessageId: anchorHandle.sourceMessageId,
           proofClosureSourceMessageIds: freeze(proofClosureSourceMessageIds),
-          unavailableProofSourceMessageIds: freeze(proofClosureSourceMessageIds
-            .filter((id) => unavailableIds.has(id))),
+          unavailableProofSourceMessageIds: freeze(
+            proofClosureSourceMessageIds.filter((id) => unavailableIds.has(id)),
+          ),
           selectedSourceMessageIds: freeze(selectedSourceMessageIds),
           exactSourceAvailabilitySnapshotSha256: availability.snapshotSha256,
           navigationOnly: true,
           exactInspectRequired: true,
           exactSourcesRemainAuthority: true,
         };
-        searchPath = freeze({ ...searchPathCore, searchPathSha256: stableObjectSha256(searchPathCore) });
+        searchPath = freeze({
+          ...searchPathCore,
+          searchPathSha256: stableObjectSha256(searchPathCore),
+        });
       }
     }
     const core = {
@@ -748,10 +850,13 @@ export function openSourceNativeHistoricalFieldResolver({
       }),
       searchPathAnchorSourceMessageIds: freeze(anchorSourceMessageIds),
       identityRejectedSeedSourceMessageIds: freeze([]),
-      searchPathExpandedSourceMessageIds: freeze(selectedSourceMessageIds
-        .filter((id) => !seedSourceMessageIds.includes(id))),
-      exactEvidenceReferenceCount: evidenceUnits.reduce((sum, unit) =>
-        sum + Number(unit.exactEvidenceReferenceCount), 0),
+      searchPathExpandedSourceMessageIds: freeze(
+        selectedSourceMessageIds.filter((id) => !seedSourceMessageIds.includes(id)),
+      ),
+      exactEvidenceReferenceCount: evidenceUnits.reduce(
+        (sum, unit) => sum + Number(unit.exactEvidenceReferenceCount),
+        0,
+      ),
       uniqueEvidenceUnitCount: evidenceUnits.length,
       redundantEvidenceReferenceCount: Math.max(0, allReferenceSourceMessageIds.length - 1),
       maximumSourceMessages,

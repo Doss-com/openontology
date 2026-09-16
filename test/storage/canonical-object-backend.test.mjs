@@ -16,10 +16,7 @@ import {
   normalizeCanonicalObjectBackendUri as kernelNormalizeCanonicalObjectBackendUri,
   openCanonicalObjectBackend as kernelOpenCanonicalObjectBackend,
 } from '../../dist/kernel.js';
-import {
-  buildSourceNativeProduct,
-  openObjectOntStore,
-} from '../../dist/kernel.js';
+import { buildSourceNativeProduct, openObjectOntStore } from '../../dist/kernel.js';
 
 test('kernel re-exports the canonical backend selection primitives', () => {
   assert.equal(kernelNormalizeCanonicalObjectBackendUri, normalizeCanonicalObjectBackendUri);
@@ -29,7 +26,12 @@ test('kernel re-exports the canonical backend selection primitives', () => {
 test('kernel-selected local backend interoperates with protected source publication', () => {
   const root = mkdtempSync(join(tmpdir(), 'oont-kernel-backend-entry-'));
   try {
-    const input = JSON.parse(readFileSync(new URL('../../examples/quickstart/source-native-input.json', import.meta.url), 'utf8'));
+    const input = JSON.parse(
+      readFileSync(
+        new URL('../../examples/quickstart/source-native-input.json', import.meta.url),
+        'utf8',
+      ),
+    );
     input.branch = 'research';
     const objectBackendUri = pathToFileURL(join(root, 'objects')).href;
     const historyBackendUri = pathToFileURL(join(root, 'history')).href;
@@ -46,10 +48,12 @@ test('kernel-selected local backend interoperates with protected source publicat
     assert.equal(before.version, initial.receipt.refVersion);
     assert.equal(before.ref.commitSha256, initial.receipt.commitSha256);
     assert.ok(historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`));
-    assert.ok(store.readRefMetadataCheckpointSnapshot({
-      ontId: input.ontId,
-      branch: input.branch,
-    }));
+    assert.ok(
+      store.readRefMetadataCheckpointSnapshot({
+        ontId: input.ontId,
+        branch: input.branch,
+      }),
+    );
     const historyBefore = historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`);
 
     const successorInput = structuredClone(input);
@@ -79,27 +83,40 @@ test('kernel-selected local backend interoperates with protected source publicat
     const staleInput = structuredClone(input);
     staleInput.sources[1].content = 'Task task-1 title: Stale successor';
     staleInput.nativeObjectInputs[1].fields[0].value = 'Stale successor';
-    assert.throws(() => buildSourceNativeProduct({
-      artifactRoot: join(root, 'stale'),
-      input: staleInput,
-      objectBackendUri,
-      historyBackendUri,
-      expectedSourceVersion: before.version,
-    }), { code: 'SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT' });
+    assert.throws(
+      () =>
+        buildSourceNativeProduct({
+          artifactRoot: join(root, 'stale'),
+          input: staleInput,
+          objectBackendUri,
+          historyBackendUri,
+          expectedSourceVersion: before.version,
+        }),
+      { code: 'SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT' },
+    );
     assert.deepEqual(store.readRefMetadata({ ontId: input.ontId, branch: input.branch }), after);
-    assert.deepEqual(historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`), historyAfter);
+    assert.deepEqual(
+      historyBackend.head(`ref-history/${input.ontId}/${input.branch}.json`),
+      historyAfter,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
 test('canonical backend syntax is normalized once for every consumer', () => {
-  assert.equal(normalizeCanonicalObjectBackendUri('gs://customer-ontology/'), 'gs://customer-ontology');
+  assert.equal(
+    normalizeCanonicalObjectBackendUri('gs://customer-ontology/'),
+    'gs://customer-ontology',
+  );
   assert.equal(
     normalizeCanonicalObjectBackendUri('gs://customer-ontology/tenant-a/ont-a'),
     'gs://customer-ontology/tenant-a/ont-a',
   );
-  assert.equal(normalizeCanonicalObjectBackendUri('s3://customer-ontology/'), 's3://customer-ontology');
+  assert.equal(
+    normalizeCanonicalObjectBackendUri('s3://customer-ontology/'),
+    's3://customer-ontology',
+  );
   assert.throws(() => normalizeCanonicalObjectBackendUri('s3://customer-ontology/prefix'), {
     code: 'CANONICAL_OBJECT_BACKEND_URI',
   });
@@ -201,35 +218,55 @@ test('gs URI accepts a programmatic request observer and rejects non-callback co
   }
   assert.equal(curlCalls.length, 1);
   assert.equal(curlCalls[0][curlCalls[0].indexOf('--request') + 1], 'GET');
-  assert.deepEqual(observations.map(({ operationClass, method, attempt, status, requestBodyBytes, responseBodyBytes,
-    bucket, prefix, failureClass }) => ({
-    operationClass,
-    method,
-    attempt,
-    status,
-    requestBodyBytes,
-    responseBodyBytes,
-    bucket,
-    prefix,
-    failureClass,
-  })), [{
-    operationClass: 'object-metadata',
-    method: 'GET',
-    attempt: 1,
-    status: 404,
-    requestBodyBytes: 0,
-    responseBodyBytes: 2,
-    bucket: 'customer-ontology',
-    prefix: 'tenant-a/ont-a',
-    failureClass: null,
-  }]);
-  assert.throws(() => openCanonicalObjectBackend({
-    uri: 'gs://customer-ontology',
-    env: {
-      OONT_GCS_ACCESS_TOKEN: 'fixture-token',
-      OONT_GCS_REQUEST_OBSERVER: 'not-a-callback',
-    },
-  }), { code: 'CANONICAL_OBJECT_BACKEND_URI' });
+  assert.deepEqual(
+    observations.map(
+      ({
+        operationClass,
+        method,
+        attempt,
+        status,
+        requestBodyBytes,
+        responseBodyBytes,
+        bucket,
+        prefix,
+        failureClass,
+      }) => ({
+        operationClass,
+        method,
+        attempt,
+        status,
+        requestBodyBytes,
+        responseBodyBytes,
+        bucket,
+        prefix,
+        failureClass,
+      }),
+    ),
+    [
+      {
+        operationClass: 'object-metadata',
+        method: 'GET',
+        attempt: 1,
+        status: 404,
+        requestBodyBytes: 0,
+        responseBodyBytes: 2,
+        bucket: 'customer-ontology',
+        prefix: 'tenant-a/ont-a',
+        failureClass: null,
+      },
+    ],
+  );
+  assert.throws(
+    () =>
+      openCanonicalObjectBackend({
+        uri: 'gs://customer-ontology',
+        env: {
+          OONT_GCS_ACCESS_TOKEN: 'fixture-token',
+          OONT_GCS_REQUEST_OBSERVER: 'not-a-callback',
+        },
+      }),
+    { code: 'CANONICAL_OBJECT_BACKEND_URI' },
+  );
 });
 
 test('canonical backend URI never accepts embedded credentials or configuration query text', () => {

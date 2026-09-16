@@ -9,10 +9,7 @@ import {
   stableObjectSha256,
   stableObjectText,
 } from '../../dist/canonical-content.js';
-import {
-  buildSourceNativeProduct,
-  openSourceNativeProduct,
-} from '../../dist/product/runtime.js';
+import { buildSourceNativeProduct, openSourceNativeProduct } from '../../dist/product/runtime.js';
 import { compileSourceNativeObjectMap } from '../../dist/source/object-map.js';
 
 test('canonical content is order-independent and byte-addressed', () => {
@@ -34,10 +31,10 @@ test('canonical content preserves JSON array omission semantics', () => {
 
 test('stream hashing follows stable JSON wire order for integer-index keys', () => {
   const values = [
-    { '10': 'ten', '2': 'two' },
-    { '4294967295': 'not-an-index', '4294967294': 'max-index', '01': 'leading-zero', '0': 'zero' },
-    { nested: { '10': 'ten', '2': 'two' }, list: [{ '3': 'three', '1': 'one' }] },
-    { toJSON: () => ({ '10': 'ten', '2': 'two' }) },
+    { 10: 'ten', 2: 'two' },
+    { 4294967295: 'not-an-index', 4294967294: 'max-index', '01': 'leading-zero', 0: 'zero' },
+    { nested: { 10: 'ten', 2: 'two' }, list: [{ 3: 'three', 1: 'one' }] },
+    { toJSON: () => ({ 10: 'ten', 2: 'two' }) },
   ];
   for (const value of values) {
     const text = stableObjectText(value);
@@ -50,14 +47,24 @@ test('key-shape matrix distinguishes array indexes, non-index forms, Unicode, an
     {
       name: 'index boundaries and numeric-like non-index names',
       value: Object.fromEntries([
-        ['1e2', 'one-e-two'], ['4294967295', 'not-an-index'], ['-0', 'minus-zero'],
-        ['4294967294', 'max-index'], ['1.5', 'one-point-five'], ['0', 'zero'], ['01', 'leading-zero'],
+        ['1e2', 'one-e-two'],
+        ['4294967295', 'not-an-index'],
+        ['-0', 'minus-zero'],
+        ['4294967294', 'max-index'],
+        ['1.5', 'one-point-five'],
+        ['0', 'zero'],
+        ['01', 'leading-zero'],
       ]),
       text: '{"0":"zero","4294967294":"max-index","-0":"minus-zero","01":"leading-zero","1.5":"one-point-five","1e2":"one-e-two","4294967295":"not-an-index"}',
     },
     {
       name: 'mixed Unicode keys',
-      value: Object.fromEntries([['\u{1F600}', 'emoji'], ['e\u0301', 'combining'], ['é', 'composed'], ['alpha', 'ascii']]),
+      value: Object.fromEntries([
+        ['\u{1F600}', 'emoji'],
+        ['e\u0301', 'combining'],
+        ['é', 'composed'],
+        ['alpha', 'ascii'],
+      ]),
     },
   ];
   for (const row of cases) {
@@ -66,8 +73,18 @@ test('key-shape matrix distinguishes array indexes, non-index forms, Unicode, an
     assert.equal(stableObjectSha256(row.value), objectBytesSha256(Buffer.from(text)), row.name);
   }
 
-  const first = Object.fromEntries([['beta', 'b'], ['10', 'ten'], ['alpha', 'a'], ['2', 'two']]);
-  const second = Object.fromEntries([['2', 'two'], ['alpha', 'a'], ['10', 'ten'], ['beta', 'b']]);
+  const first = Object.fromEntries([
+    ['beta', 'b'],
+    ['10', 'ten'],
+    ['alpha', 'a'],
+    ['2', 'two'],
+  ]);
+  const second = Object.fromEntries([
+    ['2', 'two'],
+    ['alpha', 'a'],
+    ['10', 'ten'],
+    ['beta', 'b'],
+  ]);
   assert.equal(stableObjectText(first), stableObjectText(second));
   assert.equal(stableObjectSha256(first), stableObjectSha256(second));
 });
@@ -88,7 +105,7 @@ test('stream hashing retains omission, null-prototype, date, toJSON, fallback, a
     { omitted: undefined, callable: () => null, symbolic: Symbol('omitted'), kept: 'kept' },
     nullPrototype,
     new Date('2026-01-02T03:04:05.000Z'),
-    { toJSON: () => ({ '10': 'ten', '2': 'two' }) },
+    { toJSON: () => ({ 10: 'ten', 2: 'two' }) },
     unsupported,
     error,
   ];
@@ -99,8 +116,14 @@ test('stream hashing retains omission, null-prototype, date, toJSON, fallback, a
 
   const cycle = {};
   cycle.self = cycle;
-  assert.throws(() => stableObjectText(cycle), /circular structure|Maximum call stack size exceeded/u);
-  assert.throws(() => stableObjectSha256(cycle), /circular structure|Maximum call stack size exceeded/u);
+  assert.throws(
+    () => stableObjectText(cycle),
+    /circular structure|Maximum call stack size exceeded/u,
+  );
+  assert.throws(
+    () => stableObjectSha256(cycle),
+    /circular structure|Maximum call stack size exceeded/u,
+  );
 });
 
 test('stream hashing preserves serializer getter-read order while emitting numeric keys', () => {
@@ -136,35 +159,43 @@ test('source-native products with numeric canonical keys build and reopen', () =
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'canonical-hash-parity-product',
     namespace: 'acme',
-    querySchemas: [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: [{ fieldPath: 'metadata', aliases: ['metadata'] }],
-    }],
-    sources: [{
-      relativePath: 'clickup/acme/numeric.md',
-      sourceType: 'clickup',
-      occurredAt: '2026-01-01T00:00:00.000Z',
-      content,
-      sourceSha256: objectBytesSha256(Buffer.from(content)),
-    }],
-    nativeObjectInputs: [{
-      relativePath: 'clickup/acme/numeric.md',
-      objectIdentity: {
-        home: 'ObjectDef/InstanceRef',
+    querySchemas: [
+      {
         sourceSystem: 'clickup',
         objectType: 'task',
-        namespace: 'acme',
-        externalId: 'numeric-task',
+        aliases: ['task'],
+        fields: [{ fieldPath: 'metadata', aliases: ['metadata'] }],
       },
-      fields: [{
-        fieldPath: 'metadata',
-        value: 'metadata',
-        codeUnitStart: content.indexOf('metadata'),
-        canonicalValue: { '10': 'ten', '2': 'two' },
-      }],
-    }],
+    ],
+    sources: [
+      {
+        relativePath: 'clickup/acme/numeric.md',
+        sourceType: 'clickup',
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        content,
+        sourceSha256: objectBytesSha256(Buffer.from(content)),
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath: 'clickup/acme/numeric.md',
+        objectIdentity: {
+          home: 'ObjectDef/InstanceRef',
+          sourceSystem: 'clickup',
+          objectType: 'task',
+          namespace: 'acme',
+          externalId: 'numeric-task',
+        },
+        fields: [
+          {
+            fieldPath: 'metadata',
+            value: 'metadata',
+            codeUnitStart: content.indexOf('metadata'),
+            canonicalValue: { 10: 'ten', 2: 'two' },
+          },
+        ],
+      },
+    ],
   };
   try {
     const map = compileSourceNativeObjectMap({

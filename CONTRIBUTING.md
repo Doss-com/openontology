@@ -36,21 +36,21 @@ npm run dev:watch -- test/query/field-resolution.test.mjs
 
 ## Repository structure
 
-| Location | Contents |
-| --- | --- |
-| [src/openontology.ts](src/openontology.ts), [src/kernel.ts](src/kernel.ts) | Public SDK and kernel exports. |
-| [src/cli/](src/cli/) | CLI entrypoint and command handling. |
-| [src/product/](src/product/) | Query runtime and MCP transport. |
-| [src/source/](src/source/) | Source maps, identity census, publication and snapshot opening. |
-| [src/query/](src/query/) | Planning, retrieval, field resolution and source-bound verification. |
-| [src/proof/](src/proof/) | Proof contracts, authority projections and evaluation. |
-| [src/ledger/](src/ledger/) | Admission authentication and reviewed knowledge reuse. |
-| [src/construction/](src/construction/) | Concept construction, review, Admission, navigation and exploration. |
-| [src/storage/](src/storage/) | Object store, history and backend Adapters. |
-| [test/](test/) | Tests grouped by the source area they exercise. |
-| [scripts/](scripts/) | Build, release and provider-qualification tools. |
-| [examples/quickstart/](examples/quickstart/) | Runnable examples and synthetic source input. |
-| [docs/](docs/) | Query, architecture, lifecycle and storage guides. |
+| Location                                                                   | Contents                                                             |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [src/openontology.ts](src/openontology.ts), [src/kernel.ts](src/kernel.ts) | Public SDK and kernel exports.                                       |
+| [src/cli/](src/cli/)                                                       | CLI entrypoint and command handling.                                 |
+| [src/product/](src/product/)                                               | Query runtime and MCP transport.                                     |
+| [src/source/](src/source/)                                                 | Source maps, identity census, publication and snapshot opening.      |
+| [src/query/](src/query/)                                                   | Planning, retrieval, field resolution and source-bound verification. |
+| [src/proof/](src/proof/)                                                   | Proof contracts, authority projections and evaluation.               |
+| [src/ledger/](src/ledger/)                                                 | Admission authentication and reviewed knowledge reuse.               |
+| [src/construction/](src/construction/)                                     | Concept construction, review, Admission, navigation and exploration. |
+| [src/storage/](src/storage/)                                               | Object store, history and backend Adapters.                          |
+| [test/](test/)                                                             | Tests grouped by the source area they exercise.                      |
+| [scripts/](scripts/)                                                       | Build, release and provider-qualification tools.                     |
+| [examples/quickstart/](examples/quickstart/)                               | Runnable examples and synthetic source input.                        |
+| [docs/](docs/)                                                             | Query, architecture, lifecycle and storage guides.                   |
 
 All production source, including the CLI, uses `.ts`. `npm run build` compiles
 `src/` to ESM `.js`, `.d.ts` declarations and source maps under `dist/`.

@@ -1,6 +1,6 @@
 name: Feature proposal
 description: Propose a focused capability or Adapter.
-title: "proposal: "
+title: 'proposal: '
 labels: [enhancement]
 body:
   - type: textarea

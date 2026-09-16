@@ -1,14 +1,7 @@
 /** Canonical ObjectOnt storage for a source-native map and its exact sources. */
-import {
-  objectBytesSha256,
-  stableObjectSha256,
-  stableObjectText,
-} from '../canonical-content.js';
+import { objectBytesSha256, stableObjectSha256, stableObjectText } from '../canonical-content.js';
 import { openObjectOntStore } from '../storage/ont-store.js';
-import {
-  compileSourceNativeObjectMap,
-  validateSourceNativeObjectMap,
-} from './object-map.js';
+import { compileSourceNativeObjectMap, validateSourceNativeObjectMap } from './object-map.js';
 import type {
   JsonObject,
   SourceNativeObjectInput,
@@ -27,13 +20,14 @@ import type {
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const MAX_SOURCE_PACK_BYTES = 8 * 1024 * 1024;
-const compare = (left: unknown, right: unknown): number => Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
+const compare = (left: unknown, right: unknown): number =>
+  Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
 const fail = (code: string): never => {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
 };
-const freeze = <T,>(value: T): T => {
+const freeze = <T>(value: T): T => {
   if (Buffer.isBuffer(value) || ArrayBuffer.isView(value)) return value;
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
@@ -99,7 +93,7 @@ export interface SourceNativeObjectOntIndex {
 export type SourceNativeObjectOntModule = Omit<SourceNativeObjectOntIndex, 'kind' | 'sources'> & {
   kind: 'OpenOntologySourceNativeObjectOntModuleV1';
   sources: Array<OpenSource & { content: string }>;
-}
+};
 export interface SourceNativeObjectOntReceipt {
   schemaVersion: 1;
   kind: 'OpenOntologySourceNativeObjectOntReceiptV1';
@@ -125,7 +119,10 @@ export interface OpenSourceNativeObjectOntOptions {
   ontId: string;
   commitSha256: string;
 }
-export type SourceNativeObjectOntRefIndex = Omit<ReplayMetadataCheckpointSnapshot, 'replayMetadata'> & {
+export type SourceNativeObjectOntRefIndex = Omit<
+  ReplayMetadataCheckpointSnapshot,
+  'replayMetadata'
+> & {
   commitOrder: string[];
   objectOnt: SourceNativeObjectOntIndex;
 };
@@ -160,30 +157,39 @@ interface MaterializeInput {
   nativeObjectInputs?: SourceNativeObjectInput[];
   adapterDiagnostics?: JsonObject[];
 }
-interface RecordLike { [key: string]: unknown }
+interface RecordLike {
+  [key: string]: unknown;
+}
 const isRecord = (value: unknown): value is RecordLike =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const isSourceNativeObjectMap = (value: unknown): value is SourceNativeObjectMap => {
   if (!isRecord(value)) return false;
-  return value.kind === 'OpenOntologySourceNativeObjectMapV1'
-    && Array.isArray(value.nativeObjects)
-    && value.nativeObjects.every((row) => isRecord(row))
-    && Array.isArray(value.fieldRevisions)
-    && value.fieldRevisions.every((row) => isRecord(row))
-    && Array.isArray(value.duplicateEvidenceClusters)
-    && value.duplicateEvidenceClusters.every((row) => isRecord(row))
-    && Array.isArray(value.businessEntityEvidenceNeighborhoods)
-    && value.businessEntityEvidenceNeighborhoods.every((row) => isRecord(row))
-    && Array.isArray(value.adapterDiagnostics)
-    && typeof value.nativeObjectMapSha256 === 'string';
+  return (
+    value.kind === 'OpenOntologySourceNativeObjectMapV1' &&
+    Array.isArray(value.nativeObjects) &&
+    value.nativeObjects.every((row) => isRecord(row)) &&
+    Array.isArray(value.fieldRevisions) &&
+    value.fieldRevisions.every((row) => isRecord(row)) &&
+    Array.isArray(value.duplicateEvidenceClusters) &&
+    value.duplicateEvidenceClusters.every((row) => isRecord(row)) &&
+    Array.isArray(value.businessEntityEvidenceNeighborhoods) &&
+    value.businessEntityEvidenceNeighborhoods.every((row) => isRecord(row)) &&
+    Array.isArray(value.adapterDiagnostics) &&
+    typeof value.nativeObjectMapSha256 === 'string'
+  );
 };
 
 function exactTime(value: unknown): value is string {
-  return typeof value === 'string' && Number.isFinite(Date.parse(value))
-    && new Date(Date.parse(value)).toISOString() === value;
+  return (
+    typeof value === 'string' &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(Date.parse(value)).toISOString() === value
+  );
 }
 
-function normalizeSources(sourceInput: SourceNativeSourceInput[] | undefined): SourceNativeSource[] {
+function normalizeSources(
+  sourceInput: SourceNativeSourceInput[] | undefined,
+): SourceNativeSource[] {
   if (!Array.isArray(sourceInput) || sourceInput.length < 1) {
     fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
   }
@@ -195,16 +201,19 @@ function normalizeSources(sourceInput: SourceNativeSourceInput[] | undefined): S
     const occurredAt = typeof source?.occurredAt === 'string' ? source.occurredAt : '';
     const content = typeof source?.content === 'string' ? source.content : '';
     const sourceSha256 = typeof source?.sourceSha256 === 'string' ? source.sourceSha256 : '';
-    if (!relativePath
-      || relativePath.startsWith('/') || relativePath.includes('\\')
-      || relativePath.split('/').some((part) => !part || part === '.' || part === '..')
-      || !sourceType
-      || relativePath.split('/')[0] !== sourceType
-      || !exactTime(occurredAt)
-      || !content
-      || !SHA256.test(sourceSha256)
-      || objectBytesSha256(Buffer.from(content)) !== sourceSha256
-      || paths.has(relativePath)) {
+    if (
+      !relativePath ||
+      relativePath.startsWith('/') ||
+      relativePath.includes('\\') ||
+      relativePath.split('/').some((part) => !part || part === '.' || part === '..') ||
+      !sourceType ||
+      relativePath.split('/')[0] !== sourceType ||
+      !exactTime(occurredAt) ||
+      !content ||
+      !SHA256.test(sourceSha256) ||
+      objectBytesSha256(Buffer.from(content)) !== sourceSha256 ||
+      paths.has(relativePath)
+    ) {
       fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     }
     paths.add(relativePath);
@@ -237,14 +246,22 @@ function mapBlobPath(nativeObjectMapSha256: string): string {
 
 function parseStableJson(bytes: Buffer, code: string): RecordLike {
   let value: unknown;
-  try { value = JSON.parse(bytes.toString('utf8')); } catch { fail(code); }
+  try {
+    value = JSON.parse(bytes.toString('utf8'));
+  } catch {
+    fail(code);
+  }
   const record = isRecord(value) ? value : fail(code);
   if (!bytes.equals(Buffer.from(stableObjectText(record)))) fail(code);
   return record;
 }
 
-function descriptorByLogicalPath(replay: ReplayMetadataGraph, logicalPath: string,
-  expectedSha256: string, code: string): BlobDescriptor {
+function descriptorByLogicalPath(
+  replay: ReplayMetadataGraph,
+  logicalPath: string,
+  expectedSha256: string,
+  code: string,
+): BlobDescriptor {
   const descriptors: BlobDescriptor[] = replay.blobDescriptors;
   const rows = descriptors.filter((row) => row.logicalPath === logicalPath);
   if (rows.length !== 1 || rows[0].storedSha256 !== expectedSha256) fail(code);
@@ -253,31 +270,33 @@ function descriptorByLogicalPath(replay: ReplayMetadataGraph, logicalPath: strin
 
 function validateManifest(manifest: unknown, ontId: string): SourceOntManifest {
   const record = isRecord(manifest) ? manifest : fail('SOURCE_NATIVE_OBJECT_ONT_MANIFEST');
-  const nativeObjectMapSha256 = typeof record.nativeObjectMapSha256 === 'string'
-    ? record.nativeObjectMapSha256 : '';
-  const sourceCatalogSha256 = typeof record.sourceCatalogSha256 === 'string'
-    ? record.sourceCatalogSha256 : '';
-  const mapBlobStoredSha256 = typeof record.mapBlobStoredSha256 === 'string'
-    ? record.mapBlobStoredSha256 : '';
-  const mapBlobLogicalPath = typeof record.mapBlobLogicalPath === 'string'
-    ? record.mapBlobLogicalPath : '';
-  const catalogBlobLogicalPath = typeof record.catalogBlobLogicalPath === 'string'
-    ? record.catalogBlobLogicalPath : '';
-  const catalogBlobStoredSha256 = typeof record.catalogBlobStoredSha256 === 'string'
-    ? record.catalogBlobStoredSha256 : '';
-  if (record.schemaVersion !== 1
-    || record.kind !== 'OpenOntologySourceNativeObjectOntManifestV1'
-    || record.formatVersion !== 'object/v1'
-    || record.ontId !== ontId
-    || !SHA256.test(nativeObjectMapSha256)
-    || !SHA256.test(sourceCatalogSha256)
-    || !mapBlobLogicalPath
-    || !SHA256.test(mapBlobStoredSha256)
-    || !catalogBlobLogicalPath
-    || !SHA256.test(catalogBlobStoredSha256)
-    || record.exactSourcesRemainAuthority !== true
-    || record.navigationOnly !== true
-    || record.canonicalTruthMutation !== false) {
+  const nativeObjectMapSha256 =
+    typeof record.nativeObjectMapSha256 === 'string' ? record.nativeObjectMapSha256 : '';
+  const sourceCatalogSha256 =
+    typeof record.sourceCatalogSha256 === 'string' ? record.sourceCatalogSha256 : '';
+  const mapBlobStoredSha256 =
+    typeof record.mapBlobStoredSha256 === 'string' ? record.mapBlobStoredSha256 : '';
+  const mapBlobLogicalPath =
+    typeof record.mapBlobLogicalPath === 'string' ? record.mapBlobLogicalPath : '';
+  const catalogBlobLogicalPath =
+    typeof record.catalogBlobLogicalPath === 'string' ? record.catalogBlobLogicalPath : '';
+  const catalogBlobStoredSha256 =
+    typeof record.catalogBlobStoredSha256 === 'string' ? record.catalogBlobStoredSha256 : '';
+  if (
+    record.schemaVersion !== 1 ||
+    record.kind !== 'OpenOntologySourceNativeObjectOntManifestV1' ||
+    record.formatVersion !== 'object/v1' ||
+    record.ontId !== ontId ||
+    !SHA256.test(nativeObjectMapSha256) ||
+    !SHA256.test(sourceCatalogSha256) ||
+    !mapBlobLogicalPath ||
+    !SHA256.test(mapBlobStoredSha256) ||
+    !catalogBlobLogicalPath ||
+    !SHA256.test(catalogBlobStoredSha256) ||
+    record.exactSourcesRemainAuthority !== true ||
+    record.navigationOnly !== true ||
+    record.canonicalTruthMutation !== false
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_MANIFEST');
   }
   return {
@@ -297,8 +316,15 @@ function validateManifest(manifest: unknown, ontId: string): SourceOntManifest {
   };
 }
 
-function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
-  store: ObjectOntStore; ontId: string; commitSha256: string;
+function openIndexAtCommit({
+  store,
+  ontId,
+  commitSha256,
+  replayMetadata,
+}: {
+  store: ObjectOntStore;
+  ontId: string;
+  commitSha256: string;
   replayMetadata?: ReplayMetadataGraph;
 }): SourceNativeObjectOntIndex {
   if (typeof ontId !== 'string' || !ontId || !SHA256.test(commitSha256 ?? '')) {
@@ -306,17 +332,27 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
   }
   const commit = store.readCommit(commitSha256);
   const replay = replayMetadata ?? store.replayMetadata(commitSha256);
-  if (commit.commit.ontId !== ontId
-    || replay.ontId !== ontId || replay.tipCommitSha256 !== commitSha256
-    || replay.status !== 'CLEAN' || replay.conflicts.length !== 0
-    || stableObjectText(commit.commit.ontManifest) !== stableObjectText(replay.manifestDescriptor)) {
+  if (
+    commit.commit.ontId !== ontId ||
+    replay.ontId !== ontId ||
+    replay.tipCommitSha256 !== commitSha256 ||
+    replay.status !== 'CLEAN' ||
+    replay.conflicts.length !== 0 ||
+    stableObjectText(commit.commit.ontManifest) !== stableObjectText(replay.manifestDescriptor)
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   const manifestBlob = store.readBlob(replay.manifestDescriptor, { manifest: true });
-  const manifest = validateManifest(parseStableJson(manifestBlob.bytes,
-    'SOURCE_NATIVE_OBJECT_ONT_MANIFEST'), ontId);
-  const mapDescriptor = descriptorByLogicalPath(replay, manifest.mapBlobLogicalPath,
-    manifest.mapBlobStoredSha256, 'SOURCE_NATIVE_OBJECT_ONT_MAP');
+  const manifest = validateManifest(
+    parseStableJson(manifestBlob.bytes, 'SOURCE_NATIVE_OBJECT_ONT_MANIFEST'),
+    ontId,
+  );
+  const mapDescriptor = descriptorByLogicalPath(
+    replay,
+    manifest.mapBlobLogicalPath,
+    manifest.mapBlobStoredSha256,
+    'SOURCE_NATIVE_OBJECT_ONT_MAP',
+  );
   const mapBlob = store.readBlob(mapDescriptor);
   const mapValue = parseStableJson(mapBlob.bytes, 'SOURCE_NATIVE_OBJECT_ONT_MAP');
   if (!isRecord(mapValue)) fail('SOURCE_NATIVE_OBJECT_ONT_MAP');
@@ -326,32 +362,42 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
   if (map.nativeObjectMapSha256 !== manifest.nativeObjectMapSha256) {
     fail('SOURCE_NATIVE_OBJECT_ONT_MAP');
   }
-  const catalogDescriptor = descriptorByLogicalPath(replay, manifest.catalogBlobLogicalPath,
-    manifest.catalogBlobStoredSha256, 'SOURCE_NATIVE_OBJECT_ONT_CATALOG');
+  const catalogDescriptor = descriptorByLogicalPath(
+    replay,
+    manifest.catalogBlobLogicalPath,
+    manifest.catalogBlobStoredSha256,
+    'SOURCE_NATIVE_OBJECT_ONT_CATALOG',
+  );
   const catalogBlob = store.readBlob(catalogDescriptor);
   const catalogValue = parseStableJson(catalogBlob.bytes, 'SOURCE_NATIVE_OBJECT_ONT_CATALOG');
   if (!isRecord(catalogValue)) fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
-  const sourceCatalogSha256 = typeof catalogValue.sourceCatalogSha256 === 'string'
-    ? catalogValue.sourceCatalogSha256 : '';
-  const catalogCore = Object.fromEntries(Object.entries(catalogValue)
-    .filter(([key]) => key !== 'sourceCatalogSha256'));
+  const sourceCatalogSha256 =
+    typeof catalogValue.sourceCatalogSha256 === 'string' ? catalogValue.sourceCatalogSha256 : '';
+  const catalogCore = Object.fromEntries(
+    Object.entries(catalogValue).filter(([key]) => key !== 'sourceCatalogSha256'),
+  );
   const sourceRows = Array.isArray(catalogValue.sources) ? catalogValue.sources : [];
   const sourceCount = typeof catalogValue.sourceCount === 'number' ? catalogValue.sourceCount : -1;
-  if (catalogValue.schemaVersion !== 1 || catalogValue.kind !== 'OpenOntologySourceNativeCatalogV1'
-    || !SHA256.test(sourceCatalogSha256)
-    || stableObjectSha256(catalogCore) !== sourceCatalogSha256
-    || sourceCatalogSha256 !== manifest.sourceCatalogSha256
-    || sourceRows.length !== sourceCount
-    || sourceCount !== map.sourceCount) {
+  if (
+    catalogValue.schemaVersion !== 1 ||
+    catalogValue.kind !== 'OpenOntologySourceNativeCatalogV1' ||
+    !SHA256.test(sourceCatalogSha256) ||
+    stableObjectSha256(catalogCore) !== sourceCatalogSha256 ||
+    sourceCatalogSha256 !== manifest.sourceCatalogSha256 ||
+    sourceRows.length !== sourceCount ||
+    sourceCount !== map.sourceCount
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
   }
   const sourceStorageLayout = catalogValue.sourceStorageLayout;
-  const sourcePackCount = typeof catalogValue.sourcePackCount === 'number'
-    ? catalogValue.sourcePackCount : -1;
+  const sourcePackCount =
+    typeof catalogValue.sourcePackCount === 'number' ? catalogValue.sourcePackCount : -1;
   const packedSources = sourceStorageLayout === 'packed-ranges-v1';
-  if (!(packedSources
-    ? Number.isSafeInteger(sourcePackCount) && sourcePackCount >= 1
-    : sourceStorageLayout === undefined && sourcePackCount === undefined)) {
+  if (
+    !(packedSources
+      ? Number.isSafeInteger(sourcePackCount) && sourcePackCount >= 1
+      : sourceStorageLayout === undefined && sourcePackCount === undefined)
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
   }
   const sources = sourceRows.map((rowValue): OpenSource => {
@@ -360,26 +406,40 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
     const sourceType = typeof rowValue.sourceType === 'string' ? rowValue.sourceType : '';
     const occurredAt = typeof rowValue.occurredAt === 'string' ? rowValue.occurredAt : '';
     const rowSourceSha256 = typeof rowValue.sourceSha256 === 'string' ? rowValue.sourceSha256 : '';
-    const blobLogicalPath = typeof rowValue.blobLogicalPath === 'string' ? rowValue.blobLogicalPath : '';
-    const blobStoredSha256 = typeof rowValue.blobStoredSha256 === 'string'
-      ? rowValue.blobStoredSha256 : '';
+    const blobLogicalPath =
+      typeof rowValue.blobLogicalPath === 'string' ? rowValue.blobLogicalPath : '';
+    const blobStoredSha256 =
+      typeof rowValue.blobStoredSha256 === 'string' ? rowValue.blobStoredSha256 : '';
     const byteStartValue = typeof rowValue.byteStart === 'number' ? rowValue.byteStart : -1;
     const byteEndValue = typeof rowValue.byteEnd === 'number' ? rowValue.byteEnd : -1;
-    if (!relativePath || !sourceType || !exactTime(occurredAt) || !SHA256.test(rowSourceSha256)
-      || !blobLogicalPath) {
+    if (
+      !relativePath ||
+      !sourceType ||
+      !exactTime(occurredAt) ||
+      !SHA256.test(rowSourceSha256) ||
+      !blobLogicalPath
+    ) {
       fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
     }
-    if (packedSources
-      && (!SHA256.test(blobStoredSha256)
-        || blobLogicalPath !== sourcePackBlobPath(blobStoredSha256)
-        || !Number.isSafeInteger(byteStartValue) || byteStartValue < 0
-        || !Number.isSafeInteger(byteEndValue) || byteEndValue <= byteStartValue)
-      || !packedSources && blobLogicalPath !== sourceBlobPath(rowSourceSha256)) {
+    if (
+      (packedSources &&
+        (!SHA256.test(blobStoredSha256) ||
+          blobLogicalPath !== sourcePackBlobPath(blobStoredSha256) ||
+          !Number.isSafeInteger(byteStartValue) ||
+          byteStartValue < 0 ||
+          !Number.isSafeInteger(byteEndValue) ||
+          byteEndValue <= byteStartValue)) ||
+      (!packedSources && blobLogicalPath !== sourceBlobPath(rowSourceSha256))
+    ) {
       fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
     }
     const expectedBlobSha256 = packedSources ? blobStoredSha256 : rowSourceSha256;
-    const blobDescriptor = descriptorByLogicalPath(replay, blobLogicalPath,
-      expectedBlobSha256, 'SOURCE_NATIVE_OBJECT_ONT_SOURCE');
+    const blobDescriptor = descriptorByLogicalPath(
+      replay,
+      blobLogicalPath,
+      expectedBlobSha256,
+      'SOURCE_NATIVE_OBJECT_ONT_SOURCE',
+    );
     const byteStart = packedSources ? byteStartValue : 0;
     const byteEnd = packedSources ? byteEndValue : blobDescriptor.byteLength;
     if (byteEnd > blobDescriptor.byteLength) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
@@ -389,7 +449,9 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
       occurredAt,
       sourceSha256: rowSourceSha256,
       blobLogicalPath,
-      ...(packedSources ? { blobStoredSha256, byteStart: byteStartValue, byteEnd: byteEndValue } : {}),
+      ...(packedSources
+        ? { blobStoredSha256, byteStart: byteStartValue, byteEnd: byteEndValue }
+        : {}),
       blobDescriptor,
       blobByteStart: byteStart,
       blobByteEnd: byteEnd,
@@ -406,24 +468,33 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
       occurredAt: source.occurredAt,
       sourceSha256: source.sourceSha256,
       blobLogicalPath: source.blobLogicalPath,
-      ...(source.blobStoredSha256 === undefined ? {} : {
-        blobStoredSha256: source.blobStoredSha256,
-        byteStart: source.byteStart,
-        byteEnd: source.byteEnd,
-      }),
+      ...(source.blobStoredSha256 === undefined
+        ? {}
+        : {
+            blobStoredSha256: source.blobStoredSha256,
+            byteStart: source.byteStart,
+            byteEnd: source.byteEnd,
+          }),
     })),
     sourceCatalogSha256,
     exactSourcesRemainAuthority: true,
   };
   const catalog = freeze(catalogValueExact);
-  const sourceIdentityByPath = new Map(sources.map((source) =>
-    [source.relativePath, { sourceSha256: source.sourceSha256, occurredAt: source.occurredAt }]));
-  if (sourceIdentityByPath.size !== sources.length
-    || map.nativeObjects.some((object) => {
+  const sourceIdentityByPath = new Map(
+    sources.map((source) => [
+      source.relativePath,
+      { sourceSha256: source.sourceSha256, occurredAt: source.occurredAt },
+    ]),
+  );
+  if (
+    sourceIdentityByPath.size !== sources.length ||
+    map.nativeObjects.some((object) => {
       const source = sourceIdentityByPath.get(object.relativePath);
-      return source?.sourceSha256 !== object.sourceSha256
-        || source?.occurredAt !== object.occurredAt;
-    })) {
+      return (
+        source?.sourceSha256 !== object.sourceSha256 || source?.occurredAt !== object.occurredAt
+      );
+    })
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_CATALOG');
   }
   return freeze({
@@ -441,7 +512,10 @@ function openIndexAtCommit({ store, ontId, commitSha256, replayMetadata }: {
   });
 }
 
-function hydrateIndex({ store, index }: {
+function hydrateIndex({
+  store,
+  index,
+}: {
   store: ObjectOntStore;
   index: SourceNativeObjectOntIndex;
 }): SourceNativeObjectOntModule {
@@ -468,7 +542,9 @@ function hydrateIndex({ store, index }: {
     const exactSource = source ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     if (exactSource.sourceSha256 !== object.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     validateNativeObjectFieldEvidence({
-      source: exactSource, bytes: Buffer.from(exactSource.content), object,
+      source: exactSource,
+      bytes: Buffer.from(exactSource.content),
+      object,
     });
   }
   return freeze({
@@ -479,34 +555,47 @@ function hydrateIndex({ store, index }: {
 }
 
 function validateNativeObjectFieldEvidence({
-  source, bytes, object,
+  source,
+  bytes,
+  object,
 }: {
   source: OpenSource;
   bytes: Buffer;
   object: SourceNativeObjectOntIndex['map']['nativeObjects'][number];
 }): void {
-  if (object.relativePath !== source.relativePath
-    || object.sourceSha256 !== source.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
+  if (object.relativePath !== source.relativePath || object.sourceSha256 !== source.sourceSha256)
+    fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
   for (const field of object.fields) {
     const evidence = field.evidence;
-    if (evidence.relativePath !== source.relativePath
-      || evidence.sourceSha256 !== source.sourceSha256
-      || evidence.byteStart < 0 || evidence.byteEnd > bytes.length
-      || evidence.byteEnd <= evidence.byteStart) fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
+    if (
+      evidence.relativePath !== source.relativePath ||
+      evidence.sourceSha256 !== source.sourceSha256 ||
+      evidence.byteStart < 0 ||
+      evidence.byteEnd > bytes.length ||
+      evidence.byteEnd <= evidence.byteStart
+    )
+      fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
     const exactBytes = bytes.subarray(evidence.byteStart, evidence.byteEnd);
-    if (objectBytesSha256(exactBytes) !== evidence.textSha256
-      || exactBytes.toString('utf8') !== field.value) fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
+    if (
+      objectBytesSha256(exactBytes) !== evidence.textSha256 ||
+      exactBytes.toString('utf8') !== field.value
+    )
+      fail('SOURCE_NATIVE_OBJECT_ONT_FIELD_EVIDENCE');
   }
 }
 
 export function createSourceNativeObjectOntSourceReader({
-  store, index,
+  store,
+  index,
 }: {
   store: ObjectOntStore;
   index: SourceNativeObjectOntIndex;
 }): (sourceRef: string) => OpenSource & { content: string } {
   const sourcesByPath = new Map(index.sources.map((source) => [source.relativePath, source]));
-  const objectsByPath = new Map<string, SourceNativeObjectOntIndex['map']['nativeObjects'][number][]>();
+  const objectsByPath = new Map<
+    string,
+    SourceNativeObjectOntIndex['map']['nativeObjects'][number][]
+  >();
   for (const object of index.map.nativeObjects) {
     const objects = objectsByPath.get(object.relativePath) ?? [];
     objects.push(object);
@@ -515,14 +604,18 @@ export function createSourceNativeObjectOntSourceReader({
   return (sourceRef: string): OpenSource & { content: string } => {
     const source = sourcesByPath.get(sourceRef) ?? fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     return readSourceNativeObjectOntSource({
-      store, source, objects: objectsByPath.get(sourceRef) ?? [],
+      store,
+      source,
+      objects: objectsByPath.get(sourceRef) ?? [],
     });
   };
 }
 
 /** Read and fully validate one catalog member without hydrating unrelated sources. */
 function readSourceNativeObjectOntSource({
-  store, source, objects,
+  store,
+  source,
+  objects,
 }: {
   store: ObjectOntStore;
   source: OpenSource;
@@ -545,8 +638,15 @@ function readSourceNativeObjectOntSource({
   return freeze({ ...source, content });
 }
 
-function openAtCommit({ store, ontId, commitSha256, replayMetadata }: {
-  store: ObjectOntStore; ontId: string; commitSha256: string;
+function openAtCommit({
+  store,
+  ontId,
+  commitSha256,
+  replayMetadata,
+}: {
+  store: ObjectOntStore;
+  ontId: string;
+  commitSha256: string;
   replayMetadata?: ReplayMetadataGraph;
 }): SourceNativeObjectOntModule {
   const index = openIndexAtCommit({ store, ontId, commitSha256, replayMetadata });
@@ -563,15 +663,22 @@ export function materializeSourceNativeObjectOnt({
   nativeObjectInputs,
   adapterDiagnostics = [],
 }: MaterializeInput = {}): MaterializeResult {
-  if (!backend || typeof backend.putIfAbsent !== 'function'
-    || typeof backend.compareAndSwap !== 'function'
-    || typeof ontId !== 'string' || !ontId
-    || typeof branch !== 'string' || !branch
-    || !(expectedVersion === null || typeof expectedVersion === 'string')) {
+  if (
+    !backend ||
+    typeof backend.putIfAbsent !== 'function' ||
+    typeof backend.compareAndSwap !== 'function' ||
+    typeof ontId !== 'string' ||
+    !ontId ||
+    typeof branch !== 'string' ||
+    !branch ||
+    !(expectedVersion === null || typeof expectedVersion === 'string')
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
   }
-  const ontIdValue = typeof ontId === 'string' && ontId ? ontId : fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
-  const branchValue = typeof branch === 'string' && branch ? branch : fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
+  const ontIdValue =
+    typeof ontId === 'string' && ontId ? ontId : fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
+  const branchValue =
+    typeof branch === 'string' && branch ? branch : fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
   const backendValue = backend ?? fail('SOURCE_NATIVE_OBJECT_ONT_INPUT');
   const sources = normalizeSources(sourceInput);
   const map = compileSourceNativeObjectMap({ sources, nativeObjectInputs, adapterDiagnostics });
@@ -585,8 +692,11 @@ export function materializeSourceNativeObjectOnt({
   };
   for (const source of sources) {
     const bytes = Buffer.from(source.content);
-    if (currentPack.sources.length > 0
-      && currentPack.byteLength + bytes.length > MAX_SOURCE_PACK_BYTES) finishPack();
+    if (
+      currentPack.sources.length > 0 &&
+      currentPack.byteLength + bytes.length > MAX_SOURCE_PACK_BYTES
+    )
+      finishPack();
     const byteStart = currentPack.byteLength;
     currentPack.bytes.push(bytes);
     currentPack.sources.push({ source, byteStart, byteEnd: byteStart + bytes.length });
@@ -605,16 +715,19 @@ export function materializeSourceNativeObjectOnt({
     });
     if (descriptor.storedSha256 !== packSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     sourcePackDescriptors.push(descriptor);
-    for (const row of pack.sources) sourceCatalogRows.push(freeze({
-      relativePath: row.source.relativePath,
-      sourceType: row.source.sourceType,
-      occurredAt: row.source.occurredAt,
-      sourceSha256: row.source.sourceSha256,
-      blobLogicalPath: descriptor.logicalPath,
-      blobStoredSha256: descriptor.storedSha256,
-      byteStart: row.byteStart,
-      byteEnd: row.byteEnd,
-    }));
+    for (const row of pack.sources)
+      sourceCatalogRows.push(
+        freeze({
+          relativePath: row.source.relativePath,
+          sourceType: row.source.sourceType,
+          occurredAt: row.source.occurredAt,
+          sourceSha256: row.source.sourceSha256,
+          blobLogicalPath: descriptor.logicalPath,
+          blobStoredSha256: descriptor.storedSha256,
+          byteStart: row.byteStart,
+          byteEnd: row.byteEnd,
+        }),
+      );
   }
   const catalogCore: {
     schemaVersion: 1;
@@ -676,8 +789,10 @@ export function materializeSourceNativeObjectOnt({
       commitSha256: current.ref.commitSha256,
       replayMetadata: current.replayMetadata,
     });
-    if (opened.map.nativeObjectMapSha256 === map.nativeObjectMapSha256
-      && opened.catalog.sourceCatalogSha256 === sourceCatalogSha256) {
+    if (
+      opened.map.nativeObjectMapSha256 === map.nativeObjectMapSha256 &&
+      opened.catalog.sourceCatalogSha256 === sourceCatalogSha256
+    ) {
       const core: Omit<SourceNativeObjectOntReceipt, 'receiptSha256'> = {
         schemaVersion: 1,
         kind: 'OpenOntologySourceNativeObjectOntReceiptV1',
@@ -711,11 +826,7 @@ export function materializeSourceNativeObjectOnt({
     ontId: ontIdValue,
     parents: current === null ? [] : [current.ref.commitSha256],
     ontManifest: manifest,
-    blobs: [
-      ...sourcePackDescriptors,
-      catalogBlob,
-      mapBlob,
-    ],
+    blobs: [...sourcePackDescriptors, catalogBlob, mapBlob],
   });
   let ref: ReplayMetadataCheckpointWriteResult;
   try {
@@ -773,8 +884,13 @@ export function openSourceNativeObjectOnt(options: OpenSourceNativeObjectOntOpti
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   const { backend, ontId, commitSha256 } = options;
-  if (!backend || typeof ontId !== 'string' || !ontId
-    || typeof commitSha256 !== 'string' || !commitSha256) {
+  if (
+    !backend ||
+    typeof ontId !== 'string' ||
+    !ontId ||
+    typeof commitSha256 !== 'string' ||
+    !commitSha256
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   return openAtCommit({ store: openObjectOntStore({ backend }), ontId, commitSha256 });
@@ -786,9 +902,15 @@ export function openSourceNativeObjectOntAtCut({
   commitSha256,
   replaySha256,
 }: OpenSourceNativeObjectOntOptions & { replaySha256: string }): SourceNativeObjectOntCut {
-  if (!backend || typeof ontId !== 'string' || !ontId
-    || typeof commitSha256 !== 'string' || !SHA256.test(commitSha256)
-    || typeof replaySha256 !== 'string' || !SHA256.test(replaySha256)) {
+  if (
+    !backend ||
+    typeof ontId !== 'string' ||
+    !ontId ||
+    typeof commitSha256 !== 'string' ||
+    !SHA256.test(commitSha256) ||
+    typeof replaySha256 !== 'string' ||
+    !SHA256.test(replaySha256)
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   const store = openObjectOntStore({ backend });
@@ -828,15 +950,15 @@ export function openSourceNativeObjectOntRefAtCut({
   expectedCommitSha256?: string;
   expectedReplaySha256?: string;
 }): SourceNativeObjectOntRefCut | null {
-  if (!backend || typeof ontId !== 'string' || !ontId
-    || typeof branch !== 'string' || !branch) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  if (!backend || typeof ontId !== 'string' || !ontId || typeof branch !== 'string' || !branch)
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   const store = openObjectOntStore({ backend, historyBackend });
   const snapshot = store.readRefMetadataCheckpointSnapshot({ ontId, branch });
   if (snapshot === null) return null;
-  if ((expectedCommitSha256 !== undefined
-    && snapshot.ref.commitSha256 !== expectedCommitSha256)
-    || (expectedReplaySha256 !== undefined
-      && snapshot.ref.replaySha256 !== expectedReplaySha256)) {
+  if (
+    (expectedCommitSha256 !== undefined && snapshot.ref.commitSha256 !== expectedCommitSha256) ||
+    (expectedReplaySha256 !== undefined && snapshot.ref.replaySha256 !== expectedReplaySha256)
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_REF');
   }
   const { replayMetadata, ...refMetadata } = snapshot;
@@ -858,22 +980,32 @@ export function openSourceNativeObjectOntIndex(options: OpenSourceNativeObjectOn
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   const { backend, ontId, commitSha256 } = options;
-  if (!backend || typeof ontId !== 'string' || !ontId
-    || typeof commitSha256 !== 'string' || !commitSha256) {
+  if (
+    !backend ||
+    typeof ontId !== 'string' ||
+    !ontId ||
+    typeof commitSha256 !== 'string' ||
+    !commitSha256
+  ) {
     fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   }
   return openIndexAtCommit({ store: openObjectOntStore({ backend }), ontId, commitSha256 });
 }
 
 /** Open one ref-bound index using only metadata authenticated by the object store. */
-export function openSourceNativeObjectOntRefIndex({ backend, historyBackend, ontId, branch }: {
+export function openSourceNativeObjectOntRefIndex({
+  backend,
+  historyBackend,
+  ontId,
+  branch,
+}: {
   backend: ObjectBackend;
   historyBackend?: ObjectBackend;
   ontId: string;
   branch: string;
 }): SourceNativeObjectOntRefIndex | null {
-  if (!backend || typeof ontId !== 'string' || !ontId
-    || typeof branch !== 'string' || !branch) fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
+  if (!backend || typeof ontId !== 'string' || !ontId || typeof branch !== 'string' || !branch)
+    fail('SOURCE_NATIVE_OBJECT_ONT_OPEN');
   const store = openObjectOntStore({ backend, historyBackend });
   const snapshot = store.readRefMetadataCheckpointSnapshot({ ontId, branch });
   if (snapshot === null) return null;

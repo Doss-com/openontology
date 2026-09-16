@@ -1,5 +1,11 @@
 /** Synchronous SigV4 S3-compatible backend for the canonical object contract. */
-import { createHash, createHmac, randomUUID, type BinaryLike, type BinaryToTextEncoding } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  randomUUID,
+  type BinaryLike,
+  type BinaryToTextEncoding,
+} from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,10 +44,16 @@ const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const BUCKET = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/u;
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const stable = (value: unknown): string => JSON.stringify(value, (_key: string, row: unknown) =>
-  row && typeof row === 'object' && !Array.isArray(row)
-    ? Object.fromEntries(Object.keys(row).sort(compare).map((key) => [key, (row as Record<string, unknown>)[key]]))
-    : row) as string;
+const stable = (value: unknown): string =>
+  JSON.stringify(value, (_key: string, row: unknown) =>
+    row && typeof row === 'object' && !Array.isArray(row)
+      ? Object.fromEntries(
+          Object.keys(row)
+            .sort(compare)
+            .map((key) => [key, (row as Record<string, unknown>)[key]]),
+        )
+      : row,
+  ) as string;
 const sha256Hex = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const sha256 = (bytes: Uint8Array): string => `sha256:${sha256Hex(bytes)}`;
 const digest = (value: unknown): string => sha256(Buffer.from(stable(value)));
@@ -64,15 +76,26 @@ function exactBytes(value: ObjectBackendInput | undefined): Buffer {
 }
 
 function validateKey(key: string): string {
-  if (typeof key !== 'string' || key.length < 1 || key.length > 1024 || key.includes('\0')
-    || key.startsWith('/') || key.includes('\\')) fail('OBJECT_BACKEND_KEY');
+  if (
+    typeof key !== 'string' ||
+    key.length < 1 ||
+    key.length > 1024 ||
+    key.includes('\0') ||
+    key.startsWith('/') ||
+    key.includes('\\')
+  )
+    fail('OBJECT_BACKEND_KEY');
   const segments = key.split('/');
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) fail('OBJECT_BACKEND_KEY');
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..'))
+    fail('OBJECT_BACKEND_KEY');
   return key;
 }
 
 function awsEncode(value: string): string {
-  return encodeURIComponent(value).replace(/[!'()*]/gu, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return encodeURIComponent(value).replace(
+    /[!'()*]/gu,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 function canonicalUri(bucket: string, key: string | null = null): string {
@@ -89,7 +112,10 @@ function amzClock(now: Date): { amzDate: string; dateStamp: string } {
 }
 
 function parseHeaders(bytes: Uint8Array): { status: number; headers: Record<string, string> } {
-  const blocks = Buffer.from(bytes).toString('latin1').split(/\r?\n\r?\n/u).filter((block) => /^HTTP\//u.test(block));
+  const blocks = Buffer.from(bytes)
+    .toString('latin1')
+    .split(/\r?\n\r?\n/u)
+    .filter((block) => /^HTTP\//u.test(block));
   if (!blocks.length) fail('OBJECT_BACKEND_S3_RESPONSE');
   const block = blocks.at(-1);
   if (!block) return fail('OBJECT_BACKEND_S3_RESPONSE');
@@ -108,7 +134,8 @@ function parseHeaders(bytes: Uint8Array): { status: number; headers: Record<stri
 }
 
 function encodeVersion(generation: number, etag: string): string {
-  if (!Number.isSafeInteger(generation) || generation < 0 || typeof etag !== 'string' || !etag) fail('OBJECT_BACKEND_VERSION');
+  if (!Number.isSafeInteger(generation) || generation < 0 || typeof etag !== 'string' || !etag)
+    fail('OBJECT_BACKEND_VERSION');
   return `s3-v1:${generation}:${Buffer.from(etag).toString('base64url')}`;
 }
 
@@ -133,20 +160,39 @@ function makeCasEnvelope(bytes: Buffer, generation: number): Buffer {
   return Buffer.from(stable({ ...core, envelopeSha256: digest(core) }));
 }
 
-function readCasEnvelope(storedBytes: Buffer, expectedGeneration: number, expectedChecksum: string, expectedLength: number): Buffer {
+function readCasEnvelope(
+  storedBytes: Buffer,
+  expectedGeneration: number,
+  expectedChecksum: string,
+  expectedLength: number,
+): Buffer {
   let value;
-  try { value = JSON.parse(storedBytes.toString('utf8')); } catch { fail('OBJECT_BACKEND_CORRUPT'); }
-  const { envelopeSha256, ...core } = value && typeof value === 'object'
-    ? value as Record<string, unknown> : {};
+  try {
+    value = JSON.parse(storedBytes.toString('utf8'));
+  } catch {
+    fail('OBJECT_BACKEND_CORRUPT');
+  }
+  const { envelopeSha256, ...core } =
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const bytesBase64 = core.bytesBase64;
-  if (core.schemaVersion !== 1 || core.kind !== 'OpenOntologyS3CasEnvelopeV1'
-    || core.generation !== expectedGeneration || core.byteLength !== expectedLength
-    || core.checksumSha256 !== expectedChecksum || digest(core) !== envelopeSha256) fail('OBJECT_BACKEND_CORRUPT');
-  const safeBytesBase64 = typeof bytesBase64 === 'string'
-    ? bytesBase64 : fail('OBJECT_BACKEND_CORRUPT');
+  if (
+    core.schemaVersion !== 1 ||
+    core.kind !== 'OpenOntologyS3CasEnvelopeV1' ||
+    core.generation !== expectedGeneration ||
+    core.byteLength !== expectedLength ||
+    core.checksumSha256 !== expectedChecksum ||
+    digest(core) !== envelopeSha256
+  )
+    fail('OBJECT_BACKEND_CORRUPT');
+  const safeBytesBase64 =
+    typeof bytesBase64 === 'string' ? bytesBase64 : fail('OBJECT_BACKEND_CORRUPT');
   const bytes = Buffer.from(safeBytesBase64, 'base64');
-  if (bytes.toString('base64') !== safeBytesBase64 || bytes.length !== expectedLength
-    || sha256(bytes) !== expectedChecksum) fail('OBJECT_BACKEND_CORRUPT');
+  if (
+    bytes.toString('base64') !== safeBytesBase64 ||
+    bytes.length !== expectedLength ||
+    sha256(bytes) !== expectedChecksum
+  )
+    fail('OBJECT_BACKEND_CORRUPT');
   return bytes;
 }
 
@@ -162,19 +208,43 @@ export function openS3ObjectBackend({
   providerConditionalWritePolicy = false,
 }: S3ObjectBackendOptions = {}): S3ObjectBackend {
   let endpoint: URL;
-  try { endpoint = new URL(endpointInput ?? ''); } catch { return fail('OBJECT_BACKEND_S3_CONFIG'); }
-  if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password
-    || endpoint.search || endpoint.hash || endpoint.pathname !== '/' || typeof bucket !== 'string' || !BUCKET.test(bucket)
-    || typeof region !== 'string' || !region || typeof accessKeyId !== 'string' || !accessKeyId
-    || typeof secretAccessKey !== 'string' || !secretAccessKey || typeof now !== 'function') fail('OBJECT_BACKEND_S3_CONFIG');
-  if (typeof bucket !== 'string' || typeof region !== 'string'
-    || typeof accessKeyId !== 'string' || typeof secretAccessKey !== 'string') {
+  try {
+    endpoint = new URL(endpointInput ?? '');
+  } catch {
+    return fail('OBJECT_BACKEND_S3_CONFIG');
+  }
+  if (
+    !['http:', 'https:'].includes(endpoint.protocol) ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    endpoint.pathname !== '/' ||
+    typeof bucket !== 'string' ||
+    !BUCKET.test(bucket) ||
+    typeof region !== 'string' ||
+    !region ||
+    typeof accessKeyId !== 'string' ||
+    !accessKeyId ||
+    typeof secretAccessKey !== 'string' ||
+    !secretAccessKey ||
+    typeof now !== 'function'
+  )
+    fail('OBJECT_BACKEND_S3_CONFIG');
+  if (
+    typeof bucket !== 'string' ||
+    typeof region !== 'string' ||
+    typeof accessKeyId !== 'string' ||
+    typeof secretAccessKey !== 'string'
+  ) {
     fail('OBJECT_BACKEND_S3_CONFIG');
   }
   const configuredBucket = typeof bucket === 'string' ? bucket : fail('OBJECT_BACKEND_S3_CONFIG');
   const configuredRegion = typeof region === 'string' ? region : fail('OBJECT_BACKEND_S3_CONFIG');
-  const configuredAccessKeyId = typeof accessKeyId === 'string' ? accessKeyId : fail('OBJECT_BACKEND_S3_CONFIG');
-  const configuredSecretAccessKey = typeof secretAccessKey === 'string' ? secretAccessKey : fail('OBJECT_BACKEND_S3_CONFIG');
+  const configuredAccessKeyId =
+    typeof accessKeyId === 'string' ? accessKeyId : fail('OBJECT_BACKEND_S3_CONFIG');
+  const configuredSecretAccessKey =
+    typeof secretAccessKey === 'string' ? secretAccessKey : fail('OBJECT_BACKEND_S3_CONFIG');
   const capabilitiesCore = {
     schemaVersion: 1 as const,
     kind: 'OpenOntologyObjectBackendCapabilitiesV1' as const,
@@ -190,9 +260,17 @@ export function openS3ObjectBackend({
     providerConditionalWritePolicy: providerConditionalWritePolicy === true,
     mutableRefEnvelope: 'OpenOntologyS3CasEnvelopeV1',
   };
-  const capabilities = Object.freeze({ ...capabilitiesCore, capabilitiesSha256: digest(capabilitiesCore) });
+  const capabilities = Object.freeze({
+    ...capabilitiesCore,
+    capabilitiesSha256: digest(capabilitiesCore),
+  });
 
-  const request = ({ method, key = null, headers: inputHeaders = {}, body: bodyInput = Buffer.alloc(0) }: {
+  const request = ({
+    method,
+    key = null,
+    headers: inputHeaders = {},
+    body: bodyInput = Buffer.alloc(0),
+  }: {
     method: string;
     key?: string | null;
     headers?: Record<string, string>;
@@ -202,16 +280,25 @@ export function openS3ObjectBackend({
     const clock = amzClock(now());
     const uri = canonicalUri(configuredBucket, key);
     const payloadHash = sha256Hex(body);
-    const headers = Object.fromEntries(Object.entries({
-      host: endpoint.host,
-      'x-amz-content-sha256': payloadHash,
-      'x-amz-date': clock.amzDate,
-      ...(sessionToken ? { 'x-amz-security-token': sessionToken } : {}),
-      ...inputHeaders,
-    }).map(([name, value]) => [name.toLowerCase(), String(value).trim().replace(/\s+/gu, ' ')]));
+    const headers = Object.fromEntries(
+      Object.entries({
+        host: endpoint.host,
+        'x-amz-content-sha256': payloadHash,
+        'x-amz-date': clock.amzDate,
+        ...(sessionToken ? { 'x-amz-security-token': sessionToken } : {}),
+        ...inputHeaders,
+      }).map(([name, value]) => [name.toLowerCase(), String(value).trim().replace(/\s+/gu, ' ')]),
+    );
     const signedNames = Object.keys(headers).sort(compare);
     const canonicalHeaders = `${signedNames.map((name) => `${name}:${headers[name]}`).join('\n')}\n`;
-    const canonicalRequest = [method, uri, '', canonicalHeaders, signedNames.join(';'), payloadHash].join('\n');
+    const canonicalRequest = [
+      method,
+      uri,
+      '',
+      canonicalHeaders,
+      signedNames.join(';'),
+      payloadHash,
+    ].join('\n');
     const scope = `${clock.dateStamp}/${configuredRegion}/s3/aws4_request`;
     const stringToSign = `AWS4-HMAC-SHA256\n${clock.amzDate}\n${scope}\n${sha256Hex(Buffer.from(canonicalRequest))}`;
     const dateKey = hmac(Buffer.from(`AWS4${configuredSecretAccessKey}`), clock.dateStamp);
@@ -227,12 +314,24 @@ export function openS3ObjectBackend({
     writeFileSync(requestPath, body, { mode: 0o600 });
     try {
       const args = [
-        '--silent', '--show-error', '--connect-timeout', '5', '--max-time', '30',
+        '--silent',
+        '--show-error',
+        '--connect-timeout',
+        '5',
+        '--max-time',
+        '30',
         ...(method === 'HEAD' ? ['--head'] : ['--request', method]),
-        '--dump-header', headersPath, '--output', responsePath, '--write-out', '%{http_code}',
+        '--dump-header',
+        headersPath,
+        '--output',
+        responsePath,
+        '--write-out',
+        '%{http_code}',
       ];
-      for (const [name, value] of Object.entries(headers)) args.push('--header', `${name}: ${value}`);
-      if (!['GET', 'HEAD'].includes(method) || body.length) args.push('--data-binary', `@${requestPath}`);
+      for (const [name, value] of Object.entries(headers))
+        args.push('--header', `${name}: ${value}`);
+      if (!['GET', 'HEAD'].includes(method) || body.length)
+        args.push('--data-binary', `@${requestPath}`);
       args.push(`${endpoint.origin}${uri}`);
       const result = spawnSync(curlPath, args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
       if (result.status !== 0) fail('OBJECT_BACKEND_S3_TRANSPORT', result.stderr?.trim());
@@ -245,7 +344,9 @@ export function openS3ObjectBackend({
     }
   };
 
-  const metadata = (headers: Record<string, string>): {
+  const metadata = (
+    headers: Record<string, string>,
+  ): {
     mode: 'raw' | 'cas-envelope';
     checksumSha256: string;
     byteLength: number;
@@ -260,11 +361,30 @@ export function openS3ObjectBackend({
     const generation = Number(headers['x-amz-meta-oont-generation']);
     const etag = headers.etag;
     const safeMode = parsedMode === null ? fail('OBJECT_BACKEND_CORRUPT') : parsedMode;
-    if (typeof checksumSha256 !== 'string' || !SHA256.test(checksumSha256)
-      || !Number.isSafeInteger(byteLength) || byteLength < 0 || !Number.isSafeInteger(generation) || generation < 0
-      || typeof etag !== 'string' || !etag) fail('OBJECT_BACKEND_CORRUPT');
-    if (parsedMode === 'raw' && generation !== 0 || parsedMode === 'cas-envelope' && generation < 1) fail('OBJECT_BACKEND_CORRUPT');
-    return { mode: safeMode, checksumSha256, byteLength, generation, etag, version: encodeVersion(generation, etag) };
+    if (
+      typeof checksumSha256 !== 'string' ||
+      !SHA256.test(checksumSha256) ||
+      !Number.isSafeInteger(byteLength) ||
+      byteLength < 0 ||
+      !Number.isSafeInteger(generation) ||
+      generation < 0 ||
+      typeof etag !== 'string' ||
+      !etag
+    )
+      fail('OBJECT_BACKEND_CORRUPT');
+    if (
+      (parsedMode === 'raw' && generation !== 0) ||
+      (parsedMode === 'cas-envelope' && generation < 1)
+    )
+      fail('OBJECT_BACKEND_CORRUPT');
+    return {
+      mode: safeMode,
+      checksumSha256,
+      byteLength,
+      generation,
+      etag,
+      version: encodeVersion(generation, etag),
+    };
   };
 
   const head = (keyInput: string): S3WriteReceipt | null => {
@@ -284,13 +404,22 @@ export function openS3ObjectBackend({
     });
   };
 
-  const get = (keyInput: string, { start = 0, end = null }: { start?: number; end?: number | null } = {}): ObjectReadResult => {
+  const get = (
+    keyInput: string,
+    { start = 0, end = null }: { start?: number; end?: number | null } = {},
+  ): ObjectReadResult => {
     const key = validateKey(keyInput);
     const current = head(key);
     if (current === null) return fail('OBJECT_BACKEND_NOT_FOUND');
     const finalEnd = end === null ? current.byteLength : end;
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(finalEnd)
-      || start < 0 || finalEnd < start || finalEnd > current.byteLength) fail('OBJECT_BACKEND_RANGE');
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(finalEnd) ||
+      start < 0 ||
+      finalEnd < start ||
+      finalEnd > current.byteLength
+    )
+      fail('OBJECT_BACKEND_RANGE');
     const version = decodeVersion(current.version);
     const isFull = start === 0 && finalEnd === current.byteLength;
     const headResponse = request({ method: 'HEAD', key });
@@ -320,13 +449,20 @@ export function openS3ObjectBackend({
           ...(isFull ? {} : { range: `bytes=${start}-${finalEnd - 1}` }),
         },
       });
-      if (response.status !== (isFull ? 200 : 206)) fail('OBJECT_BACKEND_S3_STATUS', response.status);
+      if (response.status !== (isFull ? 200 : 206))
+        fail('OBJECT_BACKEND_S3_STATUS', response.status);
       bytes = response.body;
-      if (isFull && sha256(bytes) !== meta.checksumSha256 || bytes.length !== finalEnd - start) fail('OBJECT_BACKEND_CORRUPT');
+      if ((isFull && sha256(bytes) !== meta.checksumSha256) || bytes.length !== finalEnd - start)
+        fail('OBJECT_BACKEND_CORRUPT');
     } else {
       const response = request({ method: 'GET', key, headers: { 'if-match': meta.etag } });
       if (response.status !== 200) fail('OBJECT_BACKEND_S3_STATUS', response.status);
-      const logical = readCasEnvelope(response.body, version.generation, meta.checksumSha256, meta.byteLength);
+      const logical = readCasEnvelope(
+        response.body,
+        version.generation,
+        meta.checksumSha256,
+        meta.byteLength,
+      );
       bytes = logical.subarray(start, finalEnd);
     }
     return Object.freeze({
@@ -342,14 +478,24 @@ export function openS3ObjectBackend({
     });
   };
 
-  const put = ({ key, logicalBytes, storedBytes, generation, mode, conditionHeaders }: {
+  const put = ({
+    key,
+    logicalBytes,
+    storedBytes,
+    generation,
+    mode,
+    conditionHeaders,
+  }: {
     key: string;
     logicalBytes: Buffer;
     storedBytes: Buffer;
     generation: number;
     mode: 'raw' | 'cas-envelope';
     conditionHeaders: Record<string, string>;
-  }): { response: { status: number; headers: Record<string, string>; body: Buffer }; receipt: S3WriteReceipt | null } => {
+  }): {
+    response: { status: number; headers: Record<string, string>; body: Buffer };
+    receipt: S3WriteReceipt | null;
+  } => {
     const checksumSha256 = sha256(logicalBytes);
     const response = request({
       method: 'PUT',
@@ -385,7 +531,8 @@ export function openS3ObjectBackend({
     capabilities,
     ensureBucket() {
       const response = request({ method: 'PUT' });
-      if (![200, 201, 204, 409].includes(response.status)) fail('OBJECT_BACKEND_S3_BUCKET', response.status);
+      if (![200, 201, 204, 409].includes(response.status))
+        fail('OBJECT_BACKEND_S3_BUCKET', response.status);
       if (response.status === 409) {
         const probe = request({ method: 'HEAD' });
         if (probe.status !== 200) fail('OBJECT_BACKEND_S3_BUCKET', response.status);
@@ -421,16 +568,23 @@ export function openS3ObjectBackend({
         replayed: true,
       });
     },
-    compareAndSwap(keyInput: string, { expectedVersion = null, bytes: bytesInput }: {
-      expectedVersion?: string | null;
-      bytes?: ObjectBackendInput;
-    } = {}): ObjectWriteReceipt {
+    compareAndSwap(
+      keyInput: string,
+      {
+        expectedVersion = null,
+        bytes: bytesInput,
+      }: {
+        expectedVersion?: string | null;
+        bytes?: ObjectBackendInput;
+      } = {},
+    ): ObjectWriteReceipt {
       const key = validateKey(keyInput);
       const bytes = exactBytes(bytesInput);
       const expected = expectedVersion === null ? null : decodeVersion(expectedVersion);
       if (expected !== null) {
         const current = head(key);
-        if (current === null || current.version !== expectedVersion) fail('OBJECT_BACKEND_PRECONDITION');
+        if (current === null || current.version !== expectedVersion)
+          fail('OBJECT_BACKEND_PRECONDITION');
       }
       const generation = expected === null ? 1 : expected.generation + 1;
       const stored = makeCasEnvelope(bytes, generation);
@@ -440,7 +594,8 @@ export function openS3ObjectBackend({
         storedBytes: stored,
         generation,
         mode: 'cas-envelope',
-        conditionHeaders: expected === null ? { 'if-none-match': '*' } : { 'if-match': expected.etag },
+        conditionHeaders:
+          expected === null ? { 'if-none-match': '*' } : { 'if-match': expected.etag },
       });
       if (!write.receipt) {
         if (write.response.status === 412) return fail('OBJECT_BACKEND_PRECONDITION');

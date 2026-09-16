@@ -2,11 +2,7 @@
 export const GCS_REQUEST_OBSERVATION_KIND = 'OpenOntologyGcsRequestObservationV1' as const;
 
 export type GcsRequestOperationClass =
-  | 'bucket-metadata'
-  | 'object-metadata'
-  | 'body-read'
-  | 'create-if-absent'
-  | 'compare-and-swap';
+  'bucket-metadata' | 'object-metadata' | 'body-read' | 'create-if-absent' | 'compare-and-swap';
 
 export type GcsRequestFailureClass = 'transport' | 'malformed-response';
 

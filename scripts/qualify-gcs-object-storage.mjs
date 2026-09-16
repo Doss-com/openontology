@@ -17,31 +17,44 @@ backend.ensureBucket();
 
 const qualificationRoot = process.env.OONT_GCS_QUALIFICATION_PREFIX ?? 'qualification/gcs-v1';
 const runId = process.env.OONT_GCS_QUALIFICATION_RUN_ID ?? randomUUID();
-if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/u.test(qualificationRoot)
-  || qualificationRoot.includes('//') || qualificationRoot.endsWith('/')
-  || qualificationRoot.split('/').some((part) => ['.', '..'].includes(part))
-  || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(runId)) {
+if (
+  !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/u.test(qualificationRoot) ||
+  qualificationRoot.includes('//') ||
+  qualificationRoot.endsWith('/') ||
+  qualificationRoot.split('/').some((part) => ['.', '..'].includes(part)) ||
+  !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(runId)
+) {
   throw new TypeError('OONT_GCS_QUALIFICATION_PREFIX');
 }
 const prefix = `${qualificationRoot}/${runId}`;
 
 function worker(operation) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [resolve(import.meta.dirname, 'run-gcs-object-operation.mjs')], {
-      env: {
-        ...process.env,
-        OONT_GCS_OPERATION_BASE64: Buffer.from(JSON.stringify(operation)).toString('base64'),
+    const child = spawn(
+      process.execPath,
+      [resolve(import.meta.dirname, 'run-gcs-object-operation.mjs')],
+      {
+        env: {
+          ...process.env,
+          OONT_GCS_OPERATION_BASE64: Buffer.from(JSON.stringify(operation)).toString('base64'),
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    );
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
     child.on('error', reject);
     child.on('close', (code) => {
       if (code !== 0) return reject(new Error(`worker exit ${code}: ${stderr}`));
-      try { return resolvePromise(JSON.parse(stdout)); } catch {
+      try {
+        return resolvePromise(JSON.parse(stdout));
+      } catch {
         return reject(new Error(`worker output: ${stdout} ${stderr}`));
       }
     });
@@ -50,19 +63,29 @@ function worker(operation) {
 
 async function casRace(writerCount) {
   const key = `${prefix}/cas-race-${writerCount}`;
-  const initial = backend.compareAndSwap(key, { expectedVersion: null, bytes: Buffer.from('initial') });
-  const results = await Promise.all(Array.from({ length: writerCount }, (_unused, index) => worker({
-    mode: 'cas',
-    workerId: `cas-${writerCount}-${index}`,
-    key,
-    expectedVersion: initial.version,
-    bytesBase64: Buffer.from(`winner-${index}`).toString('base64'),
-  })));
+  const initial = backend.compareAndSwap(key, {
+    expectedVersion: null,
+    bytes: Buffer.from('initial'),
+  });
+  const results = await Promise.all(
+    Array.from({ length: writerCount }, (_unused, index) =>
+      worker({
+        mode: 'cas',
+        workerId: `cas-${writerCount}-${index}`,
+        key,
+        expectedVersion: initial.version,
+        bytesBase64: Buffer.from(`winner-${index}`).toString('base64'),
+      }),
+    ),
+  );
   const passed = results.filter((row) => row.status === 'PASS');
   const rejected = results.filter((row) => row.code === 'OBJECT_BACKEND_PRECONDITION');
   assert.equal(passed.length, 1);
   assert.equal(rejected.length, writerCount - 1);
-  assert.equal(backend.get(key).bytes.toString(), passed[0].workerId.replace(`cas-${writerCount}-`, 'winner-'));
+  assert.equal(
+    backend.get(key).bytes.toString(),
+    passed[0].workerId.replace(`cas-${writerCount}-`, 'winner-'),
+  );
   return { writerCount, winner: passed[0].workerId, rejected: rejected.length };
 }
 
@@ -81,11 +104,21 @@ assert.equal(backend.get(immutableKey, { start: 5, end: 8 }).bytes.toString(), '
 
 const refKey = `${prefix}/ref`;
 const refOne = backend.compareAndSwap(refKey, { expectedVersion: null, bytes: Buffer.from('one') });
-const refTwo = backend.compareAndSwap(refKey, { expectedVersion: refOne.version, bytes: Buffer.from('two') });
-const refThree = backend.compareAndSwap(refKey, { expectedVersion: refTwo.version, bytes: Buffer.from('one') });
+const refTwo = backend.compareAndSwap(refKey, {
+  expectedVersion: refOne.version,
+  bytes: Buffer.from('two'),
+});
+const refThree = backend.compareAndSwap(refKey, {
+  expectedVersion: refTwo.version,
+  bytes: Buffer.from('one'),
+});
 assert.notEqual(refThree.version, refOne.version);
 assert.throws(
-  () => backend.compareAndSwap(refKey, { expectedVersion: refOne.version, bytes: Buffer.from('stale') }),
+  () =>
+    backend.compareAndSwap(refKey, {
+      expectedVersion: refOne.version,
+      bytes: Buffer.from('stale'),
+    }),
   { code: 'OBJECT_BACKEND_PRECONDITION' },
 );
 
@@ -146,27 +179,33 @@ assert.equal(store.readRef({ ontId, branch: 'crash-boundary' }).version, recover
 
 const races = [];
 for (const writerCount of [4, 16, 64]) races.push(await casRace(writerCount));
-const union = await Promise.all(Array.from({ length: 64 }, (_unused, index) => worker({
-  mode: 'put',
-  workerId: `put-64-${index}`,
-  key: `${prefix}/union/${String(index).padStart(2, '0')}`,
-  bytesBase64: Buffer.from(`value-${index}`).toString('base64'),
-})));
+const union = await Promise.all(
+  Array.from({ length: 64 }, (_unused, index) =>
+    worker({
+      mode: 'put',
+      workerId: `put-64-${index}`,
+      key: `${prefix}/union/${String(index).padStart(2, '0')}`,
+      bytesBase64: Buffer.from(`value-${index}`).toString('base64'),
+    }),
+  ),
+);
 assert.equal(union.filter((row) => row.status === 'PASS').length, 64);
 
-process.stdout.write(`${JSON.stringify({
-  status: 'PASS',
-  cases: 22,
-  backendCapabilitiesSha256: backend.capabilities.capabilitiesSha256,
-  bucket: backend.capabilities.bucket,
-  qualificationPrefix: prefix,
-  immutableReplay: true,
-  exactRangeRead: true,
-  abaSafeVersions: [refOne.version, refTwo.version, refThree.version],
-  commitSha256: rootCommit.commitSha256,
-  replaySha256: rootRef.ref.replaySha256,
-  crashBeforeRefLeavesBranchAbsent: true,
-  durableCommitRecoveredByCas: true,
-  writerRaces: races,
-  uniqueWriterUnion: union.length,
-})}\n`);
+process.stdout.write(
+  `${JSON.stringify({
+    status: 'PASS',
+    cases: 22,
+    backendCapabilitiesSha256: backend.capabilities.capabilitiesSha256,
+    bucket: backend.capabilities.bucket,
+    qualificationPrefix: prefix,
+    immutableReplay: true,
+    exactRangeRead: true,
+    abaSafeVersions: [refOne.version, refTwo.version, refThree.version],
+    commitSha256: rootCommit.commitSha256,
+    replaySha256: rootRef.ref.replaySha256,
+    crashBeforeRefLeavesBranchAbsent: true,
+    durableCommitRecoveredByCas: true,
+    writerRaces: races,
+    uniqueWriterUnion: union.length,
+  })}\n`,
+);

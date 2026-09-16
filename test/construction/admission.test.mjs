@@ -28,24 +28,34 @@ const digest = kernel.objectBytesSha256(Buffer.from('not present'));
 const prefix = 'blobs/knowledge-ledger/construction/';
 const pathFor = (sha) => `${prefix}${sha.slice(7)}.json`;
 const at = (day) => `2026-09-${String(day).padStart(2, '0')}T00:00:00.000Z`;
-const signature = (statement, key) => sign(null, Buffer.from(kernel.stableObjectText(statement)), key).toString('base64');
+const signature = (statement, key) =>
+  sign(null, Buffer.from(kernel.stableObjectText(statement)), key).toString('base64');
 const fileObjectPath = (objectBackendUri, key) => {
   const keySha256 = kernel.objectBytesSha256(Buffer.from(key)).slice(7);
-  return join(fileURLToPath(objectBackendUri), 'objects', keySha256.slice(0, 2), `${keySha256.slice(2)}.json`);
+  return join(
+    fileURLToPath(objectBackendUri),
+    'objects',
+    keySha256.slice(0, 2),
+    `${keySha256.slice(2)}.json`,
+  );
 };
 function interleaveReadFileSync(targetPath, shouldTrigger, effect, run) {
   const original = fs.readFileSync;
   let triggered = false;
   let insideEffect = false;
   let matchingReads = 0;
-  const pathText = (value) => typeof value === 'string' ? value : value?.toString();
+  const pathText = (value) => (typeof value === 'string' ? value : value?.toString());
   fs.readFileSync = function interceptedReadFileSync(path, ...args) {
     if (!insideEffect && pathText(path) === targetPath) {
       matchingReads += 1;
       if (!triggered && shouldTrigger(matchingReads)) {
         triggered = true;
         insideEffect = true;
-        try { effect(); } finally { insideEffect = false; }
+        try {
+          effect();
+        } finally {
+          insideEffect = false;
+        }
       }
     }
     return original.apply(this, [path, ...args]);
@@ -61,8 +71,9 @@ function interleaveReadFileSync(targetPath, shouldTrigger, effect, run) {
 }
 function knowledgeRecordPath(f, record) {
   const snapshot = f.state.store.readRefMetadataSnapshot(f.route);
-  const descriptor = snapshot?.replayMetadata.blobDescriptors.find((item) =>
-    item.logicalPath === pathFor(record.recordSha256));
+  const descriptor = snapshot?.replayMetadata.blobDescriptors.find(
+    (item) => item.logicalPath === pathFor(record.recordSha256),
+  );
   assert(descriptor, 'signed knowledge record descriptor must exist');
   return fileObjectPath(f.objectBackendUri, descriptor.key);
 }
@@ -96,88 +107,253 @@ function fixture(t, { protectedHistory = false, namespace = 'example', multiSour
   const historyBackendUri = pathToFileURL(join(root, 'history')).href;
   const options = { artifactRoot: join(root, 'ont') };
   const buildInput = {
-    schemaVersion: 1, kind: 'OpenOntologySourceNativeBuildInputV1',
-    ontId: 'construction-admission-example', namespace,
-    querySchemas: [{ sourceSystem: 'tracker', objectType: 'task', aliases: ['task'],
-      fields: [{ fieldPath: 'body', aliases: ['body'] }, { fieldPath: 'status', aliases: ['status'] }] }],
-    sources: [{ relativePath: 'tracker/task-1.txt', sourceType: 'tracker', occurredAt: at(1),
-      content: 'AllocationException means allocation mismatch. Status: open.' }],
-    nativeObjectInputs: [{ relativePath: 'tracker/task-1.txt',
-      businessEntityKeys: ['task:task-1'],
-      objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'tracker', objectType: 'task', namespace, externalId: 'task-1' },
-      fields: [{ fieldPath: 'body', value: 'AllocationException means allocation mismatch. Status: open.' },
-        { fieldPath: 'status', value: 'open', propositionFamilyKey: 'task-status',
-          validAt: at(1), knownAt: at(1), businessEntityKeys: ['task:task-1'],
-          canonicalProposition: { kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
-            propositionKey: 'task-1-open', actorHome: 'ObjectDef/InstanceRef',
-            stateHome: 'Claim/PropositionRevision-payload', actorKind: 'task', predicate: 'has-status',
-            state: 'open', dimension: 'task-status', canonicalRoles: ['state'], modality: 'observed',
-            polarity: 'positive', businessEntityKeys: ['task:task-1'],
-            extractionAuthority: 'deterministic-source-adapter-v1', relations: [] } }],
-    }],
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'construction-admission-example',
+    namespace,
+    querySchemas: [
+      {
+        sourceSystem: 'tracker',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: [
+          { fieldPath: 'body', aliases: ['body'] },
+          { fieldPath: 'status', aliases: ['status'] },
+        ],
+      },
+    ],
+    sources: [
+      {
+        relativePath: 'tracker/task-1.txt',
+        sourceType: 'tracker',
+        occurredAt: at(1),
+        content: 'AllocationException means allocation mismatch. Status: open.',
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath: 'tracker/task-1.txt',
+        businessEntityKeys: ['task:task-1'],
+        objectIdentity: {
+          home: 'ObjectDef/InstanceRef',
+          sourceSystem: 'tracker',
+          objectType: 'task',
+          namespace,
+          externalId: 'task-1',
+        },
+        fields: [
+          {
+            fieldPath: 'body',
+            value: 'AllocationException means allocation mismatch. Status: open.',
+          },
+          {
+            fieldPath: 'status',
+            value: 'open',
+            propositionFamilyKey: 'task-status',
+            validAt: at(1),
+            knownAt: at(1),
+            businessEntityKeys: ['task:task-1'],
+            canonicalProposition: {
+              kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+              propositionKey: 'task-1-open',
+              actorHome: 'ObjectDef/InstanceRef',
+              stateHome: 'Claim/PropositionRevision-payload',
+              actorKind: 'task',
+              predicate: 'has-status',
+              state: 'open',
+              dimension: 'task-status',
+              canonicalRoles: ['state'],
+              modality: 'observed',
+              polarity: 'positive',
+              businessEntityKeys: ['task:task-1'],
+              extractionAuthority: 'deterministic-source-adapter-v1',
+              relations: [],
+            },
+          },
+        ],
+      },
+    ],
   };
   if (multiSource) {
-    buildInput.sources.push({ relativePath: 'tracker/task-2.txt', sourceType: 'tracker', occurredAt: at(1),
-      content: 'Second allocation note. Status: open.' });
-    buildInput.nativeObjectInputs.push({ relativePath: 'tracker/task-2.txt',
+    buildInput.sources.push({
+      relativePath: 'tracker/task-2.txt',
+      sourceType: 'tracker',
+      occurredAt: at(1),
+      content: 'Second allocation note. Status: open.',
+    });
+    buildInput.nativeObjectInputs.push({
+      relativePath: 'tracker/task-2.txt',
       businessEntityKeys: ['task:task-2'],
-      objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'tracker', objectType: 'task', namespace, externalId: 'task-2' },
-      fields: [{ fieldPath: 'body', value: 'Second allocation note. Status: open.' },
-        { fieldPath: 'status', value: 'open', propositionFamilyKey: 'task-status',
-          validAt: at(1), knownAt: at(1), businessEntityKeys: ['task:task-2'],
-          canonicalProposition: { kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
-            propositionKey: 'task-2-open', actorHome: 'ObjectDef/InstanceRef',
-            stateHome: 'Claim/PropositionRevision-payload', actorKind: 'task', predicate: 'has-status',
-            state: 'open', dimension: 'task-status', canonicalRoles: ['state'], modality: 'observed',
-            polarity: 'positive', businessEntityKeys: ['task:task-2'],
-            extractionAuthority: 'deterministic-source-adapter-v1', relations: [] } }],
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'tracker',
+        objectType: 'task',
+        namespace,
+        externalId: 'task-2',
+      },
+      fields: [
+        { fieldPath: 'body', value: 'Second allocation note. Status: open.' },
+        {
+          fieldPath: 'status',
+          value: 'open',
+          propositionFamilyKey: 'task-status',
+          validAt: at(1),
+          knownAt: at(1),
+          businessEntityKeys: ['task:task-2'],
+          canonicalProposition: {
+            kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+            propositionKey: 'task-2-open',
+            actorHome: 'ObjectDef/InstanceRef',
+            stateHome: 'Claim/PropositionRevision-payload',
+            actorKind: 'task',
+            predicate: 'has-status',
+            state: 'open',
+            dimension: 'task-status',
+            canonicalRoles: ['state'],
+            modality: 'observed',
+            polarity: 'positive',
+            businessEntityKeys: ['task:task-2'],
+            extractionAuthority: 'deterministic-source-adapter-v1',
+            relations: [],
+          },
+        },
+      ],
     });
   }
-  kernel.buildSourceNativeProduct({ ...options, objectBackendUri,
-    ...(protectedHistory ? { historyBackendUri } : {}), input: buildInput });
+  kernel.buildSourceNativeProduct({
+    ...options,
+    objectBackendUri,
+    ...(protectedHistory ? { historyBackendUri } : {}),
+    input: buildInput,
+  });
   const state = kernel.openProductState(options);
   const object = state.objectOnt.map.nativeObjects[0];
   const source = state.objectOnt.sources[0];
-  const witness = { nativeObjectSha256: object.nativeObjectSha256, evidence: {
-    sourceRef: source.relativePath, sourceSha256: source.sourceSha256, byteStart: 0,
-    byteEnd: Buffer.byteLength(source.content), textSha256: source.sourceSha256 } };
-  const input = { proposedBy: 'constructor', proposedAt: at(2), method: 'authored',
-    objectDefs: [{ kind: 'ObjectDef', id: 'allocation-exception', name: 'AllocationException',
-      source: witness, aliases: [{ value: 'allocation mismatch', sourceSystem: 'tracker', source: witness }] }],
-    claims: [{ kind: 'Claim', id: 'definition', about: 'allocation-exception', predicate: 'defines', source: witness }],
-    coverage: [{ sourceRef: source.relativePath, sourceSha256: source.sourceSha256, disposition: 'examined' }],
+  const witness = {
+    nativeObjectSha256: object.nativeObjectSha256,
+    evidence: {
+      sourceRef: source.relativePath,
+      sourceSha256: source.sourceSha256,
+      byteStart: 0,
+      byteEnd: Buffer.byteLength(source.content),
+      textSha256: source.sourceSha256,
+    },
   };
-  const keys = Object.fromEntries(['constructor', 'reviewer', 'reviewer-two'].map((id) => [id, generateKeyPairSync('ed25519')]));
-  const trust = Object.entries(keys).map(([issuerId, pair]) => ({ issuerId,
+  const input = {
+    proposedBy: 'constructor',
+    proposedAt: at(2),
+    method: 'authored',
+    objectDefs: [
+      {
+        kind: 'ObjectDef',
+        id: 'allocation-exception',
+        name: 'AllocationException',
+        source: witness,
+        aliases: [{ value: 'allocation mismatch', sourceSystem: 'tracker', source: witness }],
+      },
+    ],
+    claims: [
+      {
+        kind: 'Claim',
+        id: 'definition',
+        about: 'allocation-exception',
+        predicate: 'defines',
+        source: witness,
+      },
+    ],
+    coverage: [
+      {
+        sourceRef: source.relativePath,
+        sourceSha256: source.sourceSha256,
+        disposition: 'examined',
+      },
+    ],
+  };
+  const keys = Object.fromEntries(
+    ['constructor', 'reviewer', 'reviewer-two'].map((id) => [id, generateKeyPairSync('ed25519')]),
+  );
+  const trust = Object.entries(keys).map(([issuerId, pair]) => ({
+    issuerId,
     publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
-    roles: [issuerId === 'constructor' ? 'proposer' : 'reviewer'] }));
-  const compile = (value = input) => kernel.compileSourceNativeSemanticConstruction({ options, input: value });
-  function admit(construction = compile(), { issuerId = 'reviewer', admittedAt = at(3), targets = [] } = {}) {
+    roles: [issuerId === 'constructor' ? 'proposer' : 'reviewer'],
+  }));
+  const compile = (value = input) =>
+    kernel.compileSourceNativeSemanticConstruction({ options, input: value });
+  function admit(
+    construction = compile(),
+    { issuerId = 'reviewer', admittedAt = at(3), targets = [] } = {},
+  ) {
     const proposalStatement = kernel.sourceNativeConstructionProposalStatement({ construction });
-    const statement = kernel.sourceNativeConstructionAdmissionStatement({ construction, issuerId, admittedAt,
-      supersedesRecordSha256s: targets });
-    return kernel.compileSourceNativeConstructionAdmissionRecord({ construction, proposalStatement, statement,
+    const statement = kernel.sourceNativeConstructionAdmissionStatement({
+      construction,
+      issuerId,
+      admittedAt,
+      supersedesRecordSha256s: targets,
+    });
+    return kernel.compileSourceNativeConstructionAdmissionRecord({
+      construction,
+      proposalStatement,
+      statement,
       proposalSignatureBase64: signature(proposalStatement, keys.constructor.privateKey),
-      signatureBase64: signature(statement, keys[issuerId].privateKey) });
+      signatureBase64: signature(statement, keys[issuerId].privateKey),
+    });
   }
   const branch = `knowledge-${state.objectOnt.commitSha256.slice(7, 23)}`;
   const route = { ontId: state.descriptor.ontId, branch };
   const sourceRoute = { ontId: state.descriptor.ontId, branch: state.descriptor.branch };
-  const write = (record, extra = {}) => kernel.writeSourceNativeConstructionAdmission({ options, trustRegistry: trust, record, ...extra });
-  const read = (extra = {}) => kernel.readSourceNativeConstructionLedger({ options, trustRegistry: trust, ...extra });
+  const write = (record, extra = {}) =>
+    kernel.writeSourceNativeConstructionAdmission({
+      options,
+      trustRegistry: trust,
+      record,
+      ...extra,
+    });
+  const read = (extra = {}) =>
+    kernel.readSourceNativeConstructionLedger({ options, trustRegistry: trust, ...extra });
   function plant(value, logicalPath = pathFor(value.recordSha256)) {
     const snapshot = state.store.readRefMetadataSnapshot(route);
     const parent = snapshot?.ref.commitSha256 ?? state.objectOnt.commitSha256;
-    const blob = state.store.putBlob({ logicalPath, bytes: Buffer.from(kernel.stableObjectText(value)), mediaType: 'application/json' });
-    const commit = state.store.writeCommitMetadata({ ontId: route.ontId, parents: [parent],
-      ontManifest: state.store.readCommit(parent).commit.ontManifest, blobs: [blob] });
-    state.store.compareAndSwapRefMetadata({ ...route, expectedVersion: snapshot?.version ?? null, commitSha256: commit.commitSha256 });
+    const blob = state.store.putBlob({
+      logicalPath,
+      bytes: Buffer.from(kernel.stableObjectText(value)),
+      mediaType: 'application/json',
+    });
+    const commit = state.store.writeCommitMetadata({
+      ontId: route.ontId,
+      parents: [parent],
+      ontManifest: state.store.readCommit(parent).commit.ontManifest,
+      blobs: [blob],
+    });
+    state.store.compareAndSwapRefMetadata({
+      ...route,
+      expectedVersion: snapshot?.version ?? null,
+      commitSha256: commit.commitSha256,
+    });
     return blob;
   }
-  return { root, options, objectBackendUri, historyBackendUri, buildInput, state, input, keys, trust, compile, admit,
-    branch, route, sourceRoute, write, read, plant, backend: openCanonicalObjectBackend({ uri: objectBackendUri }).backend,
+  return {
+    root,
+    options,
+    objectBackendUri,
+    historyBackendUri,
+    buildInput,
+    state,
+    input,
+    keys,
+    trust,
+    compile,
+    admit,
+    branch,
+    route,
+    sourceRoute,
+    write,
+    read,
+    plant,
+    backend: openCanonicalObjectBackend({ uri: objectBackendUri }).backend,
     historyBackend: protectedHistory
-      ? openCanonicalObjectBackend({ uri: historyBackendUri }).backend : undefined };
+      ? openCanonicalObjectBackend({ uri: historyBackendUri }).backend
+      : undefined,
+  };
 }
 
 function rehash(record) {
@@ -186,7 +362,10 @@ function rehash(record) {
 }
 function changed(f, { id, name, noAlias = false } = {}) {
   const input = clone(f.input);
-  if (id) { input.objectDefs[0].id = id; input.claims[0].about = id; }
+  if (id) {
+    input.objectDefs[0].id = id;
+    input.claims[0].about = id;
+  }
   if (name) input.objectDefs[0].name = name;
   if (noAlias) input.objectDefs[0].aliases = [];
   input.claims[0].predicate = 'mentions';
@@ -205,12 +384,17 @@ function sourceBinding(f) {
 }
 function readAtArtifact(f, extra = {}) {
   return kernel.readSourceNativeConstructionLedgerAtArtifact({
-    options: f.options, trustRegistry: f.trust, expectedSourceBinding: sourceBinding(f), ...extra,
+    options: f.options,
+    trustRegistry: f.trust,
+    expectedSourceBinding: sourceBinding(f),
+    ...extra,
   });
 }
 function materializeInput(input) {
-  const sources = input.sources.map((source) => ({ ...source,
-    sourceSha256: kernel.objectBytesSha256(Buffer.from(source.content)) }));
+  const sources = input.sources.map((source) => ({
+    ...source,
+    sourceSha256: kernel.objectBytesSha256(Buffer.from(source.content)),
+  }));
   const sourceByPath = new Map(sources.map((source) => [source.relativePath, source]));
   return {
     ...input,
@@ -220,7 +404,8 @@ function materializeInput(input) {
       assert(source, `missing source for ${object.relativePath}`);
       return {
         ...object,
-        fields: object.fields.map((field) => ({ ...field,
+        fields: object.fields.map((field) => ({
+          ...field,
           codeUnitStart: field.codeUnitStart ?? source.content.indexOf(field.value),
         })),
       };
@@ -230,7 +415,9 @@ function materializeInput(input) {
 function advanceOnlySecondSource(f) {
   const input = clone(f.buildInput);
   const source = input.sources.find((item) => item.relativePath === 'tracker/task-2.txt');
-  const object = input.nativeObjectInputs.find((item) => item.relativePath === 'tracker/task-2.txt');
+  const object = input.nativeObjectInputs.find(
+    (item) => item.relativePath === 'tracker/task-2.txt',
+  );
   assert(source && object, 'multi-source fixture must include task-2');
   source.content = 'Second allocation note changed only at descendant B. Status: closed.';
   object.fields[0].value = source.content;
@@ -240,9 +427,13 @@ function advanceOnlySecondSource(f) {
   const materializedInput = materializeInput(input);
   const before = f.state.store.readRefMetadata(f.sourceRoute);
   return materializeSourceNativeObjectOnt({
-    backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
-    branch: f.sourceRoute.branch, expectedVersion: before.version,
-    sources: materializedInput.sources, nativeObjectInputs: materializedInput.nativeObjectInputs,
+    backend: f.backend,
+    historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId,
+    branch: f.sourceRoute.branch,
+    expectedVersion: before.version,
+    sources: materializedInput.sources,
+    nativeObjectInputs: materializedInput.nativeObjectInputs,
   });
 }
 function mutateHistory(f, branch, mutate) {
@@ -253,7 +444,9 @@ function mutateHistory(f, branch, mutate) {
   const { historySha256: _historySha256, ...core } = current;
   f.historyBackend.compareAndSwap(key, {
     expectedVersion: head.version,
-    bytes: Buffer.from(kernel.stableObjectText({ ...core, historySha256: kernel.stableObjectSha256(core) })),
+    bytes: Buffer.from(
+      kernel.stableObjectText({ ...core, historySha256: kernel.stableObjectSha256(core) }),
+    ),
   });
 }
 
@@ -265,7 +458,10 @@ test('only independently signed navigation is written; cold retry preserves sour
   const canonical = kernel.stableObjectText(record);
   assert.equal(record.statement.decision, 'admitted-for-navigation');
   assert.equal(record.construction.reviewRequired, true);
-  assert.deepEqual(kernel.validateSourceNativeConstructionAdmissionRecord(JSON.parse(canonical)), record);
+  assert.deepEqual(
+    kernel.validateSourceNativeConstructionAdmissionRecord(JSON.parse(canonical)),
+    record,
+  );
   const first = f.write(record);
   assert.equal(first.replayed, false);
   const cold = f.read();
@@ -279,7 +475,9 @@ test('only independently signed navigation is written; cold retry preserves sour
   assert.deepEqual(retry, { ...first, replayed: true });
   assert.deepEqual(f.state.store.readRefMetadata({ ...f.route, branch: 'main' }), before);
   const replay = f.state.store.replayMetadata(first.commitSha256);
-  const blob = replay.blobDescriptors.find((item) => item.logicalPath === pathFor(record.recordSha256));
+  const blob = replay.blobDescriptors.find(
+    (item) => item.logicalPath === pathFor(record.recordSha256),
+  );
   assert.equal(f.state.store.readBlob(blob).bytes.toString(), canonical);
 });
 
@@ -292,33 +490,74 @@ test('empty extraction is a valid proposal, not an Admission', (t) => {
 
 test('reviewer labels and signing times cannot claim independence', (t) => {
   const f = fixture(t);
-  for (const [issuerId, admittedAt] of [['constructor', at(3)], ['reviewer', at(1)]]) {
-    assert.throws(() => kernel.sourceNativeConstructionAdmissionStatement({
-      construction: f.compile(), issuerId, admittedAt }), { code: 'CONSTRUCTION_ADMISSION_INDEPENDENCE' });
+  for (const [issuerId, admittedAt] of [
+    ['constructor', at(3)],
+    ['reviewer', at(1)],
+  ]) {
+    assert.throws(
+      () =>
+        kernel.sourceNativeConstructionAdmissionStatement({
+          construction: f.compile(),
+          issuerId,
+          admittedAt,
+        }),
+      { code: 'CONSTRUCTION_ADMISSION_INDEPENDENCE' },
+    );
   }
-  assert.throws(() => f.admit(f.compile(), { admittedAt: 'yesterday' }), { code: 'CONSTRUCTION_ADMISSION_TIME' });
+  assert.throws(() => f.admit(f.compile(), { admittedAt: 'yesterday' }), {
+    code: 'CONSTRUCTION_ADMISSION_TIME',
+  });
 });
 
 for (const [name, mutate] of [
-  ['unknown reviewer', (f) => { f.trust.pop(); f.trust.pop(); }],
-  ['wrong reviewer role', (f) => { f.trust[1].roles = ['proposer']; }],
-  ['wrong proposer role', (f) => { f.trust[0].roles = ['reviewer']; }],
-  ['same actual key under two labels', (f) => { f.keys.reviewer = f.keys.constructor;
-    f.trust[1].publicKeyPem = f.trust[0].publicKeyPem; }],
-]) test(`write refuses ${name} without advancing knowledge`, (t) => {
-  const f = fixture(t); mutate(f);
-  assert.throws(() => f.write(f.admit()), { code: 'SOURCE_NATIVE_ADMISSION_AUTHENTICATION' });
-  assert.equal(f.state.store.readRefMetadata(f.route), null);
-});
+  [
+    'unknown reviewer',
+    (f) => {
+      f.trust.pop();
+      f.trust.pop();
+    },
+  ],
+  [
+    'wrong reviewer role',
+    (f) => {
+      f.trust[1].roles = ['proposer'];
+    },
+  ],
+  [
+    'wrong proposer role',
+    (f) => {
+      f.trust[0].roles = ['reviewer'];
+    },
+  ],
+  [
+    'same actual key under two labels',
+    (f) => {
+      f.keys.reviewer = f.keys.constructor;
+      f.trust[1].publicKeyPem = f.trust[0].publicKeyPem;
+    },
+  ],
+])
+  test(`write refuses ${name} without advancing knowledge`, (t) => {
+    const f = fixture(t);
+    mutate(f);
+    assert.throws(() => f.write(f.admit()), { code: 'SOURCE_NATIVE_ADMISSION_AUTHENTICATION' });
+    assert.equal(f.state.store.readRefMetadata(f.route), null);
+  });
 
 for (const field of ['signatureBase64', 'proposalSignatureBase64']) {
   test(`structurally valid tampered ${field} never activates or supersedes`, (t) => {
     const f = fixture(t);
-    const original = f.admit(); f.write(original);
-    const candidate = clone(f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] }));
+    const original = f.admit();
+    f.write(original);
+    const candidate = clone(
+      f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] }),
+    );
     candidate[field] = Buffer.alloc(64, 7).toString('base64');
     const bad = rehash(candidate);
-    assert.equal(kernel.validateSourceNativeConstructionAdmissionRecord(bad).recordSha256, bad.recordSha256);
+    assert.equal(
+      kernel.validateSourceNativeConstructionAdmissionRecord(bad).recordSha256,
+      bad.recordSha256,
+    );
     assert.throws(() => f.write(bad), { code: 'SOURCE_NATIVE_ADMISSION_AUTHENTICATION' });
     f.plant(bad);
     const cold = f.read();
@@ -329,29 +568,79 @@ for (const field of ['signatureBase64', 'proposalSignatureBase64']) {
 }
 
 for (const [name, mutate] of [
-  ['old proof record kind', (r) => { r.kind = 'OpenOntologySourceNativeAdmissionRecordV1'; }],
-  ['old reviewer statement kind', (r) => { r.statement.kind = 'OpenOntologySourceNativeAdmissionStatementV1'; }],
-  ['old proposer statement kind', (r) => { r.proposalStatement.kind = 'OpenOntologySourceNativeProposalStatementV1'; }],
-  ['proof decision', (r) => { r.statement.decision = 'admitted'; }],
-  ['extra root property', (r) => { r.proofClosed = true; }],
-  ['extra statement property', (r) => { r.statement.proofClosed = true; }],
-  ['extra statement symbol', (r) => { r.statement[Symbol('authority')] = true; }],
-  ['construction substitution', (r) => { r.construction = { ...r.construction, constructionSha256: digest }; }],
-]) test(`record validation rejects ${name}`, (t) => {
-  const f = fixture(t); const record = clone(f.admit()); mutate(record);
-  assert.throws(() => kernel.validateSourceNativeConstructionAdmissionRecord(rehash(record)), TypeError);
-});
+  [
+    'old proof record kind',
+    (r) => {
+      r.kind = 'OpenOntologySourceNativeAdmissionRecordV1';
+    },
+  ],
+  [
+    'old reviewer statement kind',
+    (r) => {
+      r.statement.kind = 'OpenOntologySourceNativeAdmissionStatementV1';
+    },
+  ],
+  [
+    'old proposer statement kind',
+    (r) => {
+      r.proposalStatement.kind = 'OpenOntologySourceNativeProposalStatementV1';
+    },
+  ],
+  [
+    'proof decision',
+    (r) => {
+      r.statement.decision = 'admitted';
+    },
+  ],
+  [
+    'extra root property',
+    (r) => {
+      r.proofClosed = true;
+    },
+  ],
+  [
+    'extra statement property',
+    (r) => {
+      r.statement.proofClosed = true;
+    },
+  ],
+  [
+    'extra statement symbol',
+    (r) => {
+      r.statement[Symbol('authority')] = true;
+    },
+  ],
+  [
+    'construction substitution',
+    (r) => {
+      r.construction = { ...r.construction, constructionSha256: digest };
+    },
+  ],
+])
+  test(`record validation rejects ${name}`, (t) => {
+    const f = fixture(t);
+    const record = clone(f.admit());
+    mutate(record);
+    assert.throws(
+      () => kernel.validateSourceNativeConstructionAdmissionRecord(rehash(record)),
+      TypeError,
+    );
+  });
 
 test('revoked reviewer excludes but preserves structural history and allows a trusted correction', (t) => {
   const f = fixture(t);
-  const original = f.admit(); f.write(original);
+  const original = f.admit();
+  f.write(original);
   const trustRegistry = f.trust.filter((entry) => entry.issuerId !== 'reviewer');
   const revoked = f.read({ trustRegistry });
   assert.equal(revoked.structuralRecordCount, 1);
   assert.equal(revoked.eligibleRecordCount, 0);
   assert.equal(revoked.activeRecords.length, 0);
   const correction = f.admit(changed(f, { noAlias: true }), {
-    issuerId: 'reviewer-two', admittedAt: at(4), targets: [original.recordSha256] });
+    issuerId: 'reviewer-two',
+    admittedAt: at(4),
+    targets: [original.recordSha256],
+  });
   f.write(correction, { trustRegistry });
   const cold = f.read({ trustRegistry });
   assert.equal(cold.invalidRecordCount, 1);
@@ -363,8 +652,11 @@ test('revoked reviewer excludes but preserves structural history and allows a tr
 test('same proposal multi-reviewer agreement, distinct disjoint batches, and equal names stay separate', (t) => {
   const f = fixture(t);
   const proposal = f.compile();
-  const records = [f.admit(proposal), f.admit(proposal, { issuerId: 'reviewer-two' }),
-    f.admit(changed(f, { id: 'another-definition' }))];
+  const records = [
+    f.admit(proposal),
+    f.admit(proposal, { issuerId: 'reviewer-two' }),
+    f.admit(changed(f, { id: 'another-definition' })),
+  ];
   records.forEach((record) => f.write(record));
   const cold = f.read();
   assert.equal(cold.state, 'ready');
@@ -376,12 +668,16 @@ test('conflicting constructions are quarantined until correction explicitly name
   const f = fixture(t);
   const original = f.admit();
   const alternate = f.admit(changed(f));
-  f.write(original); f.write(alternate);
+  f.write(original);
+  f.write(alternate);
   let cold = f.read();
   assert.deepEqual(cold.activeRecords, []);
   assert.equal(cold.conflictingRecordCount, 2);
   assert.deepEqual(cold.conflictingObjectDefIds, ['allocation-exception']);
-  const partial = f.admit(changed(f, { noAlias: true }), { admittedAt: at(4), targets: [original.recordSha256] });
+  const partial = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(4),
+    targets: [original.recordSha256],
+  });
   f.write(partial);
   cold = f.read();
   assert.equal(cold.supersededRecordCount, 1);
@@ -391,8 +687,10 @@ test('conflicting constructions are quarantined until correction explicitly name
   const stillPartial = f.admit(f.compile(), { admittedAt: at(5), targets: [partial.recordSha256] });
   f.write(stillPartial);
   assert.equal(f.read().activeRecords.length, 0);
-  const final = f.admit(changed(f, { noAlias: true }), { admittedAt: at(6),
-    targets: [stillPartial.recordSha256, alternate.recordSha256] });
+  const final = f.admit(changed(f, { noAlias: true }), {
+    admittedAt: at(6),
+    targets: [stillPartial.recordSha256, alternate.recordSha256],
+  });
   f.write(final);
   cold = f.read();
   assert.deepEqual(cold.activeRecords, [final]);
@@ -404,7 +702,8 @@ test('an overlapping batch is quarantined atomically; corrections cannot drop un
   const f = fixture(t);
   const input = clone(f.input);
   input.objectDefs.push({ ...clone(input.objectDefs[0]), id: 'other-concept' });
-  const batch = f.admit(f.compile(input)); f.write(batch);
+  const batch = f.admit(f.compile(input));
+  f.write(batch);
   const partial = f.admit(changed(f), { admittedAt: at(4), targets: [batch.recordSha256] });
   assert.throws(() => f.write(partial), { code: 'CONSTRUCTION_ADMISSION_SUPERSESSION' });
   f.write(f.admit(changed(f)));
@@ -416,24 +715,40 @@ test('an overlapping batch is quarantined atomically; corrections cannot drop un
 for (const targets of [[digest], [digest, digest], Array(129).fill(digest)]) {
   test(`rejects invalid correction target list length ${targets.length}`, (t) => {
     const f = fixture(t);
-    assert.throws(() => f.write(f.admit(f.compile(), { targets })), { code: 'CONSTRUCTION_ADMISSION_SUPERSESSION' });
+    assert.throws(() => f.write(f.admit(f.compile(), { targets })), {
+      code: 'CONSTRUCTION_ADMISSION_SUPERSESSION',
+    });
     assert.equal(f.state.store.readRefMetadata(f.route), null);
   });
 }
 
 test('newer or equal-time targets and different ID sets cannot be superseded', (t) => {
-  const f = fixture(t); const original = f.admit(); f.write(original);
-  for (const [construction, admittedAt] of [[changed(f), at(3)], [changed(f), at(2)],
-    [changed(f, { id: 'different' }), at(4)]]) {
-    assert.throws(() => f.write(f.admit(construction, { admittedAt, targets: [original.recordSha256] })),
-      { code: 'CONSTRUCTION_ADMISSION_SUPERSESSION' });
+  const f = fixture(t);
+  const original = f.admit();
+  f.write(original);
+  for (const [construction, admittedAt] of [
+    [changed(f), at(3)],
+    [changed(f), at(2)],
+    [changed(f, { id: 'different' }), at(4)],
+  ]) {
+    assert.throws(
+      () => f.write(f.admit(construction, { admittedAt, targets: [original.recordSha256] })),
+      { code: 'CONSTRUCTION_ADMISSION_SUPERSESSION' },
+    );
   }
 });
 
 test('cold replay rejects planted dangling or out-of-scope corrections and preserves the valid map', (t) => {
-  const f = fixture(t); const original = f.admit(); f.write(original);
+  const f = fixture(t);
+  const original = f.admit();
+  f.write(original);
   f.plant(f.admit(changed(f), { admittedAt: at(4), targets: [digest] }));
-  f.plant(f.admit(changed(f, { id: 'different' }), { admittedAt: at(4), targets: [original.recordSha256] }));
+  f.plant(
+    f.admit(changed(f, { id: 'different' }), {
+      admittedAt: at(4),
+      targets: [original.recordSha256],
+    }),
+  );
   const cold = f.read();
   assert.equal(cold.invalidRecordCount, 2);
   assert.equal(cold.eligibleRecordCount, 1);
@@ -465,7 +780,8 @@ test('correction cannot target a structurally valid record from another binding'
   proposal.sourceBinding.namespace = 'other-namespace';
   const { constructionSha256: _hash, ...core } = proposal;
   proposal.constructionSha256 = kernel.stableObjectSha256(core);
-  const foreign = f.admit(proposal); f.plant(foreign);
+  const foreign = f.admit(proposal);
+  f.plant(foreign);
   const correction = f.admit(f.compile(), { admittedAt: at(4), targets: [foreign.recordSha256] });
   assert.throws(() => f.write(correction), { code: 'CONSTRUCTION_ADMISSION_SUPERSESSION' });
   f.plant(correction);
@@ -476,38 +792,73 @@ test('correction cannot target a structurally valid record from another binding'
 });
 
 test('no source-cut substitution or cross-cut correction even when bytes and names match', (t) => {
-  const f = fixture(t); const original = f.admit(); f.write(original);
+  const f = fixture(t);
+  const original = f.admit();
+  f.write(original);
   const nextOptions = { artifactRoot: join(f.root, 'next') };
-  const nextInput = clone(f.buildInput); nextInput.sources[0].occurredAt = at(4);
-  kernel.buildSourceNativeProduct({ ...nextOptions, objectBackendUri: f.objectBackendUri, input: nextInput });
-  assert.throws(() => f.write(original, { options: nextOptions }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  const nextInput = clone(f.buildInput);
+  nextInput.sources[0].occurredAt = at(4);
+  kernel.buildSourceNativeProduct({
+    ...nextOptions,
+    objectBackendUri: f.objectBackendUri,
+    input: nextInput,
+  });
+  assert.throws(() => f.write(original, { options: nextOptions }), {
+    code: 'SEMANTIC_CONSTRUCTION_BINDING',
+  });
   const nextState = kernel.openProductState(nextOptions);
-  const input = clone(f.input); input.proposedAt = at(5);
-  const witness = { ...input.objectDefs[0].source, nativeObjectSha256: nextState.objectOnt.map.nativeObjects[0].nativeObjectSha256 };
-  input.objectDefs[0].source = witness; input.objectDefs[0].aliases[0].source = witness; input.claims[0].source = witness;
-  const construction = kernel.compileSourceNativeSemanticConstruction({ options: nextOptions, input });
+  const input = clone(f.input);
+  input.proposedAt = at(5);
+  const witness = {
+    ...input.objectDefs[0].source,
+    nativeObjectSha256: nextState.objectOnt.map.nativeObjects[0].nativeObjectSha256,
+  };
+  input.objectDefs[0].source = witness;
+  input.objectDefs[0].aliases[0].source = witness;
+  input.claims[0].source = witness;
+  const construction = kernel.compileSourceNativeSemanticConstruction({
+    options: nextOptions,
+    input,
+  });
   const correction = f.admit(construction, { admittedAt: at(6), targets: [original.recordSha256] });
-  assert.throws(() => f.write(correction, { options: nextOptions, knowledgeBranch: f.branch }),
-    { code: 'CONSTRUCTION_ADMISSION_BRANCH' });
+  assert.throws(() => f.write(correction, { options: nextOptions, knowledgeBranch: f.branch }), {
+    code: 'CONSTRUCTION_ADMISSION_BRANCH',
+  });
   assert.equal(f.read({ options: nextOptions }).activeRecords.length, 0);
-  assert.equal(kernel.validateSourceNativeConstructionAdmissionRecord(original).recordSha256, original.recordSha256);
+  assert.equal(
+    kernel.validateSourceNativeConstructionAdmissionRecord(original).recordSha256,
+    original.recordSha256,
+  );
 });
 
 for (const [name, mutate, alternatePath] of [
-  ['unknown kind', (r) => { r.kind = 'UnknownFutureRecordV99'; }, false],
+  [
+    'unknown kind',
+    (r) => {
+      r.kind = 'UnknownFutureRecordV99';
+    },
+    false,
+  ],
   ['wrong logical path', () => {}, true],
-]) test(`cold ledger degrades for ${name} without poisoning a valid disjoint batch`, (t) => {
-  const f = fixture(t); const original = f.admit(); f.write(original);
-  const bad = clone(f.admit(changed(f, { id: 'other' }))); mutate(bad);
-  f.plant(bad, alternatePath ? pathFor(digest) : pathFor(bad.recordSha256));
-  const cold = f.read();
-  assert.equal(cold.invalidRecordCount, 1);
-  assert.deepEqual(cold.activeRecords, [original]);
-});
+])
+  test(`cold ledger degrades for ${name} without poisoning a valid disjoint batch`, (t) => {
+    const f = fixture(t);
+    const original = f.admit();
+    f.write(original);
+    const bad = clone(f.admit(changed(f, { id: 'other' })));
+    mutate(bad);
+    f.plant(bad, alternatePath ? pathFor(digest) : pathFor(bad.recordSha256));
+    const cold = f.read();
+    assert.equal(cold.invalidRecordCount, 1);
+    assert.deepEqual(cold.activeRecords, [original]);
+  });
 
 test('knowledge cannot write onto the source branch, and custom branches stay explicit', (t) => {
-  const f = fixture(t); const record = f.admit();
-  assert.throws(() => f.write(record, { knowledgeBranch: 'main' }), { code: 'CONSTRUCTION_ADMISSION_BRANCH' });
+  const f = fixture(t);
+  const record = f.admit();
+  assert.throws(() => f.write(record, { knowledgeBranch: 'main' }), {
+    code: 'CONSTRUCTION_ADMISSION_BRANCH',
+  });
   const result = f.write(record, { knowledgeBranch: 'reviewed-navigation' });
   assert.equal(result.branch, 'reviewed-navigation');
   assert.equal(f.read().activeRecords.length, 0);
@@ -516,12 +867,16 @@ test('knowledge cannot write onto the source branch, and custom branches stay ex
 
 test('protected cold history refuses a raw rewind and recovers without resurrecting the old map', (t) => {
   const f = fixture(t, { protectedHistory: true });
-  const original = f.admit(); f.write(original);
+  const original = f.admit();
+  f.write(original);
   const first = f.state.store.readRefMetadata(f.route);
   const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
   f.write(correction);
   const current = f.state.store.readRefMetadata(f.route);
-  f.backend.compareAndSwap(current.key, { expectedVersion: current.version, bytes: Buffer.from(kernel.stableObjectText(first.ref)) });
+  f.backend.compareAndSwap(current.key, {
+    expectedVersion: current.version,
+    bytes: Buffer.from(kernel.stableObjectText(first.ref)),
+  });
   const rewound = f.read();
   assert.equal(rewound.state, 'degraded');
   assert.equal(rewound.activeRecords.length, 0);
@@ -531,9 +886,13 @@ test('protected cold history refuses a raw rewind and recovers without resurrect
 });
 
 test('unreadable metadata disables all navigation rather than reusing cached content', (t) => {
-  const f = fixture(t); f.write(f.admit());
+  const f = fixture(t);
+  f.write(f.admit());
   const current = f.state.store.readRefMetadata(f.route);
-  f.backend.compareAndSwap(current.key, { expectedVersion: current.version, bytes: Buffer.from('not-json') });
+  f.backend.compareAndSwap(current.key, {
+    expectedVersion: current.version,
+    bytes: Buffer.from('not-json'),
+  });
   assert.equal(f.read().state, 'degraded');
   assert.equal(f.read().activeRecords.length, 0);
 });
@@ -549,11 +908,14 @@ test('internal reader pins source context and observes changed knowledge on each
       return sourceStore.readRefMetadataSnapshot(input);
     },
   };
-  const reader = createConstructionLedgerReader({
-    descriptor: f.state.descriptor,
-    objectOnt: f.state.objectOnt,
-    store: pinnedStore,
-  }, f.trust);
+  const reader = createConstructionLedgerReader(
+    {
+      descriptor: f.state.descriptor,
+      objectOnt: f.state.objectOnt,
+      store: pinnedStore,
+    },
+    f.trust,
+  );
   assert.equal(reader.read().activeRecords.length, 0);
   const original = f.admit();
   f.write(original);
@@ -568,13 +930,19 @@ test('selected source I/O failures propagate their exact diagnostic through ledg
   const f = fixture(t);
   f.write(f.admit());
   const sourceError = new Error('selected source backend unavailable');
-  const reader = createConstructionLedgerReader({
-    ...f.state,
-    readSource() {
-      throw sourceError;
+  const reader = createConstructionLedgerReader(
+    {
+      ...f.state,
+      readSource() {
+        throw sourceError;
+      },
     },
-  }, f.trust);
-  assert.throws(() => reader.read(), (error) => error === sourceError);
+    f.trust,
+  );
+  assert.throws(
+    () => reader.read(),
+    (error) => error === sourceError,
+  );
 });
 
 test('canonical source-envelope corruption propagates through repeated and standalone ledger reads', (t) => {
@@ -587,9 +955,14 @@ test('canonical source-envelope corruption propagates through repeated and stand
   corruptFileObjectEnvelope(f.objectBackendUri, f.state.objectOnt.sources[0].blobDescriptor.key);
   const isBackendCorruption = (error) => error?.code === 'OBJECT_BACKEND_CORRUPT';
   assert.throws(() => reader.read(), isBackendCorruption);
-  assert.throws(() => kernel.readSourceNativeConstructionLedger({
-    options: f.options, trustRegistry: f.trust,
-  }), isBackendCorruption);
+  assert.throws(
+    () =>
+      kernel.readSourceNativeConstructionLedger({
+        options: f.options,
+        trustRegistry: f.trust,
+      }),
+    isBackendCorruption,
+  );
 });
 
 test('corrupt Admission envelopes remain degraded invalid records on a clean source cut', (t) => {
@@ -600,8 +973,9 @@ test('corrupt Admission envelopes remain degraded invalid records on a clean sou
   const reader = createConstructionLedgerReader(context, f.trust);
   assert.deepEqual(reader.read().activeRecords, [record]);
   const snapshot = f.state.store.readRefMetadataSnapshot(f.route);
-  const descriptor = snapshot.replayMetadata.blobDescriptors.find((item) =>
-    item.logicalPath === pathFor(record.recordSha256));
+  const descriptor = snapshot.replayMetadata.blobDescriptors.find(
+    (item) => item.logicalPath === pathFor(record.recordSha256),
+  );
   assert(descriptor);
   corruptFileObjectEnvelope(f.objectBackendUri, descriptor.key);
   const degraded = reader.readSnapshot();
@@ -618,13 +992,16 @@ test('ledger reads revalidate source bytes instead of reusing a prior verified r
   f.write(f.admit());
   let reads = 0;
   const source = f.state.objectOnt.sources[0];
-  const reader = createConstructionLedgerReader({
-    ...f.state,
-    readSource() {
-      reads += 1;
-      return reads === 1 ? source : { ...source, content: 'tampered source text' };
+  const reader = createConstructionLedgerReader(
+    {
+      ...f.state,
+      readSource() {
+        reads += 1;
+        return reads === 1 ? source : { ...source, content: 'tampered source text' };
+      },
     },
-  }, f.trust);
+    f.trust,
+  );
   assert.equal(reader.read().activeRecords.length, 1);
   const second = reader.read();
   assert.equal(reads, 2);
@@ -642,14 +1019,17 @@ test('internal reader keeps its commit floor through missing and rewound metadat
   let forcedSnapshot = undefined;
   const pinnedStore = {
     ...sourceStore,
-    readRefMetadataSnapshot: (input) => forcedSnapshot === undefined
-      ? sourceStore.readRefMetadataSnapshot(input) : forcedSnapshot,
+    readRefMetadataSnapshot: (input) =>
+      forcedSnapshot === undefined ? sourceStore.readRefMetadataSnapshot(input) : forcedSnapshot,
   };
-  const reader = createConstructionLedgerReader({
-    descriptor: f.state.descriptor,
-    objectOnt: f.state.objectOnt,
-    store: pinnedStore,
-  }, f.trust);
+  const reader = createConstructionLedgerReader(
+    {
+      descriptor: f.state.descriptor,
+      objectOnt: f.state.objectOnt,
+      store: pinnedStore,
+    },
+    f.trust,
+  );
   assert.deepEqual(reader.read().activeRecords, [original]);
   const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
   f.write(correction);
@@ -669,8 +1049,10 @@ test('internal reader keeps its commit floor through missing and rewound metadat
   forcedSnapshot = undefined;
   const recovered = reader.read();
   assert.equal(recovered.state, 'ready');
-  assert.deepEqual(recovered.activeRecords.map((record) => record.recordSha256).sort(),
-    [correction.recordSha256, successor.recordSha256].sort());
+  assert.deepEqual(
+    recovered.activeRecords.map((record) => record.recordSha256).sort(),
+    [correction.recordSha256, successor.recordSha256].sort(),
+  );
 });
 
 test('internal reader pins trust independently of later trust input mutation', (t) => {
@@ -691,22 +1073,38 @@ test('readSnapshot exposes active agreement, correction and conflict states with
   const f = fixture(t);
   const agreement = f.admit();
   const agreementBySecondReviewer = f.admit(agreement.construction, { issuerId: 'reviewer-two' });
-  f.write(agreement); f.write(agreementBySecondReviewer);
+  f.write(agreement);
+  f.write(agreementBySecondReviewer);
   let snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
   assert.equal(snapshot.ledger.activeRecords.length, 2);
   assert.equal(snapshot.records.length, 2);
-  assert.deepEqual(snapshot.records.map((record) => record.state), ['active', 'active']);
-  assert(snapshot.records.every((record) => record.recordSha256 && record.blobSha256.startsWith('sha256:')));
-  assert(snapshot.records.every((record) => !('construction' in record) && !('statement' in record)));
+  assert.deepEqual(
+    snapshot.records.map((record) => record.state),
+    ['active', 'active'],
+  );
+  assert(
+    snapshot.records.every(
+      (record) => record.recordSha256 && record.blobSha256.startsWith('sha256:'),
+    ),
+  );
+  assert(
+    snapshot.records.every((record) => !('construction' in record) && !('statement' in record)),
+  );
 
   const correction = f.admit(changed(f, { noAlias: true }), {
-    admittedAt: at(4), targets: [agreement.recordSha256, agreementBySecondReviewer.recordSha256] });
+    admittedAt: at(4),
+    targets: [agreement.recordSha256, agreementBySecondReviewer.recordSha256],
+  });
   f.write(correction);
   snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
-  const corrected = snapshot.records.find((record) => record.recordSha256 === correction.recordSha256);
+  const corrected = snapshot.records.find(
+    (record) => record.recordSha256 === correction.recordSha256,
+  );
   assert.equal(corrected?.state, 'active');
   for (const target of [agreement, agreementBySecondReviewer]) {
-    const disposition = snapshot.records.find((record) => record.recordSha256 === target.recordSha256);
+    const disposition = snapshot.records.find(
+      (record) => record.recordSha256 === target.recordSha256,
+    );
     assert.equal(disposition?.state, 'superseded');
     assert.deepEqual(disposition?.supersededByRecordSha256s, [correction.recordSha256]);
   }
@@ -716,7 +1114,9 @@ test('readSnapshot exposes active agreement, correction and conflict states with
   snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
   const conflicting = snapshot.records.filter((record) => record.state === 'conflicting');
   assert.equal(conflicting.length, 2);
-  assert(conflicting.every((record) => record.conflictingObjectDefIds.includes('allocation-exception')));
+  assert(
+    conflicting.every((record) => record.conflictingObjectDefIds.includes('allocation-exception')),
+  );
   assert(conflicting.every((record) => !Object.hasOwn(record, 'conflictingRecordSha256s')));
   assert.equal(snapshot.ledger.conflictingRecordCount, 2);
 });
@@ -725,21 +1125,30 @@ test('superseded records do not inherit current conflict annotations', (t) => {
   const f = fixture(t);
   const agreement = f.admit();
   const agreementBySecondReviewer = f.admit(agreement.construction, { issuerId: 'reviewer-two' });
-  f.write(agreement); f.write(agreementBySecondReviewer);
+  f.write(agreement);
+  f.write(agreementBySecondReviewer);
   const conflict = f.admit(changed(f, { name: 'allocation mismatch' }), { admittedAt: at(4) });
   f.write(conflict);
   const correction = f.admit(changed(f, { noAlias: true }), {
-    admittedAt: at(5), targets: [agreement.recordSha256, agreementBySecondReviewer.recordSha256] });
+    admittedAt: at(5),
+    targets: [agreement.recordSha256, agreementBySecondReviewer.recordSha256],
+  });
   f.write(correction);
   const snapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
   for (const target of [agreement, agreementBySecondReviewer]) {
-    const disposition = snapshot.records.find((record) => record.recordSha256 === target.recordSha256);
+    const disposition = snapshot.records.find(
+      (record) => record.recordSha256 === target.recordSha256,
+    );
     assert.equal(disposition?.state, 'superseded');
     assert.deepEqual(disposition?.conflictingObjectDefIds, []);
   }
   const currentConflicts = snapshot.records.filter((record) => record.state === 'conflicting');
   assert.equal(currentConflicts.length, 2);
-  assert(currentConflicts.every((record) => record.conflictingObjectDefIds.includes('allocation-exception')));
+  assert(
+    currentConflicts.every((record) =>
+      record.conflictingObjectDefIds.includes('allocation-exception'),
+    ),
+  );
 });
 
 test('a larger planted conflict group keeps per-record conflict metadata linear and bounded', (t) => {
@@ -755,32 +1164,55 @@ test('a larger planted conflict group keeps per-record conflict metadata linear 
   assert.equal(snapshot.ledger.conflictingRecordCount, groupSize);
   assert.equal(snapshot.ledger.activeRecords.length, 0);
   assert(snapshot.records.every((record) => record.state === 'conflicting'));
-  assert(snapshot.records.every((record) => record.conflictingObjectDefIds.length === 1
-    && record.conflictingObjectDefIds[0] === 'allocation-exception'));
+  assert(
+    snapshot.records.every(
+      (record) =>
+        record.conflictingObjectDefIds.length === 1 &&
+        record.conflictingObjectDefIds[0] === 'allocation-exception',
+    ),
+  );
   assert(snapshot.records.every((record) => !Object.hasOwn(record, 'conflictingRecordSha256s')));
 });
 
 test('readSnapshot keeps ineligible history distinct from supersession and source binding', (t) => {
   const f = fixture(t);
-  const original = f.admit(); f.write(original);
-  const revoked = f.read({ trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'reviewer') });
+  const original = f.admit();
+  f.write(original);
+  const revoked = f.read({
+    trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'reviewer'),
+  });
   assert.equal(revoked.activeRecords.length, 0);
-  const revokedSnapshot = createConstructionLedgerReader(f.state,
-    f.trust.filter((entry) => entry.issuerId !== 'reviewer')).readSnapshot();
-  const revokedRecord = revokedSnapshot.records.find((record) => record.recordSha256 === original.recordSha256);
+  const revokedSnapshot = createConstructionLedgerReader(
+    f.state,
+    f.trust.filter((entry) => entry.issuerId !== 'reviewer'),
+  ).readSnapshot();
+  const revokedRecord = revokedSnapshot.records.find(
+    (record) => record.recordSha256 === original.recordSha256,
+  );
   assert.equal(revokedRecord?.state, 'ineligible');
   assert(revokedRecord?.reasonCodes.includes('SOURCE_NATIVE_ADMISSION_AUTHENTICATION'));
   assert.deepEqual(revokedRecord?.supersededByRecordSha256s, []);
 
   const correction = f.admit(changed(f, { noAlias: true }), {
-    issuerId: 'reviewer-two', admittedAt: at(4), targets: [original.recordSha256] });
+    issuerId: 'reviewer-two',
+    admittedAt: at(4),
+    targets: [original.recordSha256],
+  });
   f.write(correction, { trustRegistry: f.trust.filter((entry) => entry.issuerId !== 'reviewer') });
-  const correctedSnapshot = createConstructionLedgerReader(f.state,
-    f.trust.filter((entry) => entry.issuerId !== 'reviewer')).readSnapshot();
-  const ineligibleTarget = correctedSnapshot.records.find((record) => record.recordSha256 === original.recordSha256);
+  const correctedSnapshot = createConstructionLedgerReader(
+    f.state,
+    f.trust.filter((entry) => entry.issuerId !== 'reviewer'),
+  ).readSnapshot();
+  const ineligibleTarget = correctedSnapshot.records.find(
+    (record) => record.recordSha256 === original.recordSha256,
+  );
   assert.equal(ineligibleTarget?.state, 'ineligible');
   assert.deepEqual(ineligibleTarget?.supersededByRecordSha256s, [correction.recordSha256]);
-  assert.equal(correctedSnapshot.records.find((record) => record.recordSha256 === correction.recordSha256)?.state, 'active');
+  assert.equal(
+    correctedSnapshot.records.find((record) => record.recordSha256 === correction.recordSha256)
+      ?.state,
+    'active',
+  );
 
   const foreignConstruction = clone(changed(f, { id: 'foreign' }));
   foreignConstruction.sourceBinding.namespace = 'other-namespace';
@@ -789,14 +1221,17 @@ test('readSnapshot keeps ineligible history distinct from supersession and sourc
   const foreignRecord = f.admit(foreignConstruction);
   const blob = f.plant(foreignRecord);
   const bindingSnapshot = createConstructionLedgerReader(f.state, f.trust).readSnapshot();
-  const bindingRecord = bindingSnapshot.records.find((record) => record.blobSha256 === blob.storedSha256);
+  const bindingRecord = bindingSnapshot.records.find(
+    (record) => record.blobSha256 === blob.storedSha256,
+  );
   assert.equal(bindingRecord?.state, 'ineligible');
   assert(bindingRecord?.reasonCodes.includes('SEMANTIC_CONSTRUCTION_BINDING'));
 });
 
 test('readSnapshot uses the blob identity for malformed records without exposing untrusted fields', (t) => {
   const f = fixture(t);
-  const original = f.admit(); f.write(original);
+  const original = f.admit();
+  f.write(original);
   const malformed = clone(f.admit(changed(f, { id: 'malformed' })));
   malformed.kind = 'UnknownFutureRecordV99';
   const blob = f.plant(malformed, pathFor(malformed.recordSha256));
@@ -821,8 +1256,9 @@ test('malformed core hash cannot overwrite a valid record disposition', (t) => {
   assert.equal(snapshot.records.length, 2);
   const valid = snapshot.records.find((record) => record.recordSha256 === original.recordSha256);
   assert.equal(valid?.state, 'active');
-  const malformed = snapshot.records.find((record) => record.blobSha256 === malformedBlob.storedSha256
-    && record.recordSha256 === null);
+  const malformed = snapshot.records.find(
+    (record) => record.blobSha256 === malformedBlob.storedSha256 && record.recordSha256 === null,
+  );
   assert.equal(malformed?.state, 'invalid');
   assert(malformed?.reasonCodes.length > 0);
   assert.deepEqual(snapshot.ledger.activeRecords, [original]);
@@ -843,9 +1279,17 @@ test('reader diagnostics normalize arbitrary backend codes in record and history
   const recordReader = createConstructionLedgerReader({ ...f.state, store: recordStore }, f.trust);
   const recordSnapshot = recordReader.readSnapshot();
   assert(recordSnapshot.ledger.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_RECORD'));
-  assert(recordSnapshot.records.some((record) => record.reasonCodes.includes('CONSTRUCTION_ADMISSION_RECORD')));
+  assert(
+    recordSnapshot.records.some((record) =>
+      record.reasonCodes.includes('CONSTRUCTION_ADMISSION_RECORD'),
+    ),
+  );
   assert(recordSnapshot.ledger.diagnosticCodes.every((code) => !code.includes('SECRET')));
-  assert(recordSnapshot.records.every((record) => record.reasonCodes.every((code) => !code.includes('SECRET'))));
+  assert(
+    recordSnapshot.records.every((record) =>
+      record.reasonCodes.every((code) => !code.includes('SECRET')),
+    ),
+  );
 
   const historyStore = {
     ...sourceStore,
@@ -855,7 +1299,10 @@ test('reader diagnostics normalize arbitrary backend codes in record and history
       throw error;
     },
   };
-  const historyReader = createConstructionLedgerReader({ ...f.state, store: historyStore }, f.trust);
+  const historyReader = createConstructionLedgerReader(
+    { ...f.state, store: historyStore },
+    f.trust,
+  );
   const historySnapshot = historyReader.readSnapshot();
   assert(historySnapshot.ledger.diagnosticCodes.includes('CONSTRUCTION_ADMISSION_HISTORY'));
   assert.deepEqual(historySnapshot.records, []);
@@ -916,14 +1363,24 @@ test('ordinary read shares store reads with readSnapshot on active and degraded 
 
 test('readSnapshot returns no cached records for missing or rewound history and recovers at a descendant', (t) => {
   const f = fixture(t);
-  const original = f.admit(); f.write(original);
+  const original = f.admit();
+  f.write(original);
   const earlier = f.state.store.readRefMetadataSnapshot(f.route);
   const sourceStore = f.state.store;
   let forcedSnapshot = undefined;
-  const reader = createConstructionLedgerReader({ ...f.state,
-    store: { ...sourceStore, readRefMetadataSnapshot: (input) => forcedSnapshot === undefined
-      ? sourceStore.readRefMetadataSnapshot(input) : forcedSnapshot },
-  }, f.trust);
+  const reader = createConstructionLedgerReader(
+    {
+      ...f.state,
+      store: {
+        ...sourceStore,
+        readRefMetadataSnapshot: (input) =>
+          forcedSnapshot === undefined
+            ? sourceStore.readRefMetadataSnapshot(input)
+            : forcedSnapshot,
+      },
+    },
+    f.trust,
+  );
   assert.equal(reader.readSnapshot().records.length, 1);
   const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
   f.write(correction);
@@ -942,25 +1399,40 @@ test('readSnapshot returns no cached records for missing or rewound history and 
   forcedSnapshot = undefined;
   const recovered = reader.readSnapshot();
   assert.equal(recovered.ledger.state, 'ready');
-  assert.deepEqual(recovered.records.map((record) => record.recordSha256).sort(),
-    [original.recordSha256, correction.recordSha256, successor.recordSha256].sort());
+  assert.deepEqual(
+    recovered.records.map((record) => record.recordSha256).sort(),
+    [original.recordSha256, correction.recordSha256, successor.recordSha256].sort(),
+  );
 });
 
 for (const historicalFirst of [false, true]) {
   test(`mixed current/historical reads preserve the rollback floor, historical first: ${historicalFirst}`, (t) => {
     const f = fixture(t);
-    const original = f.admit(); f.write(original);
+    const original = f.admit();
+    f.write(original);
     const earlier = f.state.store.readRefMetadataSnapshot(f.route);
     const correction = f.admit(changed(f), { admittedAt: at(4), targets: [original.recordSha256] });
     f.write(correction);
     const sourceStore = f.state.store;
     let forcedSnapshot;
-    const reader = createConstructionLedgerReader({ ...f.state, store: { ...sourceStore,
-      readRefMetadataSnapshot: input => input.branch === f.branch && forcedSnapshot !== undefined
-        ? forcedSnapshot : sourceStore.readRefMetadataSnapshot(input),
-    } }, f.trust);
-    const selected = { commitSha256: earlier.ref.commitSha256,
-      replaySha256: earlier.ref.replaySha256, recordSha256: original.recordSha256 };
+    const reader = createConstructionLedgerReader(
+      {
+        ...f.state,
+        store: {
+          ...sourceStore,
+          readRefMetadataSnapshot: (input) =>
+            input.branch === f.branch && forcedSnapshot !== undefined
+              ? forcedSnapshot
+              : sourceStore.readRefMetadataSnapshot(input),
+        },
+      },
+      f.trust,
+    );
+    const selected = {
+      commitSha256: earlier.ref.commitSha256,
+      replaySha256: earlier.ref.replaySha256,
+      recordSha256: original.recordSha256,
+    };
     if (!historicalFirst) {
       assert.deepEqual(reader.read().activeRecords, [correction]);
       assert.equal(reader.readSnapshot().records.length, 2);
@@ -986,14 +1458,19 @@ for (const historicalFirst of [false, true]) {
 
 test('readSnapshot projects the same ledger as read and the one-shot API', (t) => {
   const f = fixture(t);
-  const original = f.admit(); f.write(original);
+  const original = f.admit();
+  f.write(original);
   const reader = createConstructionLedgerReader(f.state, f.trust);
   const snapshot = reader.readSnapshot();
   assert.deepEqual(snapshot.ledger, reader.read());
   assert.deepEqual(snapshot.ledger, f.read());
-  assert.deepEqual(snapshot.ledger, kernel.readSourceNativeConstructionLedger({
-    options: f.options, trustRegistry: f.trust,
-  }));
+  assert.deepEqual(
+    snapshot.ledger,
+    kernel.readSourceNativeConstructionLedger({
+      options: f.options,
+      trustRegistry: f.trust,
+    }),
+  );
 });
 
 test('one-shot construction ledger API remains source-bound and unchanged', (t) => {
@@ -1016,7 +1493,8 @@ test('historical ledger read accepts a protected descendant and returns the comp
   const original = f.admit();
   f.write(original);
   const record = f.admit(changed(f, { noAlias: true }), {
-    admittedAt: at(4), targets: [original.recordSha256],
+    admittedAt: at(4),
+    targets: [original.recordSha256],
   });
   f.write(record);
   const expected = sourceBinding(f);
@@ -1031,21 +1509,31 @@ test('historical ledger read accepts a protected descendant and returns the comp
   assert.equal(f.buildInput.sources[0].content, originalSource);
   assert.equal(f.state.objectOnt.sources[0].sourceSha256, originalSourceHash);
   const currentB = openSourceNativeObjectOntRefAtCut({
-    backend: f.backend, historyBackend: f.historyBackend,
-    ontId: f.state.descriptor.ontId, branch: f.sourceRoute.branch,
+    backend: f.backend,
+    historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId,
+    branch: f.sourceRoute.branch,
   });
   assert(currentB);
   assert.equal(currentB.objectOnt.sources[0].content, originalSource);
-  assert.notEqual(currentB.objectOnt.sources[1].sourceSha256, f.state.objectOnt.sources[1].sourceSha256);
+  assert.notEqual(
+    currentB.objectOnt.sources[1].sourceSha256,
+    f.state.objectOnt.sources[1].sourceSha256,
+  );
   assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
 
   const storageBefore = treeSnapshot(f.root);
   const historical = kernel.readSourceNativeConstructionLedgerAtArtifact({
-    options: f.options, trustRegistry: f.trust, expectedSourceBinding: expected,
+    options: f.options,
+    trustRegistry: f.trust,
+    expectedSourceBinding: expected,
   });
   assert.equal(historical.state, 'ready');
   assert.deepEqual(historical.activeRecords, [record]);
-  assert.deepEqual(historical.activeRecords[0].construction.objectDefs, record.construction.objectDefs);
+  assert.deepEqual(
+    historical.activeRecords[0].construction.objectDefs,
+    record.construction.objectDefs,
+  );
   assert.deepEqual(historical.activeRecords[0].construction.claims, record.construction.claims);
   assert.deepEqual(historical.activeRecords[0].construction.coverage, record.construction.coverage);
   assert.equal(historical.navigationOnly, true);
@@ -1060,19 +1548,28 @@ test('historical read refuses a source selection that advances during signed rec
   const record = f.admit();
   f.write(record);
   let descendant;
-  const result = interleaveReadFileSync(knowledgeRecordPath(f, record), () => true, () => {
-    descendant = advanceOnlySecondSource(f);
-  }, () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }));
+  const result = interleaveReadFileSync(
+    knowledgeRecordPath(f, record),
+    () => true,
+    () => {
+      descendant = advanceOnlySecondSource(f);
+    },
+    () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }),
+  );
   assert.equal(result.triggered, true);
   assert(descendant?.receipt.commitSha256);
   const currentB = openSourceNativeObjectOntRefAtCut({
-    backend: f.backend, historyBackend: f.historyBackend,
-    ontId: f.state.descriptor.ontId, branch: f.sourceRoute.branch,
+    backend: f.backend,
+    historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId,
+    branch: f.sourceRoute.branch,
   });
   assert(currentB);
   assert.equal(currentB.objectOnt.sources[0].content, f.buildInput.sources[0].content);
-  assert.equal(currentB.objectOnt.sources[1].content,
-    'Second allocation note changed only at descendant B. Status: closed.');
+  assert.equal(
+    currentB.objectOnt.sources[1].content,
+    'Second allocation note changed only at descendant B. Status: closed.',
+  );
 });
 
 test('historical read refuses a knowledge correction that arrives during signed record delivery', (t) => {
@@ -1080,11 +1577,17 @@ test('historical read refuses a knowledge correction that arrives during signed 
   const original = f.admit();
   f.write(original);
   const correction = f.admit(changed(f, { noAlias: true }), {
-    admittedAt: at(4), targets: [original.recordSha256],
+    admittedAt: at(4),
+    targets: [original.recordSha256],
   });
-  const result = interleaveReadFileSync(knowledgeRecordPath(f, original), () => true, () => {
-    f.write(correction);
-  }, () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }));
+  const result = interleaveReadFileSync(
+    knowledgeRecordPath(f, original),
+    () => true,
+    () => {
+      f.write(correction);
+    },
+    () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }),
+  );
   assert.equal(result.triggered, true);
   assert.deepEqual(f.read().activeRecords, [correction]);
 });
@@ -1094,14 +1597,20 @@ test('historical A read observes an A correction planted after source advances t
   const original = f.admit();
   f.write(original);
   const correction = f.admit(changed(f, { noAlias: true }), {
-    admittedAt: at(4), targets: [original.recordSha256],
+    admittedAt: at(4),
+    targets: [original.recordSha256],
   });
   const descendant = advanceOnlySecondSource(f);
   assert(descendant.receipt.commitSha256);
   assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
-  const result = interleaveReadFileSync(knowledgeRecordPath(f, original), () => true, () => {
-    f.plant(correction);
-  }, () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }));
+  const result = interleaveReadFileSync(
+    knowledgeRecordPath(f, original),
+    () => true,
+    () => {
+      f.plant(correction);
+    },
+    () => assert.throws(() => readAtArtifact(f), { code: 'CONSTRUCTION_ADMISSION_CONCURRENT' }),
+  );
   assert.equal(result.triggered, true);
   assert.deepEqual(readAtArtifact(f).activeRecords, [correction]);
   assert.throws(() => f.read(), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
@@ -1111,18 +1620,32 @@ test('historical read refuses stable empty knowledge becoming present between pr
   const f = fixture(t, { protectedHistory: true });
   const record = f.admit();
   assert.equal(f.state.store.readRefMetadata(f.route), null);
-  const sourceHistoryPath = fileObjectPath(f.historyBackendUri,
-    `ref-history/${f.state.descriptor.ontId}/${f.sourceRoute.branch}.json`);
+  const sourceHistoryPath = fileObjectPath(
+    f.historyBackendUri,
+    `ref-history/${f.state.descriptor.ontId}/${f.sourceRoute.branch}.json`,
+  );
   let observedError;
-  const result = interleaveReadFileSync(sourceHistoryPath, (matchingReads) => matchingReads >= 9, () => {
-    f.write(record);
-  }, () => {
-    try { readAtArtifact(f); } catch (error) { observedError = error; }
-  });
+  const result = interleaveReadFileSync(
+    sourceHistoryPath,
+    (matchingReads) => matchingReads >= 9,
+    () => {
+      f.write(record);
+    },
+    () => {
+      try {
+        readAtArtifact(f);
+      } catch (error) {
+        observedError = error;
+      }
+    },
+  );
   assert.equal(result.triggered, true);
   assert(result.matchingReads >= 9);
-  assert.equal(observedError?.code, 'CONSTRUCTION_ADMISSION_CONCURRENT',
-    `matchingReads=${result.matchingReads} triggered=${result.triggered}`);
+  assert.equal(
+    observedError?.code,
+    'CONSTRUCTION_ADMISSION_CONCURRENT',
+    `matchingReads=${result.matchingReads} triggered=${result.triggered}`,
+  );
   assert(f.state.store.readRefMetadata(f.route));
 });
 
@@ -1138,20 +1661,36 @@ test('a B artifact does not inherit A knowledge records on its default branch', 
   input.nativeObjectInputs[1].fields[1].canonicalProposition.propositionKey = 'task-2-closed';
   const materializedInput = materializeInput(input);
   materializeSourceNativeObjectOnt({
-    backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
+    backend: f.backend,
+    historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId,
     branch: f.state.descriptor.branch,
     expectedVersion: f.state.store.readRefMetadata(f.sourceRoute).version,
-    sources: materializedInput.sources, nativeObjectInputs: materializedInput.nativeObjectInputs,
+    sources: materializedInput.sources,
+    nativeObjectInputs: materializedInput.nativeObjectInputs,
   });
   const bOptions = { artifactRoot: join(f.root, 'b-artifact') };
-  kernel.buildSourceNativeProduct({ artifactRoot: bOptions.artifactRoot,
-    objectBackendUri: f.objectBackendUri, historyBackendUri: f.historyBackendUri, input });
-  const currentB = kernel.readSourceNativeConstructionLedger({ options: bOptions, trustRegistry: f.trust });
+  kernel.buildSourceNativeProduct({
+    artifactRoot: bOptions.artifactRoot,
+    objectBackendUri: f.objectBackendUri,
+    historyBackendUri: f.historyBackendUri,
+    input,
+  });
+  const currentB = kernel.readSourceNativeConstructionLedger({
+    options: bOptions,
+    trustRegistry: f.trust,
+  });
   assert.equal(currentB.activeRecords.length, 0);
   assert.equal(currentB.commitSha256, null);
-  assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
-    options: bOptions, trustRegistry: f.trust, expectedSourceBinding: sourceBinding(f),
-  }), { code: 'CONSTRUCTION_ADMISSION_BINDING' });
+  assert.throws(
+    () =>
+      kernel.readSourceNativeConstructionLedgerAtArtifact({
+        options: bOptions,
+        trustRegistry: f.trust,
+        expectedSourceBinding: sourceBinding(f),
+      }),
+    { code: 'CONSTRUCTION_ADMISSION_BINDING' },
+  );
 });
 
 test('a valid protected branch without A ancestry is refused', (t) => {
@@ -1161,12 +1700,17 @@ test('a valid protected branch without A ancestry is refused', (t) => {
   unrelatedInput.nativeObjectInputs[0].fields[0].value = unrelatedInput.sources[0].content;
   const materializedInput = materializeInput(unrelatedInput);
   materializeSourceNativeObjectOnt({
-    backend: f.backend, historyBackend: f.historyBackend, ontId: f.state.descriptor.ontId,
-    branch: 'unrelated', expectedVersion: null, sources: materializedInput.sources,
+    backend: f.backend,
+    historyBackend: f.historyBackend,
+    ontId: f.state.descriptor.ontId,
+    branch: 'unrelated',
+    expectedVersion: null,
+    sources: materializedInput.sources,
     nativeObjectInputs: materializedInput.nativeObjectInputs,
   });
   const unrelatedSnapshot = f.state.store.readRefMetadataSnapshot({
-    ontId: f.state.descriptor.ontId, branch: 'unrelated',
+    ontId: f.state.descriptor.ontId,
+    branch: 'unrelated',
   });
   assert(unrelatedSnapshot);
   assert(!unrelatedSnapshot.replayMetadata.commitOrder.includes(f.state.objectOnt.commitSha256));
@@ -1176,13 +1720,23 @@ test('a valid protected branch without A ancestry is refused', (t) => {
   descriptorCore.branch = 'unrelated';
   const resealed = { ...descriptorCore, artifactSha256: kernel.stableObjectSha256(descriptorCore) };
   writeFileSync(descriptorPath, kernel.stableObjectText(resealed));
-  assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
-    options: f.options, trustRegistry: f.trust, expectedSourceBinding: {
-      ontId: resealed.ontId, namespace: resealed.namespace, artifactSha256: resealed.artifactSha256,
-      sourceCommitSha256: resealed.sourceCommitSha256, sourceReplaySha256: resealed.sourceReplaySha256,
-      sourceCatalogSha256: resealed.sourceCatalogSha256, nativeObjectMapSha256: resealed.nativeObjectMapSha256,
-    },
-  }), { code: 'CONSTRUCTION_ADMISSION_BRANCH' });
+  assert.throws(
+    () =>
+      kernel.readSourceNativeConstructionLedgerAtArtifact({
+        options: f.options,
+        trustRegistry: f.trust,
+        expectedSourceBinding: {
+          ontId: resealed.ontId,
+          namespace: resealed.namespace,
+          artifactSha256: resealed.artifactSha256,
+          sourceCommitSha256: resealed.sourceCommitSha256,
+          sourceReplaySha256: resealed.sourceReplaySha256,
+          sourceCatalogSha256: resealed.sourceCatalogSha256,
+          nativeObjectMapSha256: resealed.nativeObjectMapSha256,
+        },
+      }),
+    { code: 'CONSTRUCTION_ADMISSION_BRANCH' },
+  );
 });
 
 test('historical read requires protected v2 history and an exact seven-field source binding', (t) => {
@@ -1191,18 +1745,44 @@ test('historical read requires protected v2 history and an exact seven-field sou
   assert.throws(() => readAtArtifact(unprotected), { code: 'CONSTRUCTION_ADMISSION_HISTORY' });
   const protectedFixture = fixture(t, { protectedHistory: true });
   const mutations = [
-    ['missing field', (value) => { delete value.namespace; }],
-    ['extra field', (value) => { value.extra = true; }],
-    ['wrong hash', (value) => { value.artifactSha256 = 'sha256:bad'; }],
-    ['mismatched cut', (value) => { value.sourceCommitSha256 = digest; }],
+    [
+      'missing field',
+      (value) => {
+        delete value.namespace;
+      },
+    ],
+    [
+      'extra field',
+      (value) => {
+        value.extra = true;
+      },
+    ],
+    [
+      'wrong hash',
+      (value) => {
+        value.artifactSha256 = 'sha256:bad';
+      },
+    ],
+    [
+      'mismatched cut',
+      (value) => {
+        value.sourceCommitSha256 = digest;
+      },
+    ],
   ];
   for (const [name, mutate] of mutations) {
     const candidate = { ...sourceBinding(protectedFixture) };
     mutate(candidate);
-    assert.throws(() => kernel.readSourceNativeConstructionLedgerAtArtifact({
-      options: protectedFixture.options, trustRegistry: protectedFixture.trust,
-      expectedSourceBinding: candidate,
-    }), TypeError, name);
+    assert.throws(
+      () =>
+        kernel.readSourceNativeConstructionLedgerAtArtifact({
+          options: protectedFixture.options,
+          trustRegistry: protectedFixture.trust,
+          expectedSourceBinding: candidate,
+        }),
+      TypeError,
+      name,
+    );
   }
   assert.equal(binding.ontId, unprotected.state.descriptor.ontId);
 });
@@ -1212,8 +1792,12 @@ test('stable absent knowledge is empty, while missing, corrupt, and pending prot
   assert.deepEqual(readAtArtifact(empty).activeRecords, []);
 
   const missingSource = fixture(t, { protectedHistory: true });
-  unlinkSync(fileObjectPath(missingSource.historyBackendUri,
-    `ref-history/${missingSource.state.descriptor.ontId}/main.json`));
+  unlinkSync(
+    fileObjectPath(
+      missingSource.historyBackendUri,
+      `ref-history/${missingSource.state.descriptor.ontId}/main.json`,
+    ),
+  );
   assert.throws(() => readAtArtifact(missingSource), { code: 'OBJECT_ONT_HISTORY_MISSING' });
 
   const corruptKnowledge = fixture(t, { protectedHistory: true });
@@ -1222,15 +1806,23 @@ test('stable absent knowledge is empty, while missing, corrupt, and pending prot
   const knowledgeKey = `ref-history/${corruptKnowledge.state.descriptor.ontId}/${corruptKnowledge.branch}.json`;
   const knowledgeHead = corruptKnowledge.historyBackend.head(knowledgeKey);
   corruptKnowledge.historyBackend.compareAndSwap(knowledgeKey, {
-    expectedVersion: knowledgeHead.version, bytes: Buffer.from('{"corrupt":true}'),
+    expectedVersion: knowledgeHead.version,
+    bytes: Buffer.from('{"corrupt":true}'),
   });
   assert.throws(() => readAtArtifact(corruptKnowledge), { code: 'OBJECT_ONT_HISTORY_CORRUPT' });
 
   const pendingSource = fixture(t, { protectedHistory: true });
-  const pendingBaseVersion = pendingSource.state.store.readRefMetadata(pendingSource.sourceRoute).version;
+  const pendingBaseVersion = pendingSource.state.store.readRefMetadata(
+    pendingSource.sourceRoute,
+  ).version;
   mutateHistory(pendingSource, 'main', (history) => {
-    history.pending = { schemaVersion: 1, kind: 'OpenOntologyRefHistoryPendingV1',
-      baseRef: history.acceptedRef, baseVersion: pendingBaseVersion, targetRef: history.acceptedRef };
+    history.pending = {
+      schemaVersion: 1,
+      kind: 'OpenOntologyRefHistoryPendingV1',
+      baseRef: history.acceptedRef,
+      baseVersion: pendingBaseVersion,
+      targetRef: history.acceptedRef,
+    };
   });
   assert.throws(() => readAtArtifact(pendingSource), { code: 'OBJECT_ONT_HISTORY_PENDING' });
 });
@@ -1249,7 +1841,8 @@ test('historical read keeps correction, conflict, and trust eligibility decision
   const original = f.admit();
   f.write(original);
   const correction = f.admit(changed(f, { noAlias: true }), {
-    admittedAt: at(4), targets: [original.recordSha256],
+    admittedAt: at(4),
+    targets: [original.recordSha256],
   });
   f.write(correction);
   assert.deepEqual(readAtArtifact(f).activeRecords, [correction]);
@@ -1279,20 +1872,46 @@ test('historical read keeps correction, conflict, and trust eligibility decision
 
 test('old signed query proofs and new construction share the branch without reinterpretation', async (t) => {
   const f = fixture(t);
-  const query = { question: 'What is the current status of task-1?', typedQuery: {
-    sourceSystem: 'tracker', objectType: 'task', externalId: 'task-1', fieldPath: 'status' } };
-  const bundle = await kernel.compileSourceNativeSemanticKnowledgeBundle({ options: f.options,
-    query, proposedBy: 'constructor', proposedAt: at(2) });
+  const query = {
+    question: 'What is the current status of task-1?',
+    typedQuery: {
+      sourceSystem: 'tracker',
+      objectType: 'task',
+      externalId: 'task-1',
+      fieldPath: 'status',
+    },
+  };
+  const bundle = await kernel.compileSourceNativeSemanticKnowledgeBundle({
+    options: f.options,
+    query,
+    proposedBy: 'constructor',
+    proposedAt: at(2),
+  });
   const proposalStatement = kernel.sourceNativeProposalStatement({ bundle });
-  const statement = kernel.sourceNativeAdmissionStatement({ bundle, issuerId: 'reviewer', admittedAt: at(3) });
-  const oldRecord = kernel.compileSourceNativeAdmissionRecord({ bundle, proposalStatement, statement,
+  const statement = kernel.sourceNativeAdmissionStatement({
+    bundle,
+    issuerId: 'reviewer',
+    admittedAt: at(3),
+  });
+  const oldRecord = kernel.compileSourceNativeAdmissionRecord({
+    bundle,
+    proposalStatement,
+    statement,
     proposalSignatureBase64: signature(proposalStatement, f.keys.constructor.privateKey),
-    signatureBase64: signature(statement, f.keys.reviewer.privateKey) });
+    signatureBase64: signature(statement, f.keys.reviewer.privateKey),
+  });
   const originalBytes = kernel.stableObjectText(oldRecord);
-  const oldWrite = kernel.writeSourceNativeAdmittedKnowledge({ options: f.options, record: oldRecord, trustRegistry: f.trust });
+  const oldWrite = kernel.writeSourceNativeAdmittedKnowledge({
+    options: f.options,
+    record: oldRecord,
+    trustRegistry: f.trust,
+  });
   assert.equal(oldWrite.branch, f.branch);
-  const construction = f.admit(); f.write(construction);
-  const proofClient = kernel.openSourceNativeProductWithAdmittedKnowledge(f.options, { trustRegistry: f.trust });
+  const construction = f.admit();
+  f.write(construction);
+  const proofClient = kernel.openSourceNativeProductWithAdmittedKnowledge(f.options, {
+    trustRegistry: f.trust,
+  });
   const proof = await proofClient.verify(query);
   assert.equal(proof.kind, 'OpenOntologySourceNativeAdmittedKnowledgeVerificationV1');
   assert.equal(proof.answerable, true);
@@ -1300,14 +1919,28 @@ test('old signed query proofs and new construction share the branch without rein
   assert.equal(proofClient.status().admittedKnowledge.state, 'ready');
   assert.deepEqual(f.read().activeRecords, [construction]);
   const latest = f.state.store.readRefMetadataSnapshot(f.route);
-  const oldBlob = latest.replayMetadata.blobDescriptors.find((item) => item.logicalPath.endsWith(`${oldRecord.recordSha256.slice(7)}.json`));
+  const oldBlob = latest.replayMetadata.blobDescriptors.find((item) =>
+    item.logicalPath.endsWith(`${oldRecord.recordSha256.slice(7)}.json`),
+  );
   assert.equal(f.state.store.readBlob(oldBlob).bytes.toString(), originalBytes);
   // The old writer can append after the construction record as well.
-  const alternateStatement = kernel.sourceNativeAdmissionStatement({ bundle, issuerId: 'reviewer-two', admittedAt: at(3) });
-  const oldSecond = kernel.compileSourceNativeAdmissionRecord({ bundle, proposalStatement, statement: alternateStatement,
+  const alternateStatement = kernel.sourceNativeAdmissionStatement({
+    bundle,
+    issuerId: 'reviewer-two',
+    admittedAt: at(3),
+  });
+  const oldSecond = kernel.compileSourceNativeAdmissionRecord({
+    bundle,
+    proposalStatement,
+    statement: alternateStatement,
     proposalSignatureBase64: oldRecord.proposalSignatureBase64,
-    signatureBase64: signature(alternateStatement, f.keys['reviewer-two'].privateKey) });
-  kernel.writeSourceNativeAdmittedKnowledge({ options: f.options, record: oldSecond, trustRegistry: f.trust });
+    signatureBase64: signature(alternateStatement, f.keys['reviewer-two'].privateKey),
+  });
+  kernel.writeSourceNativeAdmittedKnowledge({
+    options: f.options,
+    record: oldSecond,
+    trustRegistry: f.trust,
+  });
   assert.equal(f.read().state, 'ready');
   assert.deepEqual(f.read().activeRecords, [construction]);
 });

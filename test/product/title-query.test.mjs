@@ -11,7 +11,15 @@ import { createSourceNativeProductMcpHandler } from '../../dist/product/mcp.js';
 
 const publicCli = resolve(import.meta.dirname, '..', '..', 'dist', 'cli', 'oont.js');
 
-function sourceRow({ relativePath, occurredAt, externalId, title, status, body = '', includeTitle = true }) {
+function sourceRow({
+  relativePath,
+  occurredAt,
+  externalId,
+  title,
+  status,
+  body = '',
+  includeTitle = true,
+}) {
   const content = `Title: ${title}\nStatus: ${status}. ${body}`;
   return {
     relativePath,
@@ -28,30 +36,43 @@ function sourceRow({ relativePath, occurredAt, externalId, title, status, body =
         externalId,
       },
       fields: [
-        ...(includeTitle ? [{ fieldPath: 'title', value: title, codeUnitStart: content.indexOf(title) }] : []),
+        ...(includeTitle
+          ? [{ fieldPath: 'title', value: title, codeUnitStart: content.indexOf(title) }]
+          : []),
         { fieldPath: 'status', value: status, codeUnitStart: content.indexOf(status) },
       ],
     },
   };
 }
 
-function buildInput({ targetTitle = 'Quarterly status review', latestTargetTitle = targetTitle,
-  extraRows = [], extraSources = [], adapterDiagnostics = [] } = {}) {
+function buildInput({
+  targetTitle = 'Quarterly status review',
+  latestTargetTitle = targetTitle,
+  extraRows = [],
+  extraSources = [],
+  adapterDiagnostics = [],
+} = {}) {
   const rows = [
     sourceRow({
       relativePath: 'clickup/acme/task-1-r1.md',
       occurredAt: '2026-01-01T00:00:00.000Z',
-      externalId: 'task-1', title: targetTitle, status: 'Ready',
+      externalId: 'task-1',
+      title: targetTitle,
+      status: 'Ready',
     }),
     sourceRow({
       relativePath: 'clickup/acme/task-1-r2.md',
       occurredAt: '2026-02-01T00:00:00.000Z',
-      externalId: 'task-1', title: latestTargetTitle, status: 'Done',
+      externalId: 'task-1',
+      title: latestTargetTitle,
+      status: 'Done',
     }),
     sourceRow({
       relativePath: 'clickup/acme/task-2.md',
       occurredAt: '2026-02-02T00:00:00.000Z',
-      externalId: 'task-2', title: 'Dependency cleanup', status: 'Blocked',
+      externalId: 'task-2',
+      title: 'Dependency cleanup',
+      status: 'Blocked',
       body: 'The Quarterly status review is mentioned in this dependency note.',
     }),
     ...extraRows,
@@ -61,15 +82,17 @@ function buildInput({ targetTitle = 'Quarterly status review', latestTargetTitle
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'acme-title-binding',
     namespace: 'acme',
-    querySchemas: [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: [
-        { fieldPath: 'title', aliases: ['title'] },
-        { fieldPath: 'status', aliases: ['status'] },
-      ],
-    }],
+    querySchemas: [
+      {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: [
+          { fieldPath: 'title', aliases: ['title'] },
+          { fieldPath: 'status', aliases: ['status'] },
+        ],
+      },
+    ],
     sources: [
       ...rows.map(({ nativeObjectInput: _nativeObjectInput, ...source }) => source),
       ...extraSources,
@@ -98,7 +121,10 @@ test('a declared title binds the intended identity and preserves exact proof', a
     assert.equal(result.answerable, true);
     assert.equal(result.query.externalId, 'task-1');
     assert.deepEqual(result.mentionedExternalIds, []);
-    assert.deepEqual(result.context.map((row) => row.exactText), ['Done']);
+    assert.deepEqual(
+      result.context.map((row) => row.exactText),
+      ['Done'],
+    );
     assert.equal(result.verification.currentFieldChronology.proofDisposition, 'sufficient');
 
     const typedReplay = await product.verify({
@@ -120,8 +146,10 @@ test('a declared title binds the intended identity and preserves exact proof', a
     assert.equal(typedVisibleId.state, 'resolved-current-field');
     assert.deepEqual(visibleId.mentionedExternalIds, ['task-1']);
     assert.deepEqual(typedVisibleId.mentionedExternalIds, ['task-1']);
-    assert.equal(typedVisibleId.verification.queryPlanSha256,
-      visibleId.verification.queryPlanSha256);
+    assert.equal(
+      typedVisibleId.verification.queryPlanSha256,
+      visibleId.verification.queryPlanSha256,
+    );
   });
 });
 
@@ -135,20 +163,28 @@ test('repeated title observations count once, while equal titles on two identiti
     assert.equal(result.query.externalId, 'task-1');
   });
 
-  await withProduct(buildInput({ targetTitle: 'Legacy review', latestTargetTitle: 'Renamed review' }), async (product) => {
-    const historicalAlias = await product.verify(
-      'What is the current status of the task titled "Legacy review"?',
-    );
-    assert.equal(historicalAlias.state, 'resolved-current-field');
-    assert.equal(historicalAlias.answerable, true);
-    assert.equal(historicalAlias.query.externalId, 'task-1');
-    assert.deepEqual(historicalAlias.context.map((row) => row.exactText), ['Done']);
-  });
+  await withProduct(
+    buildInput({ targetTitle: 'Legacy review', latestTargetTitle: 'Renamed review' }),
+    async (product) => {
+      const historicalAlias = await product.verify(
+        'What is the current status of the task titled "Legacy review"?',
+      );
+      assert.equal(historicalAlias.state, 'resolved-current-field');
+      assert.equal(historicalAlias.answerable, true);
+      assert.equal(historicalAlias.query.externalId, 'task-1');
+      assert.deepEqual(
+        historicalAlias.context.map((row) => row.exactText),
+        ['Done'],
+      );
+    },
+  );
 
   const duplicate = sourceRow({
     relativePath: 'clickup/acme/task-3.md',
     occurredAt: '2026-02-03T00:00:00.000Z',
-    externalId: 'task-3', title: 'Quarterly status review', status: 'In Progress',
+    externalId: 'task-3',
+    title: 'Quarterly status review',
+    status: 'In Progress',
   });
   await withProduct(buildInput({ extraRows: [duplicate] }), async (product) => {
     const result = await product.verify(
@@ -197,7 +233,10 @@ test('requires complete declared title coverage before name binding', async () =
   const missingTitle = sourceRow({
     relativePath: 'clickup/acme/task-4.md',
     occurredAt: '2026-02-04T00:00:00.000Z',
-    externalId: 'task-4', title: 'Unpublished title', status: 'Ready', includeTitle: false,
+    externalId: 'task-4',
+    title: 'Unpublished title',
+    status: 'Ready',
+    includeTitle: false,
   });
   await withProduct(buildInput({ extraRows: [missingTitle] }), async (product) => {
     const result = await product.verify(
@@ -208,14 +247,17 @@ test('requires complete declared title coverage before name binding', async () =
     assert.equal(result.verification.absenceReceipt, null);
   });
 
-  await withProduct(buildInput({ adapterDiagnostics: [{ code: 'PARSE_FAILURE' }] }), async (product) => {
-    const result = await product.verify(
-      'What is the current status of the task titled "Quarterly status review"?',
-    );
-    assert.equal(result.state, 'unavailable-native-object-identifier-not-declared');
-    assert.equal(result.answerable, false);
-    assert.equal(result.verification.absenceReceipt, null);
-  });
+  await withProduct(
+    buildInput({ adapterDiagnostics: [{ code: 'PARSE_FAILURE' }] }),
+    async (product) => {
+      const result = await product.verify(
+        'What is the current status of the task titled "Quarterly status review"?',
+      );
+      assert.equal(result.state, 'unavailable-native-object-identifier-not-declared');
+      assert.equal(result.answerable, false);
+      assert.equal(result.verification.absenceReceipt, null);
+    },
+  );
 });
 
 test('keeps identity and namespace qualifiers coherent with a title', async () => {
@@ -241,7 +283,10 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
     const typedConflict = await product.verify({
       question: 'What is the current status of the task titled "Dependency cleanup"?',
       scope: {
-        sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1',
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        field: 'status',
+        externalId: 'task-1',
       },
     });
     assert.equal(typedConflict.state, 'unavailable-native-multiple-object-identifiers');
@@ -258,7 +303,10 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
       question: 'What is the current status of task-2?',
       scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
     });
-    assert.equal(typedKnownConflictWithoutTitle.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(
+      typedKnownConflictWithoutTitle.state,
+      'unavailable-native-multiple-object-identifiers',
+    );
     assert.equal(typedKnownConflictWithoutTitle.answerable, false);
     assert.deepEqual(typedKnownConflictWithoutTitle.context, []);
     assert.equal(typedKnownConflictWithoutTitle.verification.absenceReceipt, null);
@@ -267,7 +315,10 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
       question: 'What is the current status of task-999?',
       scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
     });
-    assert.equal(typedUnknownConflictWithoutTitle.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(
+      typedUnknownConflictWithoutTitle.state,
+      'unavailable-native-object-identifier-not-declared',
+    );
     assert.equal(typedUnknownConflictWithoutTitle.answerable, false);
     assert.deepEqual(typedUnknownConflictWithoutTitle.context, []);
 
@@ -275,7 +326,10 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
       question: 'What is the current status of task-1 and task-2?',
       scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
     });
-    assert.equal(typedMultipleConflictWithoutTitle.state, 'unavailable-native-multiple-object-identifiers');
+    assert.equal(
+      typedMultipleConflictWithoutTitle.state,
+      'unavailable-native-multiple-object-identifiers',
+    );
     assert.equal(typedMultipleConflictWithoutTitle.answerable, false);
     assert.deepEqual(typedMultipleConflictWithoutTitle.context, []);
     assert.deepEqual(typedMultipleConflictWithoutTitle.mentionedExternalIds, ['task-1', 'task-2']);
@@ -298,7 +352,12 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
         name: 'verify',
         arguments: {
           question: 'What is the current status of task-2?',
-          scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+          scope: {
+            sourceSystem: 'clickup',
+            objectType: 'task',
+            field: 'status',
+            externalId: 'task-1',
+          },
         },
       },
     });
@@ -308,11 +367,24 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
     assert.equal(mcpConflict.answerable, false);
     assert.deepEqual(mcpConflict.context, []);
 
-    const cliConflict = spawnSync(process.execPath, [
-      publicCli, 'verify', artifactRoot, 'What is the current status of task-2?',
-      '--source-system', 'clickup', '--object-type', 'task', '--external-id', 'task-1',
-      '--field', 'status',
-    ], { encoding: 'utf8' });
+    const cliConflict = spawnSync(
+      process.execPath,
+      [
+        publicCli,
+        'verify',
+        artifactRoot,
+        'What is the current status of task-2?',
+        '--source-system',
+        'clickup',
+        '--object-type',
+        'task',
+        '--external-id',
+        'task-1',
+        '--field',
+        'status',
+      ],
+      { encoding: 'utf8' },
+    );
     assert.equal(cliConflict.status, 0, cliConflict.stderr);
     const cliConflictResult = JSON.parse(cliConflict.stdout);
     assert.equal(cliConflictResult.state, 'unavailable-native-multiple-object-identifiers');
@@ -322,12 +394,19 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
     const overlappingId = sourceRow({
       relativePath: 'clickup/acme/task-10.md',
       occurredAt: '2026-02-03T00:00:00.000Z',
-      externalId: 'task-10', title: 'Long identifier', status: 'Ready',
+      externalId: 'task-10',
+      title: 'Long identifier',
+      status: 'Ready',
     });
     await withProduct(buildInput({ extraRows: [overlappingId] }), async (overlapProduct) => {
       const overlapConflict = await overlapProduct.verify({
         question: 'What is the current status of task-10?',
-        scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status', externalId: 'task-1' },
+        scope: {
+          sourceSystem: 'clickup',
+          objectType: 'task',
+          field: 'status',
+          externalId: 'task-1',
+        },
       });
       assert.equal(overlapConflict.state, 'unavailable-native-multiple-object-identifiers');
       assert.equal(overlapConflict.answerable, false);
@@ -346,8 +425,16 @@ test('keeps identity and namespace qualifiers coherent with a title', async () =
 
 test('structured scopes preserve declared field intent and may fill missing selectors', async () => {
   await withProduct(buildInput(), async (product, artifactRoot) => {
-    const scope = { sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', field: 'status' };
-    for (const question of ['What is the current status of task-1?', 'What is the current status?']) {
+    const scope = {
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'task-1',
+      field: 'status',
+    };
+    for (const question of [
+      'What is the current status of task-1?',
+      'What is the current status?',
+    ]) {
       const conflict = await product.verify({ question, scope: { ...scope, field: 'title' } });
       assert.equal(conflict.state, 'unavailable-native-field-ambiguous');
       assert.equal(conflict.answerable, false);
@@ -355,68 +442,130 @@ test('structured scopes preserve declared field intent and may fill missing sele
       assert.equal(conflict.verification.absenceReceipt, null);
       const matching = await product.verify({ question, scope });
       assert.equal(matching.answerable, true);
-      assert.deepEqual(matching.context.map(row => row.exactText), ['Done']);
+      assert.deepEqual(
+        matching.context.map((row) => row.exactText),
+        ['Done'],
+      );
     }
-    for (const question of ['Inspect this object.', 'Inspect task-1.', 'What is the task status and title?']) {
+    for (const question of [
+      'Inspect this object.',
+      'Inspect task-1.',
+      'What is the task status and title?',
+    ]) {
       const narrowed = await product.verify({ question, scope });
       assert.equal(narrowed.answerable, true);
-      assert.deepEqual(narrowed.context.map(row => row.exactText), ['Done']);
+      assert.deepEqual(
+        narrowed.context.map((row) => row.exactText),
+        ['Done'],
+      );
     }
     for (const question of ['Inspect this object.', 'What is the current status of task-999?']) {
-      const absent = await product.verify({ question, scope: { ...scope, externalId: 'task-999' } });
+      const absent = await product.verify({
+        question,
+        scope: { ...scope, externalId: 'task-999' },
+      });
       assert.equal(absent.state, 'verified-native-object-absent-from-bound-source-catalog');
       assert.equal(absent.answerable, false);
       assert.deepEqual(absent.context, []);
       assert.equal(absent.verification.absenceReceipt.exactOccurrenceCount, 0);
       assert.equal(absent.verification.absenceReceipt.worldAbsenceAuthorized, false);
     }
-    const extraId = await product.verify({ question: 'What is the status of task-999 and task-998?',
-      scope: { ...scope, externalId: 'task-999' } });
+    const extraId = await product.verify({
+      question: 'What is the status of task-999 and task-998?',
+      scope: { ...scope, externalId: 'task-999' },
+    });
     assert.equal(extraId.state, 'unavailable-native-multiple-object-identifiers');
     assert.deepEqual(extraId.context, []);
     assert.equal(extraId.verification.absenceReceipt, null);
     const historical = await product.verify({
-      question: 'What was the status of task-1?', at: '2026-01-15T00:00:00.000Z',
+      question: 'What was the status of task-1?',
+      at: '2026-01-15T00:00:00.000Z',
       scope: { ...scope, field: 'title' },
     });
     assert.equal(historical.state, 'unavailable-native-field-ambiguous');
     assert.deepEqual(historical.context, []);
     const mcp = createSourceNativeProductMcpHandler(openSourceNativeProduct({ artifactRoot }));
-    const response = await mcp.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: {
-      name: 'verify', arguments: { question: 'What is the current status of task-1?',
-        scope: { ...scope, field: 'title' } },
-    } });
+    const response = await mcp.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'verify',
+        arguments: {
+          question: 'What is the current status of task-1?',
+          scope: { ...scope, field: 'title' },
+        },
+      },
+    });
     const mcpResult = JSON.parse(response.result.content[0].text);
     assert.equal(mcpResult.state, 'unavailable-native-field-ambiguous');
     assert.equal(mcpResult.answerable, false);
     assert.deepEqual(mcpResult.context, []);
-    const cli = spawnSync(process.execPath, [publicCli, 'verify', artifactRoot,
-      'What is the current status of task-1?', '--source-system', 'clickup',
-      '--object-type', 'task', '--external-id', 'task-1', '--field', 'title'], { encoding: 'utf8' });
+    const cli = spawnSync(
+      process.execPath,
+      [
+        publicCli,
+        'verify',
+        artifactRoot,
+        'What is the current status of task-1?',
+        '--source-system',
+        'clickup',
+        '--object-type',
+        'task',
+        '--external-id',
+        'task-1',
+        '--field',
+        'title',
+      ],
+      { encoding: 'utf8' },
+    );
     assert.equal(cli.status, 0, cli.stderr);
     const cliResult = JSON.parse(cli.stdout);
     assert.equal(cliResult.state, 'unavailable-native-field-ambiguous');
     assert.equal(cliResult.answerable, false);
     assert.deepEqual(cliResult.context, []);
   });
-  await withProduct(buildInput({ adapterDiagnostics: [{ code: 'PARSE_FAILURE' }] }), async product => {
-    const incomplete = await product.verify({ question: 'What is the status of task-999?',
-      scope: { sourceSystem: 'clickup', objectType: 'task', externalId: 'task-999', field: 'status' } });
-    assert.equal(incomplete.state, 'unavailable-native-object-not-seeded');
-    assert.equal(incomplete.answerable, false);
-    assert.deepEqual(incomplete.context, []);
-    assert.equal(incomplete.verification.absenceReceipt, null);
-  });
+  await withProduct(
+    buildInput({ adapterDiagnostics: [{ code: 'PARSE_FAILURE' }] }),
+    async (product) => {
+      const incomplete = await product.verify({
+        question: 'What is the status of task-999?',
+        scope: {
+          sourceSystem: 'clickup',
+          objectType: 'task',
+          externalId: 'task-999',
+          field: 'status',
+        },
+      });
+      assert.equal(incomplete.state, 'unavailable-native-object-not-seeded');
+      assert.equal(incomplete.answerable, false);
+      assert.deepEqual(incomplete.context, []);
+      assert.equal(incomplete.verification.absenceReceipt, null);
+    },
+  );
 });
 
 test('structured profiles disambiguate matching object aliases but cannot override another profile', async () => {
   const input = buildInput();
-  input.querySchemas.push({ sourceSystem: 'linear', objectType: 'issue', aliases: ['issue'],
-    fields: [{ fieldPath: 'status', aliases: ['status'] }] });
-  input.querySchemas.push({ sourceSystem: 'other', objectType: 'task', aliases: ['task'],
-    fields: [{ fieldPath: 'status', aliases: ['status'] }] });
-  await withProduct(input, async product => {
-    const scope = { sourceSystem: 'clickup', objectType: 'task', externalId: 'task-1', field: 'status' };
+  input.querySchemas.push({
+    sourceSystem: 'linear',
+    objectType: 'issue',
+    aliases: ['issue'],
+    fields: [{ fieldPath: 'status', aliases: ['status'] }],
+  });
+  input.querySchemas.push({
+    sourceSystem: 'other',
+    objectType: 'task',
+    aliases: ['task'],
+    fields: [{ fieldPath: 'status', aliases: ['status'] }],
+  });
+  await withProduct(input, async (product) => {
+    const scope = {
+      sourceSystem: 'clickup',
+      objectType: 'task',
+      externalId: 'task-1',
+      field: 'status',
+    };
     const conflict = await product.verify({ question: 'What is the current issue status?', scope });
     assert.equal(conflict.state, 'unavailable-native-object-type-ambiguous');
     assert.equal(conflict.answerable, false);
@@ -424,9 +573,15 @@ test('structured profiles disambiguate matching object aliases but cannot overri
     assert.equal(conflict.verification.absenceReceipt, null);
     const unscoped = await product.verify('What is the current task status of task-1?');
     assert.equal(unscoped.state, 'unavailable-native-object-type-ambiguous');
-    const narrowed = await product.verify({ question: 'What is the current task status of task-1?', scope });
+    const narrowed = await product.verify({
+      question: 'What is the current task status of task-1?',
+      scope,
+    });
     assert.equal(narrowed.answerable, true);
-    assert.deepEqual(narrowed.context.map(row => row.exactText), ['Done']);
+    assert.deepEqual(
+      narrowed.context.map((row) => row.exactText),
+      ['Done'],
+    );
   });
 });
 
@@ -440,7 +595,10 @@ test('does not scan title words as field, ID or temporal intent, including histo
     assert.equal(current.answerable, true);
     assert.equal(current.query.externalId, 'task-1');
     assert.deepEqual(current.mentionedExternalIds, []);
-    assert.deepEqual(current.context.map((row) => row.exactText), ['Done']);
+    assert.deepEqual(
+      current.context.map((row) => row.exactText),
+      ['Done'],
+    );
 
     const historical = await product.verify({
       question: `What was the status of the task titled "${title}"?`,
@@ -449,7 +607,10 @@ test('does not scan title words as field, ID or temporal intent, including histo
     assert.equal(historical.state, 'resolved-historical-field');
     assert.equal(historical.answerable, true);
     assert.equal(historical.query.externalId, 'task-1');
-    assert.deepEqual(historical.context.map((row) => row.exactText), ['Ready']);
+    assert.deepEqual(
+      historical.context.map((row) => row.exactText),
+      ['Ready'],
+    );
     assert.equal(historical.verification.historicalFieldChronology.proofDisposition, 'sufficient');
   });
 });
@@ -463,7 +624,10 @@ test('supports escaped quotes without changing the exact declared title', async 
     assert.equal(result.state, 'resolved-current-field');
     assert.equal(result.answerable, true);
     assert.equal(result.query.externalId, 'task-1');
-    assert.deepEqual(result.context.map((row) => row.exactText), ['Done']);
+    assert.deepEqual(
+      result.context.map((row) => row.exactText),
+      ['Done'],
+    );
   });
 });
 

@@ -3,8 +3,15 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
-  rmSync, statSync, writeFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -23,19 +30,27 @@ mkdirSync(consumer, { recursive: true });
 
 let failures = 0;
 let ordinal = 0;
-const tail = (value, lines = 4) => String(value ?? '').trim().split('\n').slice(-lines).join('\n');
+const tail = (value, lines = 4) =>
+  String(value ?? '')
+    .trim()
+    .split('\n')
+    .slice(-lines)
+    .join('\n');
 const check = (name, pass, detail = '') => {
   ordinal += 1;
   if (!pass) failures += 1;
-  process.stdout.write(`${pass ? 'PASS' : 'FAIL'}  ${String(ordinal).padStart(2)}. ${name}`
-    + `${detail ? `\n        ${detail.replaceAll('\n', '\n        ')}` : ''}\n`);
+  process.stdout.write(
+    `${pass ? 'PASS' : 'FAIL'}  ${String(ordinal).padStart(2)}. ${name}` +
+      `${detail ? `\n        ${detail.replaceAll('\n', '\n        ')}` : ''}\n`,
+  );
 };
-const run = (command, args, options = {}) => spawnSync(command, args, {
-  cwd: options.cwd ?? sandbox,
-  encoding: 'utf8',
-  env: { ...process.env, ...options.env },
-  timeout: options.timeout ?? 300_000,
-});
+const run = (command, args, options = {}) =>
+  spawnSync(command, args, {
+    cwd: options.cwd ?? sandbox,
+    encoding: 'utf8',
+    env: { ...process.env, ...options.env },
+    timeout: options.timeout ?? 300_000,
+  });
 
 function directorySnapshot(directory) {
   const files = [];
@@ -47,9 +62,8 @@ function directorySnapshot(directory) {
       if (stat.isDirectory()) {
         files.push([`${childRelative}/`, 'directory']);
         visit(child, childRelative);
-      }
-      else if (stat.isFile()) files.push([childRelative,
-        createHash('sha256').update(readFileSync(child)).digest('hex')]);
+      } else if (stat.isFile())
+        files.push([childRelative, createHash('sha256').update(readFileSync(child)).digest('hex')]);
       else throw new Error('Unexpected non-file in generated lifecycle output');
     }
   };
@@ -74,19 +88,30 @@ async function mcpTools(bin, artifactRoot, advanced = false) {
       for (const line of lines) {
         if (!line.trim()) continue;
         let message;
-        try { message = JSON.parse(line); } catch {
+        try {
+          message = JSON.parse(line);
+        } catch {
           clearTimeout(timer);
           child.kill('SIGKILL');
           done({ ok: false, detail: `non-JSON MCP output: ${line.slice(0, 120)}` });
           return;
         }
         if (message.id === 1) {
-          child.stdin.write(`${JSON.stringify({
-            jsonrpc: '2.0', method: 'notifications/initialized', params: {},
-          })}\n`);
-          child.stdin.write(`${JSON.stringify({
-            jsonrpc: '2.0', id: 2, method: 'tools/list', params: {},
-          })}\n`);
+          child.stdin.write(
+            `${JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'notifications/initialized',
+              params: {},
+            })}\n`,
+          );
+          child.stdin.write(
+            `${JSON.stringify({
+              jsonrpc: '2.0',
+              id: 2,
+              method: 'tools/list',
+              params: {},
+            })}\n`,
+          );
         }
         if (message.id === 2) {
           clearTimeout(timer);
@@ -97,15 +122,18 @@ async function mcpTools(bin, artifactRoot, advanced = false) {
         }
       }
     });
-    child.stdin.write(`${JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05', capabilities: {},
-        clientInfo: { name: 'oont-smoke', version: '1' },
-      },
-    })}\n`);
+    child.stdin.write(
+      `${JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'oont-smoke', version: '1' },
+        },
+      })}\n`,
+    );
   });
 }
 
@@ -116,23 +144,42 @@ try {
   const tarball = tail(packed.stdout, 1);
   const tarballPath = tarball ? join(sandbox, tarball) : null;
   const packedOk = packed.status === 0 && tarballPath && existsSync(tarballPath);
-  check('npm pack', packedOk, packedOk
-    ? `${tarball} (${(statSync(tarballPath).size / 1024).toFixed(0)} KB)`
-    : tail(packed.stderr));
+  check(
+    'npm pack',
+    packedOk,
+    packedOk
+      ? `${tarball} (${(statSync(tarballPath).size / 1024).toFixed(0)} KB)`
+      : tail(packed.stderr),
+  );
   if (!packedOk) process.exit(1);
 
   const installed = run('npm', [
-    'install', '--global', '--prefix', prefix, '--no-audit', '--no-fund', tarballPath,
+    'install',
+    '--global',
+    '--prefix',
+    prefix,
+    '--no-audit',
+    '--no-fund',
+    tarballPath,
   ]);
   const bin = join(prefix, 'bin', 'oont');
   check('clean global install', installed.status === 0 && existsSync(bin), tail(installed.stderr));
 
   const consumerInstall = run('npm', [
-    'install', '--prefix', consumer, '--ignore-scripts', '--no-audit', '--no-fund', tarballPath,
+    'install',
+    '--prefix',
+    consumer,
+    '--ignore-scripts',
+    '--no-audit',
+    '--no-fund',
+    tarballPath,
   ]);
   const packageRoot = join(consumer, 'node_modules', 'oont');
-  check('clean package install', consumerInstall.status === 0 && existsSync(packageRoot),
-    tail(consumerInstall.stderr));
+  check(
+    'clean package install',
+    consumerInstall.status === 0 && existsSync(packageRoot),
+    tail(consumerInstall.stderr),
+  );
 
   const consumerPackagePath = join(consumer, 'package.json');
   const consumerPackage = existsSync(consumerPackagePath)
@@ -142,7 +189,9 @@ try {
   writeFileSync(consumerPackagePath, `${JSON.stringify(consumerPackage, null, 2)}\n`);
 
   const contractPath = join(consumer, 'contract.ts');
-  writeFileSync(contractPath, `import {
+  writeFileSync(
+    contractPath,
+    `import {
   openOntology,
   type OpenOntologyProduct,
   type OpenOntologyQueryInput,
@@ -197,24 +246,38 @@ import { normalizeCanonicalObjectBackendUri as rootNormalizeCanonicalObjectBacke
 import { openCanonicalObjectBackend as rootOpenCanonicalObjectBackend } from 'oont';
 void rootNormalizeCanonicalObjectBackendUri;
 void rootOpenCanonicalObjectBackend;
-`);
+`,
+  );
   const compiler = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
-  const typedConsumer = run(process.execPath, [
-    compiler,
-    '--noEmit',
-    '--strict',
-    '--skipLibCheck', 'false',
-    '--module', 'NodeNext',
-    '--moduleResolution', 'NodeNext',
-    '--target', 'ES2022',
-    contractPath,
-  ], { cwd: consumer });
-  check('installed declarations compile for a strict consumer', typedConsumer.status === 0,
-    tail(typedConsumer.stderr || typedConsumer.stdout, 12));
+  const typedConsumer = run(
+    process.execPath,
+    [
+      compiler,
+      '--noEmit',
+      '--strict',
+      '--skipLibCheck',
+      'false',
+      '--module',
+      'NodeNext',
+      '--moduleResolution',
+      'NodeNext',
+      '--target',
+      'ES2022',
+      contractPath,
+    ],
+    { cwd: consumer },
+  );
+  check(
+    'installed declarations compile for a strict consumer',
+    typedConsumer.status === 0,
+    tail(typedConsumer.stderr || typedConsumer.stdout, 12),
+  );
 
   const kernelContractPath = join(consumer, 'kernel-contract.ts');
-  const authoringExample = readFileSync(join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md'), 'utf8')
-    .match(/```ts\n([\s\S]*?)\n```/u)?.[1] ?? '';
+  const authoringExample =
+    readFileSync(join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md'), 'utf8').match(
+      /```ts\n([\s\S]*?)\n```/u,
+    )?.[1] ?? '';
   if (!authoringExample) throw new Error('missing installed TypeScript authoring example');
   const authoringExamplePath = join(consumer, 'authoring-example.ts');
   writeFileSync(authoringExamplePath, `${authoringExample}\n`);
@@ -222,7 +285,9 @@ void rootOpenCanonicalObjectBackend;
     /^import \{ buildSourceNativeProduct \} from 'oont\/kernel';\nimport type \{ SourceNativeBuildInput \} from 'oont\/kernel';\n\n/u,
     '',
   );
-  writeFileSync(kernelContractPath, `import {
+  writeFileSync(
+    kernelContractPath,
+    `import {
   buildSourceNativeProduct,
   compileProofSufficiencyContract,
   compileSourceNativeCurrentFieldChronologyVerification,
@@ -609,113 +674,193 @@ proofContract.obligations.push({});
 openSourceNativeExactEvidenceSession({ sources: [] });
 // @ts-expect-error ObjectOnt reads require an explicit canonical backend.
 openSourceNativeObjectOntIndex({ ontId: 'example', commitSha256: digest });
-`);
-  const typedKernelConsumer = run(process.execPath, [
-    compiler,
-    '--noEmit',
-    '--strict',
-    '--skipLibCheck', 'false',
-    '--module', 'NodeNext',
-    '--moduleResolution', 'NodeNext',
-    '--target', 'ES2022',
-    '--typeRoots', join(root, 'node_modules', '@types'),
-    '--types', 'node',
-    kernelContractPath,
-    authoringExamplePath,
-  ], { cwd: consumer });
-  check('kernel declarations compile with the supported Node types',
+`,
+  );
+  const typedKernelConsumer = run(
+    process.execPath,
+    [
+      compiler,
+      '--noEmit',
+      '--strict',
+      '--skipLibCheck',
+      'false',
+      '--module',
+      'NodeNext',
+      '--moduleResolution',
+      'NodeNext',
+      '--target',
+      'ES2022',
+      '--typeRoots',
+      join(root, 'node_modules', '@types'),
+      '--types',
+      'node',
+      kernelContractPath,
+      authoringExamplePath,
+    ],
+    { cwd: consumer },
+  );
+  check(
+    'kernel declarations compile with the supported Node types',
     typedKernelConsumer.status === 0,
-    tail(typedKernelConsumer.stderr || typedKernelConsumer.stdout, 12));
+    tail(typedKernelConsumer.stderr || typedKernelConsumer.stdout, 12),
+  );
 
   const help = run(bin, ['--help']);
-  check('public CLI is compact', help.status === 0
-    && /verify <ont>/.test(help.stderr)
-    && /resolver build/.test(help.stderr)
-    && !/admin|init|extract/.test(help.stderr), tail(help.stderr, 12));
+  check(
+    'public CLI is compact',
+    help.status === 0 &&
+      /verify <ont>/.test(help.stderr) &&
+      /resolver build/.test(help.stderr) &&
+      !/admin|init|extract/.test(help.stderr),
+    tail(help.stderr, 12),
+  );
 
   const inputPath = join(packageRoot, 'examples', 'quickstart', 'source-native-input.json');
   const build = run(bin, ['resolver', 'build', inputPath, '--out', ont]);
-  check('documented packaged quickstart build', build.status === 0
-    && existsSync(join(ont, 'source-native.json')), tail(build.stderr));
+  check(
+    'documented packaged quickstart build',
+    build.status === 0 && existsSync(join(ont, 'source-native.json')),
+    tail(build.stderr),
+  );
 
   const integrity = run(bin, ['check', ont]);
   let integrityResult;
-  try { integrityResult = JSON.parse(integrity.stdout); } catch { integrityResult = null; }
-  check('Ont integrity check', integrity.status === 0
-    && integrityResult?.kind === 'OpenOntologyCheckV1'
-    && integrityResult?.ok === true, integrity.status === 0 ? integrity.stdout.trim() : tail(integrity.stderr));
+  try {
+    integrityResult = JSON.parse(integrity.stdout);
+  } catch {
+    integrityResult = null;
+  }
+  check(
+    'Ont integrity check',
+    integrity.status === 0 &&
+      integrityResult?.kind === 'OpenOntologyCheckV1' &&
+      integrityResult?.ok === true,
+    integrity.status === 0 ? integrity.stdout.trim() : tail(integrity.stderr),
+  );
 
   const verified = run(bin, ['verify', ont, 'What is the current title of task-1?']);
   let verification;
-  try { verification = JSON.parse(verified.stdout); } catch { verification = null; }
-  check('proof-complete verification', verified.status === 0
-    && verification?.answerable === true
-    && verification?.context?.[0]?.exactText === 'Ship verified context',
-  verified.status === 0 ? `state ${verification?.state}; exact ${verification?.context?.[0]?.exactText}`
-    : tail(verified.stderr));
+  try {
+    verification = JSON.parse(verified.stdout);
+  } catch {
+    verification = null;
+  }
+  check(
+    'proof-complete verification',
+    verified.status === 0 &&
+      verification?.answerable === true &&
+      verification?.context?.[0]?.exactText === 'Ship verified context',
+    verified.status === 0
+      ? `state ${verification?.state}; exact ${verification?.context?.[0]?.exactText}`
+      : tail(verified.stderr),
+  );
 
   const refused = run(bin, ['verify', ont, 'Who owns task-1?']);
   let refusal;
-  try { refusal = JSON.parse(refused.stdout); } catch { refusal = null; }
-  check('typed refusal is a valid result', refused.status === 0
-    && refusal?.answerable === false
-    && typeof refusal?.state === 'string',
-  refused.status === 0 ? refusal?.state : tail(refused.stderr));
+  try {
+    refusal = JSON.parse(refused.stdout);
+  } catch {
+    refusal = null;
+  }
+  check(
+    'typed refusal is a valid result',
+    refused.status === 0 && refusal?.answerable === false && typeof refusal?.state === 'string',
+    refused.status === 0 ? refusal?.state : tail(refused.stderr),
+  );
 
   const temporal = run(bin, ['verify', ont, 'What was the title of task-1 on 2026-01-15?']);
   let temporalRefusal;
-  try { temporalRefusal = JSON.parse(temporal.stdout); } catch { temporalRefusal = null; }
-  check('undeclared temporal intent refuses instead of returning current state',
-    temporal.status === 0
-      && temporalRefusal?.answerable === false
-      && temporalRefusal?.state === 'unavailable-native-temporal-intent-not-declared'
-      && temporalRefusal?.context?.length === 0,
-    temporal.status === 0 ? temporalRefusal?.state : tail(temporal.stderr));
+  try {
+    temporalRefusal = JSON.parse(temporal.stdout);
+  } catch {
+    temporalRefusal = null;
+  }
+  check(
+    'undeclared temporal intent refuses instead of returning current state',
+    temporal.status === 0 &&
+      temporalRefusal?.answerable === false &&
+      temporalRefusal?.state === 'unavailable-native-temporal-intent-not-declared' &&
+      temporalRefusal?.context?.length === 0,
+    temporal.status === 0 ? temporalRefusal?.state : tail(temporal.stderr),
+  );
 
-  const historical = run(bin, ['verify', ont, 'What was the title of task-1?',
-    '--at', '2026-01-15T00:00:00.000Z']);
+  const historical = run(bin, [
+    'verify',
+    ont,
+    'What was the title of task-1?',
+    '--at',
+    '2026-01-15T00:00:00.000Z',
+  ]);
   let historicalResult;
-  try { historicalResult = JSON.parse(historical.stdout); } catch { historicalResult = null; }
-  check('installed point-in-time verification selects earlier exact Evidence',
-    historical.status === 0 && historicalResult?.answerable === true
-      && historicalResult?.intent === 'at'
-      && historicalResult?.at === '2026-01-15T00:00:00.000Z'
-      && historicalResult?.context?.[0]?.exactText === 'Prepare launch'
-      && historicalResult?.verification?.historicalFieldChronology?.proofDisposition === 'sufficient',
-    historical.status === 0 ? historicalResult?.state : tail(historical.stderr));
+  try {
+    historicalResult = JSON.parse(historical.stdout);
+  } catch {
+    historicalResult = null;
+  }
+  check(
+    'installed point-in-time verification selects earlier exact Evidence',
+    historical.status === 0 &&
+      historicalResult?.answerable === true &&
+      historicalResult?.intent === 'at' &&
+      historicalResult?.at === '2026-01-15T00:00:00.000Z' &&
+      historicalResult?.context?.[0]?.exactText === 'Prepare launch' &&
+      historicalResult?.verification?.historicalFieldChronology?.proofDisposition === 'sufficient',
+    historical.status === 0 ? historicalResult?.state : tail(historical.stderr),
+  );
 
   const navigation = run(bin, ['search', ont, 'What is the current title of task-1?']);
   const titleRequests = [
     ['verify', ont, 'What is the current title of the task named "Prepare launch"?'],
-    ['verify', ont, 'What was the title of the task named "Ship verified context"?',
-      '--at', '2026-01-15T00:00:00.000Z'],
+    [
+      'verify',
+      ont,
+      'What was the title of the task named "Ship verified context"?',
+      '--at',
+      '2026-01-15T00:00:00.000Z',
+    ],
     ['verify', ont, 'What is the current title of the task named "Unknown task"?'],
   ].map((args) => {
     const result = run(bin, args);
-    try { return { exit: result.status, value: JSON.parse(result.stdout) }; }
-    catch { return { exit: result.status, value: null }; }
+    try {
+      return { exit: result.status, value: JSON.parse(result.stdout) };
+    } catch {
+      return { exit: result.status, value: null };
+    }
   });
-  check('installed declared-title queries preserve chronology and refuse unknown names',
-    titleRequests.every((result) => result.exit === 0)
-      && titleRequests[0].value?.query?.externalId === 'task-1'
-      && titleRequests[0].value?.context?.[0]?.exactText === 'Ship verified context'
-      && titleRequests[1].value?.query?.externalId === 'task-1'
-      && titleRequests[1].value?.context?.[0]?.exactText === 'Prepare launch'
-      && titleRequests[2].value?.answerable === false
-      && titleRequests[2].value?.context?.length === 0,
-    titleRequests.map((result) => result.value?.state ?? 'invalid response').join(', '));
+  check(
+    'installed declared-title queries preserve chronology and refuse unknown names',
+    titleRequests.every((result) => result.exit === 0) &&
+      titleRequests[0].value?.query?.externalId === 'task-1' &&
+      titleRequests[0].value?.context?.[0]?.exactText === 'Ship verified context' &&
+      titleRequests[1].value?.query?.externalId === 'task-1' &&
+      titleRequests[1].value?.context?.[0]?.exactText === 'Prepare launch' &&
+      titleRequests[2].value?.answerable === false &&
+      titleRequests[2].value?.context?.length === 0,
+    titleRequests.map((result) => result.value?.state ?? 'invalid response').join(', '),
+  );
 
-  const exact = run(bin, ['search', ont, 'What is the current title of task-1?',
-    '--read']);
+  const exact = run(bin, ['search', ont, 'What is the current title of task-1?', '--read']);
   let navigationResult;
   let exactResult;
-  try { navigationResult = JSON.parse(navigation.stdout); } catch { navigationResult = null; }
-  try { exactResult = JSON.parse(exact.stdout); } catch { exactResult = null; }
-  check('search navigates before exact read', navigation.status === 0 && exact.status === 0
-    && navigationResult?.matches?.length === 1
-    && !navigation.stdout.includes('Ship verified context')
-    && exactResult?.evidence?.[0]?.exactText === 'Ship verified context',
-  `references ${navigationResult?.matches?.length ?? 0}; exact reads ${exactResult?.evidence?.length ?? 0}`);
+  try {
+    navigationResult = JSON.parse(navigation.stdout);
+  } catch {
+    navigationResult = null;
+  }
+  try {
+    exactResult = JSON.parse(exact.stdout);
+  } catch {
+    exactResult = null;
+  }
+  check(
+    'search navigates before exact read',
+    navigation.status === 0 &&
+      exact.status === 0 &&
+      navigationResult?.matches?.length === 1 &&
+      !navigation.stdout.includes('Ship verified context') &&
+      exactResult?.evidence?.[0]?.exactText === 'Ship verified context',
+    `references ${navigationResult?.matches?.length ?? 0}; exact reads ${exactResult?.evidence?.length ?? 0}`,
+  );
 
   const installedBackendUri = pathToFileURL(join(sandbox, 'installed-backend')).href;
   const sdkProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
@@ -798,7 +943,9 @@ const historical = await ont.verify({
 });
 assert.equal(historical.answerable, true);
 assert.equal(historical.context[0].exactText, 'Prepare launch');`;
-  const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], { cwd: consumer });
+  const sdk = run(process.execPath, ['--input-type=module', '--eval', sdkProgram], {
+    cwd: consumer,
+  });
   check('installed SDK verifies offline through one client', sdk.status === 0, tail(sdk.stderr));
 
   const publicationProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
@@ -843,9 +990,14 @@ const result = await openOntology({ artifactRoot: join(root, 'conditional-winner
   .verify('What is the current status of ticket T-1?');
 assert.equal(result.context[0].exactText, 'closed');
 assert.equal(result.verification.sourceCommitSha256, winner.receipt.commitSha256);`;
-  const publication = run(process.execPath, ['--input-type=module', '--eval', publicationProgram], { cwd: consumer });
-  check('installed authoring example and conditional publication preserve exact context',
-    publication.status === 0, tail(publication.stderr, 20));
+  const publication = run(process.execPath, ['--input-type=module', '--eval', publicationProgram], {
+    cwd: consumer,
+  });
+  check(
+    'installed authoring example and conditional publication preserve exact context',
+    publication.status === 0,
+    tail(publication.stderr, 20),
+  );
 
   const constructionProgram = `globalThis.fetch = async () => { throw new Error('NETWORK_FORBIDDEN'); };
 import assert from 'node:assert/strict';
@@ -1055,70 +1207,111 @@ const superseded = kernel.openSourceNativeOntExplorer(options, { trustRegistry,
 const supersededPassage = superseded.nodes({ ids: [claimEdge.from] }).nodes[0];
 assert.equal(superseded.records().records[0].state, 'superseded');
 assert.equal(superseded.read({ ref: supersededPassage.readRef }).exactText, field.value);`;
-  const constructionSmoke = run(process.execPath, ['--input-type=module', '--eval', constructionProgram], { cwd: consumer });
-  check('installed construction, MCP and current/historical explorer reads stay source-bound',
-    constructionSmoke.status === 0, tail(constructionSmoke.stderr, 20));
+  const constructionSmoke = run(
+    process.execPath,
+    ['--input-type=module', '--eval', constructionProgram],
+    { cwd: consumer },
+  );
+  check(
+    'installed construction, MCP and current/historical explorer reads stay source-bound',
+    constructionSmoke.status === 0,
+    tail(constructionSmoke.stderr, 20),
+  );
 
   const lifecycleExample = join(packageRoot, 'examples', 'quickstart', 'source-lifecycle.mjs');
   const lifecycleGuide = join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md');
   const lifecycleRoot = join(consumer, 'source-lifecycle');
-  const noNetwork = 'data:text/javascript,globalThis.fetch=async()=>{throw new Error("NETWORK_FORBIDDEN")}';
-  const runLifecycle = (outputRoot) => run(process.execPath, [
-    '--import', noNetwork, lifecycleExample, outputRoot,
-  ], { cwd: consumer });
-  for (const [name, outputRoot] of [['first run', lifecycleRoot],
-    ['independent second run', join(consumer, 'source-lifecycle-second')]]) {
+  const noNetwork =
+    'data:text/javascript,globalThis.fetch=async()=>{throw new Error("NETWORK_FORBIDDEN")}';
+  const runLifecycle = (outputRoot) =>
+    run(process.execPath, ['--import', noNetwork, lifecycleExample, outputRoot], { cwd: consumer });
+  for (const [name, outputRoot] of [
+    ['first run', lifecycleRoot],
+    ['independent second run', join(consumer, 'source-lifecycle-second')],
+  ]) {
     const execution = runLifecycle(outputRoot);
     let summary;
-    try { summary = JSON.parse(execution.stdout); } catch { summary = null; }
-    check(`installed source lifecycle ${name}`, execution.status === 0
-      && existsSync(lifecycleGuide)
-      && summary?.kind === 'OpenOntologySourceLifecycleWalkthroughV1'
-      && summary?.outputRoot === outputRoot
-      && summary?.initial?.value === 'Ship verified context'
-      && summary?.updated?.value === 'Keep context current'
-      && /^sha256:[0-9a-f]{64}$/u.test(summary?.initial?.sourceCommitSha256 ?? '')
-      && /^sha256:[0-9a-f]{64}$/u.test(summary?.updated?.sourceCommitSha256 ?? '')
-      && summary.initial.sourceCommitSha256 !== summary.updated.sourceCommitSha256
-      && summary?.searchRead?.value === 'Ship verified context'
-      && summary?.refusal?.state === 'unavailable-native-field-not-declared'
-      && summary?.refusal?.contextCount === 0
-      && summary?.staleOpen?.code === 'SOURCE_NATIVE_PRODUCT_REF',
-    execution.status === 0 ? JSON.stringify(summary) : tail(execution.stderr));
+    try {
+      summary = JSON.parse(execution.stdout);
+    } catch {
+      summary = null;
+    }
+    check(
+      `installed source lifecycle ${name}`,
+      execution.status === 0 &&
+        existsSync(lifecycleGuide) &&
+        summary?.kind === 'OpenOntologySourceLifecycleWalkthroughV1' &&
+        summary?.outputRoot === outputRoot &&
+        summary?.initial?.value === 'Ship verified context' &&
+        summary?.updated?.value === 'Keep context current' &&
+        /^sha256:[0-9a-f]{64}$/u.test(summary?.initial?.sourceCommitSha256 ?? '') &&
+        /^sha256:[0-9a-f]{64}$/u.test(summary?.updated?.sourceCommitSha256 ?? '') &&
+        summary.initial.sourceCommitSha256 !== summary.updated.sourceCommitSha256 &&
+        summary?.searchRead?.value === 'Ship verified context' &&
+        summary?.refusal?.state === 'unavailable-native-field-not-declared' &&
+        summary?.refusal?.contextCount === 0 &&
+        summary?.staleOpen?.code === 'SOURCE_NATIVE_PRODUCT_REF',
+      execution.status === 0 ? JSON.stringify(summary) : tail(execution.stderr),
+    );
   }
   const beforeRerun = existsSync(lifecycleRoot) ? directorySnapshot(lifecycleRoot) : null;
   const rerun = runLifecycle(lifecycleRoot);
-  check('installed lifecycle refuses existing output without changing bytes',
-    beforeRerun !== null && rerun.status !== 0
-      && existsSync(lifecycleRoot) && beforeRerun === directorySnapshot(lifecycleRoot),
-    tail(rerun.stderr));
+  check(
+    'installed lifecycle refuses existing output without changing bytes',
+    beforeRerun !== null &&
+      rerun.status !== 0 &&
+      existsSync(lifecycleRoot) &&
+      beforeRerun === directorySnapshot(lifecycleRoot),
+    tail(rerun.stderr),
+  );
 
   const semanticRoot = join(consumer, 'semantic-map');
   const semanticExample = join(packageRoot, 'examples', 'quickstart', 'semantic-map.mjs');
-  const runSemantic = () => run(process.execPath, ['--import', noNetwork, semanticExample, semanticRoot], { cwd: consumer });
+  const runSemantic = () =>
+    run(process.execPath, ['--import', noNetwork, semanticExample, semanticRoot], {
+      cwd: consumer,
+    });
   const semanticRun = runSemantic();
   let semanticSummary;
-  try { semanticSummary = JSON.parse(semanticRun.stdout); } catch { semanticSummary = null; }
-  check('installed concept map discovers, reads, verifies, corrects and cold-reopens', semanticRun.status === 0
-    && semanticSummary?.kind === 'OpenOntologySemanticMapWalkthroughV1'
-    && semanticSummary?.initialMatches === 2 && semanticSummary?.correctedMatches === 1
-    && semanticSummary?.selectedObject === 'CT-17' && semanticSummary?.exactStatus === 'open'
-    && semanticSummary?.semanticReviewQualified === false,
-    semanticRun.status === 0 ? semanticRun.stdout.trim() : tail(semanticRun.stderr));
+  try {
+    semanticSummary = JSON.parse(semanticRun.stdout);
+  } catch {
+    semanticSummary = null;
+  }
+  check(
+    'installed concept map discovers, reads, verifies, corrects and cold-reopens',
+    semanticRun.status === 0 &&
+      semanticSummary?.kind === 'OpenOntologySemanticMapWalkthroughV1' &&
+      semanticSummary?.initialMatches === 2 &&
+      semanticSummary?.correctedMatches === 1 &&
+      semanticSummary?.selectedObject === 'CT-17' &&
+      semanticSummary?.exactStatus === 'open' &&
+      semanticSummary?.semanticReviewQualified === false,
+    semanticRun.status === 0 ? semanticRun.stdout.trim() : tail(semanticRun.stderr),
+  );
   const beforeSemanticRerun = existsSync(semanticRoot) ? directorySnapshot(semanticRoot) : null;
   const semanticRerun = runSemantic();
-  check('installed concept-map example preserves existing output', beforeSemanticRerun !== null
-    && semanticRerun.status !== 0 && beforeSemanticRerun === directorySnapshot(semanticRoot), tail(semanticRerun.stderr));
+  check(
+    'installed concept-map example preserves existing output',
+    beforeSemanticRerun !== null &&
+      semanticRerun.status !== 0 &&
+      beforeSemanticRerun === directorySnapshot(semanticRoot),
+    tail(semanticRerun.stderr),
+  );
 
   const ordinaryMcp = await mcpTools(bin, ont, false);
-  check('default MCP exposes only verify', ordinaryMcp.ok
-    && JSON.stringify(ordinaryMcp.names) === JSON.stringify(['verify']),
-  ordinaryMcp.ok ? ordinaryMcp.names.join(',') : ordinaryMcp.detail);
+  check(
+    'default MCP exposes only verify',
+    ordinaryMcp.ok && JSON.stringify(ordinaryMcp.names) === JSON.stringify(['verify']),
+    ordinaryMcp.ok ? ordinaryMcp.names.join(',') : ordinaryMcp.detail,
+  );
 
   const advancedMcp = await mcpTools(bin, ont, true);
-  check('advanced MCP exposes search and read', advancedMcp.ok
-    && JSON.stringify(advancedMcp.names) === JSON.stringify(['search', 'read']),
-  advancedMcp.ok ? advancedMcp.names.join(',') : advancedMcp.detail);
+  check(
+    'advanced MCP exposes search and read',
+    advancedMcp.ok && JSON.stringify(advancedMcp.names) === JSON.stringify(['search', 'read']),
+    advancedMcp.ok ? advancedMcp.names.join(',') : advancedMcp.detail,
+  );
 
   const publish = run('npm', ['publish', '--dry-run', '--tag', 'next', '--access', 'public'], {
     cwd: root,

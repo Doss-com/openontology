@@ -1,11 +1,5 @@
 /** Build and reopen one immutable source-native Ont artifact. */
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -14,13 +8,10 @@ import {
   openCanonicalObjectBackend,
 } from '../storage/canonical-backend.js';
 import type {
-  CanonicalObjectBackendEnvironment, CanonicalObjectBackendSelection,
+  CanonicalObjectBackendEnvironment,
+  CanonicalObjectBackendSelection,
 } from '../storage/canonical-backend.js';
-import {
-  objectBytesSha256,
-  stableObjectSha256,
-  stableObjectText,
-} from '../canonical-content.js';
+import { objectBytesSha256, stableObjectSha256, stableObjectText } from '../canonical-content.js';
 import { openObjectOntStore } from '../storage/ont-store.js';
 import {
   materializeSourceNativeObjectOnt,
@@ -45,9 +36,7 @@ import type {
 } from './object-map.js';
 import type { QuerySchema } from '../query/planner.js';
 import type { ObjectOntStore } from '../storage/ont-store.js';
-import type {
-  SourceNativeObjectOntIndex,
-} from './object-ont.js';
+import type { SourceNativeObjectOntIndex } from './object-ont.js';
 import type { ObjectBackend } from '../storage/backend.js';
 
 const ARTIFACT_FILE = 'source-native.json';
@@ -158,7 +147,8 @@ interface SourceNativeBuildFieldInput {
   codeUnitStart?: number;
   propositionFamilyKey?: string;
   businessEntityKeys?: string[];
-  canonicalProposition?: SourceNativeBuildCanonicalPropositionV1 | SourceNativeCanonicalPropositionV2;
+  canonicalProposition?:
+    SourceNativeBuildCanonicalPropositionV1 | SourceNativeCanonicalPropositionV2;
   validAt?: string;
   knownAt?: string;
   canonicalValue?: JsonValue;
@@ -217,7 +207,12 @@ interface NormalizedObject extends SourceNativeObjectInput {
 export interface ObjectOnt {
   map: SourceNativeObjectMap;
   catalog: { sourceCatalogSha256: string; sourceCount: number };
-  sources: Array<{ relativePath: string; occurredAt: string; content: string; sourceSha256: string }>;
+  sources: Array<{
+    relativePath: string;
+    occurredAt: string;
+    content: string;
+    sourceSha256: string;
+  }>;
   commitSha256: string;
   replaySha256: string;
 }
@@ -246,7 +241,7 @@ const fail = (code: string): never => {
   error.code = code;
   throw error;
 };
-const freeze = <T,>(value: T): T => {
+const freeze = <T>(value: T): T => {
   if (Buffer.isBuffer(value) || ArrayBuffer.isView(value)) return value;
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
@@ -257,20 +252,24 @@ const freeze = <T,>(value: T): T => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const isJsonValue = (value: unknown): value is import('./object-map.js').JsonValue =>
-  value === null || typeof value === 'string' || typeof value === 'boolean'
-  || typeof value === 'number' && Number.isFinite(value)
-  || Array.isArray(value) && value.every(isJsonValue)
-  || isRecord(value) && Object.values(value).every(isJsonValue);
+  value === null ||
+  typeof value === 'string' ||
+  typeof value === 'boolean' ||
+  (typeof value === 'number' && Number.isFinite(value)) ||
+  (Array.isArray(value) && value.every(isJsonValue)) ||
+  (isRecord(value) && Object.values(value).every(isJsonValue));
 const normalizeDiagnostics = (value: unknown): JsonObject[] => {
-  if (!Array.isArray(value) || value.some((row) => !isRecord(row)
-    || !Object.values(row).every(isJsonValue))) fail('SOURCE_NATIVE_PRODUCT_INPUT');
+  if (
+    !Array.isArray(value) ||
+    value.some((row) => !isRecord(row) || !Object.values(row).every(isJsonValue))
+  )
+    fail('SOURCE_NATIVE_PRODUCT_INPUT');
   return value as JsonObject[];
 };
 
 function exactDirectory(pathInput: unknown, { create = false }: { create?: boolean } = {}): string {
   if (typeof pathInput !== 'string' || !pathInput) fail('SOURCE_NATIVE_PRODUCT_ROOT');
-  const exactPath = typeof pathInput === 'string'
-    ? pathInput : fail('SOURCE_NATIVE_PRODUCT_ROOT');
+  const exactPath = typeof pathInput === 'string' ? pathInput : fail('SOURCE_NATIVE_PRODUCT_ROOT');
   const root = resolve(exactPath);
   if (dirname(root) === root) fail('SOURCE_NATIVE_PRODUCT_ROOT');
   if (!existsSync(root)) {
@@ -285,82 +284,106 @@ function exactDirectory(pathInput: unknown, { create = false }: { create?: boole
 function normalizeSources(input: unknown): NormalizedSource[] {
   if (!Array.isArray(input) || input.length < 1) fail('SOURCE_NATIVE_PRODUCT_SOURCES');
   const rows: unknown[] = Array.isArray(input) ? input : fail('SOURCE_NATIVE_PRODUCT_SOURCES');
-  return freeze(rows.map((value: unknown) => {
-    const source = isRecord(value) ? value : fail('SOURCE_NATIVE_PRODUCT_SOURCES');
-    if (typeof source.content !== 'string' || !source.content) fail('SOURCE_NATIVE_PRODUCT_SOURCES');
-    const content: string = typeof source.content === 'string' ? source.content
-      : fail('SOURCE_NATIVE_PRODUCT_SOURCES');
-    const sourceSha256 = objectBytesSha256(Buffer.from(content));
-    if (source.sourceSha256 !== undefined && source.sourceSha256 !== sourceSha256) {
-      fail('SOURCE_NATIVE_PRODUCT_SOURCES');
-    }
-    const relativePath = typeof source.relativePath === 'string' ? source.relativePath : '';
-    const sourceType = typeof source.sourceType === 'string' ? source.sourceType : '';
-    const occurredAt = typeof source.occurredAt === 'string' ? source.occurredAt : '';
-    if (!relativePath || !sourceType || !occurredAt) fail('SOURCE_NATIVE_PRODUCT_SOURCES');
-    return freeze({ ...source, sourceSha256,
-      relativePath,
-      content,
-      sourceType,
-      occurredAt,
-    });
-  }));
+  return freeze(
+    rows.map((value: unknown) => {
+      const source = isRecord(value) ? value : fail('SOURCE_NATIVE_PRODUCT_SOURCES');
+      if (typeof source.content !== 'string' || !source.content)
+        fail('SOURCE_NATIVE_PRODUCT_SOURCES');
+      const content: string =
+        typeof source.content === 'string' ? source.content : fail('SOURCE_NATIVE_PRODUCT_SOURCES');
+      const sourceSha256 = objectBytesSha256(Buffer.from(content));
+      if (source.sourceSha256 !== undefined && source.sourceSha256 !== sourceSha256) {
+        fail('SOURCE_NATIVE_PRODUCT_SOURCES');
+      }
+      const relativePath = typeof source.relativePath === 'string' ? source.relativePath : '';
+      const sourceType = typeof source.sourceType === 'string' ? source.sourceType : '';
+      const occurredAt = typeof source.occurredAt === 'string' ? source.occurredAt : '';
+      if (!relativePath || !sourceType || !occurredAt) fail('SOURCE_NATIVE_PRODUCT_SOURCES');
+      return freeze({ ...source, sourceSha256, relativePath, content, sourceType, occurredAt });
+    }),
+  );
 }
 
 function normalizeNativeObjects(input: unknown, sources: NormalizedSource[]): NormalizedObject[] {
   if (!Array.isArray(input) || input.length < 1) fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
   const rows: unknown[] = Array.isArray(input) ? input : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
   const sourceByPath = new Map(sources.map((source) => [source.relativePath, source]));
-  return freeze(rows.map((value: unknown) => {
-    const object = isRecord(value) ? value : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-    const source = sourceByPath.get(typeof object.relativePath === 'string' ? object.relativePath : '');
-    if (!source || !Array.isArray(object.fields) || object.fields.length < 1) {
-      fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-    }
-    const sourceRecord = source ?? fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-    const fields = (object.fields as unknown[]).map((fieldValue: unknown) => {
-      const field = isRecord(fieldValue) ? fieldValue : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-      if (typeof field.value !== 'string' || !field.value) fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-      const fieldText: string = typeof field.value === 'string'
-        ? field.value : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-      let codeUnitStart = typeof field.codeUnitStart === 'number' ? field.codeUnitStart : undefined;
-      if (codeUnitStart === undefined) {
-        codeUnitStart = sourceRecord.content.indexOf(fieldText);
-        if (codeUnitStart < 0 || sourceRecord.content.indexOf(fieldText, codeUnitStart + 1) >= 0) {
-          fail('SOURCE_NATIVE_PRODUCT_FIELD_AMBIGUOUS');
-        }
+  return freeze(
+    rows.map((value: unknown) => {
+      const object = isRecord(value) ? value : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+      const source = sourceByPath.get(
+        typeof object.relativePath === 'string' ? object.relativePath : '',
+      );
+      if (!source || !Array.isArray(object.fields) || object.fields.length < 1) {
+        fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
       }
-      const exactCodeUnitStart = codeUnitStart ?? fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-      return freeze({ ...field, value: fieldText, codeUnitStart: exactCodeUnitStart });
-    });
-    const relativePath = typeof object.relativePath === 'string' ? object.relativePath
-      : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
-    return freeze({ ...object, relativePath, fields: freeze(fields) });
-  }));
+      const sourceRecord = source ?? fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+      const fields = (object.fields as unknown[]).map((fieldValue: unknown) => {
+        const field = isRecord(fieldValue) ? fieldValue : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+        if (typeof field.value !== 'string' || !field.value) fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+        const fieldText: string =
+          typeof field.value === 'string' ? field.value : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+        let codeUnitStart =
+          typeof field.codeUnitStart === 'number' ? field.codeUnitStart : undefined;
+        if (codeUnitStart === undefined) {
+          codeUnitStart = sourceRecord.content.indexOf(fieldText);
+          if (
+            codeUnitStart < 0 ||
+            sourceRecord.content.indexOf(fieldText, codeUnitStart + 1) >= 0
+          ) {
+            fail('SOURCE_NATIVE_PRODUCT_FIELD_AMBIGUOUS');
+          }
+        }
+        const exactCodeUnitStart = codeUnitStart ?? fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+        return freeze({ ...field, value: fieldText, codeUnitStart: exactCodeUnitStart });
+      });
+      const relativePath =
+        typeof object.relativePath === 'string'
+          ? object.relativePath
+          : fail('SOURCE_NATIVE_PRODUCT_OBJECTS');
+      return freeze({ ...object, relativePath, fields: freeze(fields) });
+    }),
+  );
 }
 
 function validateBuildInput(input: unknown): ValidatedBuildInput {
   const buildInput = isRecord(input) ? input : fail('SOURCE_NATIVE_PRODUCT_INPUT');
-  const ontId = typeof buildInput.ontId === 'string' ? buildInput.ontId : fail('SOURCE_NATIVE_PRODUCT_INPUT');
-  const namespace = typeof buildInput.namespace === 'string' ? buildInput.namespace : fail('SOURCE_NATIVE_PRODUCT_INPUT');
-  if (buildInput.schemaVersion !== 1 || buildInput.kind !== 'OpenOntologySourceNativeBuildInputV1'
-    || !ontId || !namespace
-    || buildInput.branch !== undefined && (typeof buildInput.branch !== 'string' || !buildInput.branch)) {
+  const ontId =
+    typeof buildInput.ontId === 'string' ? buildInput.ontId : fail('SOURCE_NATIVE_PRODUCT_INPUT');
+  const namespace =
+    typeof buildInput.namespace === 'string'
+      ? buildInput.namespace
+      : fail('SOURCE_NATIVE_PRODUCT_INPUT');
+  if (
+    buildInput.schemaVersion !== 1 ||
+    buildInput.kind !== 'OpenOntologySourceNativeBuildInputV1' ||
+    !ontId ||
+    !namespace ||
+    (buildInput.branch !== undefined &&
+      (typeof buildInput.branch !== 'string' || !buildInput.branch))
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_INPUT');
   }
   let querySchemas: QuerySchema[] = [];
-  try { querySchemas = normalizeSourceNativeQuerySchemas(buildInput.querySchemas); } catch {
+  try {
+    querySchemas = normalizeSourceNativeQuerySchemas(buildInput.querySchemas);
+  } catch {
     fail('SOURCE_NATIVE_PRODUCT_SCHEMAS');
   }
   const sources = normalizeSources(buildInput.sources);
   const nativeObjectInputs = normalizeNativeObjects(buildInput.nativeObjectInputs, sources);
-  if (nativeObjectInputs.some((object) => !isRecord(object.objectIdentity)
-    || object.objectIdentity.namespace !== namespace)) {
+  if (
+    nativeObjectInputs.some(
+      (object) => !isRecord(object.objectIdentity) || object.objectIdentity.namespace !== namespace,
+    )
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_NAMESPACE');
   }
   const mappedPaths = new Set(nativeObjectInputs.map((object) => object.relativePath));
-  if (mappedPaths.size !== sources.length
-    || sources.some((source) => !mappedPaths.has(source.relativePath))) {
+  if (
+    mappedPaths.size !== sources.length ||
+    sources.some((source) => !mappedPaths.has(source.relativePath))
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_INCOMPLETE_ADAPTER_COVERAGE');
   }
   return freeze({
@@ -374,11 +397,23 @@ function validateBuildInput(input: unknown): ValidatedBuildInput {
   });
 }
 
-function descriptorCore(input: { ontId: string; branch: string; namespace: string; querySchemas: QuerySchema[] }, receipt: { commitSha256: string; replaySha256: string; sourceCatalogSha256: string; nativeObjectMapSha256: string }, objectBackend: string, historyBackend: string | null = null): UnknownRecord {
+function descriptorCore(
+  input: { ontId: string; branch: string; namespace: string; querySchemas: QuerySchema[] },
+  receipt: {
+    commitSha256: string;
+    replaySha256: string;
+    sourceCatalogSha256: string;
+    nativeObjectMapSha256: string;
+  },
+  objectBackend: string,
+  historyBackend: string | null = null,
+): UnknownRecord {
   return {
     schemaVersion: historyBackend === null ? 1 : 2,
-    kind: historyBackend === null ? 'OpenOntologySourceNativeProductArtifactV1'
-      : 'OpenOntologySourceNativeProductArtifactV2',
+    kind:
+      historyBackend === null
+        ? 'OpenOntologySourceNativeProductArtifactV1'
+        : 'OpenOntologySourceNativeProductArtifactV2',
     ontId: input.ontId,
     branch: input.branch,
     namespace: input.namespace,
@@ -398,18 +433,36 @@ function descriptorCore(input: { ontId: string; branch: string; namespace: strin
 function validBackendDescriptor(value: unknown): value is string {
   if (value === `./${OBJECTS_DIRECTORY}`) return true;
   if (typeof value !== 'string') return false;
-  try { return normalizeCanonicalObjectBackendUri(value) === value; } catch { return false; }
+  try {
+    return normalizeCanonicalObjectBackendUri(value) === value;
+  } catch {
+    return false;
+  }
 }
 
 function productBackendDescriptor(root: string, canonicalUri: string): string {
   return canonicalUri === pathToFileURL(join(root, OBJECTS_DIRECTORY)).href
-    ? `./${OBJECTS_DIRECTORY}` : canonicalUri;
+    ? `./${OBJECTS_DIRECTORY}`
+    : canonicalUri;
 }
 
-function selectProductBackend({ root, descriptorBackend = null, requestedUri = null, env = process.env }: { root: string; descriptorBackend?: string | null; requestedUri?: string | null; env?: CanonicalObjectBackendEnvironment }) {
+function selectProductBackend({
+  root,
+  descriptorBackend = null,
+  requestedUri = null,
+  env = process.env,
+}: {
+  root: string;
+  descriptorBackend?: string | null;
+  requestedUri?: string | null;
+  env?: CanonicalObjectBackendEnvironment;
+}) {
   const localUri = pathToFileURL(join(root, OBJECTS_DIRECTORY)).href;
-  const configuredUri = requestedUri ?? (descriptorBackend === `./${OBJECTS_DIRECTORY}`
-    || descriptorBackend === null ? localUri : descriptorBackend);
+  const configuredUri =
+    requestedUri ??
+    (descriptorBackend === `./${OBJECTS_DIRECTORY}` || descriptorBackend === null
+      ? localUri
+      : descriptorBackend);
   const selected = openCanonicalObjectBackend({ uri: configuredUri, env });
   const storedDescriptor = selected.uri === localUri ? `./${OBJECTS_DIRECTORY}` : selected.uri;
   if (descriptorBackend !== null && storedDescriptor !== descriptorBackend) {
@@ -425,20 +478,30 @@ function selectProductBackend({ root, descriptorBackend = null, requestedUri = n
 
 function validProductFormat(value: UnknownRecord, family: 'Artifact' | 'Resource'): boolean {
   if (value.schemaVersion === 1) {
-    return value.kind === `OpenOntologySourceNativeProduct${family}V1`
-      && !Object.hasOwn(value, 'historyBackend');
+    return (
+      value.kind === `OpenOntologySourceNativeProduct${family}V1` &&
+      !Object.hasOwn(value, 'historyBackend')
+    );
   }
-  if (value.schemaVersion !== 2
-    || value.kind !== `OpenOntologySourceNativeProduct${family}V2`
-    || typeof value.historyBackend !== 'string') return false;
+  if (
+    value.schemaVersion !== 2 ||
+    value.kind !== `OpenOntologySourceNativeProduct${family}V2` ||
+    typeof value.historyBackend !== 'string'
+  )
+    return false;
   try {
     return normalizeCanonicalObjectBackendUri(value.historyBackend) === value.historyBackend;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
-function selectHistoryBackend(descriptor: Descriptor | Resource | null,
-  requestedUri: string | null, env: CanonicalObjectBackendEnvironment,
-  objectBackendUri: string) {
+function selectHistoryBackend(
+  descriptor: Descriptor | Resource | null,
+  requestedUri: string | null,
+  env: CanonicalObjectBackendEnvironment,
+  objectBackendUri: string,
+) {
   const declaredUri = descriptor?.historyBackend ?? null;
   if (requestedUri !== null && descriptor !== null && requestedUri !== declaredUri) {
     fail('SOURCE_NATIVE_PRODUCT_HISTORY_BACKEND_CONFLICT');
@@ -453,15 +516,19 @@ function selectHistoryBackend(descriptor: Descriptor | Resource | null,
 function resourceCore(descriptor: Descriptor, objectBackend: string): UnknownRecord {
   return {
     schemaVersion: descriptor.schemaVersion,
-    kind: descriptor.schemaVersion === 1 ? 'OpenOntologySourceNativeProductResourceV1'
-      : 'OpenOntologySourceNativeProductResourceV2',
+    kind:
+      descriptor.schemaVersion === 1
+        ? 'OpenOntologySourceNativeProductResourceV1'
+        : 'OpenOntologySourceNativeProductResourceV2',
     ontId: descriptor.ontId,
     branch: descriptor.branch,
     sourceHistoryAnchorCommitSha256: descriptor.sourceCommitSha256,
     namespace: descriptor.namespace,
     querySchemas: descriptor.querySchemas,
     objectBackend,
-    ...(descriptor.historyBackend === undefined ? {} : { historyBackend: descriptor.historyBackend }),
+    ...(descriptor.historyBackend === undefined
+      ? {}
+      : { historyBackend: descriptor.historyBackend }),
     readOnly: true,
     canonicalTruthMutation: false,
     exactSourcesRemainAuthority: true,
@@ -486,24 +553,35 @@ function validateResource(value: unknown): Resource {
     'sourceHistoryAnchorCommitSha256',
     ...(record.schemaVersion === 2 ? ['historyBackend'] : []),
   ].sort();
-  if (Object.keys(record).sort().join('\0') !== expectedKeys.join('\0')
-    || !validProductFormat(record, 'Resource')
-    || typeof record.ontId !== 'string' || !record.ontId
-    || typeof record.branch !== 'string' || !record.branch
-    || !SHA256.test(typeof record.sourceHistoryAnchorCommitSha256 === 'string'
-      ? record.sourceHistoryAnchorCommitSha256 : '')
-    || typeof record.namespace !== 'string' || !record.namespace
-    || typeof record.objectBackend !== 'string'
-    || record.objectBackend === `./${OBJECTS_DIRECTORY}`
-    || !validBackendDescriptor(record.objectBackend)
-    || record.readOnly !== true || record.canonicalTruthMutation !== false
-    || record.exactSourcesRemainAuthority !== true
-    || !SHA256.test(typeof resourceSha256 === 'string' ? resourceSha256 : '')
-    || stableObjectSha256(core) !== resourceSha256) {
+  if (
+    Object.keys(record).sort().join('\0') !== expectedKeys.join('\0') ||
+    !validProductFormat(record, 'Resource') ||
+    typeof record.ontId !== 'string' ||
+    !record.ontId ||
+    typeof record.branch !== 'string' ||
+    !record.branch ||
+    !SHA256.test(
+      typeof record.sourceHistoryAnchorCommitSha256 === 'string'
+        ? record.sourceHistoryAnchorCommitSha256
+        : '',
+    ) ||
+    typeof record.namespace !== 'string' ||
+    !record.namespace ||
+    typeof record.objectBackend !== 'string' ||
+    record.objectBackend === `./${OBJECTS_DIRECTORY}` ||
+    !validBackendDescriptor(record.objectBackend) ||
+    record.readOnly !== true ||
+    record.canonicalTruthMutation !== false ||
+    record.exactSourcesRemainAuthority !== true ||
+    !SHA256.test(typeof resourceSha256 === 'string' ? resourceSha256 : '') ||
+    stableObjectSha256(core) !== resourceSha256
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE');
   }
   let querySchemas: QuerySchema[] = [];
-  try { querySchemas = normalizeSourceNativeQuerySchemas(record.querySchemas); } catch {
+  try {
+    querySchemas = normalizeSourceNativeQuerySchemas(record.querySchemas);
+  } catch {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE');
   }
   if (stableObjectText(querySchemas) !== stableObjectText(record.querySchemas as QuerySchema[])) {
@@ -520,8 +598,13 @@ function writeCreateOnce(path: string, bytes: Buffer, conflictCode: string): boo
   const existingMatches = (): boolean => {
     if (!existsSync(path)) return false;
     const status = lstatSync(path);
-    if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1
-      || !readFileSync(path).equals(bytes)) fail(conflictCode);
+    if (
+      !status.isFile() ||
+      status.isSymbolicLink() ||
+      status.nlink !== 1 ||
+      !readFileSync(path).equals(bytes)
+    )
+      fail(conflictCode);
     return true;
   };
   if (existingMatches()) return true;
@@ -550,7 +633,9 @@ function readResource(root: string): Resource {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE');
   }
   let value: unknown;
-  try { value = JSON.parse(readFileSync(path, 'utf8')); } catch {
+  try {
+    value = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE');
   }
   if (!isRecord(value)) fail('SOURCE_NATIVE_PRODUCT_RESOURCE');
@@ -566,61 +651,101 @@ function resourceShape(resource: Resource, anchorObjectOnt: { map: SourceNativeO
     fieldsByProfile.set(key, fields);
   };
   for (const schema of resource.querySchemas) {
-    for (const field of schema.fields) addField(schema.sourceSystem, schema.objectType, field.fieldPath);
+    for (const field of schema.fields)
+      addField(schema.sourceSystem, schema.objectType, field.fieldPath);
   }
   for (const object of anchorObjectOnt.map.nativeObjects) {
     for (const field of object.fields) {
-      addField(object.objectIdentity.sourceSystem, object.objectIdentity.objectType, field.fieldPath);
+      addField(
+        object.objectIdentity.sourceSystem,
+        object.objectIdentity.objectType,
+        field.fieldPath,
+      );
     }
   }
   return fieldsByProfile;
 }
 
-function assertResourceProfile(resource: Resource, objectOnt: { map: SourceNativeObjectMap },
-  anchorObjectOnt: { map: SourceNativeObjectMap } = objectOnt): void {
+function assertResourceProfile(
+  resource: Resource,
+  objectOnt: { map: SourceNativeObjectMap },
+  anchorObjectOnt: { map: SourceNativeObjectMap } = objectOnt,
+): void {
   const schemas = resourceShape(resource, anchorObjectOnt);
-  if (objectOnt.map.nativeObjects.some((object) => {
-    const { sourceSystem, objectType, namespace } = object.objectIdentity;
-    const fields = schemas.get(`${sourceSystem}\0${objectType}`);
-    return namespace !== resource.namespace || !fields
-      || object.fields.some((field) => !fields.has(field.fieldPath));
-  })) {
+  if (
+    objectOnt.map.nativeObjects.some((object) => {
+      const { sourceSystem, objectType, namespace } = object.objectIdentity;
+      const fields = schemas.get(`${sourceSystem}\0${objectType}`);
+      return (
+        namespace !== resource.namespace ||
+        !fields ||
+        object.fields.some((field) => !fields.has(field.fieldPath))
+      );
+    })
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_PROFILE');
   }
 }
 
 function validateDescriptor(value: UnknownRecord): Descriptor {
   if (value.schemaVersion === 2) {
-    const keys = ['schemaVersion', 'kind', 'ontId', 'branch', 'namespace', 'querySchemas',
-      'sourceCommitSha256', 'sourceReplaySha256', 'sourceCatalogSha256', 'nativeObjectMapSha256',
-      'objectBackend', 'historyBackend', 'readOnly', 'canonicalTruthMutation',
-      'exactSourcesRemainAuthority', 'artifactSha256'];
+    const keys = [
+      'schemaVersion',
+      'kind',
+      'ontId',
+      'branch',
+      'namespace',
+      'querySchemas',
+      'sourceCommitSha256',
+      'sourceReplaySha256',
+      'sourceCatalogSha256',
+      'nativeObjectMapSha256',
+      'objectBackend',
+      'historyBackend',
+      'readOnly',
+      'canonicalTruthMutation',
+      'exactSourcesRemainAuthority',
+      'artifactSha256',
+    ];
     if (Object.keys(value).sort().join('\0') !== keys.sort().join('\0')) {
       fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
     }
   }
   const { artifactSha256, ...core } = value ?? {};
-  const sourceCommitSha256 = typeof value.sourceCommitSha256 === 'string' ? value.sourceCommitSha256 : '';
-  const sourceReplaySha256 = typeof value.sourceReplaySha256 === 'string' ? value.sourceReplaySha256 : '';
-  const sourceCatalogSha256 = typeof value.sourceCatalogSha256 === 'string' ? value.sourceCatalogSha256 : '';
-  const nativeObjectMapSha256 = typeof value.nativeObjectMapSha256 === 'string' ? value.nativeObjectMapSha256 : '';
+  const sourceCommitSha256 =
+    typeof value.sourceCommitSha256 === 'string' ? value.sourceCommitSha256 : '';
+  const sourceReplaySha256 =
+    typeof value.sourceReplaySha256 === 'string' ? value.sourceReplaySha256 : '';
+  const sourceCatalogSha256 =
+    typeof value.sourceCatalogSha256 === 'string' ? value.sourceCatalogSha256 : '';
+  const nativeObjectMapSha256 =
+    typeof value.nativeObjectMapSha256 === 'string' ? value.nativeObjectMapSha256 : '';
   const artifactHash = typeof artifactSha256 === 'string' ? artifactSha256 : '';
-  if (!validProductFormat(value, 'Artifact')
-    || typeof value.ontId !== 'string' || !value.ontId
-    || typeof value.branch !== 'string' || !value.branch
-    || typeof value.namespace !== 'string' || !value.namespace
-    || !SHA256.test(sourceCommitSha256)
-    || !SHA256.test(sourceReplaySha256)
-    || !SHA256.test(sourceCatalogSha256)
-    || !SHA256.test(nativeObjectMapSha256)
-    || !validBackendDescriptor(value.objectBackend)
-    || value.readOnly !== true || value.canonicalTruthMutation !== false
-    || value.exactSourcesRemainAuthority !== true
-    || !SHA256.test(artifactHash) || stableObjectSha256(core) !== artifactHash) {
+  if (
+    !validProductFormat(value, 'Artifact') ||
+    typeof value.ontId !== 'string' ||
+    !value.ontId ||
+    typeof value.branch !== 'string' ||
+    !value.branch ||
+    typeof value.namespace !== 'string' ||
+    !value.namespace ||
+    !SHA256.test(sourceCommitSha256) ||
+    !SHA256.test(sourceReplaySha256) ||
+    !SHA256.test(sourceCatalogSha256) ||
+    !SHA256.test(nativeObjectMapSha256) ||
+    !validBackendDescriptor(value.objectBackend) ||
+    value.readOnly !== true ||
+    value.canonicalTruthMutation !== false ||
+    value.exactSourcesRemainAuthority !== true ||
+    !SHA256.test(artifactHash) ||
+    stableObjectSha256(core) !== artifactHash
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
   if (!Array.isArray(value.querySchemas)) fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
-  try { normalizeSourceNativeQuerySchemas(value.querySchemas); } catch {
+  try {
+    normalizeSourceNativeQuerySchemas(value.querySchemas);
+  } catch {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
   return freeze(value as Descriptor);
@@ -642,12 +767,18 @@ function readDescriptor(root: string): Descriptor {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
   let value;
-  try { value = JSON.parse(readFileSync(path, 'utf8')); } catch { fail('SOURCE_NATIVE_PRODUCT_ARTIFACT'); }
+  try {
+    value = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
+  }
   return validateDescriptor(value);
 }
 
 /** Read and validate one immutable source-cut artifact descriptor. */
-export function readSourceNativeProductArtifactDescriptor({ artifactRoot }: { artifactRoot?: string } = {}): Descriptor {
+export function readSourceNativeProductArtifactDescriptor({
+  artifactRoot,
+}: { artifactRoot?: string } = {}): Descriptor {
   return readDescriptor(exactDirectory(artifactRoot));
 }
 
@@ -682,9 +813,11 @@ export function createSourceNativeProductResource({
     ontId: descriptor.ontId,
     commitSha256: descriptor.sourceCommitSha256,
   });
-  if (objectOnt.replaySha256 !== descriptor.sourceReplaySha256
-    || objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256
-    || objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256) {
+  if (
+    objectOnt.replaySha256 !== descriptor.sourceReplaySha256 ||
+    objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256 ||
+    objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
   const core = resourceCore(descriptor, selectedBackend.uri);
@@ -710,9 +843,10 @@ export function bindSourceNativeProductResource({
   expectedSourceCommitSha256 = null,
   objectBackendEnv = process.env,
 }: ResourceBindOptions = {}): SourceNativeProductResourceBindingReceipt {
-  if (expectedSourceCommitSha256 !== null
-    && (typeof expectedSourceCommitSha256 !== 'string'
-      || !SHA256.test(expectedSourceCommitSha256))) {
+  if (
+    expectedSourceCommitSha256 !== null &&
+    (typeof expectedSourceCommitSha256 !== 'string' || !SHA256.test(expectedSourceCommitSha256))
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_BIND');
   }
   const sourceRoot = exactDirectory(resourceRoot);
@@ -722,7 +856,12 @@ export function bindSourceNativeProductResource({
     uri: resource.objectBackend,
     env: objectBackendEnv,
   });
-  const selectedHistory = selectHistoryBackend(resource, null, objectBackendEnv, selectedBackend.uri);
+  const selectedHistory = selectHistoryBackend(
+    resource,
+    null,
+    objectBackendEnv,
+    selectedBackend.uri,
+  );
   const branchCut = openSourceNativeObjectOntRefIndex({
     backend: selectedBackend.backend,
     historyBackend: selectedHistory?.backend,
@@ -733,8 +872,10 @@ export function bindSourceNativeProductResource({
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
   const selectedCut = branchCut ?? fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
-  if (expectedSourceCommitSha256 !== null
-    && selectedCut.ref.commitSha256 !== expectedSourceCommitSha256) {
+  if (
+    expectedSourceCommitSha256 !== null &&
+    selectedCut.ref.commitSha256 !== expectedSourceCommitSha256
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
   if (!selectedCut.commitOrder.includes(resource.sourceHistoryAnchorCommitSha256)) {
@@ -744,20 +885,26 @@ export function bindSourceNativeProductResource({
   if (objectOnt.replaySha256 !== selectedCut.ref.replaySha256) {
     fail('SOURCE_NATIVE_PRODUCT_RESOURCE_REF');
   }
-  const anchorObjectOnt = selectedCut.ref.commitSha256 === resource.sourceHistoryAnchorCommitSha256
-    ? objectOnt
-    : openSourceNativeObjectOntIndex({
-      backend: selectedBackend.backend,
-      ontId: resource.ontId,
-      commitSha256: resource.sourceHistoryAnchorCommitSha256,
-    });
+  const anchorObjectOnt =
+    selectedCut.ref.commitSha256 === resource.sourceHistoryAnchorCommitSha256
+      ? objectOnt
+      : openSourceNativeObjectOntIndex({
+          backend: selectedBackend.backend,
+          ontId: resource.ontId,
+          commitSha256: resource.sourceHistoryAnchorCommitSha256,
+        });
   assertResourceProfile(resource, objectOnt, anchorObjectOnt);
-  const core = descriptorCore(resource, {
-    commitSha256: objectOnt.commitSha256,
-    replaySha256: objectOnt.replaySha256,
-    sourceCatalogSha256: objectOnt.catalog.sourceCatalogSha256,
-    nativeObjectMapSha256: objectOnt.map.nativeObjectMapSha256,
-  }, productBackendDescriptor(targetRoot, selectedBackend.uri), selectedHistory?.uri ?? null);
+  const core = descriptorCore(
+    resource,
+    {
+      commitSha256: objectOnt.commitSha256,
+      replaySha256: objectOnt.replaySha256,
+      sourceCatalogSha256: objectOnt.catalog.sourceCatalogSha256,
+      nativeObjectMapSha256: objectOnt.map.nativeObjectMapSha256,
+    },
+    productBackendDescriptor(targetRoot, selectedBackend.uri),
+    selectedHistory?.uri ?? null,
+  );
   const descriptor = validateDescriptor({ ...core, artifactSha256: stableObjectSha256(core) });
   const replayed = writeDescriptor(targetRoot, descriptor);
   return freeze({
@@ -781,8 +928,12 @@ export function bindSourceNativeProductResource({
   });
 }
 
-function openProductArtifactStorage({ artifactRoot, objectBackendUri = null, historyBackendUri = null,
-  objectBackendEnv = process.env }: ProductOptions = {}) {
+function openProductArtifactStorage({
+  artifactRoot,
+  objectBackendUri = null,
+  historyBackendUri = null,
+  objectBackendEnv = process.env,
+}: ProductOptions = {}) {
   const root = exactDirectory(artifactRoot);
   const descriptor = readDescriptor(root);
   const selectedBackend = selectProductBackend({
@@ -792,7 +943,12 @@ function openProductArtifactStorage({ artifactRoot, objectBackendUri = null, his
     env: objectBackendEnv,
   });
   const { backend } = selectedBackend;
-  const selectedHistory = selectHistoryBackend(descriptor, historyBackendUri, objectBackendEnv, selectedBackend.uri);
+  const selectedHistory = selectHistoryBackend(
+    descriptor,
+    historyBackendUri,
+    objectBackendEnv,
+    selectedBackend.uri,
+  );
   const store = openObjectOntStore({ backend, historyBackend: selectedHistory?.backend });
   return { descriptor, selectedBackend, backend, selectedHistory, store };
 }
@@ -802,14 +958,15 @@ function openProductArtifactState(options: ProductOptions = {}, requireCurrentRe
     openProductArtifactStorage(options);
   let selectedCut: ReturnType<typeof openSourceNativeObjectOntAtCut>;
   if (requireCurrentRef) {
-    selectedCut = openSourceNativeObjectOntRefAtCut({
-      backend,
-      historyBackend: selectedHistory?.backend,
-      ontId: descriptor.ontId,
-      branch: descriptor.branch,
-      expectedCommitSha256: descriptor.sourceCommitSha256,
-      expectedReplaySha256: descriptor.sourceReplaySha256,
-    }) ?? fail('SOURCE_NATIVE_PRODUCT_REF');
+    selectedCut =
+      openSourceNativeObjectOntRefAtCut({
+        backend,
+        historyBackend: selectedHistory?.backend,
+        ontId: descriptor.ontId,
+        branch: descriptor.branch,
+        expectedCommitSha256: descriptor.sourceCommitSha256,
+        expectedReplaySha256: descriptor.sourceReplaySha256,
+      }) ?? fail('SOURCE_NATIVE_PRODUCT_REF');
   } else {
     try {
       selectedCut = openSourceNativeObjectOntAtCut({
@@ -825,11 +982,17 @@ function openProductArtifactState(options: ProductOptions = {}, requireCurrentRe
       throw error;
     }
   }
-  const { objectOnt, replayMetadataSource, replayIndexCheckpointSha256,
-    replayIndexCheckpointByteLength } = selectedCut;
-  if (objectOnt.replaySha256 !== descriptor.sourceReplaySha256
-    || objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256
-    || objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256) {
+  const {
+    objectOnt,
+    replayMetadataSource,
+    replayIndexCheckpointSha256,
+    replayIndexCheckpointByteLength,
+  } = selectedCut;
+  if (
+    objectOnt.replaySha256 !== descriptor.sourceReplaySha256 ||
+    objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256 ||
+    objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
   return {
@@ -845,8 +1008,11 @@ function openProductArtifactState(options: ProductOptions = {}, requireCurrentRe
 }
 
 /** Open one protected current source context without hydrating unrelated source packs. */
-export function openProductSourceContext(options: ProductOptions = {}): SourceNativeProductSourceContext {
-  const { descriptor, selectedBackend, backend, selectedHistory, store } = openProductArtifactStorage(options);
+export function openProductSourceContext(
+  options: ProductOptions = {},
+): SourceNativeProductSourceContext {
+  const { descriptor, selectedBackend, backend, selectedHistory, store } =
+    openProductArtifactStorage(options);
   const selectedCut = openSourceNativeObjectOntRefIndex({
     backend,
     historyBackend: selectedHistory?.backend,
@@ -854,14 +1020,18 @@ export function openProductSourceContext(options: ProductOptions = {}): SourceNa
     branch: descriptor.branch,
   });
   const cut = selectedCut ?? fail('SOURCE_NATIVE_PRODUCT_REF');
-  if (cut.ref.commitSha256 !== descriptor.sourceCommitSha256
-    || cut.ref.replaySha256 !== descriptor.sourceReplaySha256) {
+  if (
+    cut.ref.commitSha256 !== descriptor.sourceCommitSha256 ||
+    cut.ref.replaySha256 !== descriptor.sourceReplaySha256
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_REF');
   }
   const { objectOnt } = cut;
-  if (objectOnt.replaySha256 !== descriptor.sourceReplaySha256
-    || objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256
-    || objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256) {
+  if (
+    objectOnt.replaySha256 !== descriptor.sourceReplaySha256 ||
+    objectOnt.map.nativeObjectMapSha256 !== descriptor.nativeObjectMapSha256 ||
+    objectOnt.catalog.sourceCatalogSha256 !== descriptor.sourceCatalogSha256
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
   }
   const readSelectedSource = createSourceNativeObjectOntSourceReader({ store, index: objectOnt });
@@ -877,7 +1047,11 @@ export function openProductSourceContext(options: ProductOptions = {}): SourceNa
   };
   return freeze({
     kind: 'OpenOntologySourceNativeProductSourceContextV1' as const,
-    descriptor, selectedBackend, backend, store, objectOnt,
+    descriptor,
+    selectedBackend,
+    backend,
+    store,
+    objectOnt,
     replayMetadataSource: cut.replayMetadataSource,
     replayIndexCheckpointSha256: cut.replayIndexCheckpointSha256,
     replayIndexCheckpointByteLength: cut.replayIndexCheckpointByteLength,
@@ -895,25 +1069,36 @@ export function openExactProductArtifactState(options: ProductOptions = {}) {
 }
 
 export function productSources(objectOnt: ObjectOnt): ProductSource[] {
-  return freeze(objectOnt.sources.map((source, index: number) => freeze({
-    sourceMessageId: index + 1,
-    ordinal: index + 1,
-    relativePath: source.relativePath,
-    occurredAt: source.occurredAt,
-    content: source.content,
-    contentSha256: source.sourceSha256,
-  })));
+  return freeze(
+    objectOnt.sources.map((source, index: number) =>
+      freeze({
+        sourceMessageId: index + 1,
+        ordinal: index + 1,
+        relativePath: source.relativePath,
+        occurredAt: source.occurredAt,
+        content: source.content,
+        contentSha256: source.sourceSha256,
+      }),
+    ),
+  );
 }
 
-export function buildSourceNativeProduct({ artifactRoot, input, objectBackendUri = null,
+export function buildSourceNativeProduct({
+  artifactRoot,
+  input,
+  objectBackendUri = null,
   historyBackendUri = null,
   expectedSourceVersion,
-  objectBackendEnv = process.env }: ProductOptions & {
-    input?: unknown;
-    expectedSourceVersion?: string | null;
-  } = {}) {
-  if (expectedSourceVersion !== undefined && expectedSourceVersion !== null
-    && (typeof expectedSourceVersion !== 'string' || !expectedSourceVersion)) {
+  objectBackendEnv = process.env,
+}: ProductOptions & {
+  input?: unknown;
+  expectedSourceVersion?: string | null;
+} = {}) {
+  if (
+    expectedSourceVersion !== undefined &&
+    expectedSourceVersion !== null &&
+    (typeof expectedSourceVersion !== 'string' || !expectedSourceVersion)
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_SOURCE_VERSION');
   }
   const root = exactDirectory(artifactRoot, { create: true });
@@ -925,12 +1110,15 @@ export function buildSourceNativeProduct({ artifactRoot, input, objectBackendUri
   });
   const descriptorPath = join(root, ARTIFACT_FILE);
   const existingDescriptor = existsSync(descriptorPath) ? readDescriptor(root) : null;
-  if (existingDescriptor !== null
-    && (existingDescriptor.ontId !== normalized.ontId
-      || existingDescriptor.branch !== normalized.branch
-      || existingDescriptor.namespace !== normalized.namespace
-      || stableObjectText(existingDescriptor.querySchemas) !== stableObjectText(normalized.querySchemas)
-      || existingDescriptor.nativeObjectMapSha256 !== expectedMap.nativeObjectMapSha256)) {
+  if (
+    existingDescriptor !== null &&
+    (existingDescriptor.ontId !== normalized.ontId ||
+      existingDescriptor.branch !== normalized.branch ||
+      existingDescriptor.namespace !== normalized.namespace ||
+      stableObjectText(existingDescriptor.querySchemas) !==
+        stableObjectText(normalized.querySchemas) ||
+      existingDescriptor.nativeObjectMapSha256 !== expectedMap.nativeObjectMapSha256)
+  ) {
     fail('SOURCE_NATIVE_PRODUCT_ARTIFACT_CONFLICT');
   }
   const selectedBackend = selectProductBackend({
@@ -940,13 +1128,19 @@ export function buildSourceNativeProduct({ artifactRoot, input, objectBackendUri
     env: objectBackendEnv,
   });
   const { backend } = selectedBackend;
-  const selectedHistory = selectHistoryBackend(existingDescriptor, historyBackendUri, objectBackendEnv, selectedBackend.uri);
-  const expectedVersion = expectedSourceVersion === undefined
-    ? openObjectOntStore({ backend, historyBackend: selectedHistory?.backend }).readRefMetadata({
-      ontId: normalized.ontId,
-      branch: normalized.branch,
-    })?.version ?? null
-    : expectedSourceVersion;
+  const selectedHistory = selectHistoryBackend(
+    existingDescriptor,
+    historyBackendUri,
+    objectBackendEnv,
+    selectedBackend.uri,
+  );
+  const expectedVersion =
+    expectedSourceVersion === undefined
+      ? (openObjectOntStore({ backend, historyBackend: selectedHistory?.backend }).readRefMetadata({
+          ontId: normalized.ontId,
+          branch: normalized.branch,
+        })?.version ?? null)
+      : expectedSourceVersion;
   const built = materializeSourceNativeObjectOnt({
     backend,
     historyBackend: selectedHistory?.backend,
@@ -957,7 +1151,12 @@ export function buildSourceNativeProduct({ artifactRoot, input, objectBackendUri
     nativeObjectInputs: normalized.nativeObjectInputs,
     adapterDiagnostics: normalized.adapterDiagnostics,
   });
-  const core = descriptorCore(normalized, built.receipt, selectedBackend.descriptor, selectedHistory?.uri ?? null);
+  const core = descriptorCore(
+    normalized,
+    built.receipt,
+    selectedBackend.descriptor,
+    selectedHistory?.uri ?? null,
+  );
   const descriptor = validateDescriptor({ ...core, artifactSha256: stableObjectSha256(core) });
   writeDescriptor(root, descriptor);
   return freeze({

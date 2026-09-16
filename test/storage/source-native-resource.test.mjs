@@ -1,23 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import { openCanonicalObjectBackend } from '../../dist/storage/canonical-backend.js';
-import {
-  stableObjectSha256,
-  stableObjectText,
-} from '../../dist/canonical-content.js';
+import { stableObjectSha256, stableObjectText } from '../../dist/canonical-content.js';
 import { openObjectOntStore } from '../../dist/storage/ont-store.js';
 import {
   bindSourceNativeProductResource,
@@ -25,10 +16,7 @@ import {
   openExactProductArtifactState,
   validateSourceNativeProductResource,
 } from '../../dist/source/artifact.js';
-import {
-  buildSourceNativeProduct,
-  openSourceNativeProduct,
-} from '../../dist/product/runtime.js';
+import { buildSourceNativeProduct, openSourceNativeProduct } from '../../dist/product/runtime.js';
 import {
   openSourceNativeObjectOntIndex,
   openSourceNativeObjectOntRefIndex,
@@ -45,12 +33,14 @@ function input(values = ['Alpha', 'Beta']) {
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'stable-resource-fixture',
     namespace: 'acme',
-    querySchemas: [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: [{ fieldPath: 'title', aliases: ['title'] }],
-    }],
+    querySchemas: [
+      {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: [{ fieldPath: 'title', aliases: ['title'] }],
+      },
+    ],
     sources: rows.map((row) => ({
       relativePath: row.relativePath,
       sourceType: 'clickup',
@@ -81,9 +71,10 @@ function anchoredInput({
   queryFields = ['status'],
   occurredAt = '2026-01-01T00:00:00.000Z',
 } = {}) {
-  const content = `title:Alpha;status:${status};source:${witnessText}`
-    + (includeFuture ? ';future:future-value' : '')
-    + (includeUnanchored ? ';unanchored:unanchored-value' : '');
+  const content =
+    `title:Alpha;status:${status};source:${witnessText}` +
+    (includeFuture ? ';future:future-value' : '') +
+    (includeUnanchored ? ';unanchored:unanchored-value' : '');
   const fields = [
     { fieldPath: 'title', value: 'title:Alpha' },
     { fieldPath: 'status', value: `status:${status}` },
@@ -91,45 +82,52 @@ function anchoredInput({
   if (includeWitness) fields.push({ fieldPath: 'sourceText', value: content });
   if (includeFuture) fields.push({ fieldPath: 'futureField', value: 'future-value' });
   if (includeUnanchored) fields.push({ fieldPath: 'unanchoredField', value: 'unanchored-value' });
-  const nativeObjectInputs = [{
-    relativePath: 'clickup/acme/task-1.md',
-    objectIdentity: {
-      home: 'ObjectDef/InstanceRef',
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      namespace: 'acme',
-      externalId: 'task-1',
+  const nativeObjectInputs = [
+    {
+      relativePath: 'clickup/acme/task-1.md',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        namespace: 'acme',
+        externalId: 'task-1',
+      },
+      fields,
     },
-    fields,
-  }];
-  if (includeDocumentObject) nativeObjectInputs.push({
-    relativePath: 'clickup/acme/task-1.md',
-    objectIdentity: {
-      home: 'ObjectDef/InstanceRef',
-      sourceSystem: 'clickup',
-      objectType: 'source-document',
-      namespace: 'acme',
-      externalId: 'doc-1',
-    },
-    fields: [{ fieldPath: 'sourceText', value: content }],
-  });
+  ];
+  if (includeDocumentObject)
+    nativeObjectInputs.push({
+      relativePath: 'clickup/acme/task-1.md',
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'clickup',
+        objectType: 'source-document',
+        namespace: 'acme',
+        externalId: 'doc-1',
+      },
+      fields: [{ fieldPath: 'sourceText', value: content }],
+    });
   return {
     schemaVersion: 1,
     kind: 'OpenOntologySourceNativeBuildInputV1',
     ontId: 'anchored-resource-fixture',
     namespace: 'acme',
-    querySchemas: [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: queryFields.map((fieldPath) => ({ fieldPath, aliases: [fieldPath] })),
-    }],
-    sources: [{
-      relativePath: 'clickup/acme/task-1.md',
-      sourceType: 'clickup',
-      occurredAt,
-      content,
-    }],
+    querySchemas: [
+      {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        aliases: ['task'],
+        fields: queryFields.map((fieldPath) => ({ fieldPath, aliases: [fieldPath] })),
+      },
+    ],
+    sources: [
+      {
+        relativePath: 'clickup/acme/task-1.md',
+        sourceType: 'clickup',
+        occurredAt,
+        content,
+      },
+    ],
     nativeObjectInputs,
   };
 }
@@ -186,10 +184,13 @@ function rewriteResource(resourceRoot, mutate) {
   const value = JSON.parse(readFileSync(path, 'utf8'));
   mutate(value);
   const { resourceSha256: _resourceSha256, ...core } = value;
-  writeFileSync(path, `${stableObjectText({
-    ...core,
-    resourceSha256: stableObjectSha256(core),
-  })}\n`);
+  writeFileSync(
+    path,
+    `${stableObjectText({
+      ...core,
+      resourceSha256: stableObjectSha256(core),
+    })}\n`,
+  );
 }
 
 function removeBlobObject(backendUri, descriptor) {
@@ -213,40 +214,46 @@ test('keeps query schemas narrow while allowing anchored witness fields', async 
     const resourceRoot = join(root, 'resource');
     const content = 'Alpha open source-text task-1';
     const builtInput = input();
-    builtInput.sources = [{
-      relativePath: 'clickup/acme/rev-1.md',
-      sourceType: 'clickup',
-      occurredAt: '2026-01-01T00:00:00.000Z',
-      content,
-    }];
-    builtInput.nativeObjectInputs = [{
-      relativePath: 'clickup/acme/rev-1.md',
-      objectIdentity: {
-        home: 'ObjectDef/InstanceRef',
+    builtInput.sources = [
+      {
+        relativePath: 'clickup/acme/rev-1.md',
+        sourceType: 'clickup',
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        content,
+      },
+    ];
+    builtInput.nativeObjectInputs = [
+      {
+        relativePath: 'clickup/acme/rev-1.md',
+        objectIdentity: {
+          home: 'ObjectDef/InstanceRef',
+          sourceSystem: 'clickup',
+          objectType: 'task',
+          namespace: 'acme',
+          externalId: 'task-1',
+        },
+        fields: [
+          { fieldPath: 'title', value: 'Alpha' },
+          { fieldPath: 'status', value: 'open' },
+          { fieldPath: 'sourceText', value: content },
+        ],
+      },
+    ];
+    builtInput.querySchemas = [
+      {
         sourceSystem: 'clickup',
         objectType: 'task',
-        namespace: 'acme',
-        externalId: 'task-1',
+        aliases: ['task'],
+        fields: [{ fieldPath: 'status', aliases: ['status'] }],
       },
-      fields: [
-        { fieldPath: 'title', value: 'Alpha' },
-        { fieldPath: 'status', value: 'open' },
-        { fieldPath: 'sourceText', value: content },
-      ],
-    }];
-    builtInput.querySchemas = [{
-      sourceSystem: 'clickup',
-      objectType: 'task',
-      aliases: ['task'],
-      fields: [{ fieldPath: 'status', aliases: ['status'] }],
-    }];
+    ];
     buildSourceNativeProduct({ artifactRoot, input: builtInput });
     assert.equal(await verifiedFieldValue(artifactRoot, 'status'), 'open');
     const resource = createSourceNativeProductResource({ artifactRoot, resourceRoot });
     assert.equal(resource.replayed, false);
-    const resourceValue = JSON.parse(readFileSync(
-      join(resourceRoot, 'source-native-resource.json'), 'utf8',
-    ));
+    const resourceValue = JSON.parse(
+      readFileSync(join(resourceRoot, 'source-native-resource.json'), 'utf8'),
+    );
     assert.deepEqual(resourceValue.querySchemas, builtInput.querySchemas);
     assert.equal(JSON.stringify(resourceValue.querySchemas).includes('sourceText'), false);
   } finally {
@@ -265,13 +272,16 @@ test('keeps anchored witness shape fixed across changed, removed, and reintroduc
       input: anchoredInput(),
     });
     createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
-    assert.equal((await unavailableField(initialRoot, 'sourceText')).state,
-      'unavailable-native-field-not-declared');
+    assert.equal(
+      (await unavailableField(initialRoot, 'sourceText')).state,
+      'unavailable-native-field-not-declared',
+    );
 
     const changed = buildSourceNativeProduct({
       artifactRoot: join(root, 'changed'),
       input: anchoredInput({
-        status: 'closed', witnessText: 'source document two',
+        status: 'closed',
+        witnessText: 'source document two',
         occurredAt: '2026-02-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -279,13 +289,16 @@ test('keeps anchored witness shape fixed across changed, removed, and reintroduc
     const changedBound = join(root, 'changed-bound');
     bindSourceNativeProductResource({ resourceRoot, artifactRoot: changedBound });
     assert.equal(await verifiedFieldValue(changedBound, 'status'), 'status:closed');
-    assert.equal((await unavailableField(changedBound, 'sourceText')).state,
-      'unavailable-native-field-not-declared');
+    assert.equal(
+      (await unavailableField(changedBound, 'sourceText')).state,
+      'unavailable-native-field-not-declared',
+    );
 
     const removed = buildSourceNativeProduct({
       artifactRoot: join(root, 'removed'),
       input: anchoredInput({
-        status: 'triaged', includeWitness: false,
+        status: 'triaged',
+        includeWitness: false,
         occurredAt: '2026-03-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -298,7 +311,8 @@ test('keeps anchored witness shape fixed across changed, removed, and reintroduc
     const reintroduced = buildSourceNativeProduct({
       artifactRoot: join(root, 'reintroduced'),
       input: anchoredInput({
-        status: 'done', witnessText: 'source document three',
+        status: 'done',
+        witnessText: 'source document three',
         occurredAt: '2026-04-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -307,8 +321,10 @@ test('keeps anchored witness shape fixed across changed, removed, and reintroduc
     const reintroducedBound = join(root, 'reintroduced-bound');
     bindSourceNativeProductResource({ resourceRoot, artifactRoot: reintroducedBound });
     assert.equal(await verifiedFieldValue(reintroducedBound, 'status'), 'status:done');
-    assert.equal((await unavailableField(reintroducedBound, 'sourceText')).state,
-      'unavailable-native-field-not-declared');
+    assert.equal(
+      (await unavailableField(reintroducedBound, 'sourceText')).state,
+      'unavailable-native-field-not-declared',
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -321,7 +337,12 @@ test('keeps an evidence-only source-document object outside the query surface', 
     const resourceRoot = join(root, 'resource');
     const backendUri = pathToFileURL(join(initialRoot, 'objects')).href;
     const assertUnavailable = async (artifactRoot) => {
-      const result = await unavailableTypedField(artifactRoot, 'source-document', 'sourceText', 'doc-1');
+      const result = await unavailableTypedField(
+        artifactRoot,
+        'source-document',
+        'sourceText',
+        'doc-1',
+      );
       assert.match(result.state, /^unavailable-/u);
       assert.deepEqual(result.matches, []);
     };
@@ -336,8 +357,10 @@ test('keeps an evidence-only source-document object outside the query surface', 
     buildSourceNativeProduct({
       artifactRoot: changed,
       input: anchoredInput({
-        status: 'closed', witnessText: 'source document two',
-        includeWitness: false, includeDocumentObject: true,
+        status: 'closed',
+        witnessText: 'source document two',
+        includeWitness: false,
+        includeDocumentObject: true,
         occurredAt: '2026-02-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -350,7 +373,9 @@ test('keeps an evidence-only source-document object outside the query surface', 
     buildSourceNativeProduct({
       artifactRoot: removed,
       input: anchoredInput({
-        status: 'triaged', includeWitness: false, includeDocumentObject: false,
+        status: 'triaged',
+        includeWitness: false,
+        includeDocumentObject: false,
         occurredAt: '2026-03-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -363,8 +388,10 @@ test('keeps an evidence-only source-document object outside the query surface', 
     buildSourceNativeProduct({
       artifactRoot: reintroduced,
       input: anchoredInput({
-        status: 'done', witnessText: 'source document three',
-        includeWitness: false, includeDocumentObject: true,
+        status: 'done',
+        witnessText: 'source document three',
+        includeWitness: false,
+        includeDocumentObject: true,
         occurredAt: '2026-04-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -391,7 +418,8 @@ test('permits declared future fields but not an unanchored intermediate shape', 
     const declared = buildSourceNativeProduct({
       artifactRoot: join(root, 'declared'),
       input: anchoredInput({
-        queryFields: ['status', 'futureField'], includeFuture: true,
+        queryFields: ['status', 'futureField'],
+        includeFuture: true,
         occurredAt: '2026-02-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
@@ -404,16 +432,21 @@ test('permits declared future fields but not an unanchored intermediate shape', 
     const intermediate = buildSourceNativeProduct({
       artifactRoot: join(root, 'intermediate'),
       input: anchoredInput({
-        includeFuture: false, includeUnanchored: true,
+        includeFuture: false,
+        includeUnanchored: true,
         occurredAt: '2026-03-01T00:00:00.000Z',
       }),
       objectBackendUri: backendUri,
     });
     const intermediateTarget = join(root, 'intermediate-bound');
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: intermediateTarget,
-    }), { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_PROFILE' });
+    assert.throws(
+      () =>
+        bindSourceNativeProductResource({
+          resourceRoot,
+          artifactRoot: intermediateTarget,
+        }),
+      { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_PROFILE' },
+    );
     assert.equal(existsSync(join(intermediateTarget, 'source-native.json')), false);
     assert.notEqual(intermediate.receipt.commitSha256, declared.receipt.commitSha256);
 
@@ -449,9 +482,9 @@ test('binds protected V2 resources and refuses missing protected history', () =>
       historyBackendUri,
     });
     createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
-    const resourceValue = JSON.parse(readFileSync(
-      join(resourceRoot, 'source-native-resource.json'), 'utf8',
-    ));
+    const resourceValue = JSON.parse(
+      readFileSync(join(resourceRoot, 'source-native-resource.json'), 'utf8'),
+    );
     assert.equal(resourceValue.schemaVersion, 2);
     assert.equal(resourceValue.historyBackend, historyBackendUri);
     buildSourceNativeProduct({
@@ -466,10 +499,14 @@ test('binds protected V2 resources and refuses missing protected history', () =>
     });
     rmSync(historyRoot, { recursive: true, force: true });
     const missingHistoryTarget = join(root, 'missing-history');
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: missingHistoryTarget,
-    }), { code: 'OBJECT_ONT_HISTORY_MISSING' });
+    assert.throws(
+      () =>
+        bindSourceNativeProductResource({
+          resourceRoot,
+          artifactRoot: missingHistoryTarget,
+        }),
+      { code: 'OBJECT_ONT_HISTORY_MISSING' },
+    );
     assert.equal(existsSync(join(missingHistoryTarget, 'source-native.json')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -496,7 +533,8 @@ test('validates anchor and successor indexes without hydrating source packs', ()
     const store = openObjectOntStore({ backend });
     const anchorCommit = store.readCommit(initial.receipt.commitSha256).commit;
     const anchorPack = anchorCommit.blobs.find((blob) =>
-      blob.logicalPath.includes('/source-packs/'));
+      blob.logicalPath.includes('/source-packs/'),
+    );
     assert.ok(anchorPack);
     const reads = [];
     const instrumented = {
@@ -542,15 +580,29 @@ test('binds a successor from a cold Node process', () => {
       objectBackendUri: backendUri,
     });
     const target = join(root, 'cold-bound');
-    const moduleUrl = pathToFileURL(join(import.meta.dirname, '..', '..', 'dist', 'source', 'artifact.js')).href;
-    const output = execFileSync(process.execPath, ['--input-type=module', '-e', [
-      "const { bindSourceNativeProductResource } = await import(process.argv[1]);",
-      "const result = bindSourceNativeProductResource({ resourceRoot: process.argv[2], artifactRoot: process.argv[3], expectedSourceCommitSha256: process.argv[4] });",
-      'process.stdout.write(JSON.stringify(result));',
-    ].join('\n'), moduleUrl, resourceRoot, target, successor.receipt.commitSha256], {
-      cwd: join(import.meta.dirname, '..', '..'),
-      encoding: 'utf8',
-    });
+    const moduleUrl = pathToFileURL(
+      join(import.meta.dirname, '..', '..', 'dist', 'source', 'artifact.js'),
+    ).href;
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        [
+          'const { bindSourceNativeProductResource } = await import(process.argv[1]);',
+          'const result = bindSourceNativeProductResource({ resourceRoot: process.argv[2], artifactRoot: process.argv[3], expectedSourceCommitSha256: process.argv[4] });',
+          'process.stdout.write(JSON.stringify(result));',
+        ].join('\n'),
+        moduleUrl,
+        resourceRoot,
+        target,
+        successor.receipt.commitSha256,
+      ],
+      {
+        cwd: join(import.meta.dirname, '..', '..'),
+        encoding: 'utf8',
+      },
+    );
     const binding = JSON.parse(output);
     assert.equal(binding.sourceCommitSha256, successor.receipt.commitSha256);
     assert.equal(existsSync(join(target, 'source-native.json')), true);
@@ -589,10 +641,14 @@ test('rejects missing or altered immutable anchor data before writing a descript
         writeFileSync(mapPath, bytes);
       }
       const target = join(root, mode, 'bound');
-      assert.throws(() => bindSourceNativeProductResource({
-        resourceRoot,
-        artifactRoot: target,
-      }), { code: mode === 'missing' ? 'OBJECT_BACKEND_NOT_FOUND' : 'OBJECT_BACKEND_CORRUPT' });
+      assert.throws(
+        () =>
+          bindSourceNativeProductResource({
+            resourceRoot,
+            artifactRoot: target,
+          }),
+        { code: mode === 'missing' ? 'OBJECT_BACKEND_NOT_FOUND' : 'OBJECT_BACKEND_CORRUPT' },
+      );
       assert.equal(existsSync(join(target, 'source-native.json')), false);
     }
   } finally {
@@ -618,14 +674,16 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
     });
     assert.equal(created.replayed, false);
     assert.equal(created.objectBackend, backendUri);
-    assert.equal(createSourceNativeProductResource({
-      artifactRoot: initialRoot,
-      resourceRoot,
-    }).replayed, true);
-    const resourceValue = JSON.parse(readFileSync(
-      join(resourceRoot, 'source-native-resource.json'),
-      'utf8',
-    ));
+    assert.equal(
+      createSourceNativeProductResource({
+        artifactRoot: initialRoot,
+        resourceRoot,
+      }).replayed,
+      true,
+    );
+    const resourceValue = JSON.parse(
+      readFileSync(join(resourceRoot, 'source-native-resource.json'), 'utf8'),
+    );
     assert.deepEqual(Object.keys(resourceValue).sort(), [
       'branch',
       'canonicalTruthMutation',
@@ -664,13 +722,16 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
     const successorStore = openObjectOntStore({ backend: successorBackend });
     const successorCommit = successorStore.readCommit(second.receipt.commitSha256).commit;
     const successorPack = successorCommit.blobs.find((blob) =>
-      blob.logicalPath.includes('/source-packs/'));
+      blob.logicalPath.includes('/source-packs/'),
+    );
     assert.ok(successorPack);
     const successorPackBytes = successorBackend.get(successorPack.key).bytes;
     const successorPackKeyHash = createHash('sha256').update(successorPack.key).digest('hex');
     const successorPackPath = join(
       fileURLToPath(new URL(backendUri)),
-      'objects', successorPackKeyHash.slice(0, 2), `${successorPackKeyHash.slice(2)}.json`,
+      'objects',
+      successorPackKeyHash.slice(0, 2),
+      `${successorPackKeyHash.slice(2)}.json`,
     );
     rmSync(successorPackPath);
     assert.throws(() => openSourceNativeProduct({ artifactRoot: boundA }), {
@@ -682,11 +743,15 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
     assert.equal(exact.objectOnt.sources.at(-1).content, 'Beta');
 
     const boundABytes = readFileSync(join(boundA, 'source-native.json'));
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: boundA,
-      expectedSourceCommitSha256: second.receipt.commitSha256,
-    }), { code: 'SOURCE_NATIVE_PRODUCT_ARTIFACT_CONFLICT' });
+    assert.throws(
+      () =>
+        bindSourceNativeProductResource({
+          resourceRoot,
+          artifactRoot: boundA,
+          expectedSourceCommitSha256: second.receipt.commitSha256,
+        }),
+      { code: 'SOURCE_NATIVE_PRODUCT_ARTIFACT_CONFLICT' },
+    );
     assert.equal(readFileSync(join(boundA, 'source-native.json')).equals(boundABytes), true);
 
     const secondBinding = bindSourceNativeProductResource({
@@ -696,11 +761,14 @@ test('creates, advances, binds, and exact-opens stable source cuts', async () =>
     });
     assert.equal(secondBinding.replayed, false);
     assert.equal(await currentValue(boundB), 'Gamma');
-    assert.equal(bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: boundB,
-      expectedSourceCommitSha256: second.receipt.commitSha256,
-    }).replayed, true);
+    assert.equal(
+      bindSourceNativeProductResource({
+        resourceRoot,
+        artifactRoot: boundB,
+        expectedSourceCommitSha256: second.receipt.commitSha256,
+      }).replayed,
+      true,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -723,12 +791,16 @@ test('rejects a current-version source rewind before a cold bind can serve it', 
     const store = openObjectOntStore({ backend });
     const current = store.readRefMetadata({ ontId: first.receipt.ontId, branch: 'main' });
     assert.equal(current.ref.commitSha256, second.receipt.commitSha256);
-    assert.throws(() => store.compareAndSwapRefMetadata({
-      ontId: first.receipt.ontId,
-      branch: 'main',
-      expectedVersion: current.version,
-      commitSha256: first.receipt.commitSha256,
-    }), { code: 'OBJECT_ONT_REF_ROLLBACK' });
+    assert.throws(
+      () =>
+        store.compareAndSwapRefMetadata({
+          ontId: first.receipt.ontId,
+          branch: 'main',
+          expectedVersion: current.version,
+          commitSha256: first.receipt.commitSha256,
+        }),
+      { code: 'OBJECT_ONT_REF_ROLLBACK' },
+    );
     const coldRoot = join(root, 'cold');
     const binding = bindSourceNativeProductResource({
       resourceRoot,
@@ -761,13 +833,19 @@ test('rejects profile expansion and identity drift before binding output', () =>
         });
       } else if (drift === 'namespace') {
         changed.namespace = 'other';
-        changed.nativeObjectInputs.forEach((object) => { object.objectIdentity.namespace = 'other'; });
+        changed.nativeObjectInputs.forEach((object) => {
+          object.objectIdentity.namespace = 'other';
+        });
       } else if (drift === 'source-system') {
         changed.querySchemas[0].sourceSystem = 'linear';
-        changed.nativeObjectInputs.forEach((object) => { object.objectIdentity.sourceSystem = 'linear'; });
+        changed.nativeObjectInputs.forEach((object) => {
+          object.objectIdentity.sourceSystem = 'linear';
+        });
       } else {
         changed.querySchemas[0].objectType = 'issue';
-        changed.nativeObjectInputs.forEach((object) => { object.objectIdentity.objectType = 'issue'; });
+        changed.nativeObjectInputs.forEach((object) => {
+          object.objectIdentity.objectType = 'issue';
+        });
       }
       buildSourceNativeProduct({
         artifactRoot: join(root, 'drifted'),
@@ -775,10 +853,15 @@ test('rejects profile expansion and identity drift before binding output', () =>
         objectBackendUri: backendUri,
       });
       const target = join(root, 'target');
-      assert.throws(() => bindSourceNativeProductResource({
-        resourceRoot,
-        artifactRoot: target,
-      }), { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_PROFILE' }, drift);
+      assert.throws(
+        () =>
+          bindSourceNativeProductResource({
+            resourceRoot,
+            artifactRoot: target,
+          }),
+        { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_PROFILE' },
+        drift,
+      );
       assert.equal(existsSync(join(target, 'source-native.json')), false);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -799,19 +882,29 @@ test('rejects tampering, backend identity changes, ancestry gaps, and missing re
     const tamperedResource = JSON.parse(readFileSync(tamperedResourcePath, 'utf8'));
     tamperedResource.namespace = 'tampered';
     writeFileSync(tamperedResourcePath, JSON.stringify(tamperedResource));
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: join(root, 'tampered-target'),
-    }), { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE' });
+    assert.throws(
+      () =>
+        bindSourceNativeProductResource({
+          resourceRoot,
+          artifactRoot: join(root, 'tampered-target'),
+        }),
+      { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE' },
+    );
     rmSync(resourceRoot, { recursive: true, force: true });
     createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
 
     const emptyBackendUri = pathToFileURL(join(root, 'empty-backend')).href;
-    rewriteResource(resourceRoot, (value) => { value.objectBackend = emptyBackendUri; });
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: join(root, 'missing-ref-target'),
-    }), { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_REF' });
+    rewriteResource(resourceRoot, (value) => {
+      value.objectBackend = emptyBackendUri;
+    });
+    assert.throws(
+      () =>
+        bindSourceNativeProductResource({
+          resourceRoot,
+          artifactRoot: join(root, 'missing-ref-target'),
+        }),
+      { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_REF' },
+    );
     rmSync(resourceRoot, { recursive: true, force: true });
     createSourceNativeProductResource({ artifactRoot: initialRoot, resourceRoot });
 
@@ -828,17 +921,23 @@ test('rejects tampering, backend identity changes, ancestry gaps, and missing re
     const unrelatedReplay = store.replayMetadata(unrelated.receipt.commitSha256);
     backend.compareAndSwap(current.key, {
       expectedVersion: current.version,
-      bytes: Buffer.from(stableObjectText({
-        ...current.ref,
-        commitSha256: unrelated.receipt.commitSha256,
-        replayStatus: unrelatedReplay.status,
-        replaySha256: unrelatedReplay.replaySha256,
-      })),
+      bytes: Buffer.from(
+        stableObjectText({
+          ...current.ref,
+          commitSha256: unrelated.receipt.commitSha256,
+          replayStatus: unrelatedReplay.status,
+          replaySha256: unrelatedReplay.replaySha256,
+        }),
+      ),
     });
-    assert.throws(() => bindSourceNativeProductResource({
-      resourceRoot,
-      artifactRoot: join(root, 'unrelated-target'),
-    }), { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_HISTORY' });
+    assert.throws(
+      () =>
+        bindSourceNativeProductResource({
+          resourceRoot,
+          artifactRoot: join(root, 'unrelated-target'),
+        }),
+      { code: 'SOURCE_NATIVE_PRODUCT_RESOURCE_HISTORY' },
+    );
     assert.equal(existsSync(join(root, 'unrelated-target', 'source-native.json')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -855,10 +954,13 @@ test('exact open rejects forged cut metadata and missing source objects', () => 
     const descriptor = JSON.parse(readFileSync(descriptorPath, 'utf8'));
     const { artifactSha256: _artifactSha256, ...core } = descriptor;
     core.sourceReplaySha256 = `sha256:${'f'.repeat(64)}`;
-    writeFileSync(descriptorPath, `${stableObjectText({
-      ...core,
-      artifactSha256: stableObjectSha256(core),
-    })}\n`);
+    writeFileSync(
+      descriptorPath,
+      `${stableObjectText({
+        ...core,
+        artifactSha256: stableObjectSha256(core),
+      })}\n`,
+    );
     assert.throws(() => openExactProductArtifactState({ artifactRoot }), {
       code: 'SOURCE_NATIVE_PRODUCT_ARTIFACT',
     });
@@ -874,14 +976,15 @@ test('exact open rejects forged cut metadata and missing source objects', () => 
     const backend = openCanonicalObjectBackend({ uri: backendUri }).backend;
     const store = openObjectOntStore({ backend });
     const commit = store.readCommit(clean.receipt.commitSha256).commit;
-    const sourcePack = commit.blobs.find((blob) =>
-      blob.logicalPath.includes('/source-packs/'));
+    const sourcePack = commit.blobs.find((blob) => blob.logicalPath.includes('/source-packs/'));
     assert.ok(sourcePack);
     const sourcePackBytes = backend.get(sourcePack.key).bytes;
     const sourcePackKeyHash = createHash('sha256').update(sourcePack.key).digest('hex');
     const sourcePackPath = join(
       fileURLToPath(new URL(backendUri)),
-      'objects', sourcePackKeyHash.slice(0, 2), `${sourcePackKeyHash.slice(2)}.json`,
+      'objects',
+      sourcePackKeyHash.slice(0, 2),
+      `${sourcePackKeyHash.slice(2)}.json`,
     );
     rmSync(sourcePackPath);
     assert.throws(() => openExactProductArtifactState({ artifactRoot: cleanRoot }), {
@@ -890,9 +993,12 @@ test('exact open rejects forged cut metadata and missing source objects', () => 
     backend.putIfAbsent(sourcePack.key, sourcePackBytes);
     const map = commit.blobs.find((blob) => blob.logicalPath.includes('/maps/'));
     assert.ok(map);
-    assert.throws(() => {
-      backend.get('missing-object-that-is-not-present');
-    }, { code: 'OBJECT_BACKEND_NOT_FOUND' });
+    assert.throws(
+      () => {
+        backend.get('missing-object-that-is-not-present');
+      },
+      { code: 'OBJECT_BACKEND_NOT_FOUND' },
+    );
     const keyHash = createHash('sha256').update(map.key).digest('hex');
     const mapObjectPath = join(
       fileURLToPath(new URL(backendUri)),

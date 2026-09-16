@@ -33,13 +33,16 @@ function expectedItemSources(fixture) {
   return [
     fixture.specification.nameSourceRef,
     ...fixture.specification.aliases.map((alias) => alias.sourceRef),
-    ...[...fixture.specification.claims].sort((left, right) =>
-      Buffer.compare(Buffer.from(left.id), Buffer.from(right.id))).map((claim) => claim.sourceRef),
+    ...[...fixture.specification.claims]
+      .sort((left, right) => Buffer.compare(Buffer.from(left.id), Buffer.from(right.id)))
+      .map((claim) => claim.sourceRef),
   ];
 }
 
 function responseFor(session, fixture, decisionOverride = null) {
-  const sourceByRef = new Map(session.packet.sources.map((source) => [source.relativePath, source]));
+  const sourceByRef = new Map(
+    session.packet.sources.map((source) => [source.relativePath, source]),
+  );
   const sources = expectedItemSources(fixture);
   return {
     packetSha256: session.packet.packetSha256,
@@ -74,18 +77,30 @@ function assertPacket(t, fixture, materialized, session) {
   assert.deepEqual(packet.coverage, construction.coverage);
 
   const expectedCount = construction.objectDefs.reduce(
-    (count, object) => count + 1 + object.aliases.length, construction.claims.length,
+    (count, object) => count + 1 + object.aliases.length,
+    construction.claims.length,
   );
   assert.equal(packet.items.length, expectedCount);
-  assert.deepEqual(packet.items.map((item) => item.source.evidence.sourceRef), expectedItemSources(fixture));
-  assert.deepEqual(packet.items.map((item) => item.kind), [
-    'preferred-name',
-    ...fixture.specification.aliases.map(() => 'scoped-alias'),
-    ...fixture.specification.claims.map((claim) => claim.predicate),
-  ]);
+  assert.deepEqual(
+    packet.items.map((item) => item.source.evidence.sourceRef),
+    expectedItemSources(fixture),
+  );
+  assert.deepEqual(
+    packet.items.map((item) => item.kind),
+    [
+      'preferred-name',
+      ...fixture.specification.aliases.map(() => 'scoped-alias'),
+      ...fixture.specification.claims.map((claim) => claim.predicate),
+    ],
+  );
 
-  const sourceByRef = new Map(state.objectOnt.sources.map((source) => [source.relativePath, source]));
-  assert.equal(packet.sources.length, new Set(packet.sources.map((source) => source.relativePath)).size);
+  const sourceByRef = new Map(
+    state.objectOnt.sources.map((source) => [source.relativePath, source]),
+  );
+  assert.equal(
+    packet.sources.length,
+    new Set(packet.sources.map((source) => source.relativePath)).size,
+  );
   for (const source of packet.sources) {
     const original = sourceByRef.get(source.relativePath);
     assert(original, `unknown packet source ${source.relativePath}`);
@@ -97,8 +112,9 @@ function assertPacket(t, fixture, materialized, session) {
   for (const item of packet.items) {
     const { itemSha256: _itemSha256, ...core } = item;
     assert.equal(item.itemSha256, stableObjectSha256(core));
-    const native = state.objectOnt.map.nativeObjects.find((object) =>
-      object.nativeObjectSha256 === item.source.nativeObjectSha256);
+    const native = state.objectOnt.map.nativeObjects.find(
+      (object) => object.nativeObjectSha256 === item.source.nativeObjectSha256,
+    );
     assert(native);
     assert.deepEqual(item.nativeObject, native.objectIdentity);
   }
@@ -114,11 +130,21 @@ test('development cases materialize and compile as source-bound constructions', 
   for (const fixture of cases) {
     const materialized = materialize(t, fixture);
     assert.equal(materialized.construction.objectDefs.length, 1, fixture.id);
-    assert.equal(materialized.construction.objectDefs[0].aliases.length, fixture.specification.aliases.length, fixture.id);
-    assert.deepEqual(materialized.construction.claims.map((claim) => claim.id),
-      fixture.specification.claims.map((claim) => claim.id).sort(), fixture.id);
-    assert.equal(materialized.construction.coverage.examinedSourceCount,
-      fixture.buildInput.sources.length, fixture.id);
+    assert.equal(
+      materialized.construction.objectDefs[0].aliases.length,
+      fixture.specification.aliases.length,
+      fixture.id,
+    );
+    assert.deepEqual(
+      materialized.construction.claims.map((claim) => claim.id),
+      fixture.specification.claims.map((claim) => claim.id).sort(),
+      fixture.id,
+    );
+    assert.equal(
+      materialized.construction.coverage.examinedSourceCount,
+      fixture.buildInput.sources.length,
+      fixture.id,
+    );
     assert.equal(materialized.construction.coverage.unexaminedSourceCount, 0, fixture.id);
   }
 });
@@ -156,37 +182,63 @@ test('review sessions expose an immutable response schema bound to one packet', 
   assert.equal(schema.properties.decisions.maxItems, session.packet.items.length);
   assert.deepEqual(decisionSchema.required, ['itemSha256', 'decision', 'reason', 'citations']);
   assert.equal(decisionSchema.additionalProperties, false);
-  assert.deepEqual(decisionSchema.properties.itemSha256.enum,
-    session.packet.items.map((item) => item.itemSha256));
+  assert.deepEqual(
+    decisionSchema.properties.itemSha256.enum,
+    session.packet.items.map((item) => item.itemSha256),
+  );
   assert.deepEqual(decisionSchema.properties.decision.enum, ['accept', 'reject', 'abstain']);
   assert.equal(decisionSchema.properties.reason.maxLength, 2048);
   assert.equal(citationSchema.additionalProperties, false);
   assert.equal(decisionSchema.properties.citations.minItems, 1);
   assert.equal(decisionSchema.properties.citations.maxItems, 8);
-  assert.deepEqual(citationSchema.properties.sourceRef.enum,
-    session.packet.sources.map((source) => source.relativePath));
+  assert.deepEqual(
+    citationSchema.properties.sourceRef.enum,
+    session.packet.sources.map((source) => source.relativePath),
+  );
   assert.equal(citationSchema.properties.quote.maxLength, 4096);
   assert.doesNotMatch(JSON.stringify(schema), /expected|gold|judgment|answer/iu);
   assert.equal(Object.isFrozen(schema), true);
   assert.equal(Object.isFrozen(schema.properties), true);
   assert.equal(Object.isFrozen(decisionSchema.properties.itemSha256.enum), true);
   assert.equal(Object.isFrozen(citationSchema.properties.sourceRef.enum), true);
-  assert.throws(() => { schema.properties.packetSha256.enum[0] = 'mutated'; }, TypeError);
-  assert.throws(() => { schema.properties.decisions.minItems = 0; }, TypeError);
+  assert.throws(() => {
+    schema.properties.packetSha256.enum[0] = 'mutated';
+  }, TypeError);
+  assert.throws(() => {
+    schema.properties.decisions.minItems = 0;
+  }, TypeError);
 });
 
 test('synthetic protocol replies produce accepted, rejected and needs-review outcomes', (t) => {
   const observed = new Map();
   for (const fixture of cases) {
     const materialized = materialize(t, fixture);
-    const session = openSourceNativeConstructionReview({ options: materialized.options,
-      construction: materialized.construction });
+    const session = openSourceNativeConstructionReview({
+      options: materialized.options,
+      construction: materialized.construction,
+    });
     const response = responseFor(session, fixture);
     const result = session.evaluate(response);
-    assert.deepEqual(result.decisions.map((decision) => decision.decision), fixture.expected, fixture.id);
-    assert.equal(result.acceptedItemCount, fixture.expected.filter((value) => value === 'accept').length, fixture.id);
-    assert.equal(result.rejectedItemCount, fixture.expected.filter((value) => value === 'reject').length, fixture.id);
-    assert.equal(result.abstainedItemCount, fixture.expected.filter((value) => value === 'abstain').length, fixture.id);
+    assert.deepEqual(
+      result.decisions.map((decision) => decision.decision),
+      fixture.expected,
+      fixture.id,
+    );
+    assert.equal(
+      result.acceptedItemCount,
+      fixture.expected.filter((value) => value === 'accept').length,
+      fixture.id,
+    );
+    assert.equal(
+      result.rejectedItemCount,
+      fixture.expected.filter((value) => value === 'reject').length,
+      fixture.id,
+    );
+    assert.equal(
+      result.abstainedItemCount,
+      fixture.expected.filter((value) => value === 'abstain').length,
+      fixture.id,
+    );
     assert.equal(result.disposition, dispositionFor(fixture.expected), fixture.id);
     assert.equal(result.admissionGranted, false);
     assert.equal(result.navigationOnly, true);
@@ -202,8 +254,10 @@ test('synthetic protocol replies produce accepted, rejected and needs-review out
 test('review protocol requires the exact packet and complete one-per-item decisions', (t) => {
   const fixture = cases.find((item) => item.id === 'explicit-clickup-alias');
   const materialized = materialize(t, fixture);
-  const session = openSourceNativeConstructionReview({ options: materialized.options,
-    construction: materialized.construction });
+  const session = openSourceNativeConstructionReview({
+    options: materialized.options,
+    construction: materialized.construction,
+  });
   const valid = responseFor(session, fixture);
 
   const missing = clone(valid);
@@ -227,9 +281,12 @@ test('review protocol requires the exact packet and complete one-per-item decisi
   assert.throws(() => session.evaluate(badQuote), { code: 'CONSTRUCTION_REVIEW_CITATION' });
 
   const wrongSource = clone(valid);
-  const otherSource = session.packet.sources.find(source =>
-    source.relativePath !== session.packet.items[0].source.evidence.sourceRef);
-  wrongSource.decisions[0].citations = [{ sourceRef: otherSource.relativePath, quote: otherSource.content }];
+  const otherSource = session.packet.sources.find(
+    (source) => source.relativePath !== session.packet.items[0].source.evidence.sourceRef,
+  );
+  wrongSource.decisions[0].citations = [
+    { sourceRef: otherSource.relativePath, quote: otherSource.content },
+  ];
   assert.throws(() => session.evaluate(wrongSource), { code: 'CONSTRUCTION_REVIEW_CITATION' });
 
   const wrongPacket = clone(valid);
@@ -241,39 +298,59 @@ test('review protocol requires the exact packet and complete one-per-item decisi
   const { packetSha256: _forgedHash, ...forgedCore } = forgedPacket;
   forgedPacket.packetSha256 = stableObjectSha256(forgedCore);
   assert.notEqual(forgedPacket.packetSha256, session.packet.packetSha256);
-  assert.throws(() => { session.packet.sources[0].content = 'caller mutation'; }, TypeError);
-  assert.throws(() => session.evaluate({ ...valid, packetSha256: forgedPacket.packetSha256 }),
-    { code: 'CONSTRUCTION_REVIEW_PACKET' });
+  assert.throws(() => {
+    session.packet.sources[0].content = 'caller mutation';
+  }, TypeError);
+  assert.throws(() => session.evaluate({ ...valid, packetSha256: forgedPacket.packetSha256 }), {
+    code: 'CONSTRUCTION_REVIEW_PACKET',
+  });
 
   const result = session.evaluate(valid);
-  assert.deepEqual(session.evaluate({ ...valid, decisions: [...valid.decisions].reverse() }), result);
+  assert.deepEqual(
+    session.evaluate({ ...valid, decisions: [...valid.decisions].reverse() }),
+    result,
+  );
   valid.decisions[0].citations[0].quote = 'mutated after evaluation';
   assert.notEqual(result.decisions[0].citations[0].quote, valid.decisions[0].citations[0].quote);
-  assert.throws(() => { result.decisions[0].citations[0].quote = 'mutation'; }, TypeError);
+  assert.throws(() => {
+    result.decisions[0].citations[0].quote = 'mutation';
+  }, TypeError);
 });
 
 test('empty constructions are not reviewable batches', (t) => {
   const fixture = cases[0];
   const materialized = materialize(t, fixture);
-  const empty = compileSourceNativeSemanticConstruction({ options: materialized.options,
-    input: { ...materialized.input, objectDefs: [], claims: [] } });
-  assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
-    construction: empty }), { code: 'CONSTRUCTION_REVIEW_EMPTY' });
+  const empty = compileSourceNativeSemanticConstruction({
+    options: materialized.options,
+    input: { ...materialized.input, objectDefs: [], claims: [] },
+  });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({ options: materialized.options, construction: empty }),
+    { code: 'CONSTRUCTION_REVIEW_EMPTY' },
+  );
 });
 
 function bodyWitness(state, sourceRef) {
-  const objects = state.objectOnt.map.nativeObjects.filter((object) => object.relativePath === sourceRef);
+  const objects = state.objectOnt.map.nativeObjects.filter(
+    (object) => object.relativePath === sourceRef,
+  );
   assert.equal(objects.length, 1);
   const fields = objects[0].fields.filter((field) => field.fieldPath === 'body');
   assert.equal(fields.length, 1);
   const { relativePath, ...evidence } = fields[0].evidence;
-  return { nativeObjectSha256: objects[0].nativeObjectSha256,
-    evidence: { sourceRef: relativePath, ...evidence } };
+  return {
+    nativeObjectSha256: objects[0].nativeObjectSha256,
+    evidence: { sourceRef: relativePath, ...evidence },
+  };
 }
 
 function allExamined(state) {
-  return state.objectOnt.sources.map((source) => ({ sourceRef: source.relativePath,
-    sourceSha256: source.sourceSha256, disposition: 'examined' }));
+  return state.objectOnt.sources.map((source) => ({
+    sourceRef: source.relativePath,
+    sourceSha256: source.sourceSha256,
+    disposition: 'examined',
+  }));
 }
 
 function rehashConstruction(value) {
@@ -287,9 +364,14 @@ test('review preserves canonical source error for a forged removed cited path', 
   const removed = clone(materialized.construction);
   removed.objectDefs[0].source.evidence.sourceRef = 'docs/removed-before-review.md';
   const construction = rehashConstruction(removed);
-  assert.throws(() => openSourceNativeConstructionReview({
-    options: materialized.options, construction,
-  }), { code: 'SEMANTIC_CONSTRUCTION_SOURCE' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: materialized.options,
+        construction,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_SOURCE' },
+  );
 });
 
 test('review rejects an actual successor that removes a cited source with canonical binding refusal', (t) => {
@@ -303,9 +385,14 @@ test('review rejects an actual successor that removes a cited source with canoni
     objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href,
   };
   buildSourceNativeProduct({ ...successorOptions, input: successor });
-  assert.throws(() => openSourceNativeConstructionReview({
-    options: successorOptions, construction: materialized.construction,
-  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: successorOptions,
+        construction: materialized.construction,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
 });
 
 test('review enforces known-source size when another cited ref is unknown', (t) => {
@@ -315,37 +402,74 @@ test('review enforces known-source size when another cited ref is unknown', (t) 
     relativePath: `docs/known-source-${String(index).padStart(2, '0')}.md`,
     content: `Known Source Concept ${String(index).padStart(2, '0')} ${'known-source '.repeat(4_000)}`,
   }));
-  fixture.sources = [...fixture.sources, ...rows.map((row) => ({
-    relativePath: row.relativePath, sourceType: 'docs', occurredAt: '2026-09-01T00:00:00.000Z', content: row.content,
-  }))];
-  fixture.nativeObjectInputs = [...fixture.nativeObjectInputs, ...rows.map((row, index) => ({
-    relativePath: row.relativePath,
-    objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'docs', objectType: 'Document',
-      namespace: 'fixture-namespace', externalId: `known-source-${String(index).padStart(2, '0')}` },
-    fields: [{ fieldPath: 'body', value: row.content, codeUnitStart: 0 }],
-  }))];
+  fixture.sources = [
+    ...fixture.sources,
+    ...rows.map((row) => ({
+      relativePath: row.relativePath,
+      sourceType: 'docs',
+      occurredAt: '2026-09-01T00:00:00.000Z',
+      content: row.content,
+    })),
+  ];
+  fixture.nativeObjectInputs = [
+    ...fixture.nativeObjectInputs,
+    ...rows.map((row, index) => ({
+      relativePath: row.relativePath,
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'docs',
+        objectType: 'Document',
+        namespace: 'fixture-namespace',
+        externalId: `known-source-${String(index).padStart(2, '0')}`,
+      },
+      fields: [{ fieldPath: 'body', value: row.content, codeUnitStart: 0 }],
+    })),
+  ];
   const root = mkdtempSync(join(tmpdir(), 'oont-construction-review-mixed-size-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const options = { artifactRoot: join(root, 'ont') };
   buildSourceNativeProduct({ ...options, input: fixture });
   const state = openProductState(options);
   const objectDefs = rows.map((row, index) => ({
-    kind: 'ObjectDef', id: `known-source-${String(index).padStart(2, '0')}`,
-    name: row.name, source: bodyWitness(state, row.relativePath), aliases: [],
+    kind: 'ObjectDef',
+    id: `known-source-${String(index).padStart(2, '0')}`,
+    name: row.name,
+    source: bodyWitness(state, row.relativePath),
+    aliases: [],
   }));
-  const claims = objectDefs.map((object, index) => ({ kind: 'Claim', id: `known-claim-${String(index).padStart(2, '0')}`,
-    about: object.id, predicate: 'defines', source: object.source }));
-  const constructionInput = { proposedBy: 'constructor', proposedAt: '2026-09-02T00:00:00.000Z', method: 'authored',
-    objectDefs, claims, coverage: allExamined(state) };
-  const materialized = { options, construction: compileSourceNativeSemanticConstruction({
-    options, input: constructionInput,
-  }) };
+  const claims = objectDefs.map((object, index) => ({
+    kind: 'Claim',
+    id: `known-claim-${String(index).padStart(2, '0')}`,
+    about: object.id,
+    predicate: 'defines',
+    source: object.source,
+  }));
+  const constructionInput = {
+    proposedBy: 'constructor',
+    proposedAt: '2026-09-02T00:00:00.000Z',
+    method: 'authored',
+    objectDefs,
+    claims,
+    coverage: allExamined(state),
+  };
+  const materialized = {
+    options,
+    construction: compileSourceNativeSemanticConstruction({
+      options,
+      input: constructionInput,
+    }),
+  };
   const mixed = clone(materialized.construction);
   mixed.objectDefs[0].source.evidence.sourceRef = 'docs/unknown-late-ref.md';
   const construction = rehashConstruction(mixed);
-  assert.throws(() => openSourceNativeConstructionReview({
-    options: materialized.options, construction,
-  }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: materialized.options,
+        construction,
+      }),
+    { code: 'CONSTRUCTION_REVIEW_LIMIT' },
+  );
 });
 
 test('review preserves source-cut binding precedence over an oversized same-path successor', (t) => {
@@ -360,60 +484,119 @@ test('review preserves source-cut binding precedence over an oversized same-path
     objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href,
   };
   buildSourceNativeProduct({ ...successorOptions, input: successor });
-  assert.throws(() => openSourceNativeConstructionReview({
-    options: successorOptions, construction: materialized.construction,
-  }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: successorOptions,
+        construction: materialized.construction,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
 });
 
 test('review limits refuse oversized item, source-document and raw-source budgets', (t) => {
   const base = cases[0];
   const materialized = materialize(t, base);
   const repeatedObjects = Array.from({ length: 64 }, (_, index) => ({
-    kind: 'ObjectDef', id: `concept-${String(index).padStart(3, '0')}`,
-    name: base.specification.name, source: bodyWitness(materialized.state, base.specification.nameSourceRef), aliases: [],
+    kind: 'ObjectDef',
+    id: `concept-${String(index).padStart(3, '0')}`,
+    name: base.specification.name,
+    source: bodyWitness(materialized.state, base.specification.nameSourceRef),
+    aliases: [],
   }));
   const repeatedClaims = Array.from({ length: 65 }, (_, index) => ({
-    kind: 'Claim', id: `claim-${String(index).padStart(3, '0')}`, about: repeatedObjects[0].id,
-    predicate: 'defines', source: bodyWitness(materialized.state, base.specification.nameSourceRef),
+    kind: 'Claim',
+    id: `claim-${String(index).padStart(3, '0')}`,
+    about: repeatedObjects[0].id,
+    predicate: 'defines',
+    source: bodyWitness(materialized.state, base.specification.nameSourceRef),
   }));
-  const oversizedItems = compileSourceNativeSemanticConstruction({ options: materialized.options,
-    input: { ...materialized.input, objectDefs: repeatedObjects, claims: repeatedClaims } });
-  assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
-    construction: oversizedItems }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
-  const atItemLimit = compileSourceNativeSemanticConstruction({ options: materialized.options,
-    input: { ...materialized.input, objectDefs: repeatedObjects, claims: repeatedClaims.slice(0, 64) } });
-  assert.equal(openSourceNativeConstructionReview({ options: materialized.options,
-    construction: atItemLimit }).packet.items.length, 128);
+  const oversizedItems = compileSourceNativeSemanticConstruction({
+    options: materialized.options,
+    input: { ...materialized.input, objectDefs: repeatedObjects, claims: repeatedClaims },
+  });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: materialized.options,
+        construction: oversizedItems,
+      }),
+    { code: 'CONSTRUCTION_REVIEW_LIMIT' },
+  );
+  const atItemLimit = compileSourceNativeSemanticConstruction({
+    options: materialized.options,
+    input: {
+      ...materialized.input,
+      objectDefs: repeatedObjects,
+      claims: repeatedClaims.slice(0, 64),
+    },
+  });
+  assert.equal(
+    openSourceNativeConstructionReview({ options: materialized.options, construction: atItemLimit })
+      .packet.items.length,
+    128,
+  );
 
   const manySources = clone(base.buildInput);
-  manySources.sources = [...manySources.sources,
+  manySources.sources = [
+    ...manySources.sources,
     ...Array.from({ length: 33 }, (_, index) => ({
-      relativePath: `docs/census-${String(index).padStart(3, '0')}.md`, sourceType: 'docs',
-      occurredAt: '2026-09-01T00:00:00.000Z', content: `Census Concept ${String(index).padStart(3, '0')} is recorded here.`,
-    }))];
-  manySources.nativeObjectInputs = [...manySources.nativeObjectInputs,
+      relativePath: `docs/census-${String(index).padStart(3, '0')}.md`,
+      sourceType: 'docs',
+      occurredAt: '2026-09-01T00:00:00.000Z',
+      content: `Census Concept ${String(index).padStart(3, '0')} is recorded here.`,
+    })),
+  ];
+  manySources.nativeObjectInputs = [
+    ...manySources.nativeObjectInputs,
     ...manySources.sources.slice(2).map((source, index) => ({
       relativePath: source.relativePath,
-      objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'docs', objectType: 'Document',
-        namespace: 'fixture-namespace', externalId: `census-${String(index).padStart(3, '0')}` },
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'docs',
+        objectType: 'Document',
+        namespace: 'fixture-namespace',
+        externalId: `census-${String(index).padStart(3, '0')}`,
+      },
       fields: [{ fieldPath: 'body', value: source.content, codeUnitStart: 0 }],
-    }))];
+    })),
+  ];
   const manyRoot = mkdtempSync(join(tmpdir(), 'oont-construction-review-sources-'));
   t.after(() => rmSync(manyRoot, { recursive: true, force: true }));
   const manyOptions = { artifactRoot: join(manyRoot, 'ont') };
   buildSourceNativeProduct({ ...manyOptions, input: manySources });
   const manyState = openProductState(manyOptions);
   const manyObjects = manySources.sources.slice(2).map((source, index) => ({
-    kind: 'ObjectDef', id: `census-${String(index).padStart(3, '0')}`,
-    name: `Census Concept ${String(index).padStart(3, '0')}`, source: bodyWitness(manyState, source.relativePath), aliases: [],
+    kind: 'ObjectDef',
+    id: `census-${String(index).padStart(3, '0')}`,
+    name: `Census Concept ${String(index).padStart(3, '0')}`,
+    source: bodyWitness(manyState, source.relativePath),
+    aliases: [],
   }));
-  const manyClaims = manyObjects.map((object, index) => ({ kind: 'Claim', id: `definition-${String(index).padStart(3, '0')}`,
-    about: object.id, predicate: 'defines', source: object.source }));
-  const manyInput = { proposedBy: 'constructor', proposedAt: '2026-09-02T00:00:00.000Z', method: 'authored',
-    objectDefs: manyObjects, claims: manyClaims, coverage: allExamined(manyState) };
-  const manyConstruction = compileSourceNativeSemanticConstruction({ options: manyOptions, input: manyInput });
-  assert.throws(() => openSourceNativeConstructionReview({ options: manyOptions,
-    construction: manyConstruction }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+  const manyClaims = manyObjects.map((object, index) => ({
+    kind: 'Claim',
+    id: `definition-${String(index).padStart(3, '0')}`,
+    about: object.id,
+    predicate: 'defines',
+    source: object.source,
+  }));
+  const manyInput = {
+    proposedBy: 'constructor',
+    proposedAt: '2026-09-02T00:00:00.000Z',
+    method: 'authored',
+    objectDefs: manyObjects,
+    claims: manyClaims,
+    coverage: allExamined(manyState),
+  };
+  const manyConstruction = compileSourceNativeSemanticConstruction({
+    options: manyOptions,
+    input: manyInput,
+  });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({ options: manyOptions, construction: manyConstruction }),
+    { code: 'CONSTRUCTION_REVIEW_LIMIT' },
+  );
 
   const large = clone(base.buildInput);
   const largeRows = Array.from({ length: 5 }, (_, index) => {
@@ -424,48 +607,98 @@ test('review limits refuse oversized item, source-document and raw-source budget
       content: `${name} is recorded in this source. ${'context '.repeat(7_500)}`,
     };
   });
-  large.sources = [...large.sources, ...largeRows.map((row) => ({
-    relativePath: row.relativePath, sourceType: 'docs', occurredAt: '2026-09-01T00:00:00.000Z', content: row.content,
-  }))];
-  large.nativeObjectInputs = [...large.nativeObjectInputs, ...largeRows.map((row, index) => ({
-    relativePath: row.relativePath,
-    objectIdentity: { home: 'ObjectDef/InstanceRef', sourceSystem: 'docs', objectType: 'Document',
-      namespace: 'fixture-namespace', externalId: `context-${String(index).padStart(2, '0')}` },
-    fields: [{ fieldPath: 'body', value: row.content, codeUnitStart: 0 }],
-  }))];
+  large.sources = [
+    ...large.sources,
+    ...largeRows.map((row) => ({
+      relativePath: row.relativePath,
+      sourceType: 'docs',
+      occurredAt: '2026-09-01T00:00:00.000Z',
+      content: row.content,
+    })),
+  ];
+  large.nativeObjectInputs = [
+    ...large.nativeObjectInputs,
+    ...largeRows.map((row, index) => ({
+      relativePath: row.relativePath,
+      objectIdentity: {
+        home: 'ObjectDef/InstanceRef',
+        sourceSystem: 'docs',
+        objectType: 'Document',
+        namespace: 'fixture-namespace',
+        externalId: `context-${String(index).padStart(2, '0')}`,
+      },
+      fields: [{ fieldPath: 'body', value: row.content, codeUnitStart: 0 }],
+    })),
+  ];
   const largeRoot = mkdtempSync(join(tmpdir(), 'oont-construction-review-bytes-'));
   t.after(() => rmSync(largeRoot, { recursive: true, force: true }));
   const largeOptions = { artifactRoot: join(largeRoot, 'ont') };
   buildSourceNativeProduct({ ...largeOptions, input: large });
   const largeState = openProductState(largeOptions);
   const largeObjects = largeRows.map((row, index) => ({
-    kind: 'ObjectDef', id: `concept-large-${String(index).padStart(2, '0')}`,
-    name: row.name, source: bodyWitness(largeState, row.relativePath), aliases: [],
+    kind: 'ObjectDef',
+    id: `concept-large-${String(index).padStart(2, '0')}`,
+    name: row.name,
+    source: bodyWitness(largeState, row.relativePath),
+    aliases: [],
   }));
-  const largeClaims = largeObjects.map((object, index) => ({ kind: 'Claim',
-    id: `claim-large-${String(index).padStart(2, '0')}`, about: object.id,
-    predicate: 'defines', source: object.source }));
-  const largeInput = { proposedBy: 'constructor', proposedAt: '2026-09-02T00:00:00.000Z', method: 'authored',
-    objectDefs: largeObjects, claims: largeClaims, coverage: allExamined(largeState) };
-  const largeConstruction = compileSourceNativeSemanticConstruction({ options: largeOptions, input: largeInput });
+  const largeClaims = largeObjects.map((object, index) => ({
+    kind: 'Claim',
+    id: `claim-large-${String(index).padStart(2, '0')}`,
+    about: object.id,
+    predicate: 'defines',
+    source: object.source,
+  }));
+  const largeInput = {
+    proposedBy: 'constructor',
+    proposedAt: '2026-09-02T00:00:00.000Z',
+    method: 'authored',
+    objectDefs: largeObjects,
+    claims: largeClaims,
+    coverage: allExamined(largeState),
+  };
+  const largeConstruction = compileSourceNativeSemanticConstruction({
+    options: largeOptions,
+    input: largeInput,
+  });
   assert(largeRows.reduce((total, row) => total + Buffer.byteLength(row.content), 0) > 256 * 1024);
-  assert.throws(() => openSourceNativeConstructionReview({ options: largeOptions,
-    construction: largeConstruction }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: largeOptions,
+        construction: largeConstruction,
+      }),
+    { code: 'CONSTRUCTION_REVIEW_LIMIT' },
+  );
 });
 
 test('review supplies qualifications outside the exact proposer-selected witness', (t) => {
-  const fixture = cases.find(item => item.id === 'negated-equivalence');
+  const fixture = cases.find((item) => item.id === 'negated-equivalence');
   const materialized = materialize(t, fixture);
   const input = clone(materialized.input);
   const definition = input.objectDefs[0];
-  const source = materialized.state.objectOnt.sources.find(item => item.relativePath === fixture.specification.nameSourceRef);
+  const source = materialized.state.objectOnt.sources.find(
+    (item) => item.relativePath === fixture.specification.nameSourceRef,
+  );
   const start = Buffer.byteLength(source.content.slice(0, source.content.indexOf(definition.name)));
-  definition.source.evidence = { ...definition.source.evidence, byteStart: start,
-    byteEnd: start + Buffer.byteLength(definition.name), textSha256: objectBytesSha256(Buffer.from(definition.name)) };
-  const construction = compileSourceNativeSemanticConstruction({ options: materialized.options, input });
-  const { packet } = openSourceNativeConstructionReview({ options: materialized.options, construction });
-  assert.equal(packet.items[0].source.evidence.byteEnd - packet.items[0].source.evidence.byteStart,
-    Buffer.byteLength(definition.name));
+  definition.source.evidence = {
+    ...definition.source.evidence,
+    byteStart: start,
+    byteEnd: start + Buffer.byteLength(definition.name),
+    textSha256: objectBytesSha256(Buffer.from(definition.name)),
+  };
+  const construction = compileSourceNativeSemanticConstruction({
+    options: materialized.options,
+    input,
+  });
+  const { packet } = openSourceNativeConstructionReview({
+    options: materialized.options,
+    construction,
+  });
+  assert.equal(
+    packet.items[0].source.evidence.byteEnd - packet.items[0].source.evidence.byteStart,
+    Buffer.byteLength(definition.name),
+  );
   assert.equal(packet.sources[0].content, source.content);
   assert(packet.sources[0].content.includes('not'));
   assert(packet.sources[0].content.length > definition.name.length);
@@ -474,18 +707,37 @@ test('review supplies qualifications outside the exact proposer-selected witness
 test('an open review stays pinned but cannot rebind its construction to an advanced source', (t) => {
   const fixture = cases[0];
   const materialized = materialize(t, fixture);
-  const session = openSourceNativeConstructionReview({ options: materialized.options, construction: materialized.construction });
+  const session = openSourceNativeConstructionReview({
+    options: materialized.options,
+    construction: materialized.construction,
+  });
   const response = responseFor(session, fixture);
   const before = session.evaluate(response);
   const nextInput = clone(fixture.buildInput);
-  nextInput.sources.forEach(source => { source.occurredAt = '2026-09-03T00:00:00.000Z'; });
-  const nextOptions = { artifactRoot: join(materialized.root, 'next'),
-    objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href };
+  nextInput.sources.forEach((source) => {
+    source.occurredAt = '2026-09-03T00:00:00.000Z';
+  });
+  const nextOptions = {
+    artifactRoot: join(materialized.root, 'next'),
+    objectBackendUri: pathToFileURL(join(materialized.options.artifactRoot, 'objects')).href,
+  };
   buildSourceNativeProduct({ ...nextOptions, input: nextInput });
-  assert.throws(() => openSourceNativeConstructionReview({ options: nextOptions,
-    construction: materialized.construction }), { code: 'SEMANTIC_CONSTRUCTION_BINDING' });
-  assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
-    construction: materialized.construction }), { code: 'SOURCE_NATIVE_PRODUCT_REF' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: nextOptions,
+        construction: materialized.construction,
+      }),
+    { code: 'SEMANTIC_CONSTRUCTION_BINDING' },
+  );
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: materialized.options,
+        construction: materialized.construction,
+      }),
+    { code: 'SOURCE_NATIVE_PRODUCT_REF' },
+  );
   assert.deepEqual(session.evaluate(response), before);
   assert.equal(before.admissionGranted, false);
 });
@@ -497,8 +749,14 @@ test('serialized packet budget accounts for JSON expansion without cropping full
   // Only the original body is an extracted field. Review still receives the complete source.
   const materialized = materialize(t, fixture);
   assert(Buffer.byteLength(fixture.buildInput.sources[0].content) < 256 * 1024);
-  assert.throws(() => openSourceNativeConstructionReview({ options: materialized.options,
-    construction: materialized.construction }), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
+  assert.throws(
+    () =>
+      openSourceNativeConstructionReview({
+        options: materialized.options,
+        construction: materialized.construction,
+      }),
+    { code: 'CONSTRUCTION_REVIEW_LIMIT' },
+  );
 });
 
 test('serialized response budget applies even when every individual citation is valid', (t) => {
@@ -508,13 +766,33 @@ test('serialized response budget applies even when every individual citation is 
   fixture.buildInput.nativeObjectInputs[0].fields[0].value = fixture.buildInput.sources[0].content;
   const materialized = materialize(t, fixture);
   const definition = materialized.input.objectDefs[0];
-  const construction = compileSourceNativeSemanticConstruction({ options: materialized.options,
-    input: { ...materialized.input, objectDefs: Array.from({ length: 32 }, (_, index) =>
-      ({ ...definition, id: `concept-${index}`, aliases: [] })), claims: [] } });
-  const session = openSourceNativeConstructionReview({ options: materialized.options, construction });
-  const response = { packetSha256: session.packet.packetSha256,
-    decisions: session.packet.items.map(item => ({ itemSha256: item.itemSha256,
-      decision: 'accept', reason: 'Synthetic size control, not semantic judgment.',
-      citations: Array.from({ length: 8 }, () => ({ sourceRef: item.source.evidence.sourceRef, quote })) })) };
+  const construction = compileSourceNativeSemanticConstruction({
+    options: materialized.options,
+    input: {
+      ...materialized.input,
+      objectDefs: Array.from({ length: 32 }, (_, index) => ({
+        ...definition,
+        id: `concept-${index}`,
+        aliases: [],
+      })),
+      claims: [],
+    },
+  });
+  const session = openSourceNativeConstructionReview({
+    options: materialized.options,
+    construction,
+  });
+  const response = {
+    packetSha256: session.packet.packetSha256,
+    decisions: session.packet.items.map((item) => ({
+      itemSha256: item.itemSha256,
+      decision: 'accept',
+      reason: 'Synthetic size control, not semantic judgment.',
+      citations: Array.from({ length: 8 }, () => ({
+        sourceRef: item.source.evidence.sourceRef,
+        quote,
+      })),
+    })),
+  };
   assert.throws(() => session.evaluate(response), { code: 'CONSTRUCTION_REVIEW_LIMIT' });
 });
