@@ -21,9 +21,10 @@ try {
   execFileSync('tar', ['-xzf', tarball, '-C', sandbox], { cwd: root });
   const packageRoot = join(sandbox, 'package');
   const paths = new Set(packed.files.map((file) => file.path));
-  const modules = [...paths].filter((path) => path.endsWith('.mjs'));
+  const modules = [...paths].filter((path) => /\.(?:js|mjs)$/u.test(path));
+  const declarations = [...paths].filter((path) => path.endsWith('.d.ts'));
   const missing = [];
-  const importsByModule = new Map(modules.map((path) => [path, new Set()]));
+  const importsByModule = new Map([...modules, ...declarations].map((path) => [path, new Set()]));
 
   function packagePath(importer, specifier) {
     const absolute = resolve(packageRoot, dirname(importer), specifier);
@@ -31,7 +32,7 @@ try {
   }
 
   function requirePacked(importer, specifier, kind = 'import') {
-    if (!specifier.startsWith('.') || specifier.endsWith('/') || !/\.mjs$/u.test(specifier)) return;
+    if (!specifier.startsWith('.') || specifier.endsWith('/') || !/\.(?:js|mjs)$/u.test(specifier)) return;
     const target = packagePath(importer, specifier);
     if (!paths.has(target)) missing.push({ importer, kind, specifier, target });
     else if (importsByModule.has(target)) importsByModule.get(importer).add(target);
@@ -48,9 +49,9 @@ try {
       for (const match of source.matchAll(re)) requirePacked(importer, match[2], kind);
     }
 
-    if (importer === 'dist/bin/oont.mjs') {
-      for (const match of source.matchAll(/join\(root,\s*(['"])scripts\1,\s*(['"])([^'"]+\.mjs)\2\)/gu)) {
-        const target = `dist/scripts/${match[3]}`;
+    if (importer === 'dist/cli/oont.js') {
+      for (const match of source.matchAll(/join\(distRoot,\s*(['"])cli\1,\s*(['"])([^'"]+\.js)\2\)/gu)) {
+        const target = `dist/cli/${match[3]}`;
         if (!paths.has(target)) missing.push({
           importer, kind: 'CLI delegate', specifier: match[3], target,
         });
@@ -59,11 +60,35 @@ try {
     }
   }
 
+  for (const importer of declarations) {
+    const source = readFileSync(join(packageRoot, importer), 'utf8');
+    const patterns = [
+      { kind: 'declaration import', re: /(?:from\s+|import\s*\()(['"])(\.{1,2}\/[^'"]+)\1/gu },
+      { kind: 'declaration import.meta.url resource', re: /new URL\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*,\s*import\.meta\.url/gu },
+    ];
+    for (const { kind, re } of patterns) {
+      for (const match of source.matchAll(re)) requirePacked(importer, match[2], kind);
+    }
+  }
+
+  const emittedRuntime = [...paths].filter((path) => /^dist\/.*\.js$/u.test(path));
+  for (const runtime of emittedRuntime) {
+    for (const generated of [
+      `${runtime}.map`,
+      runtime.replace(/\.js$/u, '.d.ts'),
+      runtime.replace(/\.js$/u, '.d.ts.map'),
+    ]) {
+      if (!paths.has(generated)) missing.push({
+        importer: runtime, kind: 'generated output', specifier: generated, target: generated,
+      });
+    }
+  }
+
   const runtimeRoots = [
-    'dist/bin/oont.mjs',
-    'dist/scripts/oont-resolver.mjs',
-    'dist/src/kernel.mjs',
-    'dist/src/openontology.mjs',
+    'dist/cli/oont.js',
+    'dist/cli/resolver.js',
+    'dist/kernel.js',
+    'dist/openontology.js',
     'examples/quickstart/source-lifecycle.mjs',
     'examples/quickstart/semantic-map.mjs',
   ];

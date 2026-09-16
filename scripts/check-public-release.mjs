@@ -31,9 +31,9 @@ const tracked = execFileSync('git', ['ls-files', '-z'], {
 const allowedRoots = new Set([
   '.editorconfig', '.github', '.gitignore', '.npmignore', '.nvmrc',
   'AGENTS.md', 'CHANGELOG.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
-  'GLOSSARY.md', 'LICENSE', 'README.md', 'SECURITY.md', 'bin', 'docs',
+  'GLOSSARY.md', 'LICENSE', 'README.md', 'SECURITY.md', 'docs',
   'examples',
-  'package-lock.json', 'package.json', 'scripts', 'SOURCE-MANIFEST.json', 'src',
+  'package-lock.json', 'package.json', 'scripts', 'SOURCE-MANIFEST.json', 'src', 'test',
   'tsconfig.json',
 ]);
 
@@ -135,12 +135,12 @@ if (sourceManifest.packageName !== packageJson.name
 }
 if (JSON.stringify(packageJson.exports) !== JSON.stringify({
   '.': {
-    types: './dist/src/openontology.d.mts',
-    import: './dist/src/openontology.mjs',
+    types: './dist/openontology.d.ts',
+    import: './dist/openontology.js',
   },
   './kernel': {
-    types: './dist/src/kernel.d.mts',
-    import: './dist/src/kernel.mjs',
+    types: './dist/kernel.d.ts',
+    import: './dist/kernel.js',
   },
   './package.json': './package.json',
 })) {
@@ -162,11 +162,12 @@ try {
   fail(`could not inspect the exact packed tarball: ${error?.message ?? String(error)}`);
 }
 const packedPaths = packed.files.map((file) => file.path);
+const generatedResultState = /^dist\/product\/result-state\.(?:js|d\.ts)(?:\.map)?$/u;
 const required = [
-  'README.md', 'LICENSE', 'package.json', 'dist/bin/oont.mjs',
-  'dist/src/kernel.mjs', 'dist/src/kernel.d.mts',
-  'dist/bin/oont.d.mts', 'dist/src/openontology.mjs',
-  'dist/src/openontology.d.mts', 'examples/quickstart/source-native-input.json',
+  'README.md', 'LICENSE', 'package.json', 'dist/cli/oont.js',
+  'dist/cli/oont.d.ts', 'dist/cli/resolver.js', 'dist/cli/resolver.d.ts',
+  'dist/kernel.js', 'dist/kernel.d.ts', 'dist/openontology.js',
+  'dist/openontology.d.ts', 'examples/quickstart/source-native-input.json',
   'examples/quickstart/source-lifecycle.mjs', 'docs/SOURCE-LIFECYCLE.md',
   'docs/QUERIES.md',
   'examples/quickstart/semantic-map.mjs',
@@ -177,11 +178,11 @@ for (const path of required) {
 const forbiddenPacked = packedPaths.filter((path) =>
   /^(eval|evidence|design|site|test|tests|src|bin|scripts)\//u.test(path)
   || path === 'PASTE-PROMPT.md'
-  || /(?:^|\/)(?:RESULT|REPORT)(?:[._-]|$)/iu.test(path)
+  || (!generatedResultState.test(path) && /(?:^|\/)(?:RESULT|REPORT)(?:[._-]|$)/iu.test(path))
   || /(?:^|[._/-])private(?:[._/-]|$)|\.raw$/iu.test(path));
 if (forbiddenPacked.length) fail(`forbidden package files: ${forbiddenPacked.join(', ')}`);
 const invalidGenerated = packedPaths.filter((path) => path.startsWith('dist/')
-  && !/\.mjs(?:\.map)?$|\.d\.mts(?:\.map)?$/u.test(path));
+  && !/\.(?:js|d\.ts)(?:\.map)?$/u.test(path));
 if (invalidGenerated.length) fail(`unexpected generated package files: ${invalidGenerated.join(', ')}`);
 const packageJsonInTarball = JSON.parse(readFileSync(join(packageSandbox, 'package', 'package.json'), 'utf8'));
 if (JSON.stringify(packageJsonInTarball) !== JSON.stringify(packageJson)) {
@@ -192,7 +193,7 @@ for (const path of packedPaths.filter((name) => name.endsWith('.map'))) {
   try { map = JSON.parse(readFileSync(join(packageSandbox, 'package', path), 'utf8')); } catch {
     fail(`invalid source map in packed package: ${path}`);
   }
-  const hasInlineSources = path.endsWith('.mjs.map');
+  const hasInlineSources = path.endsWith('.js.map');
   if (!Array.isArray(map.sources)
     || hasInlineSources && (!Array.isArray(map.sourcesContent)
       || map.sources.length !== map.sourcesContent.length)

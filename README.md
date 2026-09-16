@@ -25,7 +25,8 @@ npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-al
 The package and command are both named `oont`. Distribution is through GitHub
 release assets; plain `npm install oont` is not available yet. Each release
 includes checksums and a package attestation. See [release
-verification](CONTRIBUTING.md#releases) or [Develop](#develop) to build from source.
+verification](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md#releases)
+or [Develop](#develop) to build from source.
 
 ## Two-minute quickstart
 
@@ -78,7 +79,7 @@ system. See [Queries and results](docs/QUERIES.md) for scope, time selectors and
 refusal handling.
 
 The package includes TypeScript declarations and has no runtime dependencies.
-It uses ESM; CommonJS is not supported. See [Repository structure](CONTRIBUTING.md#repository-structure)
+It uses ESM; CommonJS is not supported. See [Repository structure](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md#repository-structure)
 for the TypeScript source and JavaScript build output.
 
 ### Managed extension Interface
@@ -176,7 +177,7 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 | Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md) |
 | Understand the engine | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md) |
 | Configure storage or recover a snapshot | [Storage](docs/STORAGE.md) |
-| Change the code | [Contributing](CONTRIBUTING.md) |
+| Change the code | [Contributing](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) |
 
 ## Alpha limitations
 
@@ -200,7 +201,7 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 
 ## Develop
 
-See [Contributing](CONTRIBUTING.md) for setup, repository structure, tests and
+See [Contributing](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md) for setup, repository structure, tests and
 release checks. Production source is TypeScript; JavaScript tests exercise the
 compiled package. Keep generated output and private deployment code out of Git.
 

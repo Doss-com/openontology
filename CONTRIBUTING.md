@@ -24,31 +24,30 @@ npm test
 
 ## Repository structure
 
-| Directory | Contents |
+| Location | Contents |
 | --- | --- |
-| [src/](src/) | TypeScript engine and storage Adapters. |
-| [bin/](bin/) | CLI entrypoint. |
-| [scripts/](scripts/) | Tests, build and release tools, and the Resolver CLI. |
+| [src/openontology.ts](src/openontology.ts), [src/kernel.ts](src/kernel.ts) | Public SDK and kernel exports. |
+| [src/cli/](src/cli/) | CLI entrypoint and command handling. |
+| [src/product/](src/product/) | Query runtime and MCP transport. |
+| [src/source/](src/source/) | Source maps, identity census, publication and snapshot opening. |
+| [src/query/](src/query/) | Planning, retrieval, field resolution and source-bound verification. |
+| [src/proof/](src/proof/) | Proof contracts, authority projections and evaluation. |
+| [src/ledger/](src/ledger/) | Admission authentication and reviewed knowledge reuse. |
+| [src/construction/](src/construction/) | Concept construction, review, Admission, navigation and exploration. |
+| [src/storage/](src/storage/) | Object store, history and backend Adapters. |
+| [test/](test/) | Tests grouped by the source area they exercise. |
+| [scripts/](scripts/) | Build, release and provider-qualification tools. |
 | [examples/quickstart/](examples/quickstart/) | Runnable examples and synthetic source input. |
 | [docs/](docs/) | Query, architecture, lifecycle and storage guides. |
 
-Production source uses `.mts`, TypeScript's ESM extension. `npm run build`
-compiles it to `.mjs` with declarations and source maps under `dist/`. Tests and
-build tools use JavaScript; they are not duplicate runtime implementations.
+All production source, including the CLI, uses `.ts`. `npm run build` compiles
+`src/` to ESM `.js`, `.d.ts` declarations and source maps under `dist/`.
+`package.json` declares `"type": "module"`; NodeNext keeps imports compatible
+with Node. Tests and build tools use JavaScript; they are not duplicate runtime implementations.
 `dist/`, `node_modules/` and package archives are generated and ignored.
 
-For a code change, start at the relevant entrypoint:
-
-| Area | Start here |
-| --- | --- |
-| Public API | [SDK](src/openontology.mts), [CLI](bin/oont.mts), [MCP](src/source-native-product-mcp.mts). |
-| Source construction | [Object map](src/source-native-object-map.mts) and [publication](src/source-native-object-ont.mts). |
-| Queries | [Planner](src/source-native-query-planner.mts) and [field Resolver](src/source-native-field-resolver.mts). |
-| Verification | [Current fields](src/source-native-current-field-verification.mts) and [semantic proof](src/source-native-semantic-verification.mts). |
-| Reviewed knowledge | [Construction review](src/source-native-construction-review.mts) and [admitted reuse](src/source-native-admitted-knowledge.mts). |
-| Storage | [Backend contract](src/object-storage-backend.mts) and [Ont store](src/object-ont-store.mts). |
-
-Tests live in `scripts/test-*.mjs` and use the same area names as the source.
+Tests use `test/<area>/*.test.mjs`. Run one file after a build with
+`node --test test/query/field-resolution.test.mjs`, or use `npm test` for the full suite.
 
 Keep private corpora, credentials, model traces, research results and hosted
 operations out of this repository. Reusable engine fixes belong here; a managed
