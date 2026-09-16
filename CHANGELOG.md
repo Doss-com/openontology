@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Organize production source by responsibility and use `.ts` files with ESM
+  `.js` output and `.d.ts` declarations. Public imports and query behavior are unchanged.
+- Move tests into matching `test/` directories, leaving build and release tools
+  in `scripts/`.
 - Simplify SDK, MCP and Resolver input handling without changing query behavior.
 - Reorganize the reference guides into short sections and remove repeated
   implementation details.
