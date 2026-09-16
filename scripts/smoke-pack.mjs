@@ -207,7 +207,6 @@ void rootOpenCanonicalObjectBackend;
     '--module', 'NodeNext',
     '--moduleResolution', 'NodeNext',
     '--target', 'ES2022',
-    '--typeRoots', join(root, 'node_modules', '@types'),
     contractPath,
   ], { cwd: consumer });
   check('installed declarations compile for a strict consumer', typedConsumer.status === 0,
