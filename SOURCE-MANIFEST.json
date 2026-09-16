@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 8718,
-      "sha256": "f436935ba84351de6cee283f9914cf617abb4ee8734a93a082469beb5739cc0d"
+      "bytes": 8793,
+      "sha256": "24966fc902b3af8047f8165c146f606a9d94837ea0aae604c6b0f2f6094aae5f"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -157,13 +157,13 @@
     },
     {
       "path": "package-lock.json",
-      "bytes": 1573,
-      "sha256": "2936ce788d3d2dc4475d79fff26eb81c6e2364295637738dddaed8579e7d349d"
+      "bytes": 13364,
+      "sha256": "e3aa73cea7132edfdb25e143d261b444044d4566e3ef2042ccae89990162f09f"
     },
     {
       "path": "package.json",
       "bytes": 2587,
-      "sha256": "e291476dfd89826df9072ce402d67aeecf713944899223a5777480e2b4cc977c"
+      "sha256": "12c6d382c6ab1212f05a8ad740eb309eae950dfb9d7870859b24ea8641b20abf"
     },
     {
       "path": "scripts/build.mjs",
@@ -581,5 +581,5 @@
       "sha256": "4828ba4185ebc7347d0705e2aff431ab23e7b4691e69e388bad3f3c9bf90e355"
     }
   ],
-  "manifestSha256": "sha256:1d0a2583f1f8e28a1d003a792b7232285b305fed933ee9acaa753b55fecc3c8f"
+  "manifestSha256": "sha256:9bd858ecfa231acac740cf2766e1d1817cf874c16129182f3fce2fbb1b5d8296"
 }
