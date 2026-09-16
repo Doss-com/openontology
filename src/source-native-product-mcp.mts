@@ -180,24 +180,22 @@ function queryArguments(value: unknown): ProductSearchInput {
   const {
     question,
     intent: inputIntent,
-    at: inputAt,
+    at,
     anchorValue: inputAnchorValue,
   } = args;
   if (typeof question !== 'string' || !question.trim()
     || inputIntent !== undefined && inputIntent !== 'current' && inputIntent !== 'next'
-    || inputAt !== undefined && !exactUtcMillisecondIso(inputAt)
+    || at !== undefined && !exactUtcMillisecondIso(at)
     || inputAnchorValue !== undefined && typeof inputAnchorValue !== 'string') {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
-  const exactQuestion = question;
   const anchorValue = inputAnchorValue === undefined ? null : inputAnchorValue.trim() || null;
-  const at = inputAt;
   if (at !== undefined && (inputIntent === 'next' || anchorValue !== null)) {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
   const intent = inputIntent === 'next' ? 'next' : 'current';
   return {
-    question: exactQuestion,
+    question,
     intent,
     ...(at === undefined ? {} : { at }),
     anchorValue,

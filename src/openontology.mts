@@ -360,29 +360,26 @@ function exactUtcMillisecondIso(value: unknown): value is string {
 
 function queryFields(record: Record<string, unknown>): Omit<OpenOntologyQuery, 'typedQuery'> {
   const {
-    question: inputQuestion,
-    intent: inputIntent,
-    at: inputAt,
+    question,
+    intent,
+    at,
     anchorValue,
   } = record;
-  if (typeof inputQuestion !== 'string' || !inputQuestion.trim()
-    || inputIntent !== undefined && inputIntent !== 'current' && inputIntent !== 'next'
-    || inputAt !== undefined && !exactUtcMillisecondIso(inputAt)
+  if (typeof question !== 'string' || !question.trim()
+    || intent !== undefined && intent !== 'current' && intent !== 'next'
+    || at !== undefined && !exactUtcMillisecondIso(at)
     || anchorValue !== undefined && anchorValue !== null && typeof anchorValue !== 'string') {
     fail('OPENONTOLOGY_QUERY');
   }
-  const question = inputQuestion;
-  const at = inputAt;
-  const exactAnchorValue = anchorValue;
-  if (at !== undefined && (inputIntent === 'next'
-    || typeof exactAnchorValue === 'string' && exactAnchorValue.trim())) {
+  if (at !== undefined && (intent === 'next'
+    || typeof anchorValue === 'string' && anchorValue.trim())) {
     fail('OPENONTOLOGY_QUERY');
   }
   return {
     question,
-    ...(inputIntent === 'current' || inputIntent === 'next' ? { intent: inputIntent } : {}),
+    ...(intent === 'current' || intent === 'next' ? { intent } : {}),
     ...(at === undefined ? {} : { at }),
-    ...(exactAnchorValue === undefined ? {} : { anchorValue: exactAnchorValue }),
+    ...(anchorValue === undefined ? {} : { anchorValue }),
   };
 }
 
@@ -399,19 +396,16 @@ function query(input: unknown): OpenOntologyQuery {
   const fields = queryFields(record);
   if (record.scope === undefined) return fields;
   const scope = isRecord(record.scope) ? record.scope : fail('OPENONTOLOGY_QUERY');
+  const { sourceSystem, objectType, externalId, field: fieldPath } = scope;
   if (Object.keys(scope).some((name) =>
       !['sourceSystem', 'objectType', 'externalId', 'field'].includes(name))
-    || typeof scope.sourceSystem !== 'string' || !scope.sourceSystem
-    || typeof scope.objectType !== 'string' || !scope.objectType
-    || typeof scope.field !== 'string' || !scope.field
-    || scope.externalId !== undefined
-      && (typeof scope.externalId !== 'string' || !scope.externalId)) {
+    || typeof sourceSystem !== 'string' || !sourceSystem
+    || typeof objectType !== 'string' || !objectType
+    || typeof fieldPath !== 'string' || !fieldPath
+    || externalId !== undefined
+      && (typeof externalId !== 'string' || !externalId)) {
     fail('OPENONTOLOGY_QUERY');
   }
-  const sourceSystem = scope.sourceSystem;
-  const objectType = scope.objectType;
-  const fieldPath = scope.field;
-  const externalId = scope.externalId;
   return {
     ...fields,
     typedQuery: {
@@ -432,8 +426,7 @@ function reference(input: unknown): OpenOntologyReferenceInput {
   if (Object.keys(record).length !== 1 || typeof record.ref !== 'string' || !record.ref) {
     fail('OPENONTOLOGY_REFERENCE');
   }
-  const ref = record.ref;
-  return { ref };
+  return { ref: record.ref };
 }
 
 export function openOntology(options: OpenOntologyOptions): OpenOntologyProduct;
