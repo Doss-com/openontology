@@ -152,6 +152,18 @@ test('SDK exposes only the locked query interface and preserves navigation befor
     assert.equal(JSON.stringify(search).includes('Ready'), false);
     assert.equal(search.matches.length, 1);
 
+    const nullAnchorSearch = await ont.search({ ...query, anchorValue: null });
+    assert.equal(nullAnchorSearch.verification.queryPlanSha256,
+      search.verification.queryPlanSha256);
+    assert.throws(
+      () => ont.search({ ...query, anchorValue: 7 }),
+      (error) => error instanceof TypeError && error.code === 'OPENONTOLOGY_QUERY',
+    );
+    assert.throws(
+      () => ont.search({ ...query, typedQuery: null }),
+      (error) => error instanceof TypeError && error.code === 'OPENONTOLOGY_QUERY',
+    );
+
     const evidence = await ont.read(search.matches[0].ref);
     assert.equal(evidence.exactText, 'Ready');
     assert.equal(evidence.binding.externalId, 'issue-1');

@@ -58,16 +58,25 @@ test('MCP query guidance explains optional selectors without changing parsing', 
   const result = await request({ question: 'What is the current title of task-1?' });
   assert.notEqual(result.result.isError, true);
   assert.deepEqual(calls, [{ question: 'What is the current title of task-1?', intent: 'current', anchorValue: null, typedQuery: null }]);
+  const blankAnchor = await request({
+    question: 'What is the current title of task-1?', anchorValue: ' ',
+  });
+  assert.notEqual(blankAnchor.result.isError, true);
+  assert.deepEqual(calls[1], {
+    question: 'What is the current title of task-1?', intent: 'current', anchorValue: null,
+    typedQuery: null,
+  });
   for (const args of [
     { question: 'What is the title?', at: '2026-01-01T00:00:00.000Z', anchorValue: 'Alpha' },
     { question: 'What is the title?', at: '2026-01-01T00:00:00.000Z', intent: 'next' },
     { question: 'What is the title?', typedQuery: {} },
+    { question: 'What is the title?', anchorValue: null },
   ]) {
     const invalid = await request(args);
     assert.equal(invalid.result.isError, true);
     assert.equal(invalid.result.content[0].text, 'SOURCE_NATIVE_PRODUCT_QUERY');
   }
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });
 
 function buildInput() {

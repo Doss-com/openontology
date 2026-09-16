@@ -19,11 +19,11 @@ export interface ProductTransport {
 type McpProduct = ProductTransport | Pick<SourceNativeConstructionProduct, keyof ProductTransport>;
 interface JsonRpcResponse { jsonrpc: '2.0'; id: unknown; result?: unknown; error?: UnknownRecord }
 
-const fail = (code: string): never => {
+function fail(code: string): never {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
-};
+}
 const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 const SCOPE_SCHEMA = Object.freeze({
@@ -161,16 +161,11 @@ function scopeArguments(value: unknown): SourceNativeFieldQuery | null {
     || externalId !== undefined && (typeof externalId !== 'string' || !externalId)) {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
-  const exactSourceSystem = typeof sourceSystem === 'string'
-    ? sourceSystem : fail('SOURCE_NATIVE_PRODUCT_QUERY');
-  const exactObjectType = typeof objectType === 'string'
-    ? objectType : fail('SOURCE_NATIVE_PRODUCT_QUERY');
-  const exactField = typeof field === 'string' ? field : fail('SOURCE_NATIVE_PRODUCT_QUERY');
   return {
-    sourceSystem: exactSourceSystem,
-    objectType: exactObjectType,
-    fieldPath: exactField,
-    ...(typeof externalId === 'string' ? { externalId } : {}),
+    sourceSystem,
+    objectType,
+    fieldPath: field,
+    ...(externalId === undefined ? {} : { externalId }),
   };
 }
 
@@ -194,10 +189,9 @@ function queryArguments(value: unknown): ProductSearchInput {
     || inputAnchorValue !== undefined && typeof inputAnchorValue !== 'string') {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
-  const exactQuestion = typeof question === 'string' ? question : fail('SOURCE_NATIVE_PRODUCT_QUERY');
-  const anchorValue = typeof inputAnchorValue === 'string' ? inputAnchorValue.trim() || null : null;
-  const at = inputAt === undefined ? undefined
-    : exactUtcMillisecondIso(inputAt) ? inputAt : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  const exactQuestion = question;
+  const anchorValue = inputAnchorValue === undefined ? null : inputAnchorValue.trim() || null;
+  const at = inputAt;
   if (at !== undefined && (inputIntent === 'next' || anchorValue !== null)) {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
@@ -217,7 +211,7 @@ function constructionText(value: unknown, maximum = 256): string {
     || Buffer.from(value).toString('utf8') !== value) {
     fail('SOURCE_NATIVE_PRODUCT_QUERY');
   }
-  return typeof value === 'string' ? value.trim() : fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  return value.trim();
 }
 
 function constructionScopeArguments(value: unknown): SourceNativeConstructionSearchInput['scope'] {
@@ -273,7 +267,7 @@ function readArguments(value: unknown, constructionProduct = false): { ref: stri
   if (!valid) {
     fail('SOURCE_NATIVE_PRODUCT_READ');
   }
-  return { ref: typeof ref === 'string' ? ref : fail('SOURCE_NATIVE_PRODUCT_READ') };
+  return { ref };
 }
 
 function result(value: unknown): UnknownRecord {

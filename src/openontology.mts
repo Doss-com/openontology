@@ -342,11 +342,11 @@ export interface OpenOntologyProduct {
   status: () => OpenOntologyStatus;
 }
 
-const fail = (code: string): never => {
+function fail(code: string): never {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
-};
+}
 const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -371,12 +371,9 @@ function queryFields(record: Record<string, unknown>): Omit<OpenOntologyQuery, '
     || anchorValue !== undefined && anchorValue !== null && typeof anchorValue !== 'string') {
     fail('OPENONTOLOGY_QUERY');
   }
-  const question = typeof inputQuestion === 'string' ? inputQuestion : fail('OPENONTOLOGY_QUERY');
-  const at = inputAt === undefined ? undefined
-    : exactUtcMillisecondIso(inputAt) ? inputAt : fail('OPENONTOLOGY_QUERY');
-  const exactAnchorValue = anchorValue === undefined || anchorValue === null
-    ? anchorValue
-    : typeof anchorValue === 'string' ? anchorValue : fail('OPENONTOLOGY_QUERY');
+  const question = inputQuestion;
+  const at = inputAt;
+  const exactAnchorValue = anchorValue;
   if (at !== undefined && (inputIntent === 'next'
     || typeof exactAnchorValue === 'string' && exactAnchorValue.trim())) {
     fail('OPENONTOLOGY_QUERY');
@@ -411,12 +408,9 @@ function query(input: unknown): OpenOntologyQuery {
       && (typeof scope.externalId !== 'string' || !scope.externalId)) {
     fail('OPENONTOLOGY_QUERY');
   }
-  const sourceSystem = typeof scope.sourceSystem === 'string'
-    ? scope.sourceSystem : fail('OPENONTOLOGY_QUERY');
-  const objectType = typeof scope.objectType === 'string'
-    ? scope.objectType : fail('OPENONTOLOGY_QUERY');
-  const fieldPath = typeof scope.field === 'string'
-    ? scope.field : fail('OPENONTOLOGY_QUERY');
+  const sourceSystem = scope.sourceSystem;
+  const objectType = scope.objectType;
+  const fieldPath = scope.field;
   const externalId = scope.externalId;
   return {
     ...fields,
@@ -438,7 +432,7 @@ function reference(input: unknown): OpenOntologyReferenceInput {
   if (Object.keys(record).length !== 1 || typeof record.ref !== 'string' || !record.ref) {
     fail('OPENONTOLOGY_REFERENCE');
   }
-  const ref = typeof record.ref === 'string' ? record.ref : fail('OPENONTOLOGY_REFERENCE');
+  const ref = record.ref;
   return { ref };
 }
 
@@ -452,8 +446,7 @@ export function openOntology(options: ProductOptions = {}): OpenOntologyProduct 
   if (typeof options?.artifactRoot !== 'string' || !options.artifactRoot) {
     fail('OPENONTOLOGY_OPTIONS');
   }
-  const artifactRoot = typeof options.artifactRoot === 'string' && options.artifactRoot
-    ? options.artifactRoot : fail('OPENONTOLOGY_OPTIONS');
+  const artifactRoot = options.artifactRoot;
   const root = resolve(artifactRoot);
   if (!existsSync(join(root, SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE))) {
     fail('OPENONTOLOGY_ARTIFACT');
