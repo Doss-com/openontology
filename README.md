@@ -140,8 +140,8 @@ Both remain linked to their original source text.
 
 ### Maps of concepts and reviewed memory
 
-Applications using `oont/kernel` can add concept definitions (`ObjectDef`), scoped aliases and
-`mentions` / `defines` Claims that connect source passages. Independent review
+Applications using `oont/kernel` can add concept definitions (`ObjectDef`), scoped
+aliases and `mentions` / `defines` Claims that connect source passages. Independent review
 and Admission make these maps available for navigation; factual verification
 still checks the underlying sources.
 See the [semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map).
@@ -149,6 +149,7 @@ See the [semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map)
 The Ledger stores independently admitted query proofs and construction history.
 A later agent with reviewed reuse configured can skip raw retrieval for an
 eligible proof, while still rechecking that proof and reading its source Evidence.
+
 Eligibility includes the exact question, typed query and source cut. Corrections
 supersede earlier records without erasing their history.
 
@@ -157,9 +158,10 @@ supersede earlier records without erasing their history.
 A source cut is a fixed version of the observations and their map.
 Publication writes immutable objects before the shared head advances with
 compare-and-swap, so competing writers cannot silently overwrite one another.
+
 Current queries through an old local descriptor refuse after the source advances;
-opening the updated Ont uses the new cut. Prior knowledge does not automatically become proof for
-the new sources.
+opening the updated Ont uses the new cut. Prior knowledge does not automatically
+become proof for the new sources.
 
 Root SDK, CLI and MCP queries are read-only. The kernel supplies publication,
 construction and reviewed-reuse APIs; your application owns source capture,
