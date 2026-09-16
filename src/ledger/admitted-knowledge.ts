@@ -376,6 +376,14 @@ const knowledgeBranchFor = (sourceCommitSha256: string, value: unknown): string 
   return nonempty(value, 'SOURCE_NATIVE_ADMITTED_KNOWLEDGE_BRANCH');
 };
 
+const isValidKnowledgeCorrection = (
+  superseded: SourceNativeAdmissionRecord,
+  correction: SourceNativeAdmissionRecord,
+): boolean => Date.parse(superseded.statement.admittedAt)
+    < Date.parse(correction.statement.admittedAt)
+  && stableObjectText(superseded.bundle.queryBinding)
+    === stableObjectText(correction.bundle.queryBinding);
+
 function normalizeQueryBinding(value: unknown): SourceNativeAdmittedKnowledgeQueryBinding {
   const row = plain(value) ? value : fail('SOURCE_NATIVE_ADMITTED_KNOWLEDGE_QUERY_BINDING');
   exactKeys(row, [
@@ -1078,9 +1086,7 @@ export function writeSourceNativeAdmittedKnowledge({
     }
     const superseded = validateSourceNativeAdmissionRecord(value);
     if (superseded.recordSha256 !== supersededRecordSha256
-      || Date.parse(superseded.statement.admittedAt) >= Date.parse(record.statement.admittedAt)
-      || stableObjectText(superseded.bundle.queryBinding)
-        !== stableObjectText(record.bundle.queryBinding)) {
+      || !isValidKnowledgeCorrection(superseded, record)) {
       fail('SOURCE_NATIVE_ADMISSION_SUPERSESSION');
     }
   }
@@ -1442,10 +1448,7 @@ function openReader(context: SourceNativeProductRuntimeContext,
     const targets: string[] = [];
     for (const supersededRecordSha256 of record.statement.supersedesRecordSha256s) {
       const superseded = recordsBySha256.get(supersededRecordSha256);
-      if (superseded === undefined
-        || Date.parse(superseded.statement.admittedAt) >= Date.parse(record.statement.admittedAt)
-        || stableObjectText(superseded.bundle.queryBinding)
-          !== stableObjectText(record.bundle.queryBinding)) {
+      if (superseded === undefined || !isValidKnowledgeCorrection(superseded, record)) {
         invalidSupersessionRecordSha256s.add(record.recordSha256);
         invalidAdmissionRecordCount += 1;
         diagnosticCodes.add('SOURCE_NATIVE_ADMISSION_SUPERSESSION');

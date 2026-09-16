@@ -116,11 +116,11 @@ interface ReadResult extends UnknownRecord {
   evidence: ReadEvidence;
   binding: ReadBinding;
 }
-const fail = (code: string): never => {
+function fail(code: string): never {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
   throw error;
-};
+}
 const isRecord = (value: unknown): value is UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 function productResultState(value: string): SourceNativeProductResultState {
@@ -133,7 +133,7 @@ function exactEvidenceReferences(unit: UnknownRecord): EvidenceReference[] {
   if (!Array.isArray(values) || values.length !== unit.exactEvidenceReferenceCount) {
     fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
   }
-  const references: unknown[] = Array.isArray(values) ? values : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
+  const references: unknown[] = values;
   return references.map((value: unknown) => {
     const reference = isRecord(value) ? value : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     const { sourceMessageId, relativePath, sourceSha256, byteStart, byteEnd, textSha256,
@@ -146,35 +146,17 @@ function exactEvidenceReferences(unit: UnknownRecord): EvidenceReference[] {
       || typeof fieldPath !== 'string' || typeof propositionFamilyKey !== 'string') {
       fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     }
-    const exactSourceMessageId = typeof sourceMessageId === 'number'
-      ? sourceMessageId : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactRelativePath = typeof relativePath === 'string'
-      ? relativePath : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactSourceSha256 = typeof sourceSha256 === 'string'
-      ? sourceSha256 : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactByteStart = typeof byteStart === 'number'
-      ? byteStart : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactByteEnd = typeof byteEnd === 'number'
-      ? byteEnd : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactTextSha256 = typeof textSha256 === 'string'
-      ? textSha256 : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactFieldSha256 = typeof fieldSha256 === 'string'
-      ? fieldSha256 : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactFieldPath = typeof fieldPath === 'string'
-      ? fieldPath : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactPropositionFamilyKey = typeof propositionFamilyKey === 'string'
-      ? propositionFamilyKey : fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     return {
       ...reference,
-      sourceMessageId: exactSourceMessageId,
-      relativePath: exactRelativePath,
-      sourceSha256: exactSourceSha256,
-      byteStart: exactByteStart,
-      byteEnd: exactByteEnd,
-      textSha256: exactTextSha256,
-      fieldSha256: exactFieldSha256,
-      fieldPath: exactFieldPath,
-      propositionFamilyKey: exactPropositionFamilyKey,
+      sourceMessageId,
+      relativePath,
+      sourceSha256,
+      byteStart,
+      byteEnd,
+      textSha256,
+      fieldSha256,
+      fieldPath,
+      propositionFamilyKey,
     };
   });
 }
@@ -490,20 +472,18 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       const source = revision === undefined ? null
         : sourceByPath.get(revision.targetField.evidence.relativePath) ?? null;
       if (!revision || !source) fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-      const exactRevision = revision ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-      const exactSource = source ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
       references.push({
         role: 'anchor',
         reference: {
-          sourceMessageId: exactSource.sourceMessageId,
-          relativePath: exactSource.relativePath,
-          sourceSha256: exactRevision.targetField.evidence.sourceSha256,
-          byteStart: exactRevision.targetField.evidence.byteStart,
-          byteEnd: exactRevision.targetField.evidence.byteEnd,
-          textSha256: exactRevision.targetField.evidence.textSha256,
-          fieldSha256: exactRevision.targetField.fieldSha256,
-          fieldPath: exactRevision.fieldPath,
-          propositionFamilyKey: exactRevision.targetField.propositionFamilyKey ?? exactRevision.fieldPath,
+          sourceMessageId: source.sourceMessageId,
+          relativePath: source.relativePath,
+          sourceSha256: revision.targetField.evidence.sourceSha256,
+          byteStart: revision.targetField.evidence.byteStart,
+          byteEnd: revision.targetField.evidence.byteEnd,
+          textSha256: revision.targetField.evidence.textSha256,
+          fieldSha256: revision.targetField.fieldSha256,
+          fieldPath: revision.fieldPath,
+          propositionFamilyKey: revision.targetField.propositionFamilyKey ?? revision.fieldPath,
         },
       });
     }
@@ -515,7 +495,6 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       if (!source || source.relativePath !== reference.relativePath) {
         fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
       }
-      const exactSource = source ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
       const activityFields = lifecycle?.referenceMetadata?.(activity) ?? {};
       const evidenceRef = `evidence:${stableObjectSha256({
         sourceCommitSha256: objectOnt.commitSha256,
@@ -529,7 +508,7 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         resolution,
         role,
         reference,
-        source: exactSource,
+        source,
         activityId: lifecycle?.activityId?.(activity) ?? null,
       }));
       return freeze({
@@ -537,7 +516,7 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         role,
         requiredForProof: true as const,
         relativePath: reference.relativePath,
-        occurredAt: exactSource.occurredAt,
+        occurredAt: source.occurredAt,
         fieldPath: reference.fieldPath,
         propositionFamilyKey: reference.propositionFamilyKey,
         sourceSha256: reference.sourceSha256,
@@ -639,7 +618,6 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       row.relativePath === reference.relativePath
       && row.fields.some((field) => field.fieldSha256 === reference.fieldSha256));
     if (!object) fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
-    const exactObject = object ?? fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
     const resultFields = await lifecycle?.readEvidence?.({
       offeredEvidence,
       exactBytes,
@@ -650,10 +628,10 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
       kind: 'OpenOntologyVerifiedSourceNativeFieldBindingV1' as const,
       role,
       selectionMode: resolution.selectionMode,
-      sourceSystem: exactObject.objectIdentity.sourceSystem,
-      objectType: exactObject.objectIdentity.objectType,
-      namespace: exactObject.objectIdentity.namespace,
-      externalId: exactObject.objectIdentity.externalId,
+      sourceSystem: object.objectIdentity.sourceSystem,
+      objectType: object.objectIdentity.objectType,
+      namespace: object.objectIdentity.namespace,
+      externalId: object.objectIdentity.externalId,
       fieldPath: reference.fieldPath,
       fieldSha256: reference.fieldSha256,
       sourceSha256: reference.sourceSha256,
@@ -719,10 +697,8 @@ function openSourceNativeProductRuntimeWithState(options: ProductOptions = {},
         || stableObjectText(navigation.authority) !== stableObjectText(semanticAuthority)) {
         fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_AUTHORITY');
       }
-      const exactNavigation = navigation
-        ?? fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_AUTHORITY');
       semanticResult = evaluateSourceNativeSemanticNavigation({
-        navigation: exactNavigation,
+        navigation,
         verifiedEvidence: reads.map((row) => {
           const role = row.binding.role === 'answer' ? 'answer' as const
             : row.binding.role === 'counterevidence' ? 'counterevidence' as const
