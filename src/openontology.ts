@@ -8,9 +8,7 @@ import {
 } from './product/runtime.js';
 import type { ProductOptions } from './source/artifact.js';
 import type { OpenOntologyResultState as ResultState } from './product/result-state.js';
-import type {
-  CanonicalObjectBackendEnvironment,
-} from './storage/canonical-backend.js';
+import type { GcsRequestObserver } from './storage/gcs-request-observation.js';
 
 export interface OpenOntologyScopeInput {
   sourceSystem: string;
@@ -42,7 +40,9 @@ interface OpenOntologyQuery {
   } | null;
 }
 export interface OpenOntologyReferenceInput { ref: string }
-export type OpenOntologyBackendEnvironment = CanonicalObjectBackendEnvironment;
+export type OpenOntologyBackendEnvironment = Readonly<Record<
+  string, string | (() => string) | GcsRequestObserver | null | undefined
+>>;
 export interface OpenOntologyOptions {
   artifactRoot: string;
   objectBackendUri?: string | null;
