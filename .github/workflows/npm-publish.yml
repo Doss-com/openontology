@@ -37,6 +37,7 @@ jobs:
           const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
           const tag = process.env.RELEASE_TAG
           if (!/^v/.test(tag) || !semver.test(tag.slice(1))) throw new Error(`invalid release tag ${tag}`)
+          if (process.env.GITHUB_REF !== `refs/tags/${tag}`) throw new Error(`dispatch this workflow from tag ${tag}, not from a branch`)
           const release = JSON.parse(execFileSync('gh', ['release', 'view', tag, '--repo', process.env.GITHUB_REPOSITORY, '--json', 'isDraft,tagName'], { encoding: 'utf8' }))
           if (release.tagName !== tag || release.isDraft) throw new Error(`release ${tag} is missing or still a draft`)
           fs.mkdirSync('release', { recursive: true })

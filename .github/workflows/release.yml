@@ -82,5 +82,6 @@ jobs:
           test -f "$notes_file"
           release_args=("$GITHUB_REF_NAME" release/oont-*.tgz release/SHA256SUMS release/SOURCE-MANIFEST.json)
           release_args+=(--title "OpenOntology ${GITHUB_REF_NAME#v}" --verify-tag --notes-file "$notes_file")
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then release_args+=(--prerelease); fi
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "${version%%+*}" == *-* ]]; then release_args+=(--prerelease); fi
           gh release create "${release_args[@]}"

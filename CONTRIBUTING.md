@@ -135,6 +135,14 @@ line.
 
 ## Releases
 
+To prepare a release:
+
+1. Update the version in `package.json` and `package-lock.json`.
+2. Add `.github/release-notes/v<version>.md`, update `CHANGELOG.md` and the install links.
+3. Run `npm run release:check`, then merge the reviewed PR after CI passes.
+4. Tag the merged commit as `v<version>` and push that tag. The release workflow
+   builds, verifies and publishes the GitHub release assets.
+
 The release workflow generates a source inventory into the release output and
 attaches it beside the package archive and `SHA256SUMS`. It is release
 metadata, not a committed source file or npm package entry. A local check is:
@@ -146,12 +154,14 @@ npm run release:check
 npm pack
 ```
 
-Published releases have an immutable version tag, package archive, `SHA256SUMS`,
-source inventory and a GitHub attestation. Download the archive and metadata
-from the same release, then verify them before installation:
+Published releases have a version tag, package archive, `SHA256SUMS`, source
+inventory and a GitHub package attestation. Verify the downloaded package before
+installation. For example, in a clean directory:
 
 ```bash
-VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+VERSION=0.3.0-alpha.4
+gh release download "v${VERSION}" --repo Doss-com/openontology \
+  --pattern "oont-${VERSION}.tgz" --pattern SHA256SUMS
 shasum -a 256 -c SHA256SUMS
 gh attestation verify "./oont-${VERSION}.tgz" --repo Doss-com/openontology
 ```
@@ -168,6 +178,14 @@ The first npm publication requires an authorized npm account. Once the package
 exists, configure its trusted publisher to use `Doss-com/openontology`, the
 `npm-publish.yml` workflow and the `npm-release` environment. Later publications
 use GitHub's short-lived identity, not a stored npm token.
+
+Dispatch from the same version tag so npm provenance identifies the released
+source commit:
+
+```bash
+gh workflow run npm-publish.yml --repo Doss-com/openontology \
+  --ref "v${VERSION}" -f tag="v${VERSION}" -f confirm=PUBLISH
+```
 
 A locally packed archive has no GitHub release attestation; use
 `shasum -a 256 ./oont-${VERSION}.tgz` to record its identity.
