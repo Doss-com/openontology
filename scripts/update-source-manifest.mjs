@@ -2,11 +2,22 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const outputFlag = process.argv[2];
+const outputArgument = process.argv[3];
+if (outputFlag !== '--output' || !outputArgument) {
+  throw new Error('Usage: node scripts/update-source-manifest.mjs --output <release-output-path>');
+}
+const outputPath = resolve(root, outputArgument);
+const relativeOutput = relative(root, outputPath);
+const normalizedOutput = relativeOutput.split(sep).join('/');
+if (!/^(?:release|\.release)\/SOURCE-MANIFEST\.json$/u.test(normalizedOutput)) {
+  throw new Error(`Source inventory output must be release/SOURCE-MANIFEST.json: ${outputPath}`);
+}
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const canonical = (value) => JSON.stringify(value, (_key, item) =>
   item && typeof item === 'object' && !Array.isArray(item)
@@ -14,17 +25,10 @@ const canonical = (value) => JSON.stringify(value, (_key, item) =>
     : item);
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
-  cwd: root,
-  encoding: 'utf8',
-}).split('\0').filter(Boolean);
-if (untracked.length > 0) {
-  throw new Error(`Stage intended source files before updating the manifest: ${untracked.join(', ')}`);
-}
 const paths = execFileSync('git', ['ls-files', '-z'], {
   cwd: root,
   encoding: 'utf8',
-}).split('\0').filter((path) => path && path !== 'SOURCE-MANIFEST.json');
+}).split('\0').filter(Boolean);
 const files = paths.map((path) => {
   const bytes = readFileSync(join(root, path));
   return { path, bytes: bytes.length, sha256: sha256(bytes) };
@@ -42,5 +46,6 @@ const manifest = {
   manifestSha256: `sha256:${sha256(Buffer.from(canonical(core)))}`,
 };
 
-writeFileSync(join(root, 'SOURCE-MANIFEST.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-process.stdout.write(`updated SOURCE-MANIFEST.json for ${files.length} files\n`);
+mkdirSync(dirname(outputPath), { recursive: true });
+writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
+process.stdout.write(`generated ${normalizedOutput} for ${files.length} tracked files\n`);

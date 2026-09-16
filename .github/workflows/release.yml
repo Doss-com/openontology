@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*-alpha.*'
+      - 'v*.*.*'
 
 permissions:
   contents: write
@@ -24,13 +24,19 @@ jobs:
       - name: Verify tag matches package version
         run: |
           node <<'NODE'
-          const expected = `v${require('./package.json').version}`
-          if (process.env.GITHUB_REF_NAME !== expected) {
-            throw new Error(`release tag ${process.env.GITHUB_REF_NAME} does not match ${expected}`)
-          }
+          const fs = require('node:fs')
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+          if (!semver.test(packageJson.version)) throw new Error(`invalid package version ${packageJson.version}`)
+          const expected = `v${packageJson.version}`
+          if (process.env.GITHUB_REF_NAME !== expected) throw new Error(`release tag ${process.env.GITHUB_REF_NAME} does not match ${expected}`)
           NODE
       - run: npm ci
       - run: npm run release:check
+      - name: Generate source inventory
+        run: |
+          mkdir -p release
+          node scripts/update-source-manifest.mjs --output release/SOURCE-MANIFEST.json
       - name: Build package
         run: |
           npm pack
@@ -45,9 +51,7 @@ jobs:
         run: |
           notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
           test -f "$notes_file"
-          gh release create "$GITHUB_REF_NAME" \
-            oont-*.tgz SHA256SUMS \
-            --title "OpenOntology ${GITHUB_REF_NAME#v}" \
-            --prerelease \
-            --verify-tag \
-            --notes-file "$notes_file"
+          release_args=("$GITHUB_REF_NAME" oont-*.tgz SHA256SUMS release/SOURCE-MANIFEST.json)
+          release_args+=(--title "OpenOntology ${GITHUB_REF_NAME#v}" --verify-tag --notes-file "$notes_file")
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then release_args+=(--prerelease); fi
+          gh release create "${release_args[@]}"

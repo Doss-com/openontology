@@ -22,6 +22,11 @@ npm ci
 npm test
 ```
 
+For an iterative source and test loop, run `npm run dev` once or
+`npm run dev:watch` to rebuild and run the Node test suite after changes. The
+watch loop cleans and rebuilds `dist/` before every test run, so a failed
+compile never executes stale generated output. Stop it with Ctrl-C.
+
 ## Repository structure
 
 | Location | Contents |
@@ -93,6 +98,16 @@ npm run release:check
 TypeScript and Node type versions are pinned in `package.json`. When updating
 them, keep the Node 24 runtime floor and Node 24/26 CI checks passing.
 
+Formatting is development-only and does not add runtime dependencies:
+
+```bash
+npm run format
+npm run format:check
+```
+
+The repository uses Prettier with the existing two-space, single-quote and
+semicolon style. Do not commit `dist/`, package archives or release output.
+
 GCS qualification is optional and credentialed:
 
 ```bash
@@ -113,28 +128,34 @@ line.
 
 ## Releases
 
-After editing tracked source or documentation, refresh the source inventory
-before running the release checks:
+The release workflow generates a source inventory into the release output and
+attaches it beside the package archive and `SHA256SUMS`. It is release
+metadata, not a committed source file or npm package entry. A local check is:
 
 ```bash
-npm run manifest:update
+mkdir -p release
+node scripts/update-source-manifest.mjs --output release/SOURCE-MANIFEST.json
 npm run release:check
 npm pack
 ```
 
-Stage any new source files before updating the manifest. It records tracked
-paths and hashes; generated packages and `dist/` must remain untracked. A local
-pack uses the checkout's package version but is not a published release.
-
-Published prereleases have a tag, package archive, `SHA256SUMS` and a GitHub
-attestation. Download the archive and checksum file from the same release, then
-verify them before installation:
+Published releases have an immutable version tag, package archive, `SHA256SUMS`,
+source inventory and a GitHub attestation. Download the archive and metadata
+from the same release, then verify them before installation:
 
 ```bash
+VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
 shasum -a 256 -c SHA256SUMS
-gh attestation verify ./oont-0.3.0-alpha.3.tgz --repo Doss-com/openontology
+gh attestation verify "./oont-${VERSION}.tgz" --repo Doss-com/openontology
 ```
 
-The source inventory, release checksums and attestation are release metadata,
-not files inside the npm archive. A locally packed archive has no GitHub release
-attestation; use `shasum -a 256 ./oont-0.3.0-alpha.3.tgz` to record its identity.
+The manual `npm-publish.yml` workflow publishes only a reviewed immutable tag.
+It requires the `PUBLISH` confirmation, an `npm-release` environment that
+repository administrators must configure with the intended reviewers, and npm
+trusted-publisher configuration for this repository. It downloads the exact
+attested GitHub release archive, then selects the `next` dist-tag for
+prereleases and `latest` for stable versions. The archival GitHub release
+workflow does not publish to npm.
+
+A locally packed archive has no GitHub release attestation; use
+`shasum -a 256 ./oont-${VERSION}.tgz` to record its identity.

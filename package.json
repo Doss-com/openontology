@@ -45,6 +45,7 @@
   "dependencies": {},
   "devDependencies": {
     "@types/node": "24.10.2",
+    "prettier": "3.9.6",
     "typescript": "7.0.2"
   },
   "scripts": {
@@ -58,7 +59,10 @@
     "check:kernel": "node --test test/proof/*.test.mjs test/construction/*.test.mjs test/ledger/*.test.mjs",
     "check:package-import-closure": "node scripts/check-package-import-closure.mjs",
     "check:public-release": "node scripts/check-public-release.mjs",
-    "manifest:update": "node scripts/update-source-manifest.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "dev": "node scripts/dev-loop.mjs",
+    "dev:watch": "node scripts/dev-loop.mjs --watch",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "prepack": "npm run build",
     "release:check": "npm run check && npm run check:package-import-closure && npm run check:public-release && npm run smoke:pack && git diff --check",

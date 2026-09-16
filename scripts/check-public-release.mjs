@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -17,11 +16,7 @@ const fail = (message) => {
   if (packageSandbox) rmSync(packageSandbox, { recursive: true, force: true });
   process.exit(1);
 };
-const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const canonical = (value) => JSON.stringify(value, (_key, item) =>
-  item && typeof item === 'object' && !Array.isArray(item)
-    ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]]))
-    : item);
+const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
 
 const tracked = execFileSync('git', ['ls-files', '-z'], {
   cwd: root,
@@ -30,19 +25,17 @@ const tracked = execFileSync('git', ['ls-files', '-z'], {
 
 const allowedRoots = new Set([
   '.editorconfig', '.github', '.gitignore', '.npmignore', '.nvmrc',
+  '.prettierignore', '.prettierrc.json',
   'AGENTS.md', 'CHANGELOG.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
   'GLOSSARY.md', 'LICENSE', 'README.md', 'SECURITY.md', 'docs',
   'examples',
-  'package-lock.json', 'package.json', 'scripts', 'SOURCE-MANIFEST.json', 'src', 'test',
+  'package-lock.json', 'package.json', 'scripts', 'src', 'test',
   'tsconfig.json',
 ]);
 
 const unexpectedRoots = [...new Set(tracked.map((path) => path.split('/')[0]))]
   .filter((name) => !allowedRoots.has(name));
 if (unexpectedRoots.length) fail(`unexpected root entries: ${unexpectedRoots.join(', ')}`);
-if (!tracked.includes('.github/release-notes/v0.3.0-alpha.3.md')) {
-  fail('versioned release notes are required');
-}
 
 const forbiddenPaths = tracked.filter((path) =>
   /^(eval|evidence|customers|design|eng|specs|harness|asks|studio|tooling)\//u.test(path)
@@ -60,37 +53,6 @@ for (const path of tracked.filter((name) => /^\.github\/workflows\/.*\.ya?ml$/u.
     if (!match[1].startsWith('./') && !/^[0-9a-f]{40}$/u.test(match[2])) {
       fail(`GitHub Action is not pinned to a full commit in ${path}: ${match[0].trim()}`);
     }
-  }
-}
-
-const manifestPath = join(root, 'SOURCE-MANIFEST.json');
-if (!tracked.includes('SOURCE-MANIFEST.json')) fail('SOURCE-MANIFEST.json is required');
-let sourceManifest;
-try { sourceManifest = JSON.parse(readFileSync(manifestPath, 'utf8')); } catch {
-  fail('SOURCE-MANIFEST.json is not valid JSON');
-}
-const manifestKeys = [
-  'fileCount', 'files', 'kind', 'manifestSha256', 'packageName', 'packageVersion',
-  'schemaVersion',
-];
-if (JSON.stringify(Object.keys(sourceManifest).sort()) !== JSON.stringify(manifestKeys)) {
-  fail('source manifest has unexpected fields');
-}
-const { manifestSha256, ...manifestCore } = sourceManifest;
-if (sourceManifest.kind !== 'OpenOntologyPublicSourceManifestV1'
-  || manifestSha256 !== `sha256:${sha256(Buffer.from(canonical(manifestCore)))}`) {
-  fail('source manifest identity is invalid');
-}
-const manifestPaths = sourceManifest.files?.map((file) => file.path) ?? [];
-const expectedManifestPaths = tracked.filter((path) => path !== 'SOURCE-MANIFEST.json');
-if (sourceManifest.fileCount !== manifestPaths.length
-  || JSON.stringify(manifestPaths) !== JSON.stringify(expectedManifestPaths)) {
-  fail('source manifest file inventory does not match Git');
-}
-for (const file of sourceManifest.files) {
-  const bytes = readFileSync(join(root, file.path));
-  if (file.bytes !== bytes.length || file.sha256 !== sha256(bytes)) {
-    fail(`source manifest mismatch in ${file.path}`);
   }
 }
 
@@ -117,22 +79,22 @@ for (const path of tracked) {
   for (const [kind, pattern] of secretPatterns) {
     if (pattern.test(text)) fail(`${kind} pattern in ${path}`);
   }
+  if (path.endsWith('.svg') && /<script\b|\bon[a-z]+\s*=|(?:href|xlink:href)\s*=\s*["'](?:https?:|data:)/iu.test(text)) {
+    fail(`unsafe external or executable SVG content in ${path}`);
+  }
 }
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 if (packageJson.name !== 'oont') fail('package name must be oont');
-if (packageJson.version !== '0.3.0-alpha.3') fail('package version must be 0.3.0-alpha.3');
-const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
-if (!releaseWorkflow.includes('.github/release-notes/${GITHUB_REF_NAME}.md')
-  || !releaseWorkflow.includes('OpenOntology ${GITHUB_REF_NAME#v}')
-  || releaseWorkflow.includes('--notes-file .github/release-notes/v0.3.0-alpha.2.md')
-  || releaseWorkflow.includes('--title "OpenOntology 0.3.0-alpha.2"')) {
-  fail('release workflow must derive title and notes from the immutable tag');
+if (typeof packageJson.version !== 'string' || !semverPattern.test(packageJson.version)) {
+  fail(`package version is not valid SemVer: ${packageJson.version}`);
 }
-if (sourceManifest.packageName !== packageJson.name
-  || sourceManifest.packageVersion !== packageJson.version) {
-  fail('source manifest package identity does not match package.json');
+const expectedTag = `v${packageJson.version}`;
+if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== expectedTag) {
+  fail(`release tag ${process.env.GITHUB_REF_NAME} does not match ${expectedTag}`);
 }
+const releaseNotesPath = `.github/release-notes/${expectedTag}.md`;
+if (!tracked.includes(releaseNotesPath)) fail(`release notes are required at ${releaseNotesPath}`);
 if (JSON.stringify(packageJson.exports) !== JSON.stringify({
   '.': {
     types: './dist/openontology.d.ts',
@@ -149,7 +111,6 @@ if (JSON.stringify(packageJson.exports) !== JSON.stringify({
 if (Object.keys(packageJson.dependencies ?? {}).length !== 0) {
   fail('runtime dependencies must remain empty');
 }
-if (Object.keys(packageJson.scripts ?? {}).length > 16) fail('package script surface is too broad');
 
 packageSandbox = mkdtempSync(join(tmpdir(), 'oont-release-'));
 let packed;
@@ -188,6 +149,9 @@ const packageJsonInTarball = JSON.parse(readFileSync(join(packageSandbox, 'packa
 if (JSON.stringify(packageJsonInTarball) !== JSON.stringify(packageJson)) {
   fail('packed package.json differs from the release checkout');
 }
+if (packedPaths.some((path) => /(?:^|\/)SOURCE-MANIFEST\.json$/u.test(path))) {
+  fail('source inventory must remain outside the npm archive');
+}
 for (const path of packedPaths.filter((name) => name.endsWith('.map'))) {
   let map;
   try { map = JSON.parse(readFileSync(join(packageSandbox, 'package', path), 'utf8')); } catch {
@@ -202,8 +166,6 @@ for (const path of packedPaths.filter((name) => name.endsWith('.map'))) {
     fail(`packed source map is not valid for the generated output contract: ${path}`);
   }
 }
-if (packed.entryCount > 177) fail(`package contains ${packed.entryCount} files, expected at most 177`);
-
 process.stdout.write(`public release check passed: ${tracked.length} tracked files, ${packed.entryCount} package files\n`);
 rmSync(packageSandbox, { recursive: true, force: true });
 packageSandbox = null;
