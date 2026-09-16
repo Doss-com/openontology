@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const repositoryRoot = resolve(import.meta.dirname, '..', '..');
@@ -28,7 +29,8 @@ for (const args of [
 
 const version = run(['--version']);
 assert.equal(version.status, 0, version.stderr);
-assert.equal(version.stdout.trim(), '0.3.0-alpha.3');
+const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
+assert.equal(version.stdout.trim(), packageJson.version);
 assert.equal(version.stderr, '');
 
 const badIntent = run([

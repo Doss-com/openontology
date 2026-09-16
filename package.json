@@ -1,6 +1,6 @@
 {
   "name": "oont",
-  "version": "0.3.0-alpha.3",
+  "version": "0.3.0-alpha.4",
   "type": "module",
   "description": "A factual context compiler that gives agents verified context or a typed refusal.",
   "main": "./dist/openontology.js",
@@ -65,7 +65,7 @@
     "dev:watch": "node scripts/dev-loop.mjs --watch",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "prepack": "npm run build",
-    "release:check": "npm run check && npm run check:package-import-closure && npm run check:public-release && npm run smoke:pack && git diff --check",
+    "release:check": "npm run format:check && npm run check && npm run check:package-import-closure && npm run check:public-release && npm run smoke:pack && git diff --check",
     "qualify:gcs-object-storage": "npm run build && node scripts/qualify-gcs-object-storage.mjs"
   },
   "repository": {

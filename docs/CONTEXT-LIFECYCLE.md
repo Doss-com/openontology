@@ -14,7 +14,7 @@ and makes no benchmark claim.
   Adapter schema. Neither example introduces a kernel class.
 - Namespace and native ID complete the identity in both examples.
 
-Construction, verification and reviewed reuse ship in the alpha.3 kernel.
+Construction, verification and reviewed reuse ship in the kernel.
 Source capture, model workers and scheduled review require a managed application;
 the ordinary `verify` call does not start them. Later sections describe possible
 extensions separately from the working examples.

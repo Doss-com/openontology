@@ -69,4 +69,4 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_ENV, `NPM_TAG=${packageJson.version.split('+', 1)[0].includes('-') ? 'next' : 'latest'}\n`)
           NODE
       - name: Publish reviewed release
-        run: npm publish "$PACKAGE_FILE" --access public --provenance --tag "$NPM_TAG"
+        run: npm publish "$PACKAGE_FILE" --ignore-scripts --access public --provenance --tag "$NPM_TAG"

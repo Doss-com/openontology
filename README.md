@@ -26,7 +26,7 @@ sufficient evidence receive a structured refusal.
 source observations -> Ont -> search, inspect and verify -> agent context
 ```
 
-The current release is [0.3.0-alpha.3](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.3).
+The current release is [0.3.0-alpha.4](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.4).
 This repository contains the open-source engine, CLI, SDK and MCP server.
 Hosted deployment and operation belong in a separate managed application.
 
@@ -36,7 +36,7 @@ Requires Node.js 24 or newer. Install the published package from your applicatio
 directory:
 
 ```bash
-npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.3/oont-0.3.0-alpha.3.tgz
+npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.4/oont-0.3.0-alpha.4.tgz
 ```
 
 The package and command are both named `oont`. Distribution is through GitHub
@@ -164,7 +164,7 @@ for the TypeScript source and JavaScript build output.
 
 `oont/kernel` exposes source publication, protected history, semantic construction
 and reviewed knowledge reuse for Adapters and managed applications. These exports
-ship in alpha.3; the root `oont` client is read-only.
+ship in the kernel; the root `oont` client is read-only.
 
 Managed applications consume pinned package releases and own authentication,
 source scheduling, model workers, billing and deployment outside this repository.
@@ -274,7 +274,7 @@ Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
   source publication and Admission require explicit operator configuration;
   hosted source refresh and review workers are not included.
 - The published root client opens local Ont descriptors. Remote SDK/CLI access
-  is not part of alpha.3.
+  is not included yet.
 - A typed refusal is a valid integrity result, not a transport failure.
 
 ## Develop

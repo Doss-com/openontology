@@ -27,6 +27,13 @@ For an iterative source and test loop, run `npm run dev` once or
 watch loop cleans and rebuilds `dist/` before every test run, so a failed
 compile never executes stale generated output. Stop it with Ctrl-C.
 
+Pass a test file to keep the loop focused:
+
+```bash
+npm run dev -- test/query/field-resolution.test.mjs
+npm run dev:watch -- test/query/field-resolution.test.mjs
+```
+
 ## Repository structure
 
 | Location | Contents |
@@ -156,6 +163,11 @@ trusted-publisher configuration for this repository. It downloads the exact
 attested GitHub release archive, then selects the `next` dist-tag for
 prereleases and `latest` for stable versions. The archival GitHub release
 workflow does not publish to npm.
+
+The first npm publication requires an authorized npm account. Once the package
+exists, configure its trusted publisher to use `Doss-com/openontology`, the
+`npm-publish.yml` workflow and the `npm-release` environment. Later publications
+use GitHub's short-lived identity, not a stored npm token.
 
 A locally packed archive has no GitHub release attestation; use
 `shasum -a 256 ./oont-${VERSION}.tgz` to record its identity.

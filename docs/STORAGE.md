@@ -1,7 +1,7 @@
 # Storage
 
 OpenOntology stores immutable objects and advances named refs with
-compare-and-swap. This guide covers the storage operations in `oont` 0.3.0-alpha.3;
+compare-and-swap. This guide covers the storage operations in `oont` 0.3.0-alpha.4;
 query and proof semantics stay in the engine.
 
 Source and knowledge branches advance by commit ancestry:
