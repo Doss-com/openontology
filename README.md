@@ -1,4 +1,21 @@
-# OpenOntology
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Doss-com/openontology/main/docs/assets/header-dark.svg">
+    <img src="https://raw.githubusercontent.com/Doss-com/openontology/main/docs/assets/header.svg" alt="OpenOntology. Verified context for agents." width="960">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Doss-com/openontology/actions/workflows/ci.yml"><img src="https://github.com/Doss-com/openontology/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://github.com/Doss-com/openontology/releases"><img src="https://img.shields.io/github/v/release/Doss-com/openontology?include_prereleases&amp;label=release&amp;color=4d4d4d" alt="Latest release, including prereleases"></a>
+  <a href="https://github.com/Doss-com/openontology/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Doss-com/openontology?color=4d4d4d" alt="Apache-2.0 license"></a>
+</p>
+
+<p align="center">
+  <a href="#two-minute-quickstart">Quickstart</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md">Contributing</a>
+</p>
 
 OpenOntology builds a typed map of source material and uses it to return
 verified context to agents. It resolves identities, checks recorded chronology
