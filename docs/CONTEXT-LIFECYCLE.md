@@ -16,7 +16,8 @@ and makes no benchmark claim.
 
 Construction, verification and reviewed reuse ship in the alpha.3 kernel.
 Source capture, model workers and scheduled review require a managed application;
-the ordinary `verify` call does not start them. Proposed extensions are marked below.
+the ordinary `verify` call does not start them. Later sections describe possible
+extensions separately from the working examples.
 
 ## The two loops
 
@@ -416,10 +417,9 @@ Explicit activation
 Later Resolver uses the policy for navigation
 ```
 
-This path [EXISTS] in research implementations. It is not the automatic behavior
-of every public query, and a SearchPolicy does not become factual Evidence.
-Moving this broader learning path into the product is distinct from the
-canonical proof-reuse mechanism described above.
+This path is experimental and does not ship in the public package. A SearchPolicy
+guides navigation; it does not become factual Evidence. The public kernel's
+reviewed proof reuse, described above, does not require it.
 
 ## 9. What changes when an agent touches an Ont?
 
@@ -471,7 +471,7 @@ database/code-map constructors are not part of this public kernel.
 
 ### The next layer: maps of ideas
 
-[PROPOSED] A construction-time studying process could extract candidate names,
+A future construction-time studying process could extract candidate names,
 concepts and relationships from source material, attach their Evidence and
 scope, and propose them for review. Accepted links could then guide later
 Resolvers.

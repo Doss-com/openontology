@@ -5,6 +5,8 @@
 - Simplify SDK, MCP and Resolver input handling without changing query behavior.
 - Reorganize the reference guides into short sections and remove repeated
   implementation details.
+- Move detailed query usage into a dedicated guide, add a linked contributor
+  code map, and replace project-status labels with plain descriptions.
 
 ## 0.3.0-alpha.3
 

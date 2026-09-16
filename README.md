@@ -13,12 +13,6 @@ The current release is [0.3.0-alpha.3](https://github.com/Doss-com/openontology/
 This repository contains the open-source engine, CLI, SDK and MCP server.
 Hosted deployment and operation belong in a separate managed application.
 
-Start with [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md), a
-`ClickupTask` walkthrough from source observation to verified context and reviewed reuse.
-
-Technical references: [Architecture](docs/ARCHITECTURE.md),
-[Storage](docs/STORAGE.md), and [Glossary](GLOSSARY.md).
-
 ## Install
 
 Requires Node.js 24 or newer. Install the published package from your application
@@ -71,51 +65,30 @@ if (result.answerable) {
 }
 ```
 
-The root client exposes:
+| Method | Use it to |
+| --- | --- |
+| `verify(query)` | Get verified source context or a reason it cannot be returned. |
+| `search(query)` | Find candidate source References. |
+| `read(ref)` | Inspect a Reference returned by the same client. |
+| `status()` | Check the opened Ont's metadata and integrity. |
 
-```ts
-interface OpenOntologyProduct {
-  verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>
-  search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>
-  read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>
-  status(): OpenOntologyStatus
-}
-```
+Start with `verify`; use `search` and `read` when you want to inspect candidates
+yourself. Results describe the recorded source snapshot, not the live source
+system. See [Queries and results](docs/QUERIES.md) for scope, time selectors and
+refusal handling.
 
-- Engine and CLI source is strict TypeScript (`.mts`). Tests, build scripts and
-  examples use JavaScript.
-- One dependency-free ESM runtime serves JavaScript and TypeScript callers.
-  CommonJS is not supported.
-- Builds produce `.mjs`, declarations and source maps in `dist/`. Generated
-  output is packaged but not committed.
-
-`verify` is the ordinary path. It searches, runs internal Resolvers, performs
-the required exact reads, and closes the proof obligations.
-
-Results describe the bound source snapshot. A current-field result requires
-complete, unambiguous recorded chronology. An exact typed identity absent from a
-complete catalog can receive an absence receipt with `answerable: false` and no
-context. Neither result claims knowledge beyond that source scope.
-
-`verify` answers a question against one Ont. `check` validates the Ont itself.
-
-`search` returns candidate References. Pass one to `read` on the same open
-client to inspect its source text and receipt. Wait for search to return; do not
-invent handles. Reads of already-issued References can run concurrently.
+The package includes TypeScript declarations and has no runtime dependencies.
+It uses ESM; CommonJS is not supported. See [Repository structure](CONTRIBUTING.md#repository-structure)
+for the TypeScript source and JavaScript build output.
 
 ### Managed extension Interface
 
-`oont/kernel` exposes the engine operations needed by storage Adapters and
-managed applications: source publication, protected history, semantic
-construction, independent Admission and reviewed knowledge reuse. These exports
-ship in alpha.3. Ordinary applications should use the root `oont` client.
+`oont/kernel` exposes source publication, protected history, semantic construction
+and reviewed knowledge reuse for Adapters and managed applications. These exports
+ship in alpha.3; the root `oont` client is read-only.
 
-Tapestry's managed application belongs in a separate private repository,
-deployed on our infrastructure:
-
-- It owns authentication, source scheduling, model workers, billing and deployment.
-- Consume a pinned public `oont` release with recorded integrity. Upgrade the
-  dependency explicitly rather than copying the engine or following a moving branch.
+Managed applications consume pinned package releases and own authentication,
+source scheduling, model workers, billing and deployment outside this repository.
 
 See [Architecture](docs/ARCHITECTURE.md) for the contracts and
 [the semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map) for
@@ -140,18 +113,13 @@ Advanced MCP exposes exactly `search` and `read`:
 oont serve ./verified-context --mcp --advanced
 ```
 
-The stdio server writes its startup status JSON to stderr before serving
-requests. Parse stdout for JSON-RPC protocol messages; treat stderr as
-diagnostics.
-
 Start a verification call with only `question`:
 
 ```json
 { "question": "What is the current title of task-1?" }
 ```
 
-Optional `scope` uses the exact declared source-system, object-type and field
-names. Results can return `availableFields` to help discover them.
+See [MCP usage](docs/QUERIES.md#mcp) for request options and transport details.
 
 Run `npx --no-install oont --help` or
 `npx --no-install oont <command> --help` for options.
@@ -161,76 +129,23 @@ refreshes the original source or rebuilds the Ont.
 
 ## Typed scope
 
-Natural language can be narrowed with an explicit source scope:
-
-```bash
-oont verify ./verified-context \
-  'What is the current title?' \
-  --source-system tracker \
-  --object-type task \
-  --external-id task-1 \
-  --field title
-```
-
-Scope names are case-sensitive and must match the Adapter schema. An explicit
-ID in the question must agree with `scope.externalId`. A conflicting profile,
-field or ID returns a refusal. If an opaque ID does not reveal its object type,
-include the type in the question or provide the scope shown above.
-
-Identity comes from the complete scoped map, not the highest-ranked search hit.
+Narrow a question with a source system, object type, field and optional native ID.
+Scope names must match the Adapter schema. Identity comes from the complete
+scoped map, not the highest-ranked search hit. See [Typed scope](docs/QUERIES.md#typed-scope)
+for SDK and CLI examples.
 
 ### Declared titles
 
-A source Adapter with complete `title` coverage can also identify an object by
-a quoted name:
-
-```js
-await ont.verify('What is the current status of the task titled "Release review"?')
-```
-
-Use one `titled "..."` or `named "..."` clause. Matching normalizes Unicode,
-case and whitespace, while preserving punctuation. Unknown or ambiguous names,
-incomplete coverage and conflicting IDs return no context. Recorded titles can
-identify an object across revisions; the requested value still follows chronology.
+With complete `title` coverage, a question can identify an object using
+`titled "..."` or `named "..."`. Ambiguous names return no context.
+See [Declared titles](docs/QUERIES.md#declared-titles) for matching rules.
 
 ## Temporal intent
 
-`current` is the default intent. OpenOntology does not silently infer a
-historical operation from question wording. A question that asks about a prior
-value, a date, a change, or relative ordering without a supported intent returns
-`unavailable-native-temporal-intent-not-declared` with `answerable: false`.
-
-`next` selects the field revision that immediately followed an exact anchor
-value.
-
-```bash
-npx --no-install oont verify ./verified-context \
-  'What title immediately followed Prepare launch for task-1?' \
-  --intent next
-```
-
-For a point-in-time query:
-
-```js
-await ont.verify({
-  question: 'What was the title of task-1?',
-  at: '2026-01-15T00:00:00.000Z',
-})
-```
-
-- CLI uses `--at`; MCP uses `at`. Supply a UTC ISO timestamp with milliseconds.
-- Do not combine `at` with `intent: next` or `anchorValue`.
-- For `next`, `anchorValue` is the previous field value, not the object's ID.
-  Omit both selectors for current-value questions.
-
-An `at` query selects what was valid within the source snapshot, including
-later-learned corrections. It does not reconstruct what was known then. Missing
-`validAt` falls back to observation time. Requests outside the recorded horizon
-or with unresolved chronology return no context. See [Architecture](docs/ARCHITECTURE.md)
-for temporal and counterevidence rules.
-
-All result states are exported as `OpenOntologyResultState`. States beginning
-with `unavailable-` are normal typed refusals, not transport failures.
+Queries use the latest recorded value by default. Use `at` for a point in time
+or `intent: next` for the revision after an anchor value. Historical wording
+alone does not select a historical operation. See [Temporal intent](docs/QUERIES.md#temporal-intent)
+for examples and the recorded-time limits.
 
 ## Storage
 
@@ -252,7 +167,16 @@ their source evidence before returning context.
 Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
 ```
 
-See [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md).
+## Documentation
+
+| I want to... | Start here |
+| --- | --- |
+| Query an Ont and handle the result | [Queries and results](docs/QUERIES.md) |
+| Bring in data and publish updates | [Source input and updates](docs/SOURCE-LIFECYCLE.md) |
+| Follow one object through the whole system | [The life of context in an Ont](docs/CONTEXT-LIFECYCLE.md) |
+| Understand the engine | [Architecture](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md) |
+| Configure storage or recover a snapshot | [Storage](docs/STORAGE.md) |
+| Change the code | [Contributing](CONTRIBUTING.md) |
 
 ## Alpha limitations
 

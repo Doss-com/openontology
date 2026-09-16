@@ -3,7 +3,7 @@
   "kind": "OpenOntologyPublicSourceManifestV1",
   "packageName": "oont",
   "packageVersion": "0.3.0-alpha.3",
-  "fileCount": 114,
+  "fileCount": 115,
   "files": [
     {
       "path": ".editorconfig",
@@ -82,8 +82,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 8307,
-      "sha256": "3644e5a220414d0a1ba0ca73fdefc21fc9465d5dc4ad1092ca11a1e5b2012a86"
+      "bytes": 8455,
+      "sha256": "7d6033e7ef32403e16c744178916ed86b2e42d15f04a97d6d0fc5179a32ffc42"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -92,8 +92,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 3732,
-      "sha256": "cf3a7e2e4735fbc909de2c626403656b1a60ab807a12c3c2aea06bda859a6d8a"
+      "bytes": 5079,
+      "sha256": "35f4037f593782a1e91138f7451e87cf073084b303f09db9aa33847e02f844d9"
     },
     {
       "path": "GLOSSARY.md",
@@ -107,8 +107,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 11231,
-      "sha256": "832be07821dfecb057212dbe883cfcc47ec6ea15e7bbbeee33eb421c496ae4b4"
+      "bytes": 8526,
+      "sha256": "74289178d79dc917756b148397e418143798120a6936eca61046e32105ff6996"
     },
     {
       "path": "SECURITY.md",
@@ -127,8 +127,13 @@
     },
     {
       "path": "docs/CONTEXT-LIFECYCLE.md",
-      "bytes": 23008,
-      "sha256": "5781c800c180e94bcaa6556f87a74cf933b796297ca4f8fd3d03edb09a2579e6"
+      "bytes": 22988,
+      "sha256": "17368ed0df5cf8d6f2062b52315004b1963c7a0535950afaec3c3bcecfc5af2d"
+    },
+    {
+      "path": "docs/QUERIES.md",
+      "bytes": 6491,
+      "sha256": "2c12423448668e64aef8536f01fc5d5e3e852a78df1d7f81ce116ec57560c156"
     },
     {
       "path": "docs/SOURCE-LIFECYCLE.md",
@@ -162,8 +167,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 3923,
-      "sha256": "b759408e106d1542db45d6d182387dc945a0aabd0c55b66425543cc849c57c9d"
+      "bytes": 3946,
+      "sha256": "3beee61698f3108b3e14c8769dd0797140eb14f458b79c1996618ee24ed035f7"
     },
     {
       "path": "scripts/build.mjs",
@@ -177,8 +182,8 @@
     },
     {
       "path": "scripts/check-public-release.mjs",
-      "bytes": 9969,
-      "sha256": "d69d115567e3ab39b72557111cd63907d4c816244a6e42e3c5761c3100cf0714"
+      "bytes": 9916,
+      "sha256": "255bc301658b1a7eb2025ca5e9156c818f11b4e5c1663dd6a5482255b8188ccc"
     },
     {
       "path": "scripts/clean.mjs",
@@ -427,8 +432,8 @@
     },
     {
       "path": "src/openontology.mts",
-      "bytes": 15317,
-      "sha256": "eaa3d719769ce4cb220505ca9956e26eb3bf9f0b3d374b9e9f68e8827e4d0e47"
+      "bytes": 15811,
+      "sha256": "a9f79c118b3fc3b6c4940fbe8923dfe3db29f3d6aafbd14c84402d7e52b628cd"
     },
     {
       "path": "src/product-result-state.mts",
@@ -576,5 +581,5 @@
       "sha256": "a3725648b3f74f4f8f724694e13d3ebbdc71e098de29204b93ec51c88d2837df"
     }
   ],
-  "manifestSha256": "sha256:6fb8845a0eaf40a99bee2551f02fcf266ca5ca1d1dd1f211aad5dd9dea8797d5"
+  "manifestSha256": "sha256:e628158aac75b394812d39e5e1f4cad08b31ac86eff5d6ee26d94b133cf72ebf"
 }

@@ -24,18 +24,31 @@ npm test
 
 ## Repository structure
 
-```text
-bin/       TypeScript CLI entrypoint
-src/       TypeScript engine and storage Adapters
-scripts/   tests, build/release tools, TypeScript Resolver CLI
-examples/  runnable JavaScript examples and synthetic inputs
-docs/      architecture, lifecycle and storage guides
-```
+| Directory | Contents |
+| --- | --- |
+| [src/](src/) | TypeScript engine and storage Adapters. |
+| [bin/](bin/) | CLI entrypoint. |
+| [scripts/](scripts/) | Tests, build and release tools, and the Resolver CLI. |
+| [examples/quickstart/](examples/quickstart/) | Runnable examples and synthetic source input. |
+| [docs/](docs/) | Query, architecture, lifecycle and storage guides. |
 
 Production source uses `.mts`, TypeScript's ESM extension. `npm run build`
 compiles it to `.mjs` with declarations and source maps under `dist/`. Tests and
 build tools use JavaScript; they are not duplicate runtime implementations.
 `dist/`, `node_modules/` and package archives are generated and ignored.
+
+For a code change, start at the relevant entrypoint:
+
+| Area | Start here |
+| --- | --- |
+| Public API | [SDK](src/openontology.mts), [CLI](bin/oont.mts), [MCP](src/source-native-product-mcp.mts). |
+| Source construction | [Object map](src/source-native-object-map.mts) and [publication](src/source-native-object-ont.mts). |
+| Queries | [Planner](src/source-native-query-planner.mts) and [field Resolver](src/source-native-field-resolver.mts). |
+| Verification | [Current fields](src/source-native-current-field-verification.mts) and [semantic proof](src/source-native-semantic-verification.mts). |
+| Reviewed knowledge | [Construction review](src/source-native-construction-review.mts) and [admitted reuse](src/source-native-admitted-knowledge.mts). |
+| Storage | [Backend contract](src/object-storage-backend.mts) and [Ont store](src/object-ont-store.mts). |
+
+Tests live in `scripts/test-*.mjs` and use the same area names as the source.
 
 Keep private corpora, credentials, model traces, research results and hosted
 operations out of this repository. Reusable engine fixes belong here; a managed
@@ -51,6 +64,11 @@ consumer upgrades by pinning a new public release, not copying source.
 5. Do not introduce an Adapter seam until at least two implementations vary.
 6. Do not commit credentials, customer data, model traces, or generated results.
 7. Keep pull requests small enough to review as one decision.
+
+Prefer direct control flow and names that explain the operation. Comments should
+explain a constraint or a surprising decision, not restate the next line. In
+documentation, lead with a working example, keep paragraphs short, and describe
+limitations in plain language without project-status labels.
 
 ## Tests
 

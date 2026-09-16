@@ -168,6 +168,7 @@ const required = [
   'dist/bin/oont.d.mts', 'dist/src/openontology.mjs',
   'dist/src/openontology.d.mts', 'examples/quickstart/source-native-input.json',
   'examples/quickstart/source-lifecycle.mjs', 'docs/SOURCE-LIFECYCLE.md',
+  'docs/QUERIES.md',
   'examples/quickstart/semantic-map.mjs',
 ];
 for (const path of required) {
@@ -200,8 +201,7 @@ for (const path of packedPaths.filter((name) => name.endsWith('.map'))) {
     fail(`packed source map is not valid for the generated output contract: ${path}`);
   }
 }
-// The explorer adds one runtime module plus declarations and their maps.
-if (packed.entryCount > 176) fail(`package contains ${packed.entryCount} files, expected at most 176`);
+if (packed.entryCount > 177) fail(`package contains ${packed.entryCount} files, expected at most 177`);
 
 process.stdout.write(`public release check passed: ${tracked.length} tracked files, ${packed.entryCount} package files\n`);
 rmSync(packageSandbox, { recursive: true, force: true });

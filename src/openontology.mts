@@ -1,4 +1,4 @@
-/** Public SDK entrypoint over proof-closing OpenOntology products. */
+/** Public SDK for querying and inspecting an Ont. */
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -19,8 +19,11 @@ export interface OpenOntologyScopeInput {
 export interface OpenOntologyQueryInput {
   question: string;
   intent?: 'current' | 'next';
+  /** Select by valid time in the snapshot, not by what was known at that time. */
   at?: string;
+  /** Exact previous field value for `next`, not an object ID. */
   anchorValue?: string | null;
+  /** Source, type and field names must match the Adapter schema. */
   scope?: OpenOntologyScopeInput;
 }
 
@@ -336,9 +339,13 @@ export interface OpenOntologyStatus {
 }
 export interface OpenOntologyProduct {
   kind: 'OpenOntologyClientV2';
+  /** Return checked source context, or a refusal when verification cannot complete. */
   verify: (input: string | OpenOntologyQueryInput) => Promise<OpenOntologyVerificationResult>;
+  /** Find candidate References. Search results alone do not establish an answer. */
   search: (input: string | OpenOntologyQueryInput) => Promise<OpenOntologySearchResult>;
+  /** Inspect a Reference issued by this client. */
   read: (input: string | OpenOntologyReferenceInput) => Promise<OpenOntologyReadResult>;
+  /** Inspect the opened Ont without refreshing its source data. */
   status: () => OpenOntologyStatus;
 }
 
