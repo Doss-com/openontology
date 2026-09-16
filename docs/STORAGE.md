@@ -4,18 +4,18 @@ OpenOntology stores immutable objects and advances named refs with
 compare-and-swap. This guide covers the storage operations in `oont` 0.3.0-alpha.3;
 query and proof semantics stay in the engine.
 
-Normal ObjectOnt ref publication is forward-only. An existing branch accepts
-its current commit or a descendant, and rejects an ancestor or unrelated fork
-with `OBJECT_ONT_REF_ROLLBACK`. Backend version conflicts still govern concurrent
-writes. Historical snapshots remain readable without changing current refs.
-This is commit ancestry, not content rollback: republishing older bytes can
-create a new descendant commit, advance the branch, and make descriptors bound
-to a prior descendant stale. Treat that as a new publication, not restoration;
-use exact historical opening or a separate branch or cut when preserving old
-state.
-This rule covers source and admitted-knowledge publication. The legacy profile
-does not detect a direct backend rewrite after process restart. The
-protected profile below adds independently stored accepted history.
+Source and knowledge branches advance by commit ancestry:
+
+- Publishing the current commit or a descendant is allowed. An ancestor or
+  unrelated fork returns `OBJECT_ONT_REF_ROLLBACK`.
+- Concurrent writes still use backend version checks. Historical reads do not
+  change current refs.
+- Republishing older content can create a new descendant. That is a new
+  publication, not a restore, and can make existing descriptors stale.
+- To inspect old state, use historical opening or a separate branch.
+
+Legacy profiles cannot detect a direct backend rewind after restart. Protected
+history adds an independently stored record of accepted refs.
 
 ## Protected history
 
@@ -40,12 +40,15 @@ These are storage settings for the operator. The root query surface stays
 `verify`, `search`, `read`, `check`, and `status`. Every successor build must use
 the same protected profile. Ordinary query operations never repair storage.
 
-The protected store reserves an exact target in accepted history, conditionally
-updates the data ref, then finalizes acceptance. A lost response leaves a target
-that can be recovered forward, never an instruction to reset to an older cut.
-Current readers refuse pending, missing, corrupt or mismatched history. Warm
-knowledge refresh uses the same check before reusing a cached Admission.
-Unavailable knowledge falls back to ordinary exact source verification.
+Protected publication has three steps:
+
+1. Reserve the target in accepted history.
+2. Conditionally update the data ref.
+3. Finalize acceptance.
+
+A lost response leaves a target that can be recovered forward. Pending, missing,
+corrupt or mismatched history blocks current reads and cached Admission reuse.
+Unavailable knowledge falls back to ordinary source verification.
 
 Explicit operator recovery uses the history-aware store returned by
 `openExactProductArtifactState`. `store.recoverRefHistory({ ontId, branch })`
@@ -59,12 +62,15 @@ Existing unprotected branches need explicit receipt-bound enrollment through
 trusted history from the ref it is supposed to check. Enrollment and migration
 remain operator work, not automatic onboarding.
 
-Protection requires a separately controlled restore domain. Different bucket or
-prefix strings alone do not establish that boundary. A restore that rewinds both
-data and protected history remains indistinguishable without an independently
-retained receipt. IAM, backup retention and deployment-specific recovery still
-require operational qualification. Protected publication adds conditional writes
-and reachable-object metadata checks in exchange for cold-start continuity.
+Protection depends on deployment configuration:
+
+- Data and history need separately controlled restoration. Different bucket or
+  prefix names alone are insufficient.
+- Rewinding both stores is undetectable without an independently retained receipt.
+- IAM, retention and recovery must be checked for the deployment.
+
+The tradeoff is extra conditional writes and object-metadata checks for rollback
+detection across restarts.
 
 ## Conditional source publication
 
@@ -83,12 +89,14 @@ base when it eventually finishes.
   idempotent replay behavior, including with a stale string or `null`. No new
   commit or ref version is published in that case.
 
-A stale changed target returns `SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT`. The
-caller must reconcile its intended input and source base before trying again;
-blindly substituting the latest version defeats the precondition. Empty strings
-and non-string/non-null values return `SOURCE_NATIVE_PRODUCT_SOURCE_VERSION`
-before an output directory is created. Protected-history pending, corruption
-and rewind checks still apply, even to identical-content replay.
+Publication errors:
+
+- A stale changed target returns `SOURCE_NATIVE_OBJECT_ONT_REF_CONFLICT`.
+  Reconcile the input and source base before retrying; do not simply substitute
+  the latest version.
+- Invalid version values return `SOURCE_NATIVE_PRODUCT_SOURCE_VERSION` before
+  creating an output directory.
+- Protected-history checks apply even to identical-content replay.
 
 Use a separate descriptor directory for each changed cut. A rejected
 publication may leave that directory and unreferenced immutable blobs or
@@ -145,13 +153,14 @@ physical object keys while receipts retain logical keys. Prefixes reject
 traversal, encoded aliases and trailing separators. A prefix is organization,
 not an IAM boundary. S3 prefix configuration is not supported.
 
-Programmatic `objectBackendEnv` accepts either `OONT_GCS_ACCESS_TOKEN` or a
-synchronous `OONT_GCS_ACCESS_TOKEN_PROVIDER` function that returns a current
-token, not both. The function is called for each request attempt. It cannot be
-supplied as a shell environment string. Ordinary nonempty reads use one media
-request. Transient read failures receive up to three attempts by default;
-writes are not automatically retried. This reduces metadata round trips but
-does not establish a total query-latency or operating-cost bound.
+For programmatic use, `objectBackendEnv` accepts either:
+
+- `OONT_GCS_ACCESS_TOKEN`, a token string.
+- `OONT_GCS_ACCESS_TOKEN_PROVIDER`, a synchronous function returning a current
+  token on each request attempt. It cannot be supplied as a shell string.
+
+Do not supply both. Ordinary nonempty reads use one media request, with up to
+three attempts for transient failures. Writes are not automatically retried.
 
 To run the confined provider qualification:
 
@@ -187,34 +196,38 @@ branch advances. It still validates descriptor and replay hashes and exact
 stored sources. Ordinary opening retains its current-ref check. These are
 kernel operator primitives, not an automatic refresh or hosted ingestion API.
 
-New source-native materialization publishes a replay checkpoint through
-`compareAndSwapRefMetadataCheckpointed`. The immutable checkpoint is written
-before the ref CAS, and applies only to clean blob-only history. Assertion-bearing
-Ledger history still requires full replay. A missing checkpoint falls back to
-graph replay; a present invalid checkpoint refuses. Ref-index opening,
-resource binding, ordinary opening and exact opening use the checkpoint when
-present, without treating it as Evidence or skipping map and catalog validation.
-Ordinary opening checks the descriptor against the ref before loading source
-payloads. Exact opening uses the immutable descriptor's cut without following
-the ref. Both still inspect every source hash and field Evidence span.
+New materialization writes an immutable replay checkpoint before the ref CAS,
+through `compareAndSwapRefMetadataCheckpointed`.
 
-The checkpoint bounds metadata request count as commit history grows, not
-checkpoint bytes, memory, query work, or total cost. It adds one immutable
-metadata object at publication in exchange for fewer history reads at startup.
-Ref publication also reads the current ref to check ancestry. A rejected
-checkpointed write can leave an immutable checkpoint without advancing the ref.
-Full product hydration remains corpus-sized. The complete managed update loop and
-provider operating limits require further qualification.
+- Checkpoints apply to clean blob-only history. Assertion-bearing Ledger
+  history requires full replay.
+- Missing checkpoints fall back to graph replay. Invalid checkpoints refuse.
+- Ref-index opening, resource binding and product opening use valid checkpoints
+  without skipping map or catalog validation.
+- Ordinary opening checks the descriptor against the current ref before reading
+  payloads. Exact opening uses the descriptor's cut without following the ref.
+- Both product openings inspect every source hash and field Evidence span.
+
+Checkpoints exchange one extra publication object for fewer startup history
+reads. Publication still reads the current ref to check ancestry; a rejected
+write may leave an unreferenced checkpoint.
+
+They limit metadata request count, not bytes, memory or query cost. Full product
+hydration remains corpus-sized. Managed update behavior and provider limits
+require separate qualification.
 
 ### Selected construction sources
 
-The kernel exports
-`openProductSourceContext(options)`. It checks the current artifact binding,
-protected history, map and complete catalog without hydrating every source
-pack. Its `readSource(sourceRef)` resolves only a catalog member, reads that
-whole document, verifies its hash and UTF-8, and checks every attached native
-field against those bytes. A context describes one checked immutable cut;
-it does not keep a mutable branch current after opening.
+`openProductSourceContext(options)` checks the artifact binding, protected
+history, map and complete catalog without hydrating every source pack.
+
+Its `readSource(sourceRef)`:
+
+- Resolves a member of that catalog.
+- Reads the whole document and verifies its hash and UTF-8.
+- Checks every attached native field against those bytes.
+
+The context describes one immutable cut; it does not follow source updates.
 
 Construction compile/rebind, review, construction Admission and standalone
 construction-ledger reads open this context internally. Their public inputs
@@ -222,14 +235,16 @@ remain artifact options, not caller-supplied validation receipts. Review checks
 its source-text budget before reading payload and includes complete cited
 documents. Source-reading failures fail the entire ledger operation.
 
-This is selected-document validation, not a whole-Corpus audit. Full product
-opening and whole-Ont checks still validate all source bytes. Protected
-Admission still checks every parent object's availability and metadata.
-The file Adapter validates an entire JSON/base64 envelope even for a range or
-head operation; native GCS ranges need only return the selected bytes. Thus
-unrelated pack damage can affect these operations differently. Map and catalog
-work remains whole-index, and the map can itself contain large source fields.
-No total memory, latency or hosted-cost bound follows from a small range read.
+Read scope matters:
+
+- Construction validates selected documents. Full product opening and whole-Ont
+  checks validate all source bytes.
+- Protected Admission also checks every parent object's availability and metadata.
+- File storage validates the entire JSON/base64 envelope even for range or head
+  operations. GCS ranges can read selected bytes, so unrelated pack damage can
+  affect the two Adapters differently.
+- Map and catalog checks remain whole-index; the map may contain large fields.
+  A small range read does not bound total memory, latency or cost.
 
 ## Managed storage
 

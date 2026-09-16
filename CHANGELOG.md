@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Simplify SDK, MCP and Resolver input handling without changing query behavior.
+- Reorganize the reference guides into short sections and remove repeated
+  implementation details.
+
+## 0.3.0-alpha.3
+
+### Changed
+
 - Resolve typed scope against the complete scoped distinct-identity map rather
   than retrieval ranking. Exact IDs, unique declared titles, and singleton
   scopes remain usable; ambiguous subjects refuse without choosing a result.
@@ -61,10 +69,6 @@
 - Add stable source resource binding and validated ref-bound replay checkpoints
   to the kernel. Ordinary product opening uses valid checkpoints and falls back
   to full replay when a checkpoint is absent.
-
-## 0.3.0-alpha.3
-
-### Changed
 
 - Made strict TypeScript the canonical source while preserving dependency-free
   ESM output and validated current-field and successor behavior.

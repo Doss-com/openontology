@@ -82,14 +82,12 @@ interface OpenOntologyProduct {
 }
 ```
 
-The engine and CLI are written in strict TypeScript (`.mts`). Builds produce
-JavaScript ESM (`.mjs`), type declarations and source maps in `dist/`. That output
-is packaged but not committed. There is one runtime implementation and one
-`oont` package for both TypeScript and JavaScript users. CommonJS is not supported.
-
-Tests, build scripts and examples still use JavaScript. They account for the
-JavaScript shown in the repository, not a second engine or an unfinished
-production-source migration.
+- Engine and CLI source is strict TypeScript (`.mts`). Tests, build scripts and
+  examples use JavaScript.
+- One dependency-free ESM runtime serves JavaScript and TypeScript callers.
+  CommonJS is not supported.
+- Builds produce `.mjs`, declarations and source maps in `dist/`. Generated
+  output is packaged but not committed.
 
 `verify` is the ordinary path. It searches, runs internal Resolvers, performs
 the required exact reads, and closes the proof obligations.
@@ -112,12 +110,12 @@ managed applications: source publication, protected history, semantic
 construction, independent Admission and reviewed knowledge reuse. These exports
 ship in alpha.3. Ordinary applications should use the root `oont` client.
 
-Managed applications own authentication, source scheduling, model workers,
-billing and deployment in their own private repository and infrastructure.
-They should import an exact published `oont` release, record its integrity, and
-upgrade explicitly rather than copying engine source or following a moving Git
-branch. `oont/kernel` provides reusable engine operations, not the hosted control
-plane.
+Tapestry's managed application belongs in a separate private repository,
+deployed on our infrastructure:
+
+- It owns authentication, source scheduling, model workers, billing and deployment.
+- Consume a pinned public `oont` release with recorded integrity. Upgrade the
+  dependency explicitly rather than copying the engine or following a moving branch.
 
 See [Architecture](docs/ARCHITECTURE.md) for the contracts and
 [the semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map) for
@@ -220,10 +218,10 @@ await ont.verify({
 })
 ```
 
-The CLI uses `--at`; MCP uses `at`. Supply a UTC ISO timestamp with milliseconds.
-Do not combine `at` with `intent: next` or `anchorValue`. For `next`, the optional
-`anchorValue` is the previous field value, not the object's ID. Omit both
-selectors for current-value questions.
+- CLI uses `--at`; MCP uses `at`. Supply a UTC ISO timestamp with milliseconds.
+- Do not combine `at` with `intent: next` or `anchorValue`.
+- For `next`, `anchorValue` is the previous field value, not the object's ID.
+  Omit both selectors for current-value questions.
 
 An `at` query selects what was valid within the source snapshot, including
 later-learned corrections. It does not reconstruct what was known then. Missing
