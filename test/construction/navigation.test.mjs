@@ -119,15 +119,13 @@ function fixture(t, { taskCount = 2, protectedHistory = false } = {}) {
         predicate: 'defines',
         source: witness('docs/guide.txt'),
       },
-      ...sources
-        .slice(1)
-        .map((source, i) => ({
-          kind: 'Claim',
-          id: `mention-${i}`,
-          about: 'allocation-exception',
-          predicate: 'mentions',
-          source: witness(source.relativePath),
-        })),
+      ...sources.slice(1).map((source, i) => ({
+        kind: 'Claim',
+        id: `mention-${i}`,
+        about: 'allocation-exception',
+        predicate: 'mentions',
+        source: witness(source.relativePath),
+      })),
     ],
     coverage: state.objectOnt.sources.map((source) => ({
       sourceRef: source.relativePath,

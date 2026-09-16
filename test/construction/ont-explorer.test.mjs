@@ -567,13 +567,11 @@ test('scoped aliases, explicit IDs and one-hop focus keep identities distinct', 
   });
   assert(scopedAlias.totalCount >= 2);
   assert(scopedAlias.nodes.some((node) => node.objectDef?.id === 'mismatched-alias'));
-  const navigation = await f
-    .openConstruction()
-    .search({
-      term: 'allocation mismatch',
-      scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
-      limit: 64,
-    });
+  const navigation = await f.openConstruction().search({
+    term: 'allocation mismatch',
+    scope: { sourceSystem: 'clickup', objectType: 'ClickupTask' },
+    limit: 64,
+  });
   assert.equal(scopedAlias.totalCount, navigation.totalMatches);
   assert.equal(
     afterMismatch.nodes({ term: 'allocation mismatch', scope: { sourceSystem: 'docs' } })
@@ -1225,15 +1223,13 @@ test('offered reads reuse handles and evict only after 1,024 distinct passages',
     const id = `bounded-${start}`;
     const input = f.baseInput([]);
     input.objectDefs = [{ kind: 'ObjectDef', id, name: 'Needle', aliases: [], source: batch[0] }];
-    input.claims = batch
-      .slice(1)
-      .map((source, index) => ({
-        kind: 'Claim',
-        id: `mention-${start + index + 1}`,
-        about: id,
-        predicate: 'mentions',
-        source,
-      }));
+    input.claims = batch.slice(1).map((source, index) => ({
+      kind: 'Claim',
+      id: `mention-${start + index + 1}`,
+      about: id,
+      predicate: 'mentions',
+      source,
+    }));
     f.write(f.admit(f.compile(input)));
   }
   const explorer = f.open();
