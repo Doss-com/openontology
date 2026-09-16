@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Build with TypeScript 7.0.2 while retaining the Node 24 runtime minimum.
 - Organize production source by responsibility and use `.ts` files with ESM
   `.js` output and `.d.ts` declarations. Public imports and query behavior are unchanged.
 - Move tests into matching `test/` directories, leaving build and release tools
