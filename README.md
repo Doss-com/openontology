@@ -13,6 +13,7 @@
 
 <p align="center">
   <a href="#two-minute-quickstart">Quickstart</a> ·
+  <a href="#architecture">How it works</a> ·
   <a href="#documentation">Documentation</a> ·
   <a href="https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md">Contributing</a>
 </p>
@@ -23,7 +24,7 @@ and counterevidence, and returns the supporting source text. Questions without
 sufficient evidence receive a structured refusal.
 
 ```text
-source observations -> Ont -> search, inspect and verify -> agent context
+source observations → Ont → search, read and verify → agent context
 ```
 
 The current release is [0.3.0-alpha.4](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.4).
@@ -100,6 +101,73 @@ Next step: ask for the declared `title` field, or add and rebuild an `owner`
 field in the Adapter input. Do not treat a refusal as a guessed or partial
 answer.
 
+## Architecture
+
+The compiler builds a typed crosswalk over source material. Resolvers use it to
+find the right identity, follow revisions and check what the sources establish.
+
+```text
+Your source Adapter
+        │ observations + identities + fields + time
+        ↓
+Published source cut
+        ├── Corpus: preserved source documents
+        └── Ont: identities, revisions, relations and source links
+
+Agent question
+        │
+        ↓
+Resolver → Ont traversal → Corpus reads → Verification
+                                            ├── context + receipts
+                                            └── typed refusal
+```
+
+### Map and verify
+
+- The source system (Terrain) remains authoritative. Your Adapter supplies
+  captured observations, their identity, declared fields and source locations.
+- Corpus preserves those observations. The Ont groups records by their complete
+  source-native identity, orders field revisions and links them to source text.
+- BM25 finds candidate material. Ont traversal checks it against the complete
+  scoped identity map, recorded chronology and declared counterevidence.
+- `verify` reads the supporting Corpus spans and checks the proof obligations
+  before returning context. A highly ranked search hit is not enough on its own.
+
+In the quickstart, `Prepare launch` and `Ship verified context` are observations
+of the same `task-1`. The Ont connects them as field revisions, so a current-title
+query selects the latter while a historical query can recover the earlier value.
+Both remain linked to their original source text.
+
+### Maps of concepts and reviewed memory
+
+Applications using `oont/kernel` can add concept definitions (`ObjectDef`), scoped aliases and
+`mentions` / `defines` Claims that connect source passages. Independent review
+and Admission make these maps available for navigation; factual verification
+still checks the underlying sources.
+See the [semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map).
+
+The Ledger stores independently admitted query proofs and construction history.
+A later agent with reviewed reuse configured can skip raw retrieval for an
+eligible proof, while still rechecking that proof and reading its source Evidence.
+Eligibility includes the exact question, typed query and source cut. Corrections
+supersede earlier records without erasing their history.
+
+### Updates and storage
+
+A source cut is a fixed version of the observations and their map.
+Publication writes immutable objects before the shared head advances with
+compare-and-swap, so competing writers cannot silently overwrite one another.
+Current queries through an old local descriptor refuse after the source advances;
+opening the updated Ont uses the new cut. Prior knowledge does not automatically become proof for
+the new sources.
+
+Root SDK, CLI and MCP queries are read-only. The kernel supplies publication,
+construction and reviewed-reuse APIs; your application owns source capture,
+scheduling and reviewers. See [Storage](#storage) for backend options.
+
+Follow [one object through the lifecycle](docs/CONTEXT-LIFECYCLE.md), or read the
+[architecture reference](docs/ARCHITECTURE.md) and [Glossary](GLOSSARY.md).
+
 ## First-use recipes
 
 ### SDK
@@ -163,19 +231,6 @@ The package includes TypeScript declarations and has no runtime dependencies.
 It uses ESM; CommonJS is not supported. See [Repository structure](https://github.com/Doss-com/openontology/blob/main/CONTRIBUTING.md#repository-structure)
 for the TypeScript source and JavaScript build output.
 
-### Managed extension Interface
-
-`oont/kernel` exposes source publication, protected history, semantic construction
-and reviewed knowledge reuse for Adapters and managed applications. These exports
-ship in the kernel; the root `oont` client is read-only.
-
-Managed applications consume pinned package releases and own authentication,
-source scheduling, model workers, billing and deployment outside this repository.
-
-See [Architecture](docs/ARCHITECTURE.md) for the contracts and
-[the semantic-map example](docs/CONTEXT-LIFECYCLE.md#executable-concept-map) for
-construction and reviewed reuse.
-
 ## CLI
 
 The public query and integrity operations are:
@@ -238,16 +293,6 @@ immutable-object and conditional-ref model.
 See [Storage](docs/STORAGE.md) for configuration, credentials, protected history
 and recovery. Hosted accounts, quotas and deployment policy belong to the
 managed application.
-
-## Architecture
-
-Adapters describe source observations. The Ont records identities, chronology
-and typed relationships. Retrieval proposes candidates; verification checks
-their source evidence before returning context.
-
-```text
-Adapter input -> immutable Corpus and Ont -> Resolver -> Verification
-```
 
 ## Documentation
 
