@@ -15,6 +15,7 @@ import {
 } from '../../dist/product/runtime.js';
 import { stableObjectSha256 } from '../../dist/canonical-content.js';
 import { createSourceNativeProductMcpHandler } from '../../dist/product/mcp.js';
+import { openSourceNativeExactEvidenceSession } from '../../dist/query/verification/evidence-session.js';
 import { openExactProductArtifactState, openProductState } from '../../dist/source/artifact.js';
 
 const resolverCli = join(import.meta.dirname, '..', '..', 'dist', 'cli', 'resolver.js');
@@ -152,6 +153,80 @@ function buildInput() {
     })),
   };
 }
+
+test('uses one canonical source catalog binding across browse and verification', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-catalog-binding-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+  let context;
+  const product = openSourceNativeProductRuntime({ artifactRoot: root }, (value) => {
+    context = value;
+    return null;
+  });
+
+  const browse = await product.search({ browse: 'objects', limit: 1 });
+  const verification = await product.verify({
+    question: 'What is the current task title for task-1?',
+  });
+  const canonicalCatalogSha256 = context.objectOnt.catalog.sourceCatalogSha256;
+
+  assert.equal(browse.sourceBinding.sourceCatalogSha256, canonicalCatalogSha256);
+  assert.equal(
+    verification.verification.currentFieldChronology.sourceCatalogSha256,
+    canonicalCatalogSha256,
+  );
+
+  const standalone = openSourceNativeExactEvidenceSession({
+    namespace: 'acme',
+    nativeObjectMapSha256: context.objectOnt.map.nativeObjectMapSha256,
+    sources: context.sources,
+    tokenize: (value) =>
+      String(value)
+        .toLowerCase()
+        .split(/[^a-z0-9]+/u)
+        .filter(Boolean),
+    retrievalAdapter: 'source-native-product-bm25-v1',
+    retrievalAdapterSha256: stableObjectSha256({ adapter: 'source-native-product-bm25-v1' }),
+  });
+  assert.equal(
+    standalone.sourceCatalogSha256,
+    stableObjectSha256(context.sources.map(({ content: _content, ...row }) => row)),
+  );
+});
+
+test('rejects a seed adapter bound to a stale source route map', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-stale-source-route-map-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildInput() });
+    const product = openSourceNativeProductRuntime({ artifactRoot: root }, (context) => {
+      // This is the route binding generated before bound sessions adopted the canonical catalog.
+      const projectionCatalogSha256 = stableObjectSha256(
+        context.sources.map(({ content: _content, ...row }) => row),
+      );
+      const staleRouteMapSha256 = stableObjectSha256({
+        schema: 1,
+        kind: 'OpenOntologySourceNativeNavigationMapBindingV1',
+        nativeObjectMapSha256: context.objectOnt.map.nativeObjectMapSha256,
+        sourceCatalogSha256: projectionCatalogSha256,
+        sourceCommitSha256: context.objectOnt.commitSha256,
+        sourceReplaySha256: context.objectOnt.replaySha256,
+      });
+      assert.notEqual(staleRouteMapSha256, context.session.sourceSearchRouteMapSha256);
+      return {
+        seedSearchAdapter: {
+          ...hostedSeedSearchAdapter(context, { declaration: 0 }),
+          sourceSearchRouteMapSha256: staleRouteMapSha256,
+        },
+      };
+    });
+    await assert.rejects(
+      product.search({ question: 'What is the current task title for task-1?' }),
+      { code: 'SOURCE_NATIVE_SEED_SEARCH_ADAPTER' },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 function buildScopedIdentityCensusInput() {
   const rows = [
