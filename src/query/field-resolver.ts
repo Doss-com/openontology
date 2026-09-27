@@ -460,10 +460,7 @@ export function openSourceNativeRecordedFieldResolver({
     }
     const current = resolution?.current;
     const selectedIdentitySha256 =
-      current === undefined || current === null
-        ? null
-        : (map.nativeObjects.find((row) => row.relativePath === current.relativePath)
-            ?.objectIdentitySha256 ?? null);
+      current === undefined || current === null ? null : current.objectIdentitySha256;
     const core = {
       schema: 1,
       kind: 'OpenOntologySourceNativeObjectResolverResultV1',
@@ -535,6 +532,7 @@ export function openSourceNativeRecordedFieldResolver({
       navigationOnly: true,
       exactInspectRequired: true,
       exactSourcesRemainAuthority: true,
+      selectedObjectIdentitySha256: selectedIdentitySha256,
     };
     return freeze({ ...core, resultSha256: stableObjectSha256(core) });
   };
@@ -871,6 +869,7 @@ export function openSourceNativeHistoricalFieldResolver({
       navigationOnly: true,
       exactInspectRequired: true,
       exactSourcesRemainAuthority: true,
+      selectedObjectIdentitySha256: resolution?.successor?.objectIdentitySha256 ?? null,
     };
     return freeze({ ...core, resultSha256: stableObjectSha256(core) });
   };

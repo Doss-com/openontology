@@ -82,6 +82,7 @@ export interface SourceNativeProductResolution extends UnknownRecord {
   state: string;
   selectionMode: string;
   resultSha256: string;
+  selectedObjectIdentitySha256?: string | null;
   evidenceUnits: UnknownRecord[];
   searchPath?: (UnknownRecord & { searchPathSha256: string; revisionSha256?: string }) | null;
   navigationProposals?: UnknownRecord;
@@ -648,6 +649,7 @@ function openSourceNativeProductRuntimeWithState(
           sourceNativeObjectMap: objectOnt.map,
           namespace: descriptor.namespace,
           rootFieldSha256: answerReferences[0]?.reference.fieldSha256,
+          rootObjectIdentitySha256: resolution.selectedObjectIdentitySha256 ?? undefined,
           at,
         });
       } catch (error) {
@@ -746,6 +748,10 @@ function openSourceNativeProductRuntimeWithState(
     const object = objectOnt.map.nativeObjects.find(
       (row) =>
         row.relativePath === reference.relativePath &&
+        (role !== 'answer' ||
+          offeredEvidence.resolution.selectedObjectIdentitySha256 === undefined ||
+          offeredEvidence.resolution.selectedObjectIdentitySha256 === null ||
+          row.objectIdentitySha256 === offeredEvidence.resolution.selectedObjectIdentitySha256) &&
         row.fields.some((field) => field.fieldSha256 === reference.fieldSha256),
     );
     if (!object) fail('SOURCE_NATIVE_PRODUCT_EVIDENCE');
@@ -820,10 +826,32 @@ function openSourceNativeProductRuntimeWithState(
       if (answerMatches.length !== 1 || !isRecord(semanticAuthority)) {
         fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
       }
+      const answerRead = reads.find((row) => row.binding.role === 'answer');
+      const rootObject =
+        answerRead === undefined
+          ? null
+          : (objectOnt.map.nativeObjects.find(
+              (object) =>
+                object.objectIdentity.namespace === descriptor.namespace &&
+                object.objectIdentity.sourceSystem === answerRead.binding.sourceSystem &&
+                object.objectIdentity.objectType === answerRead.binding.objectType &&
+                object.objectIdentity.externalId === answerRead.binding.externalId &&
+                object.fields.some(
+                  (field) =>
+                    field.fieldSha256 === answerRead.binding.fieldSha256 &&
+                    field.evidence.relativePath === answerRead.evidence.relativePath &&
+                    field.evidence.sourceSha256 === answerRead.evidence.sourceSha256 &&
+                    field.evidence.byteStart === answerRead.evidence.byteStart &&
+                    field.evidence.byteEnd === answerRead.evidence.byteEnd &&
+                    field.evidence.textSha256 === answerRead.evidence.textSha256,
+                ),
+            ) ?? null);
+      if (rootObject === null) fail('SOURCE_NATIVE_SEMANTIC_VERIFICATION_INPUT');
       const navigation = compileSourceNativeSemanticNavigation({
         sourceNativeObjectMap: objectOnt.map,
         namespace: descriptor.namespace,
         rootFieldSha256: answerMatches[0]?.fieldSha256,
+        rootObjectIdentitySha256: rootObject.objectIdentitySha256,
         at: searchResult.at ?? null,
       });
       if (

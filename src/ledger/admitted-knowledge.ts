@@ -680,10 +680,29 @@ export async function compileSourceNativeSemanticKnowledgeBundle({
     fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
   }
   const answer = answerRows[0] ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const resolvedQuery = prepared.plan.query ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
+  const answerObject = context.objectOnt.map.nativeObjects.find(
+    (object) =>
+      object.objectIdentity.sourceSystem === resolvedQuery.sourceSystem &&
+      object.objectIdentity.objectType === resolvedQuery.objectType &&
+      object.objectIdentity.namespace === resolvedQuery.namespace &&
+      object.objectIdentity.externalId === resolvedQuery.externalId &&
+      object.fields.some(
+        (field) =>
+          field.fieldSha256 === answer.binding.fieldSha256 &&
+          field.evidence.relativePath === answer.evidence.relativePath &&
+          field.evidence.sourceSha256 === answer.evidence.sourceSha256 &&
+          field.evidence.byteStart === answer.evidence.byteStart &&
+          field.evidence.byteEnd === answer.evidence.byteEnd &&
+          field.evidence.textSha256 === answer.evidence.textSha256,
+      ),
+  );
+  const exactAnswerObject = answerObject ?? fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
   const navigation = compileSourceNativeSemanticNavigation({
     sourceNativeObjectMap: context.objectOnt.map,
     namespace: context.descriptor.namespace,
     rootFieldSha256: answer.binding.fieldSha256,
+    rootObjectIdentitySha256: exactAnswerObject.objectIdentitySha256,
     at: prepared.at,
   });
   if (navigation === null) fail('SOURCE_NATIVE_SEMANTIC_KNOWLEDGE_BUNDLE');
@@ -959,6 +978,7 @@ function assertSourceBinding(
     sourceNativeObjectMap: context.objectOnt.map,
     namespace: context.descriptor.namespace,
     rootFieldSha256: answer.fieldSha256,
+    rootObjectIdentitySha256: answer.objectIdentitySha256,
     at: binding.at ?? null,
   });
   if (binding.intent === 'at' && expectedSemanticNavigation === null) {

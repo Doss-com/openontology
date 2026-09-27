@@ -196,11 +196,13 @@ export function compileSourceNativeSemanticNavigation({
   sourceNativeObjectMap,
   namespace,
   rootFieldSha256,
+  rootObjectIdentitySha256,
   at = null,
 }: {
   sourceNativeObjectMap?: SourceNativeObjectMap;
   namespace?: string;
   rootFieldSha256?: string;
+  rootObjectIdentitySha256?: string;
   at?: string | null;
 } = {}): SourceNativeSemanticNavigation | null {
   if (
@@ -208,13 +210,20 @@ export function compileSourceNativeSemanticNavigation({
     typeof namespace !== 'string' ||
     !namespace ||
     typeof rootFieldSha256 !== 'string' ||
-    !rootFieldSha256
+    !rootFieldSha256 ||
+    (rootObjectIdentitySha256 !== undefined &&
+      (typeof rootObjectIdentitySha256 !== 'string' || !rootObjectIdentitySha256))
   ) {
     fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
   }
   const map = sourceNativeObjectMap ?? fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_INPUT');
   const rootFields = map.nativeObjects
-    .filter((object) => object.objectIdentity.namespace === namespace)
+    .filter(
+      (object) =>
+        object.objectIdentity.namespace === namespace &&
+        (rootObjectIdentitySha256 === undefined ||
+          object.objectIdentitySha256 === rootObjectIdentitySha256),
+    )
     .flatMap((object) => object.fields)
     .filter((field) => field.fieldSha256 === rootFieldSha256);
   if (rootFields.length !== 1) fail('SOURCE_NATIVE_SEMANTIC_NAVIGATION_ROOT');
