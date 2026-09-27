@@ -190,9 +190,40 @@ function bindDeclaredTitle({
 }
 
 const WORD_TOKEN = /[\p{L}\p{N}]+/gu;
-const DIRECT_IDENTIFIER = /^\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/u;
-const SELECTOR_IDENTIFIER =
-  /\b(?:of|for)\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/gu;
+const IDENTIFIER_RUN = /[+\p{L}\p{N}][+\p{L}\p{N}@._:\/-]*/gu;
+const IDENTIFIER_SEPARATOR = /[+@._:\/-]/u;
+
+interface QuestionToken {
+  value: string;
+  start: number;
+  end: number;
+}
+
+function questionTokens(question: string): QuestionToken[] {
+  return [...question.matchAll(IDENTIFIER_RUN)].flatMap((match) => {
+    const start = match.index;
+    let end = start + match[0].length;
+    while (end > start && IDENTIFIER_SEPARATOR.test(question[end - 1]!)) end -= 1;
+    const value = question.slice(start, end);
+    if (!value || !/[\p{L}\p{N}]/u.test(value)) return [];
+    return [{ value: normalizedQuestion(value), start, end }];
+  });
+}
+
+function identifierTokens(question: string): QuestionToken[] {
+  return questionTokens(question).filter((token) => IDENTIFIER_SEPARATOR.test(token.value));
+}
+
+function directIdentifierToken(
+  question: string,
+  offset: number,
+  tokens: QuestionToken[],
+): QuestionToken | null {
+  const whitespace = /^\s+/u.exec(question.slice(offset));
+  if (whitespace === null) return null;
+  const start = offset + whitespace[0].length;
+  return tokens.find((token) => token.start === start) ?? null;
+}
 
 function normalizedIdentifier(value: unknown): string {
   return normalizedQuestion(value).replace(/[^\p{L}\p{N}]/gu, '');
@@ -227,6 +258,7 @@ function anchoredUnknownExternalIds(
     value: match[0],
     index: match.index,
   }));
+  const tokens = identifierTokens(question);
   const candidates = new Set(candidateExternalIds.map(normalizedQuestion));
   const unknown = new Set<string>();
   for (const alias of objectAliases) {
@@ -240,8 +272,8 @@ function anchoredUnknownExternalIds(
       }
       const lastWord = words[index + aliasWords.length - 1];
       if (!lastWord) continue;
-      const match = DIRECT_IDENTIFIER.exec(question.slice(lastWord.index + lastWord.value.length));
-      const externalId = match?.[1];
+      const token = directIdentifierToken(question, lastWord.index + lastWord.value.length, tokens);
+      const externalId = token?.value;
       if (externalId !== undefined && !candidates.has(normalizedQuestion(externalId))) {
         unknown.add(normalizedQuestion(externalId));
       }
@@ -259,17 +291,16 @@ function selectorUnknownExternalIds(
   const candidates = new Set(candidateExternalIds.map(normalizedQuestion));
   const aliases = new Set(declaredObjectAliases.map(normalizedIdentifier));
   const anchorSpans = anchorValue === null ? [] : wordSpans(question, anchorValue);
+  const tokens = identifierTokens(question);
   const unknown = new Set<string>();
-  SELECTOR_IDENTIFIER.lastIndex = 0;
-  for (const match of question.matchAll(SELECTOR_IDENTIFIER)) {
-    const externalId = match[1];
-    if (externalId === undefined) continue;
-    const tokenEnd = match.index + match[0].length;
-    const tokenStart = tokenEnd - externalId.length;
-    if (anchorSpans.some((span) => span.start <= tokenStart && tokenEnd <= span.end)) continue;
-    if (aliases.has(normalizedIdentifier(externalId))) continue;
-    if (!candidates.has(normalizedQuestion(externalId))) {
-      unknown.add(normalizedQuestion(externalId));
+  const selector = /\b(?:of|for)(?=\s)/gu;
+  for (const match of question.matchAll(selector)) {
+    const token = directIdentifierToken(question, match.index + match[0].length, tokens);
+    if (token === null) continue;
+    if (anchorSpans.some((span) => span.start <= token.start && token.end <= span.end)) continue;
+    if (aliases.has(normalizedIdentifier(token.value))) continue;
+    if (!candidates.has(normalizedQuestion(token.value))) {
+      unknown.add(normalizedQuestion(token.value));
     }
   }
   return [...unknown].sort();
@@ -300,26 +331,24 @@ function mentionedExternalId(
       ...(query.externalId === undefined ? [] : [query.externalId]),
     ]),
   ];
+  const tokens = questionTokens(text);
+  const tokenValues = new Set(tokens.map((token) => token.value));
   const candidates = candidateExternalIds.filter((externalId) => {
     const needle = normalizedQuestion(externalId);
-    let index = text.indexOf(needle);
-    while (index >= 0) {
-      const before = index === 0 ? '' : text[index - 1];
-      const after = index + needle.length === text.length ? '' : text[index + needle.length];
-      if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
-      unsafeMention = true;
-      index = text.indexOf(needle, index + 1);
-    }
+    if (tokenValues.has(needle)) return true;
+    if (tokens.some((token) => token.value.includes(needle))) unsafeMention = true;
     return false;
   });
-  const identifierTokens = text.match(/[\p{L}\p{N}]+(?:[-_:./][\p{L}\p{N}]+)+/gu) ?? [];
+  const identifierTokenValues = identifierTokens(text).map((token) => token.value);
   const identifierShape = (value: string): string => value.replace(/\p{N}+/gu, '#');
   const candidateByText = new Set(candidateExternalIds.map(normalizedQuestion));
   const candidateShapes = new Set([...candidateByText].map(identifierShape));
   const unresolvedExternalIds = [
     ...new Set(
-      identifierTokens.filter(
-        (token) => !candidateByText.has(token) && candidateShapes.has(identifierShape(token)),
+      identifierTokenValues.filter(
+        (token) =>
+          !candidateByText.has(token) &&
+          (candidateShapes.has(identifierShape(token)) || token.includes('@')),
       ),
     ),
   ].sort();

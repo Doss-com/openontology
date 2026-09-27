@@ -349,6 +349,95 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
   });
 });
 
+test('treats email-shaped native IDs as whole selectors', async () => {
+  const emailRows = [
+    sourceRow({
+      relativePath: 'clickup/acme/first.last@example.test.md',
+      occurredAt: '2026-02-03T00:00:00.000Z',
+      externalId: 'first.last@example.test',
+      title: 'Email identity one',
+      status: 'Ready',
+    }),
+    sourceRow({
+      relativePath: 'clickup/acme/simple@example.test.md',
+      occurredAt: '2026-02-04T00:00:00.000Z',
+      externalId: 'simple@example.test',
+      title: 'Email identity two',
+      status: 'Blocked',
+    }),
+    sourceRow({
+      relativePath: 'clickup/acme/+tag@example.test.md',
+      occurredAt: '2026-02-05T00:00:00.000Z',
+      externalId: '+tag@example.test',
+      title: 'Email identity three',
+      status: 'In progress',
+    }),
+  ];
+  await withProduct(buildInput({ extraRows: emailRows }), async (product) => {
+    const known = await product.verify(
+      'What is the current status of task first.last@example.test?',
+    );
+    assert.equal(known.state, 'resolved-current-field');
+    assert.equal(known.query.externalId, 'first.last@example.test');
+    assert.deepEqual(known.mentionedExternalIds, ['first.last@example.test']);
+    assert.deepEqual(known.unresolvedExternalIds, []);
+
+    const selector = await product.verify({
+      question: 'What is the current status for first.last@example.test?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(selector.state, 'resolved-current-field');
+    assert.equal(selector.query.externalId, 'first.last@example.test');
+
+    const plusTag = await product.verify('What is the current status of task +tag@example.test?');
+    assert.equal(plusTag.state, 'resolved-current-field');
+    assert.equal(plusTag.query.externalId, '+tag@example.test');
+
+    const unknown = await product.verify(
+      'What is the current status of task missing@example.test?',
+    );
+    assert.equal(unknown.state, 'unavailable-native-object-identifier-not-declared');
+    assert.deepEqual(unknown.mentionedExternalIds, []);
+    assert.deepEqual(unknown.unresolvedExternalIds, ['missing@example.test']);
+
+    const knownAndUnknown = await product.verify(
+      'What is the current status of task first.last@example.test and missing@example.test?',
+    );
+    assert.equal(knownAndUnknown.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(knownAndUnknown.mentionedExternalIds, ['first.last@example.test']);
+    assert.deepEqual(knownAndUnknown.unresolvedExternalIds, ['missing@example.test']);
+
+    const twoKnown = await product.verify(
+      'What is the current status of task first.last@example.test and simple@example.test?',
+    );
+    assert.equal(twoKnown.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(twoKnown.mentionedExternalIds, [
+      'first.last@example.test',
+      'simple@example.test',
+    ]);
+    assert.deepEqual(twoKnown.unresolvedExternalIds, []);
+
+    const embedded = await product.verify(
+      'What is the current status of task prefixfirst.last@example.test?',
+    );
+    assert.equal(embedded.state, 'unavailable-native-object-identifier-not-declared');
+    assert.deepEqual(embedded.mentionedExternalIds, []);
+    assert.deepEqual(embedded.unresolvedExternalIds, ['prefixfirst.last@example.test']);
+
+    const scopeMismatch = await product.verify({
+      question: 'What is the current status of task simple@example.test?',
+      scope: {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        externalId: 'first.last@example.test',
+        field: 'status',
+      },
+    });
+    assert.equal(scopeMismatch.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(scopeMismatch.mentionedExternalIds, ['simple@example.test']);
+  });
+});
+
 test('keeps selector refusal bounded around aliases, values, dates, and anchors', async () => {
   await withProduct(buildSingleObjectInput({ aliases: ['task-record'] }), async (product) => {
     const knownAliasId = await product.verify({
