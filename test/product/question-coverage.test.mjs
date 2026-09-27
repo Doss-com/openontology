@@ -91,6 +91,46 @@ function buildInput() {
   };
 }
 
+function buildDecisionInput() {
+  const row = sourceRow(
+    'synthetic/fixture/decision-1.txt',
+    '2026-03-01T00:00:00.000Z',
+    'Statement: Target early April go-live for SFTP updates\nDate: 2026-04-07\n',
+    'decision',
+    'decision-1',
+    [
+      ['statement', 'Target early April go-live for SFTP updates'],
+      ['date', '2026-04-07'],
+    ],
+  );
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'question-coverage-decision-fixture',
+    namespace: 'fixture',
+    querySchemas: [
+      {
+        sourceSystem: 'synthetic',
+        objectType: 'decision',
+        aliases: ['decision'],
+        fields: [
+          { fieldPath: 'statement', aliases: ['statement', 'text'] },
+          { fieldPath: 'date', aliases: ['date'] },
+        ],
+      },
+    ],
+    sources: [
+      {
+        relativePath: row.relativePath,
+        sourceType: row.sourceType,
+        occurredAt: row.occurredAt,
+        content: row.content,
+      },
+    ],
+    nativeObjectInputs: [row.nativeObjectInput],
+  };
+}
+
 async function withProduct(callback) {
   const artifactRoot = mkdtempSync(join(tmpdir(), 'oont-question-coverage-'));
   try {
@@ -100,6 +140,29 @@ async function withProduct(callback) {
     rmSync(artifactRoot, { recursive: true, force: true });
   }
 }
+
+test('explicit scoped field wins before the residual coverage refusal', async () => {
+  const artifactRoot = mkdtempSync(join(tmpdir(), 'oont-question-coverage-f6-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot, input: buildDecisionInput() });
+    const result = await openOntology({ artifactRoot }).verify({
+      question: 'What is the date of decision decision-1?',
+      scope: {
+        sourceSystem: 'synthetic',
+        objectType: 'decision',
+        externalId: 'decision-1',
+        field: 'statement',
+      },
+    });
+    assert.equal(result.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(result.answerable, false);
+    assert.equal(result.query.fieldPath, 'statement');
+    assert.deepEqual(result.uncoveredWords, ['date']);
+    assert.deepEqual(result.context, []);
+  } finally {
+    rmSync(artifactRoot, { recursive: true, force: true });
+  }
+});
 
 test('refuses unsupported residual meaning on the real verify and search paths', async () => {
   await withProduct(async (product) => {

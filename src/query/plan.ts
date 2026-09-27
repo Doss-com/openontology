@@ -9,6 +9,7 @@ import { normalizeSourceNativeHistoricalTime } from './historical-field.js';
 
 const EXTERNAL_ID_COLLISION = Symbol('external-id-collision');
 const EXTERNAL_ID_MULTIPLE = Symbol('external-id-multiple');
+const SOURCE_NATIVE_PRODUCT_QUERY_ADAPTER = 'source-native-product-query-v8-named-lookup-v1';
 const fail = (code: string): never => {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
@@ -606,7 +607,7 @@ export function compileProductQueryPlan({
     }
   }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v7-question-coverage-v1',
+    adapter: SOURCE_NATIVE_PRODUCT_QUERY_ADAPTER,
     namespace,
     querySchemas,
   });
@@ -653,7 +654,7 @@ export function queryPlanner({
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v7-question-coverage-v1',
+    adapter: SOURCE_NATIVE_PRODUCT_QUERY_ADAPTER,
     namespace,
     plannerSha256,
     modelCalls: 0,

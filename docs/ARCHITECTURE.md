@@ -53,12 +53,13 @@ result can include `availableFields` for discovery.
   selected field does not authorize answering a different question about it.
   This is lexical accounting, not general semantic coverage.
 
-  For example, a query asking `What did we decide about the go-live date?` with
-  an explicit `decision.statement` scope selects `statement`, but `date` remains
-  uncovered. The result is therefore
-  `unavailable-native-question-residual-not-declared` with no context. This
-  precedence rule does not provide broader semantic understanding of the
-  question.
+  For example, a query asking `What is the date of decision decision-1?` with
+  an explicit scope targeting object type `decision` and field `statement`
+  selects `statement`, but `date` remains subject to the coverage audit. When
+  the declared ID and other selectors are covered, the result is
+  `unavailable-native-question-residual-not-declared` with `date` uncovered and
+  no context. This precedence rule does not provide broader semantic
+  understanding of the question.
 
 The planner preserves explicit IDs and temporal selectors while masking quoted
 titles. A planner identity change also changes query-plan hashes; old Admissions

@@ -2253,7 +2253,7 @@ test('refuses transition-time questions before Resolver for every selector', asy
         question: 'What is the current status for task task-1?',
       }).plan.plannerSha256;
       expectedPlannerSha256 = stableObjectSha256({
-        adapter: 'source-native-product-query-v7-question-coverage-v1',
+        adapter: 'source-native-product-query-v8-named-lookup-v1',
         namespace: context.descriptor.namespace,
         querySchemas: context.descriptor.querySchemas,
       });
