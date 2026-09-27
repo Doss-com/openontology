@@ -1,4 +1,5 @@
 /** Public read-only source-native product runtime. */
+import { randomUUID } from 'node:crypto';
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from '../canonical-content.js';
 import {
   openSourceNativeRecordedFieldResolver,
@@ -36,6 +37,22 @@ import type {
 } from '../query/field-resolution.js';
 import type { SourceNativeCurrentFieldChronologyVerification } from '../query/verification/current-field.js';
 import type { SourceNativeObjectIdentityCensus } from '../source/identity-census.js';
+import {
+  compileSourceNativeObjectDiscoveryInventory,
+  openSourceNativeObjectDiscovery,
+} from './discovery.js';
+import type {
+  SourceNativeObjectDiscoveryCursor,
+  SourceNativeObjectDiscoveryInput,
+  SourceNativeObjectDiscoveryObject,
+  SourceNativeObjectDiscoveryResult,
+} from './discovery.js';
+export type {
+  SourceNativeObjectDiscoveryInput,
+  SourceNativeObjectDiscoveryObject,
+  SourceNativeObjectDiscoveryResult,
+  SourceNativeObjectDiscoveryScope,
+} from './discovery.js';
 
 export type { SourceNativeObjectIdentityAbsenceReceipt } from '../query/field-resolver.js';
 
@@ -54,6 +71,7 @@ export interface ProductSearchInput {
   typedQuery?: SourceNativeFieldQuery | null;
   investigationId?: string | null;
 }
+export type SourceNativeProductSearchInput = ProductSearchInput | SourceNativeObjectDiscoveryInput;
 export type SourceNativeProductResultState = OpenOntologyResultState;
 const PRODUCT_RESULT_STATES = new Set<OpenOntologyResultState>(OPENONTOLOGY_RESULT_STATES);
 export interface SourceNativeProductMatch {
@@ -433,6 +451,9 @@ function openSourceNativeProductRuntimeWithState(
     });
   })();
   const offered = new Map<string, OfferedEvidence>();
+  const discoveryCursors = new Map<string, SourceNativeObjectDiscoveryCursor>();
+  const discoveryClientId = randomUUID();
+  let discoveryInventory: SourceNativeObjectDiscoveryObject[] | null = null;
 
   const rememberOffer = (evidenceRef: string, offer: OfferedEvidence) => {
     if (!offered.has(evidenceRef) && offered.size >= MAXIMUM_OFFERED_REFERENCES) {
@@ -499,8 +520,22 @@ function openSourceNativeProductRuntimeWithState(
     }) ?? null;
   const seedSearchAdapter = lifecycle?.seedSearchAdapter ?? session.sourceNativeSeedSearchAdapter;
 
-  const search = async (input: ProductSearchInput = { question: '' }) => {
-    const { investigationId = null, ...searchInput } = input;
+  type SourceNativeProductQueryResult = ReturnType<typeof productResult>;
+  const searchImplementation = async (input: SourceNativeProductSearchInput = { question: '' }) => {
+    if (input && typeof input === 'object' && Object.hasOwn(input, 'browse')) {
+      discoveryInventory ??= compileSourceNativeObjectDiscoveryInventory(descriptor, objectOnt);
+      const discoveryInput = input as SourceNativeObjectDiscoveryInput;
+      return openSourceNativeObjectDiscovery({
+        descriptor,
+        objectOnt,
+        input: discoveryInput,
+        cursors: discoveryCursors,
+        clientId: discoveryClientId,
+        inventory: discoveryInventory,
+      });
+    }
+    const ordinaryInput = input as ProductSearchInput;
+    const { investigationId = null, ...searchInput } = ordinaryInput;
     const prepared = prepareSearch(searchInput);
     const { question, intent, at, plan } = prepared;
     if (lifecycle === null && investigationId !== null) fail('SOURCE_NATIVE_PRODUCT_SEARCH');
@@ -728,6 +763,10 @@ function openSourceNativeProductRuntimeWithState(
     });
     lifecycle?.bindResult?.(activity, result);
     return result;
+  };
+  const search = searchImplementation as {
+    (input?: ProductSearchInput): Promise<SourceNativeProductQueryResult>;
+    (input: SourceNativeObjectDiscoveryInput): Promise<SourceNativeObjectDiscoveryResult>;
   };
 
   const read = async ({ ref: evidenceRef }: { ref: string }) => {
@@ -981,7 +1020,9 @@ export function openSourceNativeProduct(options = {}) {
 }
 
 export type SourceNativeProduct = ReturnType<typeof openSourceNativeProductRuntime>;
-export type SourceNativeProductSearchResult = Awaited<ReturnType<SourceNativeProduct['search']>>;
+export type SourceNativeProductSearchResult = ReturnType<typeof productResult>;
+export type SourceNativeProductSearchResultUnion =
+  SourceNativeProductSearchResult | SourceNativeObjectDiscoveryResult;
 export type SourceNativeProductReadResult = Awaited<ReturnType<SourceNativeProduct['read']>>;
 export type SourceNativeProductVerificationResult = Awaited<
   ReturnType<SourceNativeProduct['verify']>

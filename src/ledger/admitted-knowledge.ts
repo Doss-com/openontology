@@ -47,11 +47,12 @@ import {
 import type { ProductOptions } from '../source/artifact.js';
 import type {
   ProductSearchInput,
+  SourceNativeObjectDiscoveryInput,
   SourceNativeProductPreparedSearch,
   SourceNativeProductLifecycleAdapterFactory,
   SourceNativeProductReadResult,
   SourceNativeProductRuntimeContext,
-  SourceNativeProductSearchResult,
+  SourceNativeProductSearchResultUnion,
   SourceNativeProductStatus,
   SourceNativeProductVerificationResult,
 } from '../product/runtime.js';
@@ -291,7 +292,9 @@ export interface SourceNativeAdmittedKnowledgeLedgerStatus {
 export interface SourceNativeAdmittedKnowledgeProduct {
   kind: 'OpenOntologySourceNativeAdmittedKnowledgeProductV1';
   verify(input?: ProductSearchInput): Promise<SourceNativeAdmittedKnowledgeVerificationResult>;
-  search(input?: ProductSearchInput): Promise<SourceNativeProductSearchResult>;
+  search(
+    input?: ProductSearchInput | SourceNativeObjectDiscoveryInput,
+  ): Promise<SourceNativeProductSearchResultUnion>;
   read(input: { ref: string }): Promise<SourceNativeProductReadResult>;
   status(): SourceNativeAdmittedKnowledgeStatus;
 }
@@ -1910,8 +1913,11 @@ export function openSourceNativeProductWithAdmittedKnowledge(
       return (await reader.verifyPrepared(prepared)) ?? product.verify(input);
     },
     search: async (
-      input: ProductSearchInput = { question: '' },
-    ): Promise<SourceNativeProductSearchResult> => product.search(input),
+      input: ProductSearchInput | SourceNativeObjectDiscoveryInput = { question: '' },
+    ): Promise<SourceNativeProductSearchResultUnion> => {
+      if ('browse' in input) return product.search(input);
+      return product.search(input);
+    },
     read: async (input: { ref: string }): Promise<SourceNativeProductReadResult> =>
       product.read(input),
     status: () =>

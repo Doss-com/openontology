@@ -58,12 +58,33 @@ pass its References to `read` on that same client. Reads of already-issued
 References can run concurrently. Reading a candidate does not perform all of
 the checks made by `verify`.
 
+To navigate the native identities recorded in an Ont, use the separate browse
+input. It returns metadata only, including observed queryable fields. It does
+not return field values, References or an absence claim:
+
+```js
+const page = await ont.search({
+  browse: 'objects',
+  scope: { sourceSystem: 'tracker', objectType: 'task' },
+  limit: 20,
+});
+for (const row of page.objects) {
+  console.log(row.objectIdentity, row.fields);
+}
+```
+
+SDK and advanced MCP `limit` values are page sizes from 1 through 64. A cursor
+can only be passed to the same opened client and is bound to its source cut and
+scope. The result is navigation, not proof. Select a row and use its full
+identity as qualifiers for ordinary `verify`.
+
 The root client exposes:
 
 ```ts
 interface OpenOntologyProduct {
   verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>;
   search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>;
+  search(query: OpenOntologyObjectDiscoveryInput): Promise<OpenOntologyObjectDiscoveryResult>;
   read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>;
   status(): OpenOntologyStatus;
 }
@@ -113,6 +134,19 @@ explicit `scope.externalId` that is absent from the bound catalog retains the
 catalog-scoped absence receipt path.
 
 Identity comes from the complete scoped map, not the highest-ranked search hit.
+
+The CLI has a bounded aggregate form for fresh-agent navigation:
+
+```bash
+npx --no-install oont search ./verified-context --browse objects \
+  --source-system tracker --object-type task --limit 128
+```
+
+CLI `--limit` is the total row count for that invocation, defaults to 64 and
+has a maximum of 256. The command follows same-process SDK pages internally,
+caps serialized output at 1 MiB, returns complete rows only, and reports
+`truncated` with a reason when capped. It does not emit or accept a portable
+cursor. Browse mode rejects question, field, `--read`, and temporal options.
 
 ## Declared titles
 

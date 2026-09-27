@@ -389,7 +389,12 @@ test('construction MCP rejects mixed, invalid and foreign inputs without changin
     SOURCE_NATIVE_PRODUCT_TOOLS.advanced.map((tool) => tool.name),
     ['search', 'read'],
   );
-  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.advanced[0].inputSchema.required, ['question']);
+  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.advanced[0].inputSchema.oneOf[0].required, [
+    'question',
+  ]);
+  assert.deepEqual(SOURCE_NATIVE_PRODUCT_TOOLS.advanced[0].inputSchema.oneOf[1].required, [
+    'browse',
+  ]);
   assert.equal(
     SOURCE_NATIVE_PRODUCT_TOOLS.advanced[1].inputSchema.properties.ref.pattern,
     '^evidence:[0-9a-f]{64}$',
