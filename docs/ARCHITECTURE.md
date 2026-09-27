@@ -37,8 +37,10 @@ result can include `availableFields` for discovery.
 - Shared object aliases can be disambiguated by source system. Multiple aliases
   for one field remain one candidate. These checks use declared vocabulary,
   not inferred semantic equivalence.
-- One quoted `titled` or `named` literal can select an identity through declared
-  title fields. Matching includes source system, object type and namespace.
+- One quoted `titled` literal selects an identity through a declared `title`
+  field. A quoted `named` literal uses the one field whose declared aliases
+  include `name` or `full name`, falling back to `title` when no name alias is
+  declared. Matching includes source system, object type and namespace.
   Repeated observations of one identity are not name collisions.
 - Literal contents do not supply IDs, field aliases or temporal intent.
   Recorded names are aliases across the source cut, not claims about a name

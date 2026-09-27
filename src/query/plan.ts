@@ -59,13 +59,19 @@ function hasUndeclaredTemporalIntent(question: string, intent: 'current' | 'next
 interface DeclaredTitleParse {
   normalizedTitle: string | null;
   scanQuestion: string;
+  binding: 'title' | 'name' | null;
   refusal: 'unavailable-native-object-identifier-not-declared' | null;
 }
 
 function parseDeclaredTitle(question: string): DeclaredTitleParse {
-  const clause = /\b(?:titled|named)\s*"/giu;
+  const clause = /\b(titled|named)\s*"/giu;
   let searchOffset = 0;
-  let parsed: { normalizedTitle: string; openingQuote: number; closingQuote: number } | null = null;
+  let parsed: {
+    normalizedTitle: string;
+    openingQuote: number;
+    closingQuote: number;
+    binding: 'title' | 'name';
+  } | null = null;
   while (searchOffset < question.length) {
     clause.lastIndex = searchOffset;
     const match = clause.exec(question);
@@ -81,6 +87,7 @@ function parseDeclaredTitle(question: string): DeclaredTitleParse {
           return {
             normalizedTitle: null,
             scanQuestion: question,
+            binding: null,
             refusal: 'unavailable-native-object-identifier-not-declared',
           };
         }
@@ -99,6 +106,7 @@ function parseDeclaredTitle(question: string): DeclaredTitleParse {
       return {
         normalizedTitle: null,
         scanQuestion: question,
+        binding: null,
         refusal: 'unavailable-native-object-identifier-not-declared',
       };
     }
@@ -106,15 +114,28 @@ function parseDeclaredTitle(question: string): DeclaredTitleParse {
       return {
         normalizedTitle: null,
         scanQuestion: question,
+        binding: null,
         refusal: 'unavailable-native-object-identifier-not-declared',
       };
     }
-    parsed = { normalizedTitle, openingQuote, closingQuote };
+    parsed = {
+      normalizedTitle,
+      openingQuote,
+      closingQuote,
+      binding: match[1]!.toLocaleLowerCase('en-US') === 'named' ? 'name' : 'title',
+    };
     searchOffset = closingQuote + 1;
   }
-  if (parsed === null) return { normalizedTitle: null, scanQuestion: question, refusal: null };
+  if (parsed === null) {
+    return { normalizedTitle: null, scanQuestion: question, binding: null, refusal: null };
+  }
   const scanQuestion = `${question.slice(0, parsed.openingQuote)}${' '.repeat(parsed.closingQuote - parsed.openingQuote + 1)}${question.slice(parsed.closingQuote + 1)}`;
-  return { normalizedTitle: parsed.normalizedTitle, scanQuestion, refusal: null };
+  return {
+    normalizedTitle: parsed.normalizedTitle,
+    scanQuestion,
+    binding: parsed.binding,
+    refusal: null,
+  };
 }
 
 function explicitNamespaceRefusal(question: string, namespace: string): boolean {
@@ -122,17 +143,37 @@ function explicitNamespaceRefusal(question: string, namespace: string): boolean 
   return match !== null && normalizedDeclaredTitle(match[1]) !== normalizedDeclaredTitle(namespace);
 }
 
-function bindDeclaredTitle({
+function declaredIdentityFieldPath(
+  binding: 'title' | 'name',
+  schema: QuerySchema | undefined,
+): string | null {
+  if (schema === undefined) return null;
+  if (binding === 'title') {
+    return schema.fields.some((field) => field.fieldPath === 'title') ? 'title' : null;
+  }
+  const nameFields = schema.fields.filter((field) =>
+    field.aliases.some((alias) => alias === 'name' || alias === 'full name'),
+  );
+  if (nameFields.length > 1) return null;
+  if (nameFields.length === 1) return nameFields[0]!.fieldPath;
+  return schema.fields.some((field) => field.fieldPath === 'title') ? 'title' : null;
+}
+
+function bindDeclaredIdentity({
   normalizedTitle,
   map,
   namespace,
   query,
+  binding,
+  querySchema,
   visibleExternalId,
 }: {
   normalizedTitle: string;
   map: SourceNativeObjectMap;
   namespace: string;
   query: SourceNativeFieldQuery;
+  binding: 'title' | 'name';
+  querySchema: QuerySchema | undefined;
   visibleExternalId: string | null;
 }): {
   query: SourceNativeFieldQuery | null;
@@ -149,6 +190,10 @@ function bindDeclaredTitle({
   ) {
     return { query: null, state: 'unavailable-native-object-identifier-not-declared' };
   }
+  const fieldPath = declaredIdentityFieldPath(binding, querySchema);
+  if (fieldPath === null) {
+    return { query: null, state: 'unavailable-native-object-identifier-not-declared' };
+  }
   const scopedObjects = map.nativeObjects.filter(
     (object) =>
       object.objectIdentity.namespace === namespace &&
@@ -157,14 +202,14 @@ function bindDeclaredTitle({
   );
   if (
     scopedObjects.length === 0 ||
-    scopedObjects.some((object) => !object.fields.some((field) => field.fieldPath === 'title'))
+    scopedObjects.some((object) => !object.fields.some((field) => field.fieldPath === fieldPath))
   ) {
     return { query: null, state: 'unavailable-native-object-identifier-not-declared' };
   }
   const matchingObjects = scopedObjects.filter((object) =>
     object.fields.some(
       (field) =>
-        field.fieldPath === 'title' && normalizedDeclaredTitle(field.value) === normalizedTitle,
+        field.fieldPath === fieldPath && normalizedDeclaredTitle(field.value) === normalizedTitle,
     ),
   );
   const matchingIdentities = new Map(
@@ -561,18 +606,25 @@ export function compileProductQueryPlan({
     query = null;
   }
   if (query !== null && declaredTitle.normalizedTitle !== null) {
-    const titleBinding = bindDeclaredTitle({
+    const selectedQuery = query;
+    const identityBinding = bindDeclaredIdentity({
       normalizedTitle: declaredTitle.normalizedTitle,
       map,
       namespace,
-      query,
+      query: selectedQuery,
+      binding: declaredTitle.binding!,
+      querySchema: querySchemas.find(
+        (schema) =>
+          schema.sourceSystem === selectedQuery.sourceSystem &&
+          schema.objectType === selectedQuery.objectType,
+      ),
       visibleExternalId: mentionedExternalIds.length === 1 ? mentionedExternalIds[0]! : null,
     });
-    if (titleBinding.state !== null) {
-      state = titleBinding.state;
+    if (identityBinding.state !== null) {
+      state = identityBinding.state;
       query = null;
     } else {
-      query = titleBinding.query;
+      query = identityBinding.query;
     }
   }
   if (query !== null && hasUndeclaredTemporalIntent(scanQuestion, intent)) {
@@ -611,6 +663,18 @@ export function compileProductQueryPlan({
     namespace,
     querySchemas,
   });
+  const declaredSchemaQuery = query ?? compiled.query;
+  const declaredFieldPath =
+    declaredTitle.normalizedTitle === null || declaredTitle.binding === null
+      ? null
+      : declaredIdentityFieldPath(
+          declaredTitle.binding,
+          querySchemas.find(
+            (schema) =>
+              schema.sourceSystem === declaredSchemaQuery?.sourceSystem &&
+              schema.objectType === declaredSchemaQuery?.objectType,
+          ),
+        );
   const core = {
     schema: 1,
     kind: 'OpenOntologySourceNativeFieldQueryPlanV1',
@@ -628,8 +692,9 @@ export function compileProductQueryPlan({
         ? null
         : freeze({
             normalizedTitle: declaredTitle.normalizedTitle,
-            fieldPath: 'title',
-            bindingProfile: 'declared-title-v1',
+            fieldPath: declaredFieldPath,
+            bindingProfile:
+              declaredTitle.binding === 'name' ? 'declared-name-v1' : 'declared-title-v1',
           }),
     questionSha256: stableObjectSha256({ question }),
     plannerSchemaSha256,
