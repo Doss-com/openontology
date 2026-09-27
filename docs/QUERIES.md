@@ -103,6 +103,14 @@ ID in the question must agree with `scope.externalId`. A conflicting profile,
 field or ID returns a refusal. If an opaque ID does not reveal its object type,
 include the type in the question or provide scope.
 
+When a question places an identifier-shaped token directly after a declared
+object alias, the token must be a known ID in the bound map or agree with an
+explicit `scope.externalId`. An unknown or conflicting token returns a typed
+refusal instead of falling back to a different unique object. Generic
+unique-object questions without a named identifier remain supported. An
+explicit `scope.externalId` that is absent from the bound catalog retains the
+catalog-scoped absence receipt path.
+
 Identity comes from the complete scoped map, not the highest-ranked search hit.
 
 ## Declared titles

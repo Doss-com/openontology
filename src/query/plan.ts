@@ -187,11 +187,48 @@ function bindDeclaredTitle({
     state: null,
   };
 }
+
+const WORD_TOKEN = /[\p{L}\p{N}]+/gu;
+const DIRECT_IDENTIFIER = /^\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/u;
+
+function anchoredUnknownExternalIds(
+  question: string,
+  objectAliases: string[],
+  candidateExternalIds: string[],
+): string[] {
+  const words = [...question.matchAll(WORD_TOKEN)].map((match) => ({
+    value: match[0],
+    index: match.index,
+  }));
+  const candidates = new Set(candidateExternalIds.map(normalizedQuestion));
+  const unknown = new Set<string>();
+  for (const alias of objectAliases) {
+    const aliasWords = [...alias.matchAll(WORD_TOKEN)].map((match) => match[0]);
+    if (aliasWords.length === 0) continue;
+    for (let index = 0; index <= words.length - aliasWords.length; index += 1) {
+      if (
+        aliasWords.some((word, offset) => normalizedQuestion(words[index + offset]?.value) !== word)
+      ) {
+        continue;
+      }
+      const lastWord = words[index + aliasWords.length - 1];
+      if (!lastWord) continue;
+      const match = DIRECT_IDENTIFIER.exec(question.slice(lastWord.index + lastWord.value.length));
+      const externalId = match?.[1];
+      if (externalId !== undefined && !candidates.has(normalizedQuestion(externalId))) {
+        unknown.add(normalizedQuestion(externalId));
+      }
+    }
+  }
+  return [...unknown].sort();
+}
+
 function mentionedExternalId(
   question: string,
   map: SourceNativeObjectMap,
   namespace: string,
   query: SourceNativeFieldQuery,
+  objectAliases: string[],
 ): { value: string | symbol | null; candidates: string[]; unresolvedExternalIds: string[] } {
   const text = normalizedQuestion(question);
   let unsafeMention = false;
@@ -232,16 +269,27 @@ function mentionedExternalId(
       ),
     ),
   ].sort();
-  if (candidates.length > 1 || (candidates.length === 1 && unresolvedExternalIds.length > 0)) {
-    return { value: EXTERNAL_ID_MULTIPLE, candidates: candidates.sort(), unresolvedExternalIds };
+  unresolvedExternalIds.push(
+    ...anchoredUnknownExternalIds(text, objectAliases, candidateExternalIds),
+  );
+  const uniqueUnresolvedExternalIds = [...new Set(unresolvedExternalIds)].sort();
+  if (
+    candidates.length > 1 ||
+    (candidates.length === 1 && uniqueUnresolvedExternalIds.length > 0)
+  ) {
+    return {
+      value: EXTERNAL_ID_MULTIPLE,
+      candidates: candidates.sort(),
+      unresolvedExternalIds: uniqueUnresolvedExternalIds,
+    };
   }
   if (candidates.length === 1) {
-    return { value: candidates[0], candidates, unresolvedExternalIds };
+    return { value: candidates[0], candidates, unresolvedExternalIds: uniqueUnresolvedExternalIds };
   }
   return {
-    value: unsafeMention || unresolvedExternalIds.length > 0 ? EXTERNAL_ID_COLLISION : null,
+    value: unsafeMention || uniqueUnresolvedExternalIds.length > 0 ? EXTERNAL_ID_COLLISION : null,
     candidates: [],
-    unresolvedExternalIds,
+    unresolvedExternalIds: uniqueUnresolvedExternalIds,
   };
 }
 function normalizedAnchorValue(value: unknown): string {
@@ -379,7 +427,7 @@ export function compileProductQueryPlan({
   matchedFieldAliases = compiled.matchedFieldAliases;
   plannerSchemaSha256 = compiled.plannerSchemaSha256;
   if (query !== null) {
-    const mention = mentionedExternalId(scanQuestion, map, namespace, query);
+    const mention = mentionedExternalId(scanQuestion, map, namespace, query, matchedObjectAliases);
     const externalId = query.externalId ?? mention.value;
     mentionedExternalIds = mention.candidates;
     unresolvedExternalIds = mention.unresolvedExternalIds;
