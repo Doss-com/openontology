@@ -16,9 +16,10 @@ if (result.answerable) {
 }
 ```
 
-`verify` searches the Ont, checks identity and chronology, reads the required
-source text, and returns context with verification receipts. It does not generate
-a natural-language answer or update the source.
+`verify` returns checked source context for one declared field. It resolves
+identity and chronology, reads exact source passages, and includes any required
+qualifying or contradicting evidence. It does not generate a prose answer or
+update the source. A quoted plan is not confirmation that it happened.
 
 ## Results and refusals
 
