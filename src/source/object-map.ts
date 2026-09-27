@@ -242,6 +242,37 @@ const freeze = <T>(value: T): T => {
   }
   return value;
 };
+// Cache only validator-owned results. The caller's input root remains mutable.
+const validatedMapCache = new WeakMap<object, SourceNativeObjectMap>();
+// Canonical maps are JSON-shaped. Exotic prototypes and accessors stay uncached.
+const isMemoizableSourceNativeObjectMap = (value: unknown): value is object => {
+  const seen = new Set<object>();
+  const visit = (row: unknown): boolean => {
+    if (row === null || typeof row !== 'object') return true;
+    if (seen.has(row)) return true;
+    seen.add(row);
+    try {
+      if (!Object.isFrozen(row)) return false;
+      const prototype = Object.getPrototypeOf(row);
+      if (
+        Array.isArray(row)
+          ? prototype !== Array.prototype
+          : prototype !== Object.prototype && prototype !== null
+      ) {
+        return false;
+      }
+      for (const key of Reflect.ownKeys(row)) {
+        if (typeof key !== 'string') return false;
+        const descriptor = Object.getOwnPropertyDescriptor(row, key);
+        if (!descriptor || !('value' in descriptor) || !visit(descriptor.value)) return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  return visit(value);
+};
 const isRecord = (value: unknown): value is UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const isJsonValue = (value: unknown): value is JsonValue =>
@@ -1222,6 +1253,18 @@ function validateCompiledRevision(revision: SourceNativeFieldRevision): void {
 }
 
 export function validateSourceNativeObjectMap(value: unknown): SourceNativeObjectMap {
+  if (value !== null && typeof value === 'object') {
+    const cached = validatedMapCache.get(value);
+    if (cached !== undefined) return cached;
+  }
+  const validated = validateSourceNativeObjectMapUncached(value);
+  if (isMemoizableSourceNativeObjectMap(validated)) {
+    validatedMapCache.set(validated, validated);
+  }
+  return validated;
+}
+
+function validateSourceNativeObjectMapUncached(value: unknown): SourceNativeObjectMap {
   const map = exactRecord(value, 'SOURCE_NATIVE_MAP');
   if (
     !Object.prototype.hasOwnProperty.call(map, 'schema') ||
