@@ -6,14 +6,14 @@
 
 - Refuse unsupported residual question words after declared fields, names,
   identifiers, quoted titles, anchors and query grammar are accounted for.
-- Cache immutable native object-map validation by content while preserving
-  complete validation and explicit refusal behavior.
+- Reuse complete validation for the same validator-owned immutable native object
+  map. Caller-owned mutable inputs still validate.
 - Honor explicit scoped fields, uniquely declared name or full-name aliases,
   whole email-shaped identifiers, and structured source-field error context.
 - Add packaged authoring guidance for canonical propositions, `qualifies` and
   `contradicts` counterevidence relations, and temporal proof requirements.
-- The bounded question-coverage prototype over-refused two legitimate held-out
-  phrases. This release does not claim general semantic understanding.
+- The integrated question-coverage candidate still over-refuses two legitimate
+  held-out phrases. This release does not claim general semantic understanding.
 
 ## 0.3.0-alpha.6
 
