@@ -1,5 +1,13 @@
 /** Public, dependency-free shapes for native object discovery. */
 
+export const SOURCE_NATIVE_OBJECT_DISCOVERY_LIMITS = Object.freeze({
+  default: 20,
+  maximum: 64,
+  maximumPageBytes: 256 * 1024,
+  maximumCursors: 128,
+  maximumText: 256,
+});
+
 export interface SourceNativeObjectDiscoveryScope {
   sourceSystem: string;
   objectType?: string;
