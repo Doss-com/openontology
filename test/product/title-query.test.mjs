@@ -102,13 +102,17 @@ function buildInput({
   };
 }
 
-function buildSingleObjectInput({ title = 'Quarterly status review' } = {}) {
+function buildSingleObjectInput({
+  title = 'Quarterly status review',
+  status = 'Done',
+  aliases = ['task', 'task+record'],
+} = {}) {
   const row = sourceRow({
     relativePath: 'clickup/acme/task-1.md',
     occurredAt: '2026-02-01T00:00:00.000Z',
     externalId: 'task-1',
     title,
-    status: 'Done',
+    status,
   });
   const { nativeObjectInput, ...source } = row;
   return {
@@ -120,7 +124,7 @@ function buildSingleObjectInput({ title = 'Quarterly status review' } = {}) {
       {
         sourceSystem: 'clickup',
         objectType: 'task',
-        aliases: ['task', 'task+record'],
+        aliases,
         fields: [
           { fieldPath: 'title', aliases: ['title'] },
           { fieldPath: 'status', aliases: ['status'] },
@@ -227,6 +231,18 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
     assert.deepEqual(partialTyped.context, []);
     assert.deepEqual(partialTyped.unresolvedExternalIds, ['missing-task']);
 
+    const partialTypedWithoutAlias = await product.verify({
+      question: 'What is the current status of missing-task?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(
+      partialTypedWithoutAlias.state,
+      'unavailable-native-object-identifier-not-declared',
+    );
+    assert.equal(partialTypedWithoutAlias.answerable, false);
+    assert.deepEqual(partialTypedWithoutAlias.context, []);
+    assert.deepEqual(partialTypedWithoutAlias.unresolvedExternalIds, ['missing-task']);
+
     const explicitAbsent = await product.verify({
       question: 'What is the current status of task missing-task?',
       scope: {
@@ -244,6 +260,26 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
       'missing-task',
     );
 
+    const explicitAbsentWithoutAlias = await product.verify({
+      question: 'What is the current status of missing-task?',
+      scope: {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        externalId: 'missing-task',
+        field: 'status',
+      },
+    });
+    assert.equal(
+      explicitAbsentWithoutAlias.state,
+      'verified-native-object-absent-from-bound-source-catalog',
+    );
+    assert.equal(explicitAbsentWithoutAlias.answerable, false);
+    assert.deepEqual(explicitAbsentWithoutAlias.context, []);
+    assert.equal(
+      explicitAbsentWithoutAlias.verification.absenceReceipt.objectIdentity.externalId,
+      'missing-task',
+    );
+
     const explicitKnownConflict = await product.verify({
       question: 'What is the current status of task missing-task?',
       scope: {
@@ -257,6 +293,23 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
     assert.equal(explicitKnownConflict.answerable, false);
     assert.deepEqual(explicitKnownConflict.context, []);
     assert.deepEqual(explicitKnownConflict.unresolvedExternalIds, ['missing-task']);
+
+    const explicitKnownConflictWithoutAlias = await product.verify({
+      question: 'What is the current status of missing-task?',
+      scope: {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        externalId: 'task-1',
+        field: 'status',
+      },
+    });
+    assert.equal(
+      explicitKnownConflictWithoutAlias.state,
+      'unavailable-native-object-identifier-not-declared',
+    );
+    assert.equal(explicitKnownConflictWithoutAlias.answerable, false);
+    assert.deepEqual(explicitKnownConflictWithoutAlias.context, []);
+    assert.deepEqual(explicitKnownConflictWithoutAlias.unresolvedExternalIds, ['missing-task']);
 
     const ordinaryHyphenatedProse = await product.verify(
       'What is the current status of task+record, with real-time updates?',
@@ -280,6 +333,86 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
     );
     assert.equal(title.state, 'resolved-current-field');
     assert.equal(title.query.externalId, 'task-1');
+  });
+});
+
+test('keeps selector refusal bounded around aliases, values, dates, and anchors', async () => {
+  await withProduct(buildSingleObjectInput({ aliases: ['task-record'] }), async (product) => {
+    const knownAliasId = await product.verify({
+      question: 'What is the current status of task-record task-1?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(knownAliasId.state, 'resolved-current-field');
+    assert.equal(knownAliasId.query.externalId, 'task-1');
+
+    const unknownAliasId = await product.verify({
+      question: 'What is the current status of task-record missing-task?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(unknownAliasId.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(unknownAliasId.answerable, false);
+    assert.deepEqual(unknownAliasId.context, []);
+    assert.deepEqual(unknownAliasId.unresolvedExternalIds, ['missing-task']);
+  });
+
+  await withProduct(buildSingleObjectInput({ aliases: ['task record'] }), async (product) => {
+    const knownMultiwordAlias = await product.verify({
+      question: 'What is the current status of task record task-1?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(knownMultiwordAlias.state, 'resolved-current-field');
+    assert.equal(knownMultiwordAlias.query.externalId, 'task-1');
+
+    const unknownMultiwordAlias = await product.verify({
+      question: 'What is the current status of task record missing-task?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(unknownMultiwordAlias.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(unknownMultiwordAlias.answerable, false);
+    assert.deepEqual(unknownMultiwordAlias.context, []);
+    assert.deepEqual(unknownMultiwordAlias.unresolvedExternalIds, ['missing-task']);
+  });
+
+  await withProduct(buildSingleObjectInput({ status: 'In Progress' }), async (product) => {
+    const generic = await product.verify({
+      question: 'What is the current status?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(generic.state, 'resolved-current-field');
+    assert.deepEqual(
+      generic.context.map((row) => row.exactText),
+      ['In Progress'],
+    );
+
+    const statusValueSelector = await product.verify({
+      question: 'What is the current status of in-progress?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(statusValueSelector.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(statusValueSelector.answerable, false);
+    assert.deepEqual(statusValueSelector.context, []);
+    assert.deepEqual(statusValueSelector.unresolvedExternalIds, ['in-progress']);
+
+    const dateSelector = await product.verify({
+      question: 'What is the current status of 2026-09-26?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(dateSelector.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(dateSelector.answerable, false);
+    assert.deepEqual(dateSelector.context, []);
+    assert.deepEqual(dateSelector.unresolvedExternalIds, ['2026-09-26']);
+  });
+
+  await withProduct(buildInput(), async (product) => {
+    const anchorPhrase = await product.verify({
+      question: 'What status immediately followed waiting for follow-up for task-1?',
+      intent: 'next',
+      anchorValue: 'waiting for follow-up',
+    });
+    assert.equal(anchorPhrase.state, 'unavailable-native-field-anchor-not-matched');
+    assert.equal(anchorPhrase.answerable, false);
+    assert.deepEqual(anchorPhrase.context, []);
+    assert.deepEqual(anchorPhrase.unresolvedExternalIds, []);
   });
 });
 

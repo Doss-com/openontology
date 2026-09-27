@@ -133,6 +133,10 @@ unique-object questions without a named identifier remain supported. An
 explicit `scope.externalId` that is absent from the bound catalog retains the
 catalog-scoped absence receipt path.
 
+With a typed object scope, an identifier-shaped token directly after `of` or
+`for` is also treated as an object selector when the object alias is omitted.
+The supplied successor `anchorValue` is a field value, not an object selector.
+
 Identity comes from the complete scoped map, not the highest-ranked search hit.
 
 The CLI has a bounded aggregate form for fresh-agent navigation:
