@@ -1236,8 +1236,15 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
       );
     }
 
-    const current = await product.search({
+    const residual = await product.search({
       question: 'After Alpha, what is the current task title for task-1?',
+    });
+    assert.equal(residual.state, 'unavailable-native-question-residual-not-declared');
+    assert.deepEqual(residual.matches, []);
+    assert.deepEqual(residual.uncoveredWords, ['after', 'alpha']);
+
+    const current = await product.search({
+      question: 'What is the current task title for task-1?',
     });
     assert.equal(current.state, 'resolved-current-field');
     assert.equal(current.matches.length, 1);
@@ -2112,7 +2119,15 @@ test('refuses temporal questions that do not declare a supported intent', async 
       assert.deepEqual(result.context, [], question);
     }
 
-    const current = await product.verify('After Alpha, what is the current task title for task-1?');
+    const residual = await product.verify(
+      'After Alpha, what is the current task title for task-1?',
+    );
+    assert.equal(residual.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(residual.answerable, false);
+    assert.deepEqual(residual.context, []);
+    assert.deepEqual(residual.uncoveredWords, ['after', 'alpha']);
+
+    const current = await product.verify('What is the current task title for task-1?');
     assert.equal(current.state, 'resolved-current-field');
     assert.equal(current.answerable, true);
 
@@ -2238,7 +2253,7 @@ test('refuses transition-time questions before Resolver for every selector', asy
         question: 'What is the current status for task task-1?',
       }).plan.plannerSha256;
       expectedPlannerSha256 = stableObjectSha256({
-        adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+        adapter: 'source-native-product-query-v7-question-coverage-v1',
         namespace: context.descriptor.namespace,
         querySchemas: context.descriptor.querySchemas,
       });

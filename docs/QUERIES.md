@@ -39,6 +39,11 @@ identity and quoted-name selectors, and a small query grammar. It does not claim
 to understand arbitrary language, and a field selector does not authorize an
 answer to a different question about that field.
 
+Unbound ordering qualifiers such as `after Alpha` and live-source qualifiers
+such as `real-time updates` remain uncovered residual meaning. Use the
+supported `intent` and `anchorValue` inputs for successor questions, or issue a
+plain query against the captured source snapshot.
+
 An exact typed identity absent from a complete catalog can receive an absence
 receipt with `answerable: false` and no context. This establishes absence within
 that catalog, not everywhere. An empty search result alone cannot establish it.

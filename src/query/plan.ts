@@ -577,7 +577,7 @@ export function compileProductQueryPlan({
     }
   }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+    adapter: 'source-native-product-query-v7-question-coverage-v1',
     namespace,
     querySchemas,
   });
@@ -624,7 +624,7 @@ export function queryPlanner({
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+    adapter: 'source-native-product-query-v7-question-coverage-v1',
     namespace,
     plannerSha256,
     modelCalls: 0,

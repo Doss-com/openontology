@@ -316,19 +316,30 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
     const ordinaryHyphenatedProse = await product.verify(
       'What is the current status of task+record, with real-time updates?',
     );
-    assert.equal(ordinaryHyphenatedProse.state, 'resolved-current-field');
     assert.equal(
-      ordinaryHyphenatedProse.verification.currentFieldChronology.objectIdentity.externalId,
+      ordinaryHyphenatedProse.state,
+      'unavailable-native-question-residual-not-declared',
+    );
+    assert.equal(ordinaryHyphenatedProse.answerable, false);
+    assert.deepEqual(ordinaryHyphenatedProse.context, []);
+    assert.deepEqual(ordinaryHyphenatedProse.uncoveredWords, ['real', 'time', 'updates']);
+
+    const ordinaryHyphenatedAlias = await product.verify(
+      'What is the current status of task+record?',
+    );
+    assert.equal(ordinaryHyphenatedAlias.state, 'resolved-current-field');
+    assert.equal(
+      ordinaryHyphenatedAlias.verification.currentFieldChronology.objectIdentity.externalId,
       'task-1',
     );
 
     const boundaryMiss = await product.verify(
       'What is the current status of taskrecord missing-task for task-1?',
     );
-    assert.equal(boundaryMiss.state, 'resolved-current-field');
-    assert.equal(boundaryMiss.query.externalId, 'task-1');
-    assert.deepEqual(boundaryMiss.mentionedExternalIds, ['task-1']);
-    assert.deepEqual(boundaryMiss.unresolvedExternalIds, []);
+    assert.equal(boundaryMiss.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(boundaryMiss.answerable, false);
+    assert.deepEqual(boundaryMiss.context, []);
+    assert.deepEqual(boundaryMiss.uncoveredWords, ['taskrecord', 'missing']);
 
     const title = await product.verify(
       'What is the current status of the task titled "Quarterly status review"?',
