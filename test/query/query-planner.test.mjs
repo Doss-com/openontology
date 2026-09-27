@@ -54,7 +54,7 @@ test('fails closed for undeclared fields and ambiguous object types', () => {
   assert.equal(ambiguous.query, null);
 });
 
-test('typed selection narrows recognized fields without inventing a third choice', () => {
+test('typed field selection takes precedence while preserving declared choices', () => {
   const scopedSchemas = [
     {
       sourceSystem: 'helpdesk',
@@ -85,9 +85,9 @@ test('typed selection narrows recognized fields without inventing a third choice
     schemas: scopedSchemas,
     typedQuery: { ...typedQuery, fieldPath: 'assignee' },
   });
-  assert.equal(third.state, 'unavailable-native-field-ambiguous');
-  assert.equal(third.query, null);
-  assert.deepEqual(third.matchedFieldAliases, ['priority', 'title']);
+  assert.equal(third.state, 'resolved-native-field-query');
+  assert.equal(third.query.fieldPath, 'assignee');
+  assert.deepEqual(third.matchedFieldAliases, []);
   const unknown = compileSourceNativeFieldQuery({
     question: 'Inspect this ticket.',
     schemas: scopedSchemas,

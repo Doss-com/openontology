@@ -207,7 +207,10 @@ test('preserves current, historical, successor, scoped and quoted-title selector
         field: 'status',
       },
     });
-    assert.equal(scopeConflict.state, 'unavailable-native-field-ambiguous');
+    assert.equal(scopeConflict.state, 'unavailable-native-question-residual-not-declared');
     assert.equal(scopeConflict.answerable, false);
+    assert.equal(scopeConflict.query.fieldPath, 'status');
+    assert.deepEqual(scopeConflict.uncoveredWords, ['title']);
+    assert.deepEqual(scopeConflict.context, []);
   });
 });

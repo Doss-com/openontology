@@ -179,13 +179,6 @@ export function compileSourceNativeFieldQuery({
     const matchedFields = scopedField === undefined ? mentionedFields : [scopedField];
     if ((typedQuery !== null && scopedField === undefined) || matchedFields.length < 1) {
       state = 'unavailable-native-field-not-declared';
-    } else if (
-      scopedField !== undefined &&
-      mentionedFields.length > 0 &&
-      !mentionedFields.includes(scopedField)
-    ) {
-      state = 'unavailable-native-field-ambiguous';
-      matchedFieldAliases = mentionedFields.flatMap((row) => row.aliases).sort();
     } else if (matchedFields.length > 1) {
       state = 'unavailable-native-field-ambiguous';
       matchedFieldAliases = matchedFields.flatMap((row) => row.aliases).sort();

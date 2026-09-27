@@ -846,8 +846,10 @@ test('structured scopes preserve declared field intent and may fill missing sele
       'What is the current status?',
     ]) {
       const conflict = await product.verify({ question, scope: { ...scope, field: 'title' } });
-      assert.equal(conflict.state, 'unavailable-native-field-ambiguous');
+      assert.equal(conflict.state, 'unavailable-native-question-residual-not-declared');
       assert.equal(conflict.answerable, false);
+      assert.equal(conflict.query.fieldPath, 'title');
+      assert.deepEqual(conflict.uncoveredWords, ['status']);
       assert.deepEqual(conflict.context, []);
       assert.equal(conflict.verification.absenceReceipt, null);
       const matching = await product.verify({ question, scope });
@@ -895,7 +897,9 @@ test('structured scopes preserve declared field intent and may fill missing sele
       at: '2026-01-15T00:00:00.000Z',
       scope: { ...scope, field: 'title' },
     });
-    assert.equal(historical.state, 'unavailable-native-field-ambiguous');
+    assert.equal(historical.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(historical.query.fieldPath, 'title');
+    assert.deepEqual(historical.uncoveredWords, ['status']);
     assert.deepEqual(historical.context, []);
     const mcp = createSourceNativeProductMcpHandler(openSourceNativeProduct({ artifactRoot }));
     const response = await mcp.handle({
@@ -911,8 +915,10 @@ test('structured scopes preserve declared field intent and may fill missing sele
       },
     });
     const mcpResult = JSON.parse(response.result.content[0].text);
-    assert.equal(mcpResult.state, 'unavailable-native-field-ambiguous');
+    assert.equal(mcpResult.state, 'unavailable-native-question-residual-not-declared');
     assert.equal(mcpResult.answerable, false);
+    assert.equal(mcpResult.query.fieldPath, 'title');
+    assert.deepEqual(mcpResult.uncoveredWords, ['status']);
     assert.deepEqual(mcpResult.context, []);
     const cli = spawnSync(
       process.execPath,
@@ -934,8 +940,10 @@ test('structured scopes preserve declared field intent and may fill missing sele
     );
     assert.equal(cli.status, 0, cli.stderr);
     const cliResult = JSON.parse(cli.stdout);
-    assert.equal(cliResult.state, 'unavailable-native-field-ambiguous');
+    assert.equal(cliResult.state, 'unavailable-native-question-residual-not-declared');
     assert.equal(cliResult.answerable, false);
+    assert.equal(cliResult.query.fieldPath, 'title');
+    assert.deepEqual(cliResult.uncoveredWords, ['status']);
     assert.deepEqual(cliResult.context, []);
   });
   await withProduct(

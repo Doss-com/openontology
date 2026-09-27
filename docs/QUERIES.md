@@ -135,9 +135,17 @@ npx --no-install oont verify ./verified-context \
 ```
 
 Scope names are case-sensitive and must match the Adapter schema. An explicit
-ID in the question must agree with `scope.externalId`. A conflicting profile,
-field or ID returns a refusal. If an opaque ID does not reveal its object type,
-include the type in the question or provide scope.
+ID in the question must agree with `scope.externalId`. A conflicting profile or
+ID returns a refusal. An explicit `scope.field` selects that field even when
+the question names another declared field; the other field word remains
+subject to lexical coverage and may return a typed refusal. If an opaque ID does
+not reveal its object type, include the type in the question or provide scope.
+
+For example, `What did we decide about the go-live date?` with a
+`decision.statement` scope selects `statement`, but returns
+`unavailable-native-question-residual-not-declared` with `uncoveredWords: ["date"]`
+and no context. It is not answerable by this rule; the explicit scope does not
+claim that the broader question is semantically understood.
 
 When a question places an identifier-shaped token directly after a declared
 object alias, the token must be a known ID in the bound map or agree with an

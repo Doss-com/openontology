@@ -29,9 +29,11 @@ An ordinary query needs only `question`. Optional `scope` selects exact,
 case-sensitive source-system, object-type and field names. An unavailable
 result can include `availableFields` for discovery.
 
-- Scope can fill missing selectors or disambiguate matching candidates. It
-  cannot override a different recognized profile, field or explicit native ID
-  in the question.
+- Scope can fill missing selectors or disambiguate matching candidates. A
+  conflicting recognized profile or explicit native ID still refuses. An
+  explicit `scope.field` selects that declared field even when the question
+  names another declared field; the other field word remains subject to the
+  lexical coverage audit.
 - Shared object aliases can be disambiguated by source system. Multiple aliases
   for one field remain one candidate. These checks use declared vocabulary,
   not inferred semantic equivalence.
@@ -50,6 +52,13 @@ result can include `availableFields` for discovery.
   `unavailable-native-question-residual-not-declared` with `uncoveredWords`; a
   selected field does not authorize answering a different question about it.
   This is lexical accounting, not general semantic coverage.
+
+  For example, a query asking `What did we decide about the go-live date?` with
+  an explicit `decision.statement` scope selects `statement`, but `date` remains
+  uncovered. The result is therefore
+  `unavailable-native-question-residual-not-declared` with no context. This
+  precedence rule does not provide broader semantic understanding of the
+  question.
 
 The planner preserves explicit IDs and temporal selectors while masking quoted
 titles. A planner identity change also changes query-plan hashes; old Admissions
