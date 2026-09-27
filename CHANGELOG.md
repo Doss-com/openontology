@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.6
+
+- Use the canonical source catalog digest consistently across native browse and
+  verification. Standalone evidence sessions keep their existing digest format.
+- Derived seed-search adapters bound to the previous route-map digest must be
+  rebuilt or omitted. Stale bindings refuse with `SOURCE_NATIVE_SEED_SEARCH_ADAPTER`;
+  they do not silently fall back to raw search. Source artifacts and canonical
+  Admission records are not rewritten by this correction.
+
 ## 0.3.0-alpha.5
 
 - Add bounded native object browsing through the SDK, CLI and advanced MCP. Browse
