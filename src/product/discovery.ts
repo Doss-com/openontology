@@ -11,6 +11,7 @@ import type {
   SourceNativeObjectDiscoveryScope,
   SourceNativeObjectDiscoverySourceBinding,
 } from './discovery-types.js';
+import { SOURCE_NATIVE_OBJECT_DISCOVERY_LIMITS } from './discovery-types.js';
 export type {
   SourceNativeObjectDiscoveryCoverage,
   SourceNativeObjectDiscoveryInput,
@@ -20,11 +21,13 @@ export type {
   SourceNativeObjectDiscoverySourceBinding,
 } from './discovery-types.js';
 
-const DEFAULT_LIMIT = 20;
-const MAXIMUM_LIMIT = 64;
-const MAXIMUM_PAGE_BYTES = 256 * 1024;
-const MAXIMUM_CURSORS = 128;
-const MAXIMUM_TEXT = 256;
+const {
+  default: DEFAULT_LIMIT,
+  maximum: MAXIMUM_LIMIT,
+  maximumPageBytes: MAXIMUM_PAGE_BYTES,
+  maximumCursors: MAXIMUM_CURSORS,
+  maximumText: MAXIMUM_TEXT,
+} = SOURCE_NATIVE_OBJECT_DISCOVERY_LIMITS;
 
 type NormalizedSourceNativeObjectDiscoveryInput = {
   browse: 'objects';
