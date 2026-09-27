@@ -159,7 +159,7 @@ inventory and a GitHub package attestation. Verify the downloaded package before
 installation. For example, in a clean directory:
 
 ```bash
-VERSION=0.3.0-alpha.5
+VERSION=0.3.0-alpha.6
 gh release download "v${VERSION}" --repo Doss-com/openontology \
   --pattern "oont-${VERSION}.tgz" --pattern SHA256SUMS
 shasum -a 256 -c SHA256SUMS
