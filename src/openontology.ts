@@ -9,7 +9,7 @@ import type {
   SourceNativeObjectDiscoveryObject,
   SourceNativeObjectDiscoveryResult,
   SourceNativeObjectDiscoveryScope,
-} from './product/discovery.js';
+} from './product/discovery-types.js';
 import type { ProductOptions } from './source/artifact.js';
 import type { OpenOntologyResultState as ResultState } from './product/result-state.js';
 import type { GcsRequestObserver } from './storage/gcs-request-observation.js';

@@ -3,6 +3,22 @@ import { stableObjectSha256, stableObjectText } from '../canonical-content.js';
 import type { QuerySchema } from '../query/planner.js';
 import type { SourceNativeObjectIdentity } from '../source/object-map.js';
 import type { Descriptor, ObjectOnt } from '../source/artifact.js';
+import type {
+  SourceNativeObjectDiscoveryCoverage,
+  SourceNativeObjectDiscoveryInput,
+  SourceNativeObjectDiscoveryObject,
+  SourceNativeObjectDiscoveryResult,
+  SourceNativeObjectDiscoveryScope,
+  SourceNativeObjectDiscoverySourceBinding,
+} from './discovery-types.js';
+export type {
+  SourceNativeObjectDiscoveryCoverage,
+  SourceNativeObjectDiscoveryInput,
+  SourceNativeObjectDiscoveryObject,
+  SourceNativeObjectDiscoveryResult,
+  SourceNativeObjectDiscoveryScope,
+  SourceNativeObjectDiscoverySourceBinding,
+} from './discovery-types.js';
 
 const DEFAULT_LIMIT = 20;
 const MAXIMUM_LIMIT = 64;
@@ -10,70 +26,12 @@ const MAXIMUM_PAGE_BYTES = 256 * 1024;
 const MAXIMUM_CURSORS = 128;
 const MAXIMUM_TEXT = 256;
 
-export interface SourceNativeObjectDiscoveryScope {
-  sourceSystem: string;
-  objectType?: string;
-  externalId?: string;
-}
-
-export interface SourceNativeObjectDiscoveryInput {
-  browse: 'objects';
-  scope?: SourceNativeObjectDiscoveryScope;
-  limit?: number;
-  cursor?: string;
-}
 type NormalizedSourceNativeObjectDiscoveryInput = {
   browse: 'objects';
   scope: SourceNativeObjectDiscoveryScope | null;
   limit: number;
   cursor: string | null;
 };
-
-export interface SourceNativeObjectDiscoveryObject {
-  objectIdentity: SourceNativeObjectIdentity;
-  objectIdentitySha256: string;
-  fields: string[];
-}
-
-export interface SourceNativeObjectDiscoverySourceBinding {
-  schemaVersion: 1;
-  kind: 'OpenOntologySourceNativeObjectDiscoverySourceBindingV1';
-  ontId: string;
-  branch: string;
-  namespace: string;
-  artifactSha256: string;
-  sourceCommitSha256: string;
-  sourceReplaySha256: string;
-  sourceCatalogSha256: string;
-  nativeObjectMapSha256: string;
-}
-
-export interface SourceNativeObjectDiscoveryCoverage {
-  sourceCount: number;
-  mappedSourceCount: number;
-  unsupportedSourceCount: number;
-  parseFailureCount: number;
-  complete: boolean;
-}
-
-export interface SourceNativeObjectDiscoveryResult {
-  schemaVersion: 1;
-  kind: 'OpenOntologySourceNativeObjectDiscoveryResultV1';
-  browse: 'objects';
-  scope: SourceNativeObjectDiscoveryScope | null;
-  objects: readonly SourceNativeObjectDiscoveryObject[];
-  totalObjects: number;
-  returnedObjects: number;
-  nextCursor: string | null;
-  sourceBinding: SourceNativeObjectDiscoverySourceBinding;
-  coverage: SourceNativeObjectDiscoveryCoverage;
-  freshness: 'unknown';
-  navigationOnly: true;
-  absenceProven: false;
-  exactSourcesRemainAuthority: true;
-  canonicalTruthMutation: false;
-  resultSha256: string;
-}
 
 export interface SourceNativeObjectDiscoveryCursor {
   clientId: string;
