@@ -757,11 +757,7 @@ test('structured scopes preserve declared field intent and may fill missing sele
         ['Done'],
       );
     }
-    for (const question of [
-      'Inspect this object.',
-      'Inspect task-1.',
-      'What is the task status and title?',
-    ]) {
+    for (const question of ['Inspect this object.', 'Inspect task-1.']) {
       const narrowed = await product.verify({ question, scope });
       assert.equal(narrowed.answerable, true);
       assert.deepEqual(
@@ -769,6 +765,13 @@ test('structured scopes preserve declared field intent and may fill missing sele
         ['Done'],
       );
     }
+    const multipleFields = await product.verify({
+      question: 'What is the task status and title?',
+      scope,
+    });
+    assert.equal(multipleFields.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(multipleFields.answerable, false);
+    assert.deepEqual(multipleFields.uncoveredWords, ['title']);
     for (const question of ['Inspect this object.', 'What is the current status of task-999?']) {
       const absent = await product.verify({
         question,

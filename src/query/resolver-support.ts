@@ -92,6 +92,7 @@ interface SeedPolicyBinding {
 export interface ValidatedFieldQueryPlan extends UnknownRecord {
   state: string;
   query: SourceNativeFieldQuery | null;
+  uncoveredWords?: string[];
   plannerSha256: string;
   questionSha256: string;
   planSha256: string;

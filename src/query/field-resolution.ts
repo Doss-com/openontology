@@ -9,6 +9,202 @@ import type {
 } from '../source/object-map.js';
 import type { SourceNativeFieldQuery } from './planner.js';
 
+const QUESTION_WORD = /[\p{L}\p{N}]+/gu;
+const QUERY_GRAMMAR_WORDS = new Set([
+  'what',
+  'whats',
+  'is',
+  'are',
+  'was',
+  'were',
+  'who',
+  'when',
+  'which',
+  'the',
+  'a',
+  'an',
+  'of',
+  'for',
+  'current',
+  'currently',
+  'latest',
+  'now',
+  'right',
+  'present',
+  'value',
+  'this',
+  'that',
+  'it',
+  'its',
+  'please',
+  'tell',
+  'me',
+  'show',
+  'give',
+  'check',
+  'inspect',
+  'object',
+  'can',
+  'could',
+  'you',
+  'i',
+  'we',
+  'need',
+  'want',
+  'know',
+  'on',
+  'in',
+  'at',
+  'to',
+  'with',
+  'from',
+  'into',
+  'by',
+  'about',
+  'as',
+  'our',
+  'their',
+  'titled',
+  'named',
+  'called',
+  'has',
+  'have',
+  'had',
+  'and',
+  'or',
+  'does',
+  'do',
+  'did',
+]);
+const SUCCESSOR_SELECTOR_WORDS = new Set([
+  'find',
+  'immediately',
+  'followed',
+  'following',
+  'comes',
+  'next',
+  'revision',
+  'successor',
+]);
+
+interface QuestionWord {
+  value: string;
+  start: number;
+  end: number;
+  possessive: boolean;
+}
+
+export interface SourceNativeQuestionCoverage {
+  consumedWords: string[];
+  uncoveredWords: string[];
+}
+
+function normalizedQuestionWord(value: unknown): string {
+  return String(value).normalize('NFKC').toLocaleLowerCase('en-US');
+}
+
+function questionWords(question: string): QuestionWord[] {
+  return [...question.matchAll(QUESTION_WORD)].map((match) => ({
+    value: normalizedQuestionWord(match[0]),
+    start: match.index,
+    end: match.index + match[0].length,
+    possessive:
+      /^['’]s/iu.test(question.slice(match.index + match[0].length)) ||
+      (normalizedQuestionWord(match[0]) === 's' &&
+        /^[\p{L}\p{N}]['’]/u.test(question.slice(Math.max(0, match.index - 2), match.index))),
+  }));
+}
+
+function markPhrase(words: QuestionWord[], value: unknown, consumed: Set<number>): void {
+  const target = questionWords(String(value));
+  if (target.length === 0) return;
+  for (let index = 0; index <= words.length - target.length; index += 1) {
+    if (target.some((word, offset) => words[index + offset]?.value !== word.value)) continue;
+    for (let offset = 0; offset < target.length; offset += 1) consumed.add(index + offset);
+  }
+}
+
+/**
+ * Account for the lexical selectors consumed by the native field resolver.
+ * This is deliberately not a semantic classifier. Words outside the declared
+ * aliases, identity selectors, a bound successor anchor and the small query
+ * grammar remain visible as a refusal rather than being treated as harmless
+ * prose.
+ */
+export function auditSourceNativeQuestion({
+  question,
+  query,
+  namespace,
+  objectAliases = [],
+  fieldAliases = [],
+  intent = 'current',
+  anchorValue = null,
+  sourceNativeObjectMap,
+}: {
+  question: string;
+  query: SourceNativeFieldQuery;
+  namespace?: string;
+  objectAliases?: string[];
+  fieldAliases?: string[];
+  intent?: 'current' | 'next' | 'at';
+  anchorValue?: string | null;
+  sourceNativeObjectMap?: SourceNativeObjectMap;
+}): SourceNativeQuestionCoverage {
+  const words = questionWords(question);
+  const consumed = new Set<number>();
+  const selectorValues = [
+    ...objectAliases,
+    ...fieldAliases,
+    query.sourceSystem,
+    query.objectType,
+    query.fieldPath,
+    query.externalId,
+    namespace,
+    ...(intent === 'next' ? [anchorValue] : []),
+  ];
+  for (const value of selectorValues) {
+    if (typeof value === 'string' && value) {
+      markPhrase(words, value, consumed);
+    }
+  }
+
+  if (intent === 'next' && sourceNativeObjectMap !== undefined) {
+    for (const object of sourceNativeObjectMap.nativeObjects) {
+      if (
+        object.objectIdentity.namespace !== (namespace ?? query.namespace) ||
+        object.objectIdentity.sourceSystem !== query.sourceSystem ||
+        object.objectIdentity.objectType !== query.objectType ||
+        (query.externalId !== undefined && object.objectIdentity.externalId !== query.externalId)
+      ) {
+        continue;
+      }
+      for (const field of object.fields) {
+        if (field.fieldSha256 === query.anchorFieldSha256) {
+          markPhrase(words, field.value, consumed);
+        }
+      }
+    }
+  }
+  const allowed = new Set(QUERY_GRAMMAR_WORDS);
+  if (intent === 'next') {
+    for (const word of SUCCESSOR_SELECTOR_WORDS) allowed.add(word);
+  }
+  const consumedWords = [...consumed]
+    .sort((left, right) => left - right)
+    .map((index) => words[index]!.value);
+  const uncoveredWords = [
+    ...new Set(
+      words
+        .map((word, index) => ({ word, index }))
+        .filter(
+          ({ word, index }) => !consumed.has(index) && !word.possessive && !allowed.has(word.value),
+        )
+        .map(({ word }) => word.value),
+    ),
+  ];
+  return { consumedWords, uncoveredWords };
+}
+
 export interface SourceNativeFieldResolutionResult {
   state: string;
   query: SourceNativeFieldQuery;

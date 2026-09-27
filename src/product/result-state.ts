@@ -15,6 +15,7 @@ export const OPENONTOLOGY_RESULT_STATES = [
   'unavailable-native-multiple-object-identifiers',
   'unavailable-native-field-anchor-not-matched',
   'unavailable-native-field-anchor-ambiguous',
+  'unavailable-native-question-residual-not-declared',
   'unavailable-native-temporal-intent-not-declared',
   'unavailable-native-object-not-seeded',
   'unavailable-native-object-seed-ambiguous',

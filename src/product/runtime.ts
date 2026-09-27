@@ -100,6 +100,7 @@ export interface SourceNativeProductResolution extends UnknownRecord {
   state: string;
   selectionMode: string;
   resultSha256: string;
+  uncoveredWords?: string[];
   selectedObjectIdentitySha256?: string | null;
   evidenceUnits: UnknownRecord[];
   searchPath?: (UnknownRecord & { searchPathSha256: string; revisionSha256?: string }) | null;
@@ -320,6 +321,7 @@ function productResult({
     query: plan.query,
     mentionedExternalIds: plan.mentionedExternalIds,
     unresolvedExternalIds: plan.unresolvedExternalIds,
+    ...(plan.uncoveredWords === undefined ? {} : { uncoveredWords: plan.uncoveredWords }),
     selectionMode: resolution?.selectionMode ?? null,
     matches: freeze(matches),
     availableFields: freeze(availableFields),
@@ -945,6 +947,9 @@ function openSourceNativeProductRuntimeWithState(
       context: freeze(context),
       mentionedExternalIds: searchResult.mentionedExternalIds,
       unresolvedExternalIds: searchResult.unresolvedExternalIds,
+      ...(searchResult.uncoveredWords === undefined
+        ? {}
+        : { uncoveredWords: searchResult.uncoveredWords }),
       availableFields: searchResult.availableFields,
       verification,
       policy: searchResult.policy,

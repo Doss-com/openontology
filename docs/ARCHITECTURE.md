@@ -43,6 +43,13 @@ result can include `availableFields` for discovery.
   at a requested time.
 - Missing coverage, unknown names, collisions and explicit ID conflicts refuse
   before verification. A mismatched profile cannot prove object absence.
+- After those selectors and temporal checks succeed, field resolution accounts
+  for question words consumed by declared aliases, identity selectors,
+  quoted-name masking, a bound successor anchor and a small query grammar.
+  Remaining words return
+  `unavailable-native-question-residual-not-declared` with `uncoveredWords`; a
+  selected field does not authorize answering a different question about it.
+  This is lexical accounting, not general semantic coverage.
 
 The planner preserves explicit IDs and temporal selectors while masking quoted
 titles. A planner identity change also changes query-plan hashes; old Admissions

@@ -1,6 +1,7 @@
 /** Bind product questions to declared source-native fields and identities. */
 import { stableObjectSha256 } from '../canonical-content.js';
 import { compileSourceNativeFieldQuery } from './planner.js';
+import { auditSourceNativeQuestion } from './field-resolution.js';
 import type { QuerySchema, SourceNativeFieldQuery, SourceNativeQueryPlanState } from './planner.js';
 import type { SourceNativeField, SourceNativeObjectMap } from '../source/object-map.js';
 import type { FieldQueryPlanner, ValidatedFieldQueryPlan } from './resolver-support.js';
@@ -447,13 +448,15 @@ export function compileProductQueryPlan({
     | 'unavailable-native-field-anchor-ambiguous'
     | 'unavailable-native-field-not-declared'
     | 'unavailable-native-temporal-intent-not-declared'
-    | 'unavailable-native-object-seed-ambiguous';
+    | 'unavailable-native-object-seed-ambiguous'
+    | 'unavailable-native-question-residual-not-declared';
   let query: SourceNativeFieldQuery | null;
   let matchedObjectAliases: string[];
   let matchedFieldAliases: string[];
   let plannerSchemaSha256: string;
   let mentionedExternalIds: string[] = [];
   let unresolvedExternalIds: string[] = [];
+  let uncoveredWords: string[] = [];
   const declaredTitle = parseDeclaredTitle(question);
   const scanQuestion = declaredTitle.scanQuestion;
   const namespaceMismatch =
@@ -557,6 +560,22 @@ export function compileProductQueryPlan({
     state = anchor.state;
     query = anchor.query;
   }
+  if (query !== null) {
+    const coverage = auditSourceNativeQuestion({
+      question: scanQuestion,
+      query,
+      namespace,
+      objectAliases: matchedObjectAliases,
+      fieldAliases: matchedFieldAliases,
+      intent,
+      anchorValue,
+      sourceNativeObjectMap: map,
+    });
+    uncoveredWords = coverage.uncoveredWords;
+    if (uncoveredWords.length > 0) {
+      state = 'unavailable-native-question-residual-not-declared';
+    }
+  }
   const plannerSha256 = stableObjectSha256({
     adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
     namespace,
@@ -571,6 +590,7 @@ export function compileProductQueryPlan({
     ...(intent === 'at' ? { at, temporalProfile: 'source-native-basic-retrospective-v1' } : {}),
     mentionedExternalIds: freeze(mentionedExternalIds),
     unresolvedExternalIds: freeze(unresolvedExternalIds),
+    ...(uncoveredWords.length === 0 ? {} : { uncoveredWords: freeze(uncoveredWords) }),
     matchedObjectAliases: freeze(matchedObjectAliases),
     matchedFieldAliases: freeze(matchedFieldAliases),
     declaredTitle:

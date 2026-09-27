@@ -32,6 +32,13 @@ verification could not complete, such as an ambiguous identity, an unsupported
 field or incomplete chronology. Results can include `availableFields` to help
 you choose a declared field.
 
+If the question contains meaning beyond the selected native field, verification
+returns `unavailable-native-question-residual-not-declared` and lists the
+uncovered words in `uncoveredWords`. This check accounts for declared aliases,
+identity and quoted-name selectors, and a small query grammar. It does not claim
+to understand arbitrary language, and a field selector does not authorize an
+answer to a different question about that field.
+
 An exact typed identity absent from a complete catalog can receive an absence
 receipt with `answerable: false` and no context. This establishes absence within
 that catalog, not everywhere. An empty search result alone cannot establish it.
