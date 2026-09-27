@@ -90,7 +90,7 @@ interface OpenOntologyProduct {
 }
 ```
 
-See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.4/src/openontology.ts)
+See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.5/src/openontology.ts)
 for complete result shapes.
 
 ## Typed scope
