@@ -30,6 +30,7 @@ function usage(code = 2) {
 
   verify <ont> <question>       return verified context or a typed refusal
   search <ont> <question>       return candidate References
+  search <ont> --browse objects  enumerate native identities and fields
   status <ont>                  report recorded Ont state
   check <ont>                   validate the Ont and its pinned source cut
   serve <ont> --mcp             expose verify over MCP
@@ -60,7 +61,7 @@ function commandHelp(name: ProductCommand): never {
     verify:
       'usage: oont verify <ont> <question> [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
     search:
-      'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]',
+      'usage: oont search <ont> <question> [--read] [--intent current|next]\n       [--source-system <name> --object-type <name> --field <path>]\n       [--external-id <id>] [--anchor-value <exact-value>]\n       [--at <UTC-millisecond-ISO>]\n   or:  oont search <ont> --browse objects [--source-system <name>]\n       [--object-type <name>] [--external-id <id>] [--limit <1..256>]',
     status: 'usage: oont status <ont>',
     check: 'usage: oont check <ont>',
     serve: 'usage: oont serve <ont> --mcp [--advanced]',

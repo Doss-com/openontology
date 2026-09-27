@@ -588,7 +588,7 @@ test('advanced MCP search and read carry the historical query', async () => {
       listed.result.tools.map((tool) => tool.name),
       ['search', 'read'],
     );
-    assert.ok(listed.result.tools[0].inputSchema.properties.at);
+    assert.ok(listed.result.tools[0].inputSchema.oneOf[0].properties.at);
 
     for (const argumentsValue of [
       { question: 'What is the task title?', at: '2026-02-15T00:00:00Z' },

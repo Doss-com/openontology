@@ -3,6 +3,13 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { openSourceNativeProduct, SOURCE_NATIVE_PRODUCT_ARTIFACT_FILE } from './product/runtime.js';
+import { normalizeSourceNativeObjectDiscoveryInput } from './product/discovery.js';
+import type {
+  SourceNativeObjectDiscoveryInput,
+  SourceNativeObjectDiscoveryObject,
+  SourceNativeObjectDiscoveryResult,
+  SourceNativeObjectDiscoveryScope,
+} from './product/discovery.js';
 import type { ProductOptions } from './source/artifact.js';
 import type { OpenOntologyResultState as ResultState } from './product/result-state.js';
 import type { GcsRequestObserver } from './storage/gcs-request-observation.js';
@@ -23,6 +30,10 @@ export interface OpenOntologyQueryInput {
   /** Source, type and field names must match the Adapter schema. */
   scope?: OpenOntologyScopeInput;
 }
+export type OpenOntologyObjectDiscoveryInput = SourceNativeObjectDiscoveryInput;
+export type OpenOntologyObjectDiscoveryObject = SourceNativeObjectDiscoveryObject;
+export type OpenOntologyObjectDiscoveryResult = SourceNativeObjectDiscoveryResult;
+export type OpenOntologyObjectDiscoveryScope = SourceNativeObjectDiscoveryScope;
 
 interface OpenOntologyQuery {
   question: string;
@@ -342,7 +353,10 @@ export interface OpenOntologyProduct {
   /** Return checked source context, or a refusal when verification cannot complete. */
   verify: (input: string | OpenOntologyQueryInput) => Promise<OpenOntologyVerificationResult>;
   /** Find candidate References. Search results alone do not establish an answer. */
-  search: (input: string | OpenOntologyQueryInput) => Promise<OpenOntologySearchResult>;
+  search: {
+    (input: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>;
+    (input: OpenOntologyObjectDiscoveryInput): Promise<OpenOntologyObjectDiscoveryResult>;
+  };
   /** Inspect a Reference issued by this client. */
   read: (input: string | OpenOntologyReferenceInput) => Promise<OpenOntologyReadResult>;
   /** Inspect the opened Ont without refreshing its source data. */
@@ -390,12 +404,21 @@ function queryFields(record: Record<string, unknown>): Omit<OpenOntologyQuery, '
   };
 }
 
-function query(input: unknown): OpenOntologyQuery {
+function query(input: unknown): OpenOntologyQuery | OpenOntologyObjectDiscoveryInput {
   if (typeof input === 'string') {
     if (!input.trim()) fail('OPENONTOLOGY_QUERY');
     return { question: input };
   }
   const record = isRecord(input) ? input : fail('OPENONTOLOGY_QUERY');
+  if (Object.hasOwn(record, 'browse')) {
+    const normalized = normalizeSourceNativeObjectDiscoveryInput(record, 'OPENONTOLOGY_QUERY');
+    return {
+      browse: 'objects',
+      ...(normalized.scope === null ? {} : { scope: normalized.scope }),
+      ...(normalized.limit === 20 ? {} : { limit: normalized.limit }),
+      ...(normalized.cursor === null ? {} : { cursor: normalized.cursor }),
+    };
+  }
   if (
     Object.keys(record).some(
       (name) => !['question', 'intent', 'at', 'anchorValue', 'scope'].includes(name),
@@ -464,10 +487,21 @@ export function openOntology(options: ProductOptions = {}): OpenOntologyProduct 
     fail('OPENONTOLOGY_ARTIFACT');
   }
   const product = openSourceNativeProduct(options);
+  const searchImplementation = (input: unknown) => {
+    const parsed = query(input);
+    if ('browse' in parsed) return product.search(parsed as OpenOntologyObjectDiscoveryInput);
+    return product.search(parsed as OpenOntologyQuery);
+  };
+  const search = searchImplementation as OpenOntologyProduct['search'];
+  const verify = (input: unknown) => {
+    const parsed = query(input);
+    if ('browse' in parsed) fail('OPENONTOLOGY_QUERY');
+    return product.verify(parsed);
+  };
   return Object.freeze({
     kind: 'OpenOntologyClientV2' as const,
-    verify: (input: unknown) => product.verify(query(input)),
-    search: (input: unknown) => product.search(query(input)),
+    verify,
+    search,
     read: (input: unknown) => product.read(reference(input)),
     status: () => product.status(),
   });

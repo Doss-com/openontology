@@ -39,7 +39,7 @@ test('MCP query guidance explains optional selectors without changing parsing', 
   );
   const queries = [
     ordinary.tools[0].inputSchema,
-    advanced.tools[0].inputSchema,
+    advanced.tools[0].inputSchema.oneOf[0],
     construction.tools[0].inputSchema.oneOf[0],
   ];
   for (const schema of queries) {
@@ -60,6 +60,14 @@ test('MCP query guidance explains optional selectors without changing parsing', 
     assert.match(schema.properties.scope.properties.sourceSystem.description, /case-sensitive/u);
     assert.match(schema.properties.scope.properties.field.description, /fieldPath/u);
   }
+  assert.deepEqual(advanced.tools[0].inputSchema.oneOf[1].required, ['browse']);
+  assert.equal(advanced.tools[0].inputSchema.oneOf[1].additionalProperties, false);
+  assert.deepEqual(Object.keys(advanced.tools[0].inputSchema.oneOf[1].properties).sort(), [
+    'browse',
+    'cursor',
+    'limit',
+    'scope',
+  ]);
   assert.match(ordinary.tools[0].description, /only question/u);
   assert.match(construction.tools[0].description, /not both/u);
   const termSchema = construction.tools[0].inputSchema.oneOf[1];
