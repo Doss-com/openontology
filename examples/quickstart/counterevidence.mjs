@@ -4,8 +4,6 @@ import { join, resolve } from 'node:path';
 import { openOntology } from 'oont';
 import { buildSourceNativeProduct } from 'oont/kernel';
 
-const RELATIONS = new Set(['qualifies', 'contradicts']);
-
 function fail(message) {
   const error = new Error(message);
   error.code = message;
