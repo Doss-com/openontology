@@ -66,7 +66,7 @@ const QUERY_PROPERTIES = Object.freeze({
     type: 'string',
     minLength: 1,
     description:
-      'Complete question, including the requested field and any known source-native object ID or supported name.',
+      'Question identifying the requested field and any known source-native object ID or supported name.',
   },
   intent: {
     type: 'string',
@@ -128,7 +128,7 @@ const CONSTRUCTION_QUERY_PROPERTIES = Object.freeze({
 const VERIFY_TOOL = Object.freeze({
   name: 'verify',
   description:
-    'Verify one complete question against the named source cut. Start with only question; omit unknown optional selectors. OpenOntology searches for candidate references, resolves identity and chronology, reads every required exact source range, and returns proof-complete context or a typed refusal. It does not generate a prose answer.',
+    'Return verified source context for one declared field against the named source cut. Start with only question; omit unknown optional selectors. OpenOntology resolves identity and chronology, checks exact source passages and any required qualifying or contradicting evidence, then returns context with receipts or a typed refusal. It does not generate a prose answer.',
   inputSchema: {
     type: 'object',
     required: ['question'],
@@ -140,7 +140,7 @@ const VERIFY_TOOL = Object.freeze({
 const SEARCH_TOOL = Object.freeze({
   name: 'search',
   description:
-    'Find candidate references for one complete question. Start with only question; omit unknown optional selectors. Results are navigation only and are not evidence. Read every match marked requiredForProof before making a material claim.',
+    'Find candidate references for one declared field against the named source cut. Start with only question; omit unknown optional selectors. Results are navigation only and are not evidence. Read every match marked requiredForProof before making a material claim.',
   inputSchema: {
     type: 'object',
     required: ['question'],
