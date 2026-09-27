@@ -15,8 +15,7 @@
   the selected native identity.
 - Keep selector recognition bounded to declared aliases and direct `of` or
   `for` forms. This release does not add arbitrary name interpretation,
-  automatic connectors, hosted deployment or a claim of universal semantic
-  certainty.
+  automatic connectors or hosted deployment.
 
 ## 0.3.0-alpha.4
 

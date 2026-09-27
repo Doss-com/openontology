@@ -77,6 +77,8 @@ SDK and advanced MCP `limit` values are page sizes from 1 through 64. A cursor
 can only be passed to the same opened client and is bound to its source cut and
 scope. The result is navigation, not proof. Select a row and use its full
 identity as qualifiers for ordinary `verify`.
+This source-native browse path is separate from construction MCP, which
+continues to use question or term search for configured navigation.
 
 The root client exposes:
 
