@@ -606,6 +606,83 @@ function buildSharedFieldSpanInput({ semantic = false } = {}) {
   };
 }
 
+function buildSharedSuccessorIdentityInput() {
+  const sharedPath = 'linear/northwind/shared-status.txt';
+  const issueAPath = 'linear/northwind/issue-a-status.txt';
+  const issueBPath = 'linear/northwind/issue-b-status.txt';
+  const sharedContent = 'Status: Shared.';
+  const issueAContent = 'Status: A-later.';
+  const issueBContent = 'Status: B-later.';
+  const identity = (externalId) => ({
+    home: 'ObjectDef/InstanceRef',
+    sourceSystem: 'linear',
+    objectType: 'issue',
+    namespace: 'northwind',
+    externalId,
+  });
+  const field = (value, content) => ({
+    fieldPath: 'status',
+    value,
+    codeUnitStart: content.indexOf(value),
+  });
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'northwind-shared-successor-identity',
+    namespace: 'northwind',
+    querySchemas: [
+      {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        aliases: ['issue'],
+        fields: [{ fieldPath: 'status', aliases: ['status'] }],
+      },
+    ],
+    sources: [
+      {
+        relativePath: sharedPath,
+        sourceType: 'linear',
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        content: sharedContent,
+      },
+      {
+        relativePath: issueAPath,
+        sourceType: 'linear',
+        occurredAt: '2026-02-01T00:00:00.000Z',
+        content: issueAContent,
+      },
+      {
+        relativePath: issueBPath,
+        sourceType: 'linear',
+        occurredAt: '2026-02-02T00:00:00.000Z',
+        content: issueBContent,
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath: sharedPath,
+        objectIdentity: identity('issue-a'),
+        fields: [field('Shared', sharedContent)],
+      },
+      {
+        relativePath: sharedPath,
+        objectIdentity: identity('issue-b'),
+        fields: [field('Shared', sharedContent)],
+      },
+      {
+        relativePath: issueAPath,
+        objectIdentity: identity('issue-a'),
+        fields: [field('A-later', issueAContent)],
+      },
+      {
+        relativePath: issueBPath,
+        objectIdentity: identity('issue-b'),
+        fields: [field('B-later', issueBContent)],
+      },
+    ],
+  };
+}
+
 function buildCrossObjectSemanticVerificationInput({ relationType = 'qualifies' } = {}) {
   const status = 'passed';
   const exception = 'payment evidence remained unreviewed';
@@ -1673,6 +1750,39 @@ test('ordinary verify binds a shared exact field span to each native identity', 
       assert.equal(historical.context[0].binding.externalId, externalId);
       assert.equal(historical.verification.semanticProof, undefined);
     }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('next binds both the answer and shared-span anchor to the selected identity', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-shared-successor-identity-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSharedSuccessorIdentityInput() });
+    const product = openSourceNativeProduct({ artifactRoot: root });
+    const next = await product.search({
+      question: 'What status immediately followed Shared for issue-b?',
+      intent: 'next',
+      anchorValue: 'Shared',
+      typedQuery: {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        externalId: 'issue-b',
+        fieldPath: 'status',
+      },
+    });
+    assert.equal(next.state, 'resolved-next-field-revision');
+    assert.equal(next.matches.length, 2);
+    const answer = await product.read({
+      ref: next.matches.find((match) => match.role === 'answer').ref,
+    });
+    const anchor = await product.read({
+      ref: next.matches.find((match) => match.role === 'anchor').ref,
+    });
+    assert.equal(answer.exactText, 'B-later');
+    assert.equal(anchor.exactText, 'Shared');
+    assert.equal(answer.binding.externalId, 'issue-b');
+    assert.equal(anchor.binding.externalId, 'issue-b');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

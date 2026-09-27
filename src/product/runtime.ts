@@ -748,7 +748,7 @@ function openSourceNativeProductRuntimeWithState(
     const object = objectOnt.map.nativeObjects.find(
       (row) =>
         row.relativePath === reference.relativePath &&
-        (role !== 'answer' ||
+        (!(role === 'answer' || role === 'anchor') ||
           offeredEvidence.resolution.selectedObjectIdentitySha256 === undefined ||
           offeredEvidence.resolution.selectedObjectIdentitySha256 === null ||
           row.objectIdentitySha256 === offeredEvidence.resolution.selectedObjectIdentitySha256) &&
