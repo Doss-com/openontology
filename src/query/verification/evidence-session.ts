@@ -53,7 +53,7 @@ export interface BoundObjectOnt extends UnknownRecord {
   map: { nativeObjectMapSha256: string };
   commitSha256: string;
   replaySha256: string;
-  catalog: { sourceCount: number };
+  catalog: { sourceCatalogSha256: string; sourceCount: number };
   sources: Array<{ relativePath: string; sourceSha256: string; content: string }>;
 }
 export interface SeedRequest extends UnknownRecord {
@@ -300,13 +300,13 @@ export function openSourceNativeExactEvidenceSession(options: ExactSessionOption
     sources.map((row: ExactSessionSource) => [`source-native:${row.sourceMessageId}`, row]),
   );
   const sourceCatalog = sources.map(({ content: _content, ...row }: ExactSessionSource) => row);
-  const sourceCatalogSha256 = stableObjectSha256(sourceCatalog);
   if (
     objectOnt !== null &&
     (objectOnt?.kind !== 'OpenOntologySourceNativeObjectOntModuleV1' ||
       objectOnt.map.nativeObjectMapSha256 !== mapSha256 ||
       !SHA256.test(objectOnt.commitSha256 ?? '') ||
       !SHA256.test(objectOnt.replaySha256 ?? '') ||
+      !SHA256.test(objectOnt.catalog?.sourceCatalogSha256 ?? '') ||
       objectOnt.catalog?.sourceCount !== sources.length ||
       objectOnt.sources?.length !== sources.length ||
       sources.some(
@@ -321,6 +321,8 @@ export function openSourceNativeExactEvidenceSession(options: ExactSessionOption
   ) {
     fail('SOURCE_NATIVE_EXACT_SESSION_OBJECT_ONT');
   }
+  const sourceCatalogSha256 =
+    objectOnt === null ? stableObjectSha256(sourceCatalog) : objectOnt.catalog.sourceCatalogSha256;
   const sourceCommitSha256 =
     objectOnt === null
       ? stableObjectSha256({
