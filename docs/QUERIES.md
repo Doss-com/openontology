@@ -16,9 +16,10 @@ if (result.answerable) {
 }
 ```
 
-`verify` searches the Ont, checks identity and chronology, reads the required
-source text, and returns context with verification receipts. It does not generate
-a natural-language answer or update the source.
+`verify` returns checked source context for one declared field. It resolves
+identity and chronology, reads exact source passages, and includes any required
+qualifying or contradicting evidence. It does not generate a prose answer or
+update the source. A quoted plan is not confirmation that it happened.
 
 ## Results and refusals
 
@@ -57,18 +58,41 @@ pass its References to `read` on that same client. Reads of already-issued
 References can run concurrently. Reading a candidate does not perform all of
 the checks made by `verify`.
 
+To navigate the native identities recorded in an Ont, use the separate browse
+input. It returns metadata only, including observed queryable fields. It does
+not return field values, References or an absence claim:
+
+```js
+const page = await ont.search({
+  browse: 'objects',
+  scope: { sourceSystem: 'tracker', objectType: 'task' },
+  limit: 20,
+});
+for (const row of page.objects) {
+  console.log(row.objectIdentity, row.fields);
+}
+```
+
+SDK and advanced MCP `limit` values are page sizes from 1 through 64. A cursor
+can only be passed to the same opened client and is bound to its source cut and
+scope. The result is navigation, not proof. Select a row and use its full
+identity as qualifiers for ordinary `verify`.
+This source-native browse path is separate from construction MCP, which
+continues to use question or term search for configured navigation.
+
 The root client exposes:
 
 ```ts
 interface OpenOntologyProduct {
   verify(query: string | OpenOntologyQueryInput): Promise<OpenOntologyVerificationResult>;
   search(query: string | OpenOntologyQueryInput): Promise<OpenOntologySearchResult>;
+  search(query: OpenOntologyObjectDiscoveryInput): Promise<OpenOntologyObjectDiscoveryResult>;
   read(ref: string | { ref: string }): Promise<OpenOntologyReadResult>;
   status(): OpenOntologyStatus;
 }
 ```
 
-See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.4/src/openontology.ts)
+See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.5/src/openontology.ts)
 for complete result shapes.
 
 ## Typed scope
@@ -103,7 +127,32 @@ ID in the question must agree with `scope.externalId`. A conflicting profile,
 field or ID returns a refusal. If an opaque ID does not reveal its object type,
 include the type in the question or provide scope.
 
+When a question places an identifier-shaped token directly after a declared
+object alias, the token must be a known ID in the bound map or agree with an
+explicit `scope.externalId`. An unknown or conflicting token returns a typed
+refusal instead of falling back to a different unique object. Generic
+unique-object questions without a named identifier remain supported. An
+explicit `scope.externalId` that is absent from the bound catalog retains the
+catalog-scoped absence receipt path.
+
+With a typed object scope, an identifier-shaped token directly after `of` or
+`for` is also treated as an object selector when the object alias is omitted.
+The supplied successor `anchorValue` is a field value, not an object selector.
+
 Identity comes from the complete scoped map, not the highest-ranked search hit.
+
+The CLI has a bounded aggregate form for fresh-agent navigation:
+
+```bash
+npx --no-install oont search ./verified-context --browse objects \
+  --source-system tracker --object-type task --limit 128
+```
+
+CLI `--limit` is the total row count for that invocation, defaults to 64 and
+has a maximum of 256. The command follows same-process SDK pages internally,
+caps serialized output at 1 MiB, returns complete rows only, and reports
+`truncated` with a reason when capped. It does not emit or accept a portable
+cursor. Browse mode rejects question, field, `--read`, and temporal options.
 
 ## Declared titles
 

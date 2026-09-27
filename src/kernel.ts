@@ -68,6 +68,12 @@ export {
 } from './product/runtime.js';
 export type {
   ProductSearchInput,
+  SourceNativeObjectDiscoveryInput,
+  SourceNativeObjectDiscoveryObject,
+  SourceNativeObjectDiscoveryResult,
+  SourceNativeObjectDiscoveryScope,
+  SourceNativeProductSearchInput,
+  SourceNativeProductSearchResultUnion,
   SourceNativeExactEvidenceSession,
   SourceNativeProductLifecycleAdapter,
   SourceNativeProductLifecycleAdapterFactory,

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.5
+
+- Add bounded native object browsing through the SDK, CLI and advanced MCP. Browse
+  pages expose observed identities and queryable fields as navigation metadata;
+  they do not provide field values or catalog-wide absence proof.
+- Keep browse cursors bound to the same opened client, source cut and scope.
+- Refuse unknown identifier-shaped selectors instead of silently choosing a
+  different singleton object. Preserve generic unique-object shorthand, known
+  IDs, declared titles and explicit catalog-scoped absence.
+- Bind shared exact field spans and immediate successor answers and anchors to
+  the selected native identity.
+- Keep selector recognition bounded to declared aliases and direct `of` or
+  `for` forms. This release does not add arbitrary name interpretation,
+  automatic connectors or hosted deployment.
+
 ## 0.3.0-alpha.4
 
 - Add checked first-use examples and light/dark README headers with live badges.

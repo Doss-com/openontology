@@ -39,7 +39,7 @@ test('MCP query guidance explains optional selectors without changing parsing', 
   );
   const queries = [
     ordinary.tools[0].inputSchema,
-    advanced.tools[0].inputSchema,
+    advanced.tools[0].inputSchema.oneOf[0],
     construction.tools[0].inputSchema.oneOf[0],
   ];
   for (const schema of queries) {
@@ -60,6 +60,14 @@ test('MCP query guidance explains optional selectors without changing parsing', 
     assert.match(schema.properties.scope.properties.sourceSystem.description, /case-sensitive/u);
     assert.match(schema.properties.scope.properties.field.description, /fieldPath/u);
   }
+  assert.deepEqual(advanced.tools[0].inputSchema.oneOf[1].required, ['browse']);
+  assert.equal(advanced.tools[0].inputSchema.oneOf[1].additionalProperties, false);
+  assert.deepEqual(Object.keys(advanced.tools[0].inputSchema.oneOf[1].properties).sort(), [
+    'browse',
+    'cursor',
+    'limit',
+    'scope',
+  ]);
   assert.match(ordinary.tools[0].description, /only question/u);
   assert.match(construction.tools[0].description, /not both/u);
   const termSchema = construction.tools[0].inputSchema.oneOf[1];
@@ -523,6 +531,274 @@ function buildSemanticVerificationInput() {
                   kind: 'OpenOntologySourceNativePropositionRelationV1',
                   type: 'qualifies',
                   targetPropositionKey: 'issue-1-validation-passed',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildSharedFieldSpanInput({ semantic = false } = {}) {
+  const content = 'Status: shared.';
+  const value = 'shared';
+  const relativePath = 'linear/northwind/shared-status.txt';
+  const sharedBusinessEntityKeys = ['status:shared'];
+  const canonicalProposition = {
+    kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+    propositionKey: 'shared-status-proposition',
+    actorHome: 'ObjectDef/InstanceRef',
+    stateHome: 'Claim/PropositionRevision-payload',
+    actorKind: 'issue',
+    predicate: 'has-status',
+    state: value,
+    dimension: 'issue-status',
+    canonicalRoles: ['state'],
+    modality: 'observed',
+    polarity: 'positive',
+    businessEntityKeys: sharedBusinessEntityKeys,
+    extractionAuthority: 'deterministic-source-adapter-v1',
+    relations: [],
+  };
+  const nativeObjectInputs = ['issue-a', 'issue-b'].map((externalId) => ({
+    relativePath,
+    objectIdentity: {
+      home: 'ObjectDef/InstanceRef',
+      sourceSystem: 'linear',
+      objectType: 'issue',
+      namespace: 'northwind',
+      externalId,
+    },
+    ...(semantic ? { businessEntityKeys: sharedBusinessEntityKeys } : {}),
+    fields: [
+      {
+        fieldPath: 'status',
+        value,
+        codeUnitStart: content.indexOf(value),
+        ...(semantic
+          ? {
+              propositionFamilyKey: 'issue-status',
+              businessEntityKeys: sharedBusinessEntityKeys,
+              validAt: '2026-09-01T09:59:00.000Z',
+              knownAt: '2026-09-01T10:00:00.000Z',
+              canonicalProposition,
+            }
+          : {}),
+      },
+    ],
+  }));
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: semantic ? 'northwind-shared-semantic-span' : 'northwind-shared-field-span',
+    namespace: 'northwind',
+    querySchemas: [
+      {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        aliases: ['issue'],
+        fields: [{ fieldPath: 'status', aliases: ['status'] }],
+      },
+    ],
+    sources: [
+      {
+        relativePath,
+        sourceType: 'linear',
+        occurredAt: '2026-09-01T10:00:00.000Z',
+        content,
+      },
+    ],
+    nativeObjectInputs,
+  };
+}
+
+function buildSharedSuccessorIdentityInput() {
+  const sharedPath = 'linear/northwind/shared-status.txt';
+  const issueAPath = 'linear/northwind/issue-a-status.txt';
+  const issueBPath = 'linear/northwind/issue-b-status.txt';
+  const sharedContent = 'Status: Shared.';
+  const issueAContent = 'Status: A-later.';
+  const issueBContent = 'Status: B-later.';
+  const identity = (externalId) => ({
+    home: 'ObjectDef/InstanceRef',
+    sourceSystem: 'linear',
+    objectType: 'issue',
+    namespace: 'northwind',
+    externalId,
+  });
+  const field = (value, content) => ({
+    fieldPath: 'status',
+    value,
+    codeUnitStart: content.indexOf(value),
+  });
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'northwind-shared-successor-identity',
+    namespace: 'northwind',
+    querySchemas: [
+      {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        aliases: ['issue'],
+        fields: [{ fieldPath: 'status', aliases: ['status'] }],
+      },
+    ],
+    sources: [
+      {
+        relativePath: sharedPath,
+        sourceType: 'linear',
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        content: sharedContent,
+      },
+      {
+        relativePath: issueAPath,
+        sourceType: 'linear',
+        occurredAt: '2026-02-01T00:00:00.000Z',
+        content: issueAContent,
+      },
+      {
+        relativePath: issueBPath,
+        sourceType: 'linear',
+        occurredAt: '2026-02-02T00:00:00.000Z',
+        content: issueBContent,
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath: sharedPath,
+        objectIdentity: identity('issue-a'),
+        fields: [field('Shared', sharedContent)],
+      },
+      {
+        relativePath: sharedPath,
+        objectIdentity: identity('issue-b'),
+        fields: [field('Shared', sharedContent)],
+      },
+      {
+        relativePath: issueAPath,
+        objectIdentity: identity('issue-a'),
+        fields: [field('A-later', issueAContent)],
+      },
+      {
+        relativePath: issueBPath,
+        objectIdentity: identity('issue-b'),
+        fields: [field('B-later', issueBContent)],
+      },
+    ],
+  };
+}
+
+function buildCrossObjectSemanticVerificationInput({ relationType = 'qualifies' } = {}) {
+  const status = 'passed';
+  const exception = 'payment evidence remained unreviewed';
+  const content = `Validation status: ${status}. Exception: ${exception}.`;
+  const relativePath = 'linear/northwind/cross-object-validation.txt';
+  const statusObject = {
+    home: 'ObjectDef/InstanceRef',
+    sourceSystem: 'linear',
+    objectType: 'issue',
+    namespace: 'northwind',
+    externalId: 'issue-status',
+  };
+  const exceptionObject = {
+    home: 'ObjectDef/InstanceRef',
+    sourceSystem: 'linear',
+    objectType: 'issue',
+    namespace: 'northwind',
+    externalId: 'issue-exception',
+  };
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'northwind-cross-object-semantic-verification',
+    namespace: 'northwind',
+    querySchemas: [
+      {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        aliases: ['issue'],
+        fields: [
+          { fieldPath: 'validationStatus', aliases: ['validation status'] },
+          { fieldPath: 'validationException', aliases: ['validation exception'] },
+        ],
+      },
+    ],
+    sources: [
+      {
+        relativePath,
+        sourceType: 'linear',
+        occurredAt: '2026-09-01T10:00:00.000Z',
+        content,
+      },
+    ],
+    nativeObjectInputs: [
+      {
+        relativePath,
+        objectIdentity: statusObject,
+        businessEntityKeys: ['issue:status'],
+        fields: [
+          {
+            fieldPath: 'validationStatus',
+            propositionFamilyKey: 'issue-validation',
+            businessEntityKeys: ['issue:status'],
+            value: status,
+            codeUnitStart: content.indexOf(status),
+            validAt: '2026-09-01T09:59:00.000Z',
+            knownAt: '2026-09-01T10:00:00.000Z',
+            canonicalProposition: {
+              kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+              propositionKey: 'issue-status-passed',
+              actorHome: 'ObjectDef/InstanceRef',
+              stateHome: 'Claim/PropositionRevision-payload',
+              actorKind: 'issue',
+              predicate: 'has-validation-status',
+              state: status,
+              dimension: 'issue-validation',
+              canonicalRoles: ['state'],
+              modality: 'observed',
+              polarity: 'positive',
+              businessEntityKeys: ['issue:status'],
+              extractionAuthority: 'deterministic-source-adapter-v1',
+              relations: [],
+            },
+          },
+        ],
+      },
+      {
+        relativePath,
+        objectIdentity: exceptionObject,
+        businessEntityKeys: ['issue:exception'],
+        fields: [
+          {
+            fieldPath: 'validationException',
+            propositionFamilyKey: 'issue-validation-exception',
+            businessEntityKeys: ['issue:exception'],
+            value: exception,
+            codeUnitStart: content.indexOf(exception),
+            validAt: '2026-09-01T09:58:00.000Z',
+            knownAt: '2026-09-01T10:00:00.000Z',
+            canonicalProposition: {
+              kind: 'OpenOntologySourceNativeCanonicalPropositionV2',
+              propositionKey: 'issue-payment-unreviewed',
+              actorHome: 'ObjectDef/InstanceRef',
+              stateHome: 'Claim/PropositionRevision-payload',
+              actorKind: 'issue',
+              predicate: 'has-validation-exception',
+              state: exception,
+              dimension: 'issue-validation-exception',
+              canonicalRoles: ['counterevidence'],
+              modality: 'observed',
+              polarity: 'negative',
+              businessEntityKeys: ['issue:exception'],
+              extractionAuthority: 'deterministic-source-adapter-v1',
+              relations: [
+                {
+                  kind: 'OpenOntologySourceNativePropositionRelationV1',
+                  type: relationType,
+                  targetPropositionKey: 'issue-status-passed',
                 },
               ],
             },
@@ -1411,6 +1687,139 @@ test('ordinary verify closes source-native counterevidence over exact Corpus spa
     assert.equal(verified.verification.semanticProof.relationCount, 1);
     assert.equal(verified.verification.semanticProof.exactEvidenceReferenceCount, 2);
     assert.match(verified.verification.semanticProof.proofCensusSha256, /^sha256:[0-9a-f]{64}$/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary verify reads cross-object semantic counterevidence without rebinding the answer', async () => {
+  for (const relationType of ['qualifies', 'contradicts']) {
+    const root = mkdtempSync(join(tmpdir(), 'oont-source-native-cross-object-semantic-verify-'));
+    try {
+      buildSourceNativeProduct({
+        artifactRoot: root,
+        input: buildCrossObjectSemanticVerificationInput({ relationType }),
+      });
+      const product = openOntology({ artifactRoot: root });
+      const query = {
+        question: 'What is the current validation status for issue-status?',
+        scope: {
+          sourceSystem: 'linear',
+          objectType: 'issue',
+          externalId: 'issue-status',
+          field: 'validationStatus',
+        },
+      };
+      const verified = await product.verify(query);
+      assert.equal(verified.answerable, true);
+      assert.deepEqual(
+        verified.context.map((row) => [row.role, row.exactText, row.binding.externalId]),
+        [
+          ['answer', 'passed', 'issue-status'],
+          ['counterevidence', 'payment evidence remained unreviewed', 'issue-exception'],
+        ],
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('ordinary verify binds a shared exact field span to each native identity', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-shared-field-span-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSharedFieldSpanInput() });
+    const product = openSourceNativeProduct({ artifactRoot: root });
+    for (const externalId of ['issue-a', 'issue-b']) {
+      const typedQuery = {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        externalId,
+        fieldPath: 'status',
+      };
+      const current = await product.verify({
+        question: 'What is the current status?',
+        typedQuery,
+      });
+      assert.equal(current.answerable, true);
+      assert.equal(current.state, 'resolved-current-field');
+      assert.equal(current.context[0].exactText, 'shared');
+      assert.equal(current.context[0].binding.externalId, externalId);
+      assert.equal(current.verification.semanticProof, undefined);
+
+      const historical = await product.verify({
+        question: 'What was the status?',
+        at: '2026-09-01T10:00:00.000Z',
+        typedQuery,
+      });
+      assert.equal(historical.answerable, true);
+      assert.equal(historical.state, 'resolved-historical-field');
+      assert.equal(historical.context[0].exactText, 'shared');
+      assert.equal(historical.context[0].binding.externalId, externalId);
+      assert.equal(historical.verification.semanticProof, undefined);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('next binds both the answer and shared-span anchor to the selected identity', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-shared-successor-identity-'));
+  try {
+    buildSourceNativeProduct({ artifactRoot: root, input: buildSharedSuccessorIdentityInput() });
+    const product = openSourceNativeProduct({ artifactRoot: root });
+    const next = await product.search({
+      question: 'What status immediately followed Shared for issue-b?',
+      intent: 'next',
+      anchorValue: 'Shared',
+      typedQuery: {
+        sourceSystem: 'linear',
+        objectType: 'issue',
+        externalId: 'issue-b',
+        fieldPath: 'status',
+      },
+    });
+    assert.equal(next.state, 'resolved-next-field-revision');
+    assert.equal(next.matches.length, 2);
+    const answer = await product.read({
+      ref: next.matches.find((match) => match.role === 'answer').ref,
+    });
+    const anchor = await product.read({
+      ref: next.matches.find((match) => match.role === 'anchor').ref,
+    });
+    assert.equal(answer.exactText, 'B-later');
+    assert.equal(anchor.exactText, 'Shared');
+    assert.equal(answer.binding.externalId, 'issue-b');
+    assert.equal(anchor.binding.externalId, 'issue-b');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary verify preserves refusal for duplicate semantic proposition identities', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-shared-semantic-span-'));
+  try {
+    buildSourceNativeProduct({
+      artifactRoot: root,
+      input: buildSharedFieldSpanInput({ semantic: true }),
+    });
+    const product = openSourceNativeProduct({ artifactRoot: root });
+    const typedQuery = {
+      sourceSystem: 'linear',
+      objectType: 'issue',
+      externalId: 'issue-a',
+      fieldPath: 'status',
+    };
+    await assert.rejects(product.verify({ question: 'What is the current status?', typedQuery }), {
+      code: 'SOURCE_NATIVE_SEMANTIC_PROJECTION_EMPTY_OR_DUPLICATE',
+    });
+    const historical = await product.verify({
+      question: 'What was the status?',
+      at: '2026-09-01T10:00:00.000Z',
+      typedQuery,
+    });
+    assert.equal(historical.answerable, false);
+    assert.equal(historical.state, 'unavailable-native-historical-semantic-census');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

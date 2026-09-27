@@ -12,6 +12,7 @@ import type { ProductOptions } from '../source/artifact.js';
 import type { SourceNativeObject, SourceNativeObjectIdentity } from '../source/object-map.js';
 import type {
   ProductSearchInput,
+  SourceNativeObjectDiscoveryInput,
   SourceNativeProductLifecycleAdapterFactory,
   SourceNativeProductRuntimeContext,
 } from '../product/runtime.js';
@@ -208,9 +209,12 @@ export function openSourceNativeProductWithConstruction(
   const offered = new Map<string, Passage>();
   const cursors = new Map<string, Cursor>();
 
-  const search = async (input: ProductSearchInput | SourceNativeConstructionSearchInput) => {
+  const search = async (
+    input:
+      ProductSearchInput | SourceNativeObjectDiscoveryInput | SourceNativeConstructionSearchInput,
+  ) => {
     if (!input || typeof input !== 'object' || !Object.hasOwn(input, 'term'))
-      return base.search(input as ProductSearchInput);
+      return base.search(input as ProductSearchInput | SourceNativeObjectDiscoveryInput);
     const { term, scope, conceptId, limit, cursor } = searchInput(
       input as SourceNativeConstructionSearchInput,
     );

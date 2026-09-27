@@ -4,6 +4,12 @@ import { lstatSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { openOntology } from '../openontology.js';
+import type {
+  OpenOntologyObjectDiscoveryInput,
+  OpenOntologyObjectDiscoveryObject,
+  OpenOntologyObjectDiscoveryResult,
+  OpenOntologyProduct,
+} from '../openontology.js';
 import { buildSourceNativeProduct, openSourceNativeProduct } from '../product/runtime.js';
 import { runSourceNativeProductMcp } from '../product/mcp.js';
 import { stableObjectText } from '../canonical-content.js';
@@ -33,6 +39,11 @@ function usage(code = 2): never {
       Find candidate References for a source-bound current, point-in-time, or
       immediate next field revision. Search output is navigation only. --read returns
       the exact cited Evidence in the same process.
+
+  search <artifact-dir> --browse objects [--source-system <name>]
+         [--object-type <name>] [--external-id <id>] [--limit <1..256>]
+      Enumerate complete native-identity rows through bounded SDK pages. The
+      CLI limit is the total row count for this invocation; no cursor is emitted.
 
   verify <artifact-dir> <question> [--intent current|next]
           [--source-system <name> --object-type <name> --field <path>]
@@ -176,6 +187,128 @@ function queryInput(
   };
 }
 
+function objectDiscoveryInput(values: Map<string, string>): {
+  browse: 'objects';
+  scope?: { sourceSystem: string; objectType?: string; externalId?: string };
+  limit: number;
+} {
+  const allowed = new Set([
+    '--browse',
+    '--source-system',
+    '--object-type',
+    '--external-id',
+    '--limit',
+  ]);
+  if (values.get('--browse') !== 'objects' || [...values.keys()].some((key) => !allowed.has(key)))
+    usage();
+  const sourceSystem = values.get('--source-system');
+  const objectType = values.get('--object-type');
+  const externalId = values.get('--external-id');
+  if (
+    (objectType !== undefined && sourceSystem === undefined) ||
+    (externalId !== undefined && (sourceSystem === undefined || objectType === undefined))
+  )
+    usage();
+  const limitText = values.get('--limit');
+  const limit = limitText === undefined ? 64 : Number(limitText);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 256) usage();
+  const scope =
+    sourceSystem === undefined
+      ? undefined
+      : {
+          sourceSystem,
+          ...(objectType === undefined ? {} : { objectType }),
+          ...(externalId === undefined ? {} : { externalId }),
+        };
+  return { browse: 'objects', ...(scope === undefined ? {} : { scope }), limit };
+}
+
+const CLI_DISCOVERY_MAX_BYTES = 1024 * 1024;
+
+type CliDiscoveryResult = Omit<
+  OpenOntologyObjectDiscoveryResult,
+  'kind' | 'nextCursor' | 'resultSha256'
+> & {
+  kind: 'OpenOntologyCliObjectDiscoveryResultV1';
+  truncated: boolean;
+  truncationReason: 'maximum-output-bytes' | 'requested-limit' | null;
+};
+
+function cliDiscoveryResult(
+  page: OpenOntologyObjectDiscoveryResult,
+  objects: OpenOntologyObjectDiscoveryObject[],
+  truncated: boolean,
+  reason: 'maximum-output-bytes' | 'requested-limit' | null,
+): CliDiscoveryResult {
+  return {
+    schemaVersion: page.schemaVersion,
+    kind: 'OpenOntologyCliObjectDiscoveryResultV1',
+    browse: 'objects',
+    scope: page.scope,
+    objects,
+    totalObjects: page.totalObjects,
+    returnedObjects: objects.length,
+    sourceBinding: page.sourceBinding,
+    coverage: page.coverage,
+    freshness: page.freshness,
+    navigationOnly: true,
+    absenceProven: false,
+    exactSourcesRemainAuthority: true,
+    canonicalTruthMutation: false,
+    truncated,
+    truncationReason: reason,
+  };
+}
+
+function cliDiscoveryBytes(
+  page: OpenOntologyObjectDiscoveryResult,
+  objects: OpenOntologyObjectDiscoveryObject[],
+  truncated: boolean,
+  reason: 'maximum-output-bytes' | 'requested-limit' | null,
+): number {
+  return Buffer.byteLength(
+    stableObjectText(cliDiscoveryResult(page, objects, truncated, reason)),
+    'utf8',
+  );
+}
+
+async function browseObjects(
+  product: OpenOntologyProduct,
+  input: OpenOntologyObjectDiscoveryInput & { limit: number },
+): Promise<CliDiscoveryResult> {
+  const objects: OpenOntologyObjectDiscoveryObject[] = [];
+  let cursor: string | undefined;
+  let page: OpenOntologyObjectDiscoveryResult | null = null;
+  let reason: 'maximum-output-bytes' | 'requested-limit' | null = null;
+  while (objects.length < input.limit) {
+    const remaining = input.limit - objects.length;
+    page = await product.search({
+      ...input,
+      limit: Math.min(64, remaining),
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    for (const row of page.objects) {
+      const candidate = [...objects, row];
+      if (
+        cliDiscoveryBytes(page, candidate, true, 'maximum-output-bytes') > CLI_DISCOVERY_MAX_BYTES
+      ) {
+        reason = 'maximum-output-bytes';
+        return cliDiscoveryResult(page, objects, true, reason);
+      }
+      objects.push(row);
+      if (objects.length >= input.limit) {
+        if (page.nextCursor !== null || objects.length < page.totalObjects)
+          reason = 'requested-limit';
+        return cliDiscoveryResult(page, objects, reason !== null, reason);
+      }
+    }
+    if (page.nextCursor === null) break;
+    cursor = page.nextCursor;
+  }
+  if (page === null) usage();
+  return cliDiscoveryResult(page, objects, false, null);
+}
+
 function exactUtcMillisecondIso(value: unknown): value is string {
   if (typeof value !== 'string' || !EXACT_UTC_MILLISECOND_ISO.test(value)) return false;
   const parsed = Date.parse(value);
@@ -221,9 +354,17 @@ try {
       sourceReplaySha256: status.sourceReplaySha256,
     });
   } else if (command === 'verify' || command === 'search') {
-    const [artifactRoot, question, ...rest] = tokens;
-    if (!artifactRoot || artifactRoot.startsWith('--') || !question || question.startsWith('--'))
-      usage();
+    const [artifactRoot, ...searchTokens] = tokens;
+    if (!artifactRoot || artifactRoot.startsWith('--')) usage();
+    if (command === 'search' && searchTokens[0] === '--browse') {
+      const { values, flags } = options(searchTokens);
+      if (flags.size !== 0) usage();
+      const product = openOntology({ artifactRoot });
+      print(await browseObjects(product, objectDiscoveryInput(values)));
+      process.exit(0);
+    }
+    const [question, ...rest] = searchTokens;
+    if (!question || question.startsWith('--')) usage();
     const { values, flags } = options(rest, ['--read']);
     if (command === 'verify' && flags.has('--read')) usage();
     const input = queryInput(question, values);

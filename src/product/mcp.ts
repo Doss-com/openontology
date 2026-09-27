@@ -1,7 +1,9 @@
 /** MCP transport for the source-native verification product. */
 import { createInterface } from 'node:readline';
 import type { UnknownRecord } from '../source/object-map.js';
-import type { ProductSearchInput } from './runtime.js';
+import type { ProductSearchInput, SourceNativeProductSearchInput } from './runtime.js';
+import { normalizeSourceNativeObjectDiscoveryInput } from './discovery.js';
+import type { SourceNativeObjectDiscoveryInput } from './discovery.js';
 import type {
   SourceNativeConstructionProduct,
   SourceNativeConstructionSearchInput,
@@ -11,10 +13,14 @@ import type { SourceNativeFieldQuery } from '../query/planner.js';
 export interface ProductTransport {
   kind: 'OpenOntologySourceNativeProductV2' | 'OpenOntologySourceNativeAdmittedKnowledgeProductV1';
   verify(input: ProductSearchInput): Promise<unknown>;
-  search(input: ProductSearchInput): Promise<unknown>;
+  search(input: SourceNativeProductSearchInput): Promise<unknown>;
   read(input: { ref: string }): Promise<unknown>;
 }
-type McpProduct = ProductTransport | Pick<SourceNativeConstructionProduct, keyof ProductTransport>;
+type McpProduct = (
+  ProductTransport | Pick<SourceNativeConstructionProduct, keyof ProductTransport>
+) & {
+  status?: () => unknown;
+};
 interface JsonRpcResponse {
   jsonrpc: '2.0';
   id: unknown;
@@ -66,7 +72,7 @@ const QUERY_PROPERTIES = Object.freeze({
     type: 'string',
     minLength: 1,
     description:
-      'Complete question, including the requested field and any known source-native object ID or supported name.',
+      'Question identifying the requested field and any known source-native object ID or supported name.',
   },
   intent: {
     type: 'string',
@@ -128,7 +134,7 @@ const CONSTRUCTION_QUERY_PROPERTIES = Object.freeze({
 const VERIFY_TOOL = Object.freeze({
   name: 'verify',
   description:
-    'Verify one complete question against the named source cut. Start with only question; omit unknown optional selectors. OpenOntology searches for candidate references, resolves identity and chronology, reads every required exact source range, and returns proof-complete context or a typed refusal. It does not generate a prose answer.',
+    'Return verified source context for one declared field against the named source cut. Start with only question; omit unknown optional selectors. OpenOntology resolves identity and chronology, checks exact source passages and any required qualifying or contradicting evidence, then returns context with receipts or a typed refusal. It does not generate a prose answer.',
   inputSchema: {
     type: 'object',
     required: ['question'],
@@ -140,12 +146,38 @@ const VERIFY_TOOL = Object.freeze({
 const SEARCH_TOOL = Object.freeze({
   name: 'search',
   description:
-    'Find candidate references for one complete question. Start with only question; omit unknown optional selectors. Results are navigation only and are not evidence. Read every match marked requiredForProof before making a material claim.',
+    'Search one declared field or browse native object identities against the named source cut. Start with only question for field navigation or browse: objects for bounded metadata discovery. Results are navigation only and are not evidence. Read every match marked requiredForProof before making a material claim.',
   inputSchema: {
     type: 'object',
-    required: ['question'],
-    properties: QUERY_PROPERTIES,
-    additionalProperties: false,
+    oneOf: [
+      {
+        type: 'object',
+        required: ['question'],
+        properties: QUERY_PROPERTIES,
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        required: ['browse'],
+        properties: {
+          browse: { type: 'string', enum: ['objects'] },
+          scope: {
+            type: 'object',
+            required: ['sourceSystem'],
+            properties: {
+              sourceSystem: { type: 'string', minLength: 1 },
+              objectType: { type: 'string', minLength: 1 },
+              externalId: { type: 'string', minLength: 1 },
+            },
+            dependentRequired: { externalId: ['objectType'] },
+            additionalProperties: false,
+          },
+          limit: { type: 'integer', minimum: 1, maximum: 64, default: 20 },
+          cursor: { type: 'string', minLength: 1 },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
 });
 
@@ -268,6 +300,19 @@ function queryArguments(value: unknown): ProductSearchInput {
   };
 }
 
+function objectDiscoveryArguments(value: unknown): SourceNativeObjectDiscoveryInput {
+  const normalized = normalizeSourceNativeObjectDiscoveryInput(
+    value,
+    'SOURCE_NATIVE_PRODUCT_QUERY',
+  );
+  return {
+    browse: 'objects',
+    ...(normalized.scope === null ? {} : { scope: normalized.scope }),
+    ...(normalized.limit === 20 ? {} : { limit: normalized.limit }),
+    ...(normalized.cursor === null ? {} : { cursor: normalized.cursor }),
+  };
+}
+
 function constructionText(value: unknown, maximum = 256): string {
   if (
     typeof value !== 'string' ||
@@ -337,6 +382,29 @@ function constructionAdvancedSearchArguments(
   return hasTerm ? constructionSearchArguments(args) : queryArguments(args);
 }
 
+function advancedSearchArguments(
+  value: unknown,
+): ProductSearchInput | SourceNativeObjectDiscoveryInput {
+  const args = exactArguments(value, [
+    'question',
+    'intent',
+    'at',
+    'anchorValue',
+    'scope',
+    'browse',
+    'limit',
+    'cursor',
+  ]);
+  const hasQuestion = Object.hasOwn(args, 'question');
+  const hasBrowse = Object.hasOwn(args, 'browse');
+  if (hasBrowse) {
+    if (hasQuestion) fail('SOURCE_NATIVE_PRODUCT_QUERY');
+    return objectDiscoveryArguments(args);
+  }
+  if (!hasQuestion) fail('SOURCE_NATIVE_PRODUCT_QUERY');
+  return queryArguments(args);
+}
+
 function readArguments(value: unknown, constructionProduct = false): { ref: string } {
   const args = exactArguments(value, ['ref']);
   const ref = args.ref;
@@ -366,6 +434,31 @@ function errorResult(error: unknown): UnknownRecord {
   };
 }
 
+function toolsForProduct(product: McpProduct, tools: readonly UnknownRecord[]) {
+  let readOnly = false;
+  if (typeof product.status === 'function') {
+    try {
+      const status = product.status();
+      readOnly =
+        status !== null &&
+        typeof status === 'object' &&
+        !Array.isArray(status) &&
+        (status as UnknownRecord).readOnly === true;
+    } catch {
+      readOnly = false;
+    }
+  }
+  if (!readOnly) return tools;
+  return Object.freeze(
+    tools.map((tool) =>
+      Object.freeze({
+        ...tool,
+        annotations: { readOnlyHint: true },
+      }),
+    ),
+  );
+}
+
 export function createSourceNativeProductMcpHandler(
   product: McpProduct,
   { profile = 'verify' }: { profile?: 'verify' | 'advanced' } = {},
@@ -384,7 +477,8 @@ export function createSourceNativeProductMcpHandler(
   ) {
     throw new TypeError('SOURCE_NATIVE_PRODUCT_MCP');
   }
-  const tools = Object.freeze(
+  const tools = toolsForProduct(
+    product,
     profile === 'verify'
       ? [VERIFY_TOOL]
       : constructionProduct
@@ -424,7 +518,7 @@ export function createSourceNativeProductMcpHandler(
           response.result = result(
             await (product.kind === 'OpenOntologySourceNativeConstructionProductV1'
               ? product.search(constructionAdvancedSearchArguments(params.arguments))
-              : product.search(queryArguments(params.arguments))),
+              : product.search(advancedSearchArguments(params.arguments))),
           );
         } else if (profile === 'advanced' && params.name === 'read') {
           const args = readArguments(params.arguments, constructionProduct);
