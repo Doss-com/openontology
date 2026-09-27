@@ -102,6 +102,36 @@ function buildInput({
   };
 }
 
+function buildSingleObjectInput({ title = 'Quarterly status review' } = {}) {
+  const row = sourceRow({
+    relativePath: 'clickup/acme/task-1.md',
+    occurredAt: '2026-02-01T00:00:00.000Z',
+    externalId: 'task-1',
+    title,
+    status: 'Done',
+  });
+  const { nativeObjectInput, ...source } = row;
+  return {
+    schemaVersion: 1,
+    kind: 'OpenOntologySourceNativeBuildInputV1',
+    ontId: 'acme-unknown-identifier',
+    namespace: 'acme',
+    querySchemas: [
+      {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        aliases: ['task', 'task+record'],
+        fields: [
+          { fieldPath: 'title', aliases: ['title'] },
+          { fieldPath: 'status', aliases: ['status'] },
+        ],
+      },
+    ],
+    sources: [source],
+    nativeObjectInputs: [nativeObjectInput],
+  };
+}
+
 async function withProduct(input, callback) {
   const artifactRoot = mkdtempSync(join(tmpdir(), 'oont-title-binding-case-'));
   try {
@@ -151,6 +181,121 @@ test('a declared title binds the intended identity and preserves exact proof', a
       visibleId.verification.queryPlanSha256,
     );
   });
+});
+
+test('refuses an unknown direct identifier without breaking unique-object shorthand', async () => {
+  await withProduct(buildSingleObjectInput(), async (product) => {
+    const generic = await product.verify('What is the current status of task?');
+    assert.equal(generic.state, 'resolved-current-field');
+    assert.equal(generic.verification.currentFieldChronology.objectIdentity.externalId, 'task-1');
+    assert.deepEqual(
+      generic.context.map((row) => row.exactText),
+      ['Done'],
+    );
+
+    const genericTyped = await product.verify({
+      question: 'What is the current status?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(genericTyped.state, 'resolved-current-field');
+    assert.equal(
+      genericTyped.verification.currentFieldChronology.objectIdentity.externalId,
+      'task-1',
+    );
+
+    const known = await product.verify('What is the current status of task task-1?');
+    assert.equal(known.state, 'resolved-current-field');
+    assert.equal(known.query.externalId, 'task-1');
+
+    for (const question of [
+      'What is the current status of task missing-task?',
+      'What is the current status of task+record missing-task?',
+    ]) {
+      const unknown = await product.verify(question);
+      assert.equal(unknown.state, 'unavailable-native-object-identifier-not-declared', question);
+      assert.equal(unknown.answerable, false, question);
+      assert.deepEqual(unknown.context, [], question);
+      assert.deepEqual(unknown.unresolvedExternalIds, ['missing-task'], question);
+    }
+
+    const partialTyped = await product.verify({
+      question: 'What is the current status of task missing-task?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(partialTyped.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(partialTyped.answerable, false);
+    assert.deepEqual(partialTyped.context, []);
+    assert.deepEqual(partialTyped.unresolvedExternalIds, ['missing-task']);
+
+    const explicitAbsent = await product.verify({
+      question: 'What is the current status of task missing-task?',
+      scope: {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        externalId: 'missing-task',
+        field: 'status',
+      },
+    });
+    assert.equal(explicitAbsent.state, 'verified-native-object-absent-from-bound-source-catalog');
+    assert.equal(explicitAbsent.answerable, false);
+    assert.deepEqual(explicitAbsent.context, []);
+    assert.equal(
+      explicitAbsent.verification.absenceReceipt.objectIdentity.externalId,
+      'missing-task',
+    );
+
+    const explicitKnownConflict = await product.verify({
+      question: 'What is the current status of task missing-task?',
+      scope: {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        externalId: 'task-1',
+        field: 'status',
+      },
+    });
+    assert.equal(explicitKnownConflict.state, 'unavailable-native-object-identifier-not-declared');
+    assert.equal(explicitKnownConflict.answerable, false);
+    assert.deepEqual(explicitKnownConflict.context, []);
+    assert.deepEqual(explicitKnownConflict.unresolvedExternalIds, ['missing-task']);
+
+    const ordinaryHyphenatedProse = await product.verify(
+      'What is the current status of task+record, with real-time updates?',
+    );
+    assert.equal(ordinaryHyphenatedProse.state, 'resolved-current-field');
+    assert.equal(
+      ordinaryHyphenatedProse.verification.currentFieldChronology.objectIdentity.externalId,
+      'task-1',
+    );
+
+    const boundaryMiss = await product.verify(
+      'What is the current status of taskrecord missing-task for task-1?',
+    );
+    assert.equal(boundaryMiss.state, 'resolved-current-field');
+    assert.equal(boundaryMiss.query.externalId, 'task-1');
+    assert.deepEqual(boundaryMiss.mentionedExternalIds, ['task-1']);
+    assert.deepEqual(boundaryMiss.unresolvedExternalIds, []);
+
+    const title = await product.verify(
+      'What is the current status of the task titled "Quarterly status review"?',
+    );
+    assert.equal(title.state, 'resolved-current-field');
+    assert.equal(title.query.externalId, 'task-1');
+  });
+});
+
+test('masks identifier-looking words inside a declared title', async () => {
+  await withProduct(
+    buildSingleObjectInput({ title: 'Quarterly task missing-task review' }),
+    async (product) => {
+      const result = await product.verify(
+        'What is the current status of the task titled "Quarterly task missing-task review"?',
+      );
+      assert.equal(result.state, 'resolved-current-field');
+      assert.equal(result.query.externalId, 'task-1');
+      assert.deepEqual(result.mentionedExternalIds, []);
+      assert.deepEqual(result.unresolvedExternalIds, []);
+    },
+  );
 });
 
 test('repeated title observations count once, while equal titles on two identities refuse', async () => {
