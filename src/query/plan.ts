@@ -190,6 +190,32 @@ function bindDeclaredTitle({
 
 const WORD_TOKEN = /[\p{L}\p{N}]+/gu;
 const DIRECT_IDENTIFIER = /^\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/u;
+const SELECTOR_IDENTIFIER =
+  /\b(?:of|for)\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/gu;
+
+function normalizedIdentifier(value: unknown): string {
+  return normalizedQuestion(value).replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+function wordSpans(question: string, value: string): Array<{ start: number; end: number }> {
+  const targetWords = [...value.matchAll(WORD_TOKEN)].map((match) => normalizedQuestion(match[0]));
+  if (targetWords.length === 0) return [];
+  const words = [...question.matchAll(WORD_TOKEN)].map((match) => ({
+    value: normalizedQuestion(match[0]),
+    index: match.index,
+    length: match[0].length,
+  }));
+  const spans: Array<{ start: number; end: number }> = [];
+  for (let index = 0; index <= words.length - targetWords.length; index += 1) {
+    if (targetWords.some((word, offset) => words[index + offset]?.value !== word)) {
+      continue;
+    }
+    const first = words[index];
+    const last = words[index + targetWords.length - 1];
+    if (first && last) spans.push({ start: first.index, end: last.index + last.length });
+  }
+  return spans;
+}
 
 function anchoredUnknownExternalIds(
   question: string,
@@ -223,12 +249,39 @@ function anchoredUnknownExternalIds(
   return [...unknown].sort();
 }
 
+function selectorUnknownExternalIds(
+  question: string,
+  declaredObjectAliases: string[],
+  candidateExternalIds: string[],
+  anchorValue: string | null,
+): string[] {
+  const candidates = new Set(candidateExternalIds.map(normalizedQuestion));
+  const aliases = new Set(declaredObjectAliases.map(normalizedIdentifier));
+  const anchorSpans = anchorValue === null ? [] : wordSpans(question, anchorValue);
+  const unknown = new Set<string>();
+  SELECTOR_IDENTIFIER.lastIndex = 0;
+  for (const match of question.matchAll(SELECTOR_IDENTIFIER)) {
+    const externalId = match[1];
+    if (externalId === undefined) continue;
+    const tokenEnd = match.index + match[0].length;
+    const tokenStart = tokenEnd - externalId.length;
+    if (anchorSpans.some((span) => span.start <= tokenStart && tokenEnd <= span.end)) continue;
+    if (aliases.has(normalizedIdentifier(externalId))) continue;
+    if (!candidates.has(normalizedQuestion(externalId))) {
+      unknown.add(normalizedQuestion(externalId));
+    }
+  }
+  return [...unknown].sort();
+}
+
 function mentionedExternalId(
   question: string,
   map: SourceNativeObjectMap,
   namespace: string,
   query: SourceNativeFieldQuery,
   objectAliases: string[],
+  declaredObjectAliases: string[],
+  anchorValue: string | null,
 ): { value: string | symbol | null; candidates: string[]; unresolvedExternalIds: string[] } {
   const text = normalizedQuestion(question);
   let unsafeMention = false;
@@ -271,6 +324,9 @@ function mentionedExternalId(
   ].sort();
   unresolvedExternalIds.push(
     ...anchoredUnknownExternalIds(text, objectAliases, candidateExternalIds),
+  );
+  unresolvedExternalIds.push(
+    ...selectorUnknownExternalIds(text, declaredObjectAliases, candidateExternalIds, anchorValue),
   );
   const uniqueUnresolvedExternalIds = [...new Set(unresolvedExternalIds)].sort();
   if (
@@ -427,7 +483,22 @@ export function compileProductQueryPlan({
   matchedFieldAliases = compiled.matchedFieldAliases;
   plannerSchemaSha256 = compiled.plannerSchemaSha256;
   if (query !== null) {
-    const mention = mentionedExternalId(scanQuestion, map, namespace, query, matchedObjectAliases);
+    const selectedQuery = query;
+    const declaredObjectAliases =
+      querySchemas.find(
+        (schema) =>
+          schema.sourceSystem === selectedQuery.sourceSystem &&
+          schema.objectType === selectedQuery.objectType,
+      )?.aliases ?? [];
+    const mention = mentionedExternalId(
+      scanQuestion,
+      map,
+      namespace,
+      query,
+      matchedObjectAliases,
+      declaredObjectAliases,
+      anchorValue,
+    );
     const externalId = query.externalId ?? mention.value;
     mentionedExternalIds = mention.candidates;
     unresolvedExternalIds = mention.unresolvedExternalIds;
