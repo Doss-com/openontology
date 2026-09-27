@@ -17,6 +17,10 @@ import { stableObjectText } from '../canonical-content.js';
 const argv = process.argv.slice(2);
 const command = argv[0];
 const tokens = argv.slice(1);
+const CONTEXTUAL_BUILD_ERROR_CODES = new Set([
+  'SOURCE_NATIVE_FIELD_SPAN',
+  'SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS',
+]);
 
 function usage(code = 2): never {
   process.stderr.write(`usage: oont <command>
@@ -101,6 +105,14 @@ function options(
   return { values, flags };
 }
 
+function resolverUsage(detail: string): never {
+  throw Object.assign(new TypeError('OONT_RESOLVER_USAGE'), {
+    code: 'OONT_RESOLVER_USAGE',
+    exitCode: 2,
+    detail,
+  });
+}
+
 function exactJson(pathInput: string): unknown {
   const path = resolve(pathInput);
   const status = lstatSync(path);
@@ -147,11 +159,17 @@ function queryInput(
     usage();
   const typedNames = ['--source-system', '--object-type', '--field'];
   const typedCount = typedNames.filter((name) => values.has(name)).length;
-  if (
-    ![0, typedNames.length].includes(typedCount) ||
-    (values.has('--external-id') && typedCount !== typedNames.length)
-  )
-    usage();
+  if (typedCount !== 0 && typedCount !== typedNames.length) {
+    const missing = typedNames.filter((name) => !values.has(name));
+    resolverUsage(`missing required typed scope flag(s): ${missing.join(', ')}`);
+  }
+  if (values.has('--external-id') && typedCount !== typedNames.length) {
+    resolverUsage(
+      `--external-id requires typed scope flag(s): ${typedNames
+        .filter((name) => !values.has(name))
+        .join(', ')}`,
+    );
+  }
   const intentValue = values.get('--intent') ?? 'current';
   const intent: 'current' | 'next' =
     intentValue === 'next' ? 'next' : intentValue === 'current' ? 'current' : usage();
@@ -403,6 +421,28 @@ try {
   const failure = error instanceof Error ? error : new Error('OONT_RESOLVER_ERROR');
   const code =
     'code' in failure && typeof failure.code === 'string' ? failure.code : failure.message;
-  process.stderr.write(`error: ${code}\n`);
-  process.exit(1);
+  if (CONTEXTUAL_BUILD_ERROR_CODES.has(code)) {
+    const contextual = failure as Error & {
+      relativePath?: unknown;
+      externalId?: unknown;
+      fieldPath?: unknown;
+      detail?: unknown;
+    };
+    process.stderr.write(
+      `${stableObjectText({
+        code,
+        relativePath: typeof contextual.relativePath === 'string' ? contextual.relativePath : null,
+        externalId: typeof contextual.externalId === 'string' ? contextual.externalId : null,
+        fieldPath: typeof contextual.fieldPath === 'string' ? contextual.fieldPath : null,
+        detail: typeof contextual.detail === 'string' ? contextual.detail : code,
+      })}\n`,
+    );
+  } else {
+    const detail =
+      'detail' in failure && typeof failure.detail === 'string' ? failure.detail : code;
+    process.stderr.write(`error: ${detail}\n`);
+  }
+  const exitCode =
+    'exitCode' in failure && typeof failure.exitCode === 'number' ? failure.exitCode : 1;
+  process.exit(exitCode);
 }

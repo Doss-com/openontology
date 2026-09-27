@@ -548,6 +548,89 @@ test('rejects adapter spans that are not exact source bytes and ambiguous revisi
   );
 });
 
+test('contextualizes field construction errors without exposing field values', () => {
+  const firstContent = 'Public title\n';
+  const secondContent = 'Private title\n';
+  const sources = [
+    source('clickup/acme/first.md', '2026-01-01T00:00:00.000Z', firstContent),
+    source('clickup/acme/second.md', '2026-01-02T00:00:00.000Z', secondContent),
+  ];
+  assert.throws(
+    () =>
+      compileSourceNativeObjectMap({
+        sources,
+        nativeObjectInputs: [
+          {
+            relativePath: sources[0].relativePath,
+            objectIdentity: {
+              home: 'ObjectDef/InstanceRef',
+              sourceSystem: 'clickup',
+              objectType: 'task',
+              externalId: 'task-public',
+            },
+            fields: [span(firstContent, 'title', 'Public title')],
+          },
+          {
+            relativePath: sources[1].relativePath,
+            objectIdentity: {
+              home: 'ObjectDef/InstanceRef',
+              sourceSystem: 'clickup',
+              objectType: 'task',
+              externalId: 'task-private',
+            },
+            fields: [{ fieldPath: 'private_note', value: 'private secret', codeUnitStart: 0 }],
+          },
+        ],
+      }),
+    (error) => {
+      assert.equal(error.code, 'SOURCE_NATIVE_FIELD_SPAN');
+      assert.equal(error.relativePath, 'clickup/acme/second.md');
+      assert.equal(error.externalId, 'task-private');
+      assert.equal(error.fieldPath, 'private_note');
+      assert.equal(error.detail, 'field span does not match source content at codeUnitStart');
+      assert.doesNotMatch(JSON.stringify(error), /private secret|Private title/u);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      compileSourceNativeObjectMap({
+        sources: [sources[0]],
+        nativeObjectInputs: [
+          {
+            relativePath: sources[0].relativePath,
+            objectIdentity: {
+              home: 'ObjectDef/InstanceRef',
+              sourceSystem: 'clickup',
+              objectType: 'task',
+              externalId: 'task-private',
+            },
+            businessEntityKeys: [],
+            fields: [
+              {
+                ...span(firstContent, 'private_note', 'Public title'),
+                businessEntityKeys: ['private-secret-key'],
+              },
+            ],
+          },
+        ],
+      }),
+    (error) => {
+      assert.equal(error.code, 'SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS');
+      assert.equal(error.relativePath, 'clickup/acme/first.md');
+      assert.equal(error.externalId, 'task-private');
+      assert.equal(error.fieldPath, 'private_note');
+      assert.equal(
+        error.detail,
+        'field businessEntityKeys must be declared by object.businessEntityKeys',
+      );
+      assert.doesNotMatch(JSON.stringify(error), /private-secret-key|Public title/u);
+      return true;
+    },
+  );
+});
+
 test('rejects a self-consistently rehashed map that violates compiled field invariants', () => {
   const content = '# Actual title\n';
   const sources = [source('clickup/acme/task.md', '2026-01-01T00:00:00.000Z', content)];

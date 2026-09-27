@@ -230,9 +230,16 @@ const PROPOSITION_POLARITIES = new Set(['mixed', 'negative', 'positive']);
 const PROPOSITION_RELATION_TYPES = new Set(['contradicts', 'qualifies']);
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const fail = (code: string): never => {
+interface SourceNativeFieldFailureContext {
+  relativePath?: string;
+  externalId?: string;
+  fieldPath?: string;
+  detail?: string;
+}
+const fail = (code: string, context: SourceNativeFieldFailureContext = {}): never => {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
+  Object.assign(error, context);
   throw error;
 };
 const freeze = <T>(value: T): T => {
@@ -671,6 +678,7 @@ function validateCanonicalProposition(
 
 function exactField({
   source,
+  externalId,
   fieldPath,
   value,
   codeUnitStart,
@@ -684,6 +692,7 @@ function exactField({
   actorResolutionEvidence: actorResolutionEvidenceInput = null,
 }: {
   source: SourceNativeSource;
+  externalId?: string;
   fieldPath: string;
   value: string;
   codeUnitStart: number;
@@ -712,7 +721,12 @@ function exactField({
         fieldBusinessEntityKeys.some((key) => typeof key !== 'string' || !key))) ||
     source.content.slice(codeUnitStart, codeUnitStart + value.length) !== value
   ) {
-    fail('SOURCE_NATIVE_FIELD_SPAN');
+    fail('SOURCE_NATIVE_FIELD_SPAN', {
+      relativePath: source.relativePath,
+      ...(externalId === undefined ? {} : { externalId }),
+      fieldPath,
+      detail: 'field span does not match source content at codeUnitStart',
+    });
   }
   const canonicalProposition =
     canonicalPropositionInput === null
@@ -797,15 +811,22 @@ function compileObject(input: ExactObjectInput, source: SourceNativeSource): Sou
   ) {
     fail('SOURCE_NATIVE_BUSINESS_ENTITY_NAMESPACE');
   }
-  const fields = input.fields.map((field: ExactFieldInput) => exactField({ source, ...field }));
+  const fields = input.fields.map((field: ExactFieldInput) =>
+    exactField({ source, externalId: objectIdentity.externalId, ...field }),
+  );
   if (new Set(fields.map((field) => field.fieldPath)).size !== fields.length)
     fail('SOURCE_NATIVE_OBJECT_FIELDS');
-  if (
-    fields.some((field) =>
-      (field.businessEntityKeys ?? []).some((key) => !businessEntityKeys.includes(key)),
-    )
-  )
-    fail('SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS');
+  const fieldWithUndeclaredBusinessEntityKey = fields.find((field) =>
+    (field.businessEntityKeys ?? []).some((key) => !businessEntityKeys.includes(key)),
+  );
+  if (fieldWithUndeclaredBusinessEntityKey !== undefined) {
+    fail('SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS', {
+      relativePath: input.relativePath,
+      externalId: objectIdentity.externalId,
+      fieldPath: fieldWithUndeclaredBusinessEntityKey.fieldPath,
+      detail: 'field businessEntityKeys must be declared by object.businessEntityKeys',
+    });
+  }
   const duplicateEvidenceFieldPaths = [...new Set(input.duplicateEvidenceFieldPaths)].sort(compare);
   if (
     duplicateEvidenceFieldPaths.length !== input.duplicateEvidenceFieldPaths.length ||
