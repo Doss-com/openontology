@@ -48,6 +48,8 @@ function sourceRow({
 function buildInput({
   targetTitle = 'Quarterly status review',
   latestTargetTitle = targetTitle,
+  targetStatus = 'Ready',
+  latestStatus = 'Done',
   extraRows = [],
   extraSources = [],
   adapterDiagnostics = [],
@@ -58,14 +60,14 @@ function buildInput({
       occurredAt: '2026-01-01T00:00:00.000Z',
       externalId: 'task-1',
       title: targetTitle,
-      status: 'Ready',
+      status: targetStatus,
     }),
     sourceRow({
       relativePath: 'clickup/acme/task-1-r2.md',
       occurredAt: '2026-02-01T00:00:00.000Z',
       externalId: 'task-1',
       title: latestTargetTitle,
-      status: 'Done',
+      status: latestStatus,
     }),
     sourceRow({
       relativePath: 'clickup/acme/task-2.md',
@@ -403,6 +405,36 @@ test('keeps selector refusal bounded around aliases, values, dates, and anchors'
     assert.deepEqual(dateSelector.unresolvedExternalIds, ['2026-09-26']);
   });
 
+  await withProduct(
+    buildInput({ targetStatus: 'waiting for follow-up', latestStatus: 'Done' }),
+    async (product) => {
+      const scope = { sourceSystem: 'clickup', objectType: 'task', field: 'status' };
+      const successor = await product.verify({
+        question: 'What status immediately followed waiting for follow-up for task-1?',
+        intent: 'next',
+        anchorValue: 'waiting for follow-up',
+        scope,
+      });
+      assert.equal(successor.state, 'resolved-next-field-revision');
+      assert.equal(successor.answerable, true);
+      assert.equal(successor.query.externalId, 'task-1');
+      assert.deepEqual(successor.context.map((row) => row.exactText).sort(), [
+        'Done',
+        'waiting for follow-up',
+      ]);
+
+      const missingSelector = await product.verify({
+        question: 'What status immediately followed waiting for follow-up for missing-task?',
+        intent: 'next',
+        anchorValue: 'waiting for follow-up',
+        scope,
+      });
+      assert.equal(missingSelector.state, 'unavailable-native-object-identifier-not-declared');
+      assert.equal(missingSelector.answerable, false);
+      assert.deepEqual(missingSelector.context, []);
+      assert.deepEqual(missingSelector.unresolvedExternalIds, ['missing-task']);
+    },
+  );
   await withProduct(buildInput(), async (product) => {
     const anchorPhrase = await product.verify({
       question: 'What status immediately followed waiting for follow-up for task-1?',
