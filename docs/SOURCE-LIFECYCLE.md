@@ -226,6 +226,57 @@ Types check structure. The builder still validates timestamps, namespaces,
 hashes, spans, coverage and propositions at runtime. Its `input` parameter is
 `unknown`, so parsed JSON receives the same checks.
 
+## Semantic propositions and counterevidence
+
+Semantic fields add proof metadata to the same exact source spans. The
+object-level `businessEntityKeys` list must contain every key declared by any
+field on that object. A field's canonical proposition may only use keys already
+declared by that field, so the effective relationship is:
+
+```text
+canonical proposition keys ⊆ field businessEntityKeys ⊆ object businessEntityKeys
+```
+
+`duplicateEvidenceFieldPaths` is an optional object-level list. Each entry must
+name one field on that object, and entries must be unique. Listed fields are
+eligible for duplicate-evidence clustering. The list does not make a field
+queryable, change its exact bytes, or replace a proposition relation.
+
+For semantic proof, set a field's `propositionFamilyKey`, `validAt`, and
+`knownAt`, then provide an
+`OpenOntologySourceNativeCanonicalPropositionV2`. The V2 proposition carries a
+stable `propositionKey`, `canonicalRoles`, `modality`, `polarity`, and a
+`dimension` equal to the field's family key. It also carries the field's
+business keys and the fixed
+`extractionAuthority: "deterministic-source-adapter-v1"`. A relation is an
+explicit object with `kind: "OpenOntologySourceNativePropositionRelationV1"`,
+`type: "qualifies"` or `"contradicts"`, and a different
+`targetPropositionKey`. A related proposition must have the `counterevidence`
+canonical role. `qualifies` produces a qualified proof disposition, while
+`contradicts` produces a contradicted disposition when the proof is otherwise
+closed.
+
+`occurredAt` orders source observations. For V2 semantic fields, `validAt` is
+the time the proposition applies and `knownAt` is when the source or Adapter
+recorded knowledge of it. Both are required, and all three timestamps should
+be canonical UTC timestamps such as `2026-01-01T10:00:00.000Z`. These metadata
+fields do not replace exact source evidence. Verification returns the source
+value and its exact Evidence span.
+
+The packaged walkthrough builds one synthetic status and one related review
+source for both relation types, then prints the actual raw verification
+responses, including the answer and counterevidence rows:
+
+```bash
+node ./node_modules/oont/examples/quickstart/counterevidence.mjs \
+  ./counterevidence-run
+```
+
+The final argument must not exist. The script refuses an existing path with
+`COUNTEREVIDENCE_OUTPUT_EXISTS` before writing anything. The JSON summary
+contains `qualified` and `contradicted` cases. Each case includes the raw
+`OpenOntologySourceNativeVerificationV1` response, not a generic success flag.
+
 ## Query schemas and stored source shape
 
 `querySchemas` is the declared query surface. It is not a complete inventory of

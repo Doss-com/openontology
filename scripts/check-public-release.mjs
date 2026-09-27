@@ -181,6 +181,7 @@ const required = [
   'docs/SOURCE-LIFECYCLE.md',
   'docs/QUERIES.md',
   'examples/quickstart/semantic-map.mjs',
+  'examples/quickstart/counterevidence.mjs',
 ];
 for (const path of required) {
   if (!packedPaths.includes(path)) fail(`package is missing ${path}`);

@@ -1299,6 +1299,60 @@ assert.equal(superseded.read({ ref: supersededPassage.readRef }).exactText, fiel
     tail(semanticRerun.stderr),
   );
 
+  const counterevidenceRoot = join(consumer, 'counterevidence');
+  const counterevidenceExample = join(packageRoot, 'examples', 'quickstart', 'counterevidence.mjs');
+  const runCounterevidence = () =>
+    run(process.execPath, ['--import', noNetwork, counterevidenceExample, counterevidenceRoot], {
+      cwd: consumer,
+    });
+  const counterevidenceRun = runCounterevidence();
+  let counterevidenceSummary;
+  try {
+    counterevidenceSummary = JSON.parse(counterevidenceRun.stdout);
+  } catch {
+    counterevidenceSummary = null;
+  }
+  const counterevidenceCases = counterevidenceSummary?.cases ?? [];
+  const counterevidenceProofClosed = counterevidenceCases.every((item) => {
+    const expectedDisposition = item.relationType === 'qualifies' ? 'qualified' : 'contradicted';
+    return (
+      (item.relationType === 'qualifies' || item.relationType === 'contradicts') &&
+      item.proofDisposition === expectedDisposition &&
+      item.rawResponse?.kind === 'OpenOntologySourceNativeVerificationV1' &&
+      item.rawResponse?.state === 'resolved-current-field' &&
+      item.rawResponse?.answerable === true &&
+      item.rawResponse?.context?.map((row) => [row.role, row.exactText]).toString() ===
+        [
+          ['answer', 'open'],
+          ['counterevidence', 'closed'],
+        ].toString() &&
+      item.rawResponse?.verification?.semanticProof?.proofClosed === true
+    );
+  });
+  check(
+    'installed counterevidence example returns raw qualified and contradicted proof',
+    counterevidenceRun.status === 0 &&
+      existsSync(join(packageRoot, 'docs', 'SOURCE-LIFECYCLE.md')) &&
+      counterevidenceSummary?.kind === 'OpenOntologyCounterevidenceWalkthroughV1' &&
+      counterevidenceSummary?.outputRoot === counterevidenceRoot &&
+      counterevidenceCases.length === 2 &&
+      counterevidenceProofClosed,
+    counterevidenceRun.status === 0
+      ? JSON.stringify(counterevidenceSummary)
+      : tail(counterevidenceRun.stderr),
+  );
+  const beforeCounterevidenceRerun = existsSync(counterevidenceRoot)
+    ? directorySnapshot(counterevidenceRoot)
+    : null;
+  const counterevidenceRerun = runCounterevidence();
+  check(
+    'installed counterevidence example refuses existing output without changing bytes',
+    beforeCounterevidenceRerun !== null &&
+      counterevidenceRerun.status !== 0 &&
+      beforeCounterevidenceRerun === directorySnapshot(counterevidenceRoot),
+    tail(counterevidenceRerun.stderr),
+  );
+
   const ordinaryMcp = await mcpTools(bin, ont, false);
   check(
     'default MCP exposes only verify',
