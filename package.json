@@ -1,6 +1,6 @@
 {
   "name": "oont",
-  "version": "0.3.0-alpha.6",
+  "version": "0.3.0-alpha.7",
   "type": "module",
   "description": "A factual context compiler that gives agents verified context or a typed refusal.",
   "main": "./dist/openontology.js",

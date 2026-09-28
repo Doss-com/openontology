@@ -113,6 +113,7 @@ try {
     'dist/openontology.js',
     'examples/quickstart/source-lifecycle.mjs',
     'examples/quickstart/semantic-map.mjs',
+    'examples/quickstart/counterevidence.mjs',
   ];
   for (const path of runtimeRoots) {
     if (!paths.has(path))

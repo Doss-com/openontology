@@ -1,6 +1,7 @@
 /** Bind product questions to declared source-native fields and identities. */
 import { stableObjectSha256 } from '../canonical-content.js';
 import { compileSourceNativeFieldQuery } from './planner.js';
+import { auditSourceNativeQuestion } from './field-resolution.js';
 import type { QuerySchema, SourceNativeFieldQuery, SourceNativeQueryPlanState } from './planner.js';
 import type { SourceNativeField, SourceNativeObjectMap } from '../source/object-map.js';
 import type { FieldQueryPlanner, ValidatedFieldQueryPlan } from './resolver-support.js';
@@ -8,6 +9,7 @@ import { normalizeSourceNativeHistoricalTime } from './historical-field.js';
 
 const EXTERNAL_ID_COLLISION = Symbol('external-id-collision');
 const EXTERNAL_ID_MULTIPLE = Symbol('external-id-multiple');
+const SOURCE_NATIVE_PRODUCT_QUERY_ADAPTER = 'source-native-product-query-v8-named-lookup-v1';
 const fail = (code: string): never => {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
@@ -57,13 +59,19 @@ function hasUndeclaredTemporalIntent(question: string, intent: 'current' | 'next
 interface DeclaredTitleParse {
   normalizedTitle: string | null;
   scanQuestion: string;
+  binding: 'title' | 'name' | null;
   refusal: 'unavailable-native-object-identifier-not-declared' | null;
 }
 
 function parseDeclaredTitle(question: string): DeclaredTitleParse {
-  const clause = /\b(?:titled|named)\s*"/giu;
+  const clause = /\b(titled|named)\s*"/giu;
   let searchOffset = 0;
-  let parsed: { normalizedTitle: string; openingQuote: number; closingQuote: number } | null = null;
+  let parsed: {
+    normalizedTitle: string;
+    openingQuote: number;
+    closingQuote: number;
+    binding: 'title' | 'name';
+  } | null = null;
   while (searchOffset < question.length) {
     clause.lastIndex = searchOffset;
     const match = clause.exec(question);
@@ -79,6 +87,7 @@ function parseDeclaredTitle(question: string): DeclaredTitleParse {
           return {
             normalizedTitle: null,
             scanQuestion: question,
+            binding: null,
             refusal: 'unavailable-native-object-identifier-not-declared',
           };
         }
@@ -97,6 +106,7 @@ function parseDeclaredTitle(question: string): DeclaredTitleParse {
       return {
         normalizedTitle: null,
         scanQuestion: question,
+        binding: null,
         refusal: 'unavailable-native-object-identifier-not-declared',
       };
     }
@@ -104,15 +114,28 @@ function parseDeclaredTitle(question: string): DeclaredTitleParse {
       return {
         normalizedTitle: null,
         scanQuestion: question,
+        binding: null,
         refusal: 'unavailable-native-object-identifier-not-declared',
       };
     }
-    parsed = { normalizedTitle, openingQuote, closingQuote };
+    parsed = {
+      normalizedTitle,
+      openingQuote,
+      closingQuote,
+      binding: match[1]!.toLocaleLowerCase('en-US') === 'named' ? 'name' : 'title',
+    };
     searchOffset = closingQuote + 1;
   }
-  if (parsed === null) return { normalizedTitle: null, scanQuestion: question, refusal: null };
+  if (parsed === null) {
+    return { normalizedTitle: null, scanQuestion: question, binding: null, refusal: null };
+  }
   const scanQuestion = `${question.slice(0, parsed.openingQuote)}${' '.repeat(parsed.closingQuote - parsed.openingQuote + 1)}${question.slice(parsed.closingQuote + 1)}`;
-  return { normalizedTitle: parsed.normalizedTitle, scanQuestion, refusal: null };
+  return {
+    normalizedTitle: parsed.normalizedTitle,
+    scanQuestion,
+    binding: parsed.binding,
+    refusal: null,
+  };
 }
 
 function explicitNamespaceRefusal(question: string, namespace: string): boolean {
@@ -120,17 +143,37 @@ function explicitNamespaceRefusal(question: string, namespace: string): boolean 
   return match !== null && normalizedDeclaredTitle(match[1]) !== normalizedDeclaredTitle(namespace);
 }
 
-function bindDeclaredTitle({
+function declaredIdentityFieldPath(
+  binding: 'title' | 'name',
+  schema: QuerySchema | undefined,
+): string | null {
+  if (schema === undefined) return null;
+  if (binding === 'title') {
+    return schema.fields.some((field) => field.fieldPath === 'title') ? 'title' : null;
+  }
+  const nameFields = schema.fields.filter((field) =>
+    field.aliases.some((alias) => alias === 'name' || alias === 'full name'),
+  );
+  if (nameFields.length > 1) return null;
+  if (nameFields.length === 1) return nameFields[0]!.fieldPath;
+  return schema.fields.some((field) => field.fieldPath === 'title') ? 'title' : null;
+}
+
+function bindDeclaredIdentity({
   normalizedTitle,
   map,
   namespace,
   query,
+  binding,
+  querySchema,
   visibleExternalId,
 }: {
   normalizedTitle: string;
   map: SourceNativeObjectMap;
   namespace: string;
   query: SourceNativeFieldQuery;
+  binding: 'title' | 'name';
+  querySchema: QuerySchema | undefined;
   visibleExternalId: string | null;
 }): {
   query: SourceNativeFieldQuery | null;
@@ -147,6 +190,10 @@ function bindDeclaredTitle({
   ) {
     return { query: null, state: 'unavailable-native-object-identifier-not-declared' };
   }
+  const fieldPath = declaredIdentityFieldPath(binding, querySchema);
+  if (fieldPath === null) {
+    return { query: null, state: 'unavailable-native-object-identifier-not-declared' };
+  }
   const scopedObjects = map.nativeObjects.filter(
     (object) =>
       object.objectIdentity.namespace === namespace &&
@@ -155,14 +202,14 @@ function bindDeclaredTitle({
   );
   if (
     scopedObjects.length === 0 ||
-    scopedObjects.some((object) => !object.fields.some((field) => field.fieldPath === 'title'))
+    scopedObjects.some((object) => !object.fields.some((field) => field.fieldPath === fieldPath))
   ) {
     return { query: null, state: 'unavailable-native-object-identifier-not-declared' };
   }
   const matchingObjects = scopedObjects.filter((object) =>
     object.fields.some(
       (field) =>
-        field.fieldPath === 'title' && normalizedDeclaredTitle(field.value) === normalizedTitle,
+        field.fieldPath === fieldPath && normalizedDeclaredTitle(field.value) === normalizedTitle,
     ),
   );
   const matchingIdentities = new Map(
@@ -189,9 +236,40 @@ function bindDeclaredTitle({
 }
 
 const WORD_TOKEN = /[\p{L}\p{N}]+/gu;
-const DIRECT_IDENTIFIER = /^\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/u;
-const SELECTOR_IDENTIFIER =
-  /\b(?:of|for)\s+([\p{L}\p{N}]+(?:[-_:.\/][\p{L}\p{N}]+)+)(?=$|[^\p{L}\p{N}])/gu;
+const IDENTIFIER_RUN = /[+\p{L}\p{N}][+\p{L}\p{N}@._:\/-]*/gu;
+const IDENTIFIER_SEPARATOR = /[+@._:\/-]/u;
+
+interface QuestionToken {
+  value: string;
+  start: number;
+  end: number;
+}
+
+function questionTokens(question: string): QuestionToken[] {
+  return [...question.matchAll(IDENTIFIER_RUN)].flatMap((match) => {
+    const start = match.index;
+    let end = start + match[0].length;
+    while (end > start && IDENTIFIER_SEPARATOR.test(question[end - 1]!)) end -= 1;
+    const value = question.slice(start, end);
+    if (!value || !/[\p{L}\p{N}]/u.test(value)) return [];
+    return [{ value: normalizedQuestion(value), start, end }];
+  });
+}
+
+function identifierTokens(question: string): QuestionToken[] {
+  return questionTokens(question).filter((token) => IDENTIFIER_SEPARATOR.test(token.value));
+}
+
+function directIdentifierToken(
+  question: string,
+  offset: number,
+  tokens: QuestionToken[],
+): QuestionToken | null {
+  const whitespace = /^\s+/u.exec(question.slice(offset));
+  if (whitespace === null) return null;
+  const start = offset + whitespace[0].length;
+  return tokens.find((token) => token.start === start) ?? null;
+}
 
 function normalizedIdentifier(value: unknown): string {
   return normalizedQuestion(value).replace(/[^\p{L}\p{N}]/gu, '');
@@ -226,6 +304,7 @@ function anchoredUnknownExternalIds(
     value: match[0],
     index: match.index,
   }));
+  const tokens = identifierTokens(question);
   const candidates = new Set(candidateExternalIds.map(normalizedQuestion));
   const unknown = new Set<string>();
   for (const alias of objectAliases) {
@@ -239,8 +318,8 @@ function anchoredUnknownExternalIds(
       }
       const lastWord = words[index + aliasWords.length - 1];
       if (!lastWord) continue;
-      const match = DIRECT_IDENTIFIER.exec(question.slice(lastWord.index + lastWord.value.length));
-      const externalId = match?.[1];
+      const token = directIdentifierToken(question, lastWord.index + lastWord.value.length, tokens);
+      const externalId = token?.value;
       if (externalId !== undefined && !candidates.has(normalizedQuestion(externalId))) {
         unknown.add(normalizedQuestion(externalId));
       }
@@ -258,17 +337,16 @@ function selectorUnknownExternalIds(
   const candidates = new Set(candidateExternalIds.map(normalizedQuestion));
   const aliases = new Set(declaredObjectAliases.map(normalizedIdentifier));
   const anchorSpans = anchorValue === null ? [] : wordSpans(question, anchorValue);
+  const tokens = identifierTokens(question);
   const unknown = new Set<string>();
-  SELECTOR_IDENTIFIER.lastIndex = 0;
-  for (const match of question.matchAll(SELECTOR_IDENTIFIER)) {
-    const externalId = match[1];
-    if (externalId === undefined) continue;
-    const tokenEnd = match.index + match[0].length;
-    const tokenStart = tokenEnd - externalId.length;
-    if (anchorSpans.some((span) => span.start <= tokenStart && tokenEnd <= span.end)) continue;
-    if (aliases.has(normalizedIdentifier(externalId))) continue;
-    if (!candidates.has(normalizedQuestion(externalId))) {
-      unknown.add(normalizedQuestion(externalId));
+  const selector = /\b(?:of|for)(?=\s)/gu;
+  for (const match of question.matchAll(selector)) {
+    const token = directIdentifierToken(question, match.index + match[0].length, tokens);
+    if (token === null) continue;
+    if (anchorSpans.some((span) => span.start <= token.start && token.end <= span.end)) continue;
+    if (aliases.has(normalizedIdentifier(token.value))) continue;
+    if (!candidates.has(normalizedQuestion(token.value))) {
+      unknown.add(normalizedQuestion(token.value));
     }
   }
   return [...unknown].sort();
@@ -299,26 +377,24 @@ function mentionedExternalId(
       ...(query.externalId === undefined ? [] : [query.externalId]),
     ]),
   ];
+  const tokens = questionTokens(text);
+  const tokenValues = new Set(tokens.map((token) => token.value));
   const candidates = candidateExternalIds.filter((externalId) => {
     const needle = normalizedQuestion(externalId);
-    let index = text.indexOf(needle);
-    while (index >= 0) {
-      const before = index === 0 ? '' : text[index - 1];
-      const after = index + needle.length === text.length ? '' : text[index + needle.length];
-      if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
-      unsafeMention = true;
-      index = text.indexOf(needle, index + 1);
-    }
+    if (tokenValues.has(needle)) return true;
+    if (tokens.some((token) => token.value.includes(needle))) unsafeMention = true;
     return false;
   });
-  const identifierTokens = text.match(/[\p{L}\p{N}]+(?:[-_:./][\p{L}\p{N}]+)+/gu) ?? [];
+  const identifierTokenValues = identifierTokens(text).map((token) => token.value);
   const identifierShape = (value: string): string => value.replace(/\p{N}+/gu, '#');
   const candidateByText = new Set(candidateExternalIds.map(normalizedQuestion));
   const candidateShapes = new Set([...candidateByText].map(identifierShape));
   const unresolvedExternalIds = [
     ...new Set(
-      identifierTokens.filter(
-        (token) => !candidateByText.has(token) && candidateShapes.has(identifierShape(token)),
+      identifierTokenValues.filter(
+        (token) =>
+          !candidateByText.has(token) &&
+          (candidateShapes.has(identifierShape(token)) || token.includes('@')),
       ),
     ),
   ].sort();
@@ -447,13 +523,15 @@ export function compileProductQueryPlan({
     | 'unavailable-native-field-anchor-ambiguous'
     | 'unavailable-native-field-not-declared'
     | 'unavailable-native-temporal-intent-not-declared'
-    | 'unavailable-native-object-seed-ambiguous';
+    | 'unavailable-native-object-seed-ambiguous'
+    | 'unavailable-native-question-residual-not-declared';
   let query: SourceNativeFieldQuery | null;
   let matchedObjectAliases: string[];
   let matchedFieldAliases: string[];
   let plannerSchemaSha256: string;
   let mentionedExternalIds: string[] = [];
   let unresolvedExternalIds: string[] = [];
+  let uncoveredWords: string[] = [];
   const declaredTitle = parseDeclaredTitle(question);
   const scanQuestion = declaredTitle.scanQuestion;
   const namespaceMismatch =
@@ -528,18 +606,25 @@ export function compileProductQueryPlan({
     query = null;
   }
   if (query !== null && declaredTitle.normalizedTitle !== null) {
-    const titleBinding = bindDeclaredTitle({
+    const selectedQuery = query;
+    const identityBinding = bindDeclaredIdentity({
       normalizedTitle: declaredTitle.normalizedTitle,
       map,
       namespace,
-      query,
+      query: selectedQuery,
+      binding: declaredTitle.binding!,
+      querySchema: querySchemas.find(
+        (schema) =>
+          schema.sourceSystem === selectedQuery.sourceSystem &&
+          schema.objectType === selectedQuery.objectType,
+      ),
       visibleExternalId: mentionedExternalIds.length === 1 ? mentionedExternalIds[0]! : null,
     });
-    if (titleBinding.state !== null) {
-      state = titleBinding.state;
+    if (identityBinding.state !== null) {
+      state = identityBinding.state;
       query = null;
     } else {
-      query = titleBinding.query;
+      query = identityBinding.query;
     }
   }
   if (query !== null && hasUndeclaredTemporalIntent(scanQuestion, intent)) {
@@ -557,11 +642,39 @@ export function compileProductQueryPlan({
     state = anchor.state;
     query = anchor.query;
   }
+  if (query !== null) {
+    const coverage = auditSourceNativeQuestion({
+      question: scanQuestion,
+      query,
+      namespace,
+      objectAliases: matchedObjectAliases,
+      fieldAliases: matchedFieldAliases,
+      intent,
+      anchorValue,
+      sourceNativeObjectMap: map,
+    });
+    uncoveredWords = coverage.uncoveredWords;
+    if (uncoveredWords.length > 0) {
+      state = 'unavailable-native-question-residual-not-declared';
+    }
+  }
   const plannerSha256 = stableObjectSha256({
-    adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+    adapter: SOURCE_NATIVE_PRODUCT_QUERY_ADAPTER,
     namespace,
     querySchemas,
   });
+  const declaredSchemaQuery = query ?? compiled.query;
+  const declaredFieldPath =
+    declaredTitle.normalizedTitle === null || declaredTitle.binding === null
+      ? null
+      : declaredIdentityFieldPath(
+          declaredTitle.binding,
+          querySchemas.find(
+            (schema) =>
+              schema.sourceSystem === declaredSchemaQuery?.sourceSystem &&
+              schema.objectType === declaredSchemaQuery?.objectType,
+          ),
+        );
   const core = {
     schema: 1,
     kind: 'OpenOntologySourceNativeFieldQueryPlanV1',
@@ -571,6 +684,7 @@ export function compileProductQueryPlan({
     ...(intent === 'at' ? { at, temporalProfile: 'source-native-basic-retrospective-v1' } : {}),
     mentionedExternalIds: freeze(mentionedExternalIds),
     unresolvedExternalIds: freeze(unresolvedExternalIds),
+    ...(uncoveredWords.length === 0 ? {} : { uncoveredWords: freeze(uncoveredWords) }),
     matchedObjectAliases: freeze(matchedObjectAliases),
     matchedFieldAliases: freeze(matchedFieldAliases),
     declaredTitle:
@@ -578,8 +692,9 @@ export function compileProductQueryPlan({
         ? null
         : freeze({
             normalizedTitle: declaredTitle.normalizedTitle,
-            fieldPath: 'title',
-            bindingProfile: 'declared-title-v1',
+            fieldPath: declaredFieldPath,
+            bindingProfile:
+              declaredTitle.binding === 'name' ? 'declared-name-v1' : 'declared-title-v1',
           }),
     questionSha256: stableObjectSha256({ question }),
     plannerSchemaSha256,
@@ -604,7 +719,7 @@ export function queryPlanner({
   const plannerSha256 = plan.plannerSha256;
   return freeze({
     kind: 'OpenOntologySourceNativeFieldQueryPlannerV1',
-    adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+    adapter: SOURCE_NATIVE_PRODUCT_QUERY_ADAPTER,
     namespace,
     plannerSha256,
     modelCalls: 0,

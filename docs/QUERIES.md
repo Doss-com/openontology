@@ -32,6 +32,18 @@ verification could not complete, such as an ambiguous identity, an unsupported
 field or incomplete chronology. Results can include `availableFields` to help
 you choose a declared field.
 
+If the question contains meaning beyond the selected native field, verification
+returns `unavailable-native-question-residual-not-declared` and lists the
+uncovered words in `uncoveredWords`. This check accounts for declared aliases,
+identity and quoted-name selectors, and a small query grammar. It does not claim
+to understand arbitrary language, and a field selector does not authorize an
+answer to a different question about that field.
+
+Unbound ordering qualifiers such as `after Alpha` and live-source qualifiers
+such as `real-time updates` remain uncovered residual meaning. Use the
+supported `intent` and `anchorValue` inputs for successor questions, or issue a
+plain query against the captured source snapshot.
+
 An exact typed identity absent from a complete catalog can receive an absence
 receipt with `answerable: false` and no context. This establishes absence within
 that catalog, not everywhere. An empty search result alone cannot establish it.
@@ -92,7 +104,7 @@ interface OpenOntologyProduct {
 }
 ```
 
-See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.6/src/openontology.ts)
+See the [exported types](https://github.com/Doss-com/openontology/blob/v0.3.0-alpha.7/src/openontology.ts)
 for complete result shapes.
 
 ## Typed scope
@@ -123,9 +135,19 @@ npx --no-install oont verify ./verified-context \
 ```
 
 Scope names are case-sensitive and must match the Adapter schema. An explicit
-ID in the question must agree with `scope.externalId`. A conflicting profile,
-field or ID returns a refusal. If an opaque ID does not reveal its object type,
-include the type in the question or provide scope.
+ID in the question must agree with `scope.externalId`. A conflicting profile or
+ID returns a refusal. An explicit `scope.field` selects that field even when
+the question names another declared field; the other field word remains
+subject to lexical coverage and may return a typed refusal. If an opaque ID does
+not reveal its object type, include the type in the question or provide scope.
+
+For example, `What is the date of decision decision-1?` with an explicit scope
+targeting object type `decision` and field `statement` selects `statement`, but
+`date` remains subject to the coverage audit. When the declared ID and other
+selectors are covered, it returns
+`unavailable-native-question-residual-not-declared` with `date` uncovered and no
+context. It is not answerable by this rule; the explicit scope does not claim
+that the broader question is semantically understood.
 
 When a question places an identifier-shaped token directly after a declared
 object alias, the token must be a known ID in the bound map or agree with an

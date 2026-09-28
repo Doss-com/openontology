@@ -316,25 +316,125 @@ test('refuses an unknown direct identifier without breaking unique-object shorth
     const ordinaryHyphenatedProse = await product.verify(
       'What is the current status of task+record, with real-time updates?',
     );
-    assert.equal(ordinaryHyphenatedProse.state, 'resolved-current-field');
     assert.equal(
-      ordinaryHyphenatedProse.verification.currentFieldChronology.objectIdentity.externalId,
+      ordinaryHyphenatedProse.state,
+      'unavailable-native-question-residual-not-declared',
+    );
+    assert.equal(ordinaryHyphenatedProse.answerable, false);
+    assert.deepEqual(ordinaryHyphenatedProse.context, []);
+    assert.deepEqual(ordinaryHyphenatedProse.uncoveredWords, ['real', 'time', 'updates']);
+
+    const ordinaryHyphenatedAlias = await product.verify(
+      'What is the current status of task+record?',
+    );
+    assert.equal(ordinaryHyphenatedAlias.state, 'resolved-current-field');
+    assert.equal(
+      ordinaryHyphenatedAlias.verification.currentFieldChronology.objectIdentity.externalId,
       'task-1',
     );
 
     const boundaryMiss = await product.verify(
       'What is the current status of taskrecord missing-task for task-1?',
     );
-    assert.equal(boundaryMiss.state, 'resolved-current-field');
-    assert.equal(boundaryMiss.query.externalId, 'task-1');
-    assert.deepEqual(boundaryMiss.mentionedExternalIds, ['task-1']);
-    assert.deepEqual(boundaryMiss.unresolvedExternalIds, []);
+    assert.equal(boundaryMiss.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(boundaryMiss.answerable, false);
+    assert.deepEqual(boundaryMiss.context, []);
+    assert.deepEqual(boundaryMiss.uncoveredWords, ['taskrecord', 'missing']);
 
     const title = await product.verify(
       'What is the current status of the task titled "Quarterly status review"?',
     );
     assert.equal(title.state, 'resolved-current-field');
     assert.equal(title.query.externalId, 'task-1');
+  });
+});
+
+test('treats email-shaped native IDs as whole selectors', async () => {
+  const emailRows = [
+    sourceRow({
+      relativePath: 'clickup/acme/first.last@example.test.md',
+      occurredAt: '2026-02-03T00:00:00.000Z',
+      externalId: 'first.last@example.test',
+      title: 'Email identity one',
+      status: 'Ready',
+    }),
+    sourceRow({
+      relativePath: 'clickup/acme/simple@example.test.md',
+      occurredAt: '2026-02-04T00:00:00.000Z',
+      externalId: 'simple@example.test',
+      title: 'Email identity two',
+      status: 'Blocked',
+    }),
+    sourceRow({
+      relativePath: 'clickup/acme/+tag@example.test.md',
+      occurredAt: '2026-02-05T00:00:00.000Z',
+      externalId: '+tag@example.test',
+      title: 'Email identity three',
+      status: 'In progress',
+    }),
+  ];
+  await withProduct(buildInput({ extraRows: emailRows }), async (product) => {
+    const known = await product.verify(
+      'What is the current status of task first.last@example.test?',
+    );
+    assert.equal(known.state, 'resolved-current-field');
+    assert.equal(known.query.externalId, 'first.last@example.test');
+    assert.deepEqual(known.mentionedExternalIds, ['first.last@example.test']);
+    assert.deepEqual(known.unresolvedExternalIds, []);
+
+    const selector = await product.verify({
+      question: 'What is the current status for first.last@example.test?',
+      scope: { sourceSystem: 'clickup', objectType: 'task', field: 'status' },
+    });
+    assert.equal(selector.state, 'resolved-current-field');
+    assert.equal(selector.query.externalId, 'first.last@example.test');
+
+    const plusTag = await product.verify('What is the current status of task +tag@example.test?');
+    assert.equal(plusTag.state, 'resolved-current-field');
+    assert.equal(plusTag.query.externalId, '+tag@example.test');
+
+    const unknown = await product.verify(
+      'What is the current status of task missing@example.test?',
+    );
+    assert.equal(unknown.state, 'unavailable-native-object-identifier-not-declared');
+    assert.deepEqual(unknown.mentionedExternalIds, []);
+    assert.deepEqual(unknown.unresolvedExternalIds, ['missing@example.test']);
+
+    const knownAndUnknown = await product.verify(
+      'What is the current status of task first.last@example.test and missing@example.test?',
+    );
+    assert.equal(knownAndUnknown.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(knownAndUnknown.mentionedExternalIds, ['first.last@example.test']);
+    assert.deepEqual(knownAndUnknown.unresolvedExternalIds, ['missing@example.test']);
+
+    const twoKnown = await product.verify(
+      'What is the current status of task first.last@example.test and simple@example.test?',
+    );
+    assert.equal(twoKnown.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(twoKnown.mentionedExternalIds, [
+      'first.last@example.test',
+      'simple@example.test',
+    ]);
+    assert.deepEqual(twoKnown.unresolvedExternalIds, []);
+
+    const embedded = await product.verify(
+      'What is the current status of task prefixfirst.last@example.test?',
+    );
+    assert.equal(embedded.state, 'unavailable-native-object-identifier-not-declared');
+    assert.deepEqual(embedded.mentionedExternalIds, []);
+    assert.deepEqual(embedded.unresolvedExternalIds, ['prefixfirst.last@example.test']);
+
+    const scopeMismatch = await product.verify({
+      question: 'What is the current status of task simple@example.test?',
+      scope: {
+        sourceSystem: 'clickup',
+        objectType: 'task',
+        externalId: 'first.last@example.test',
+        field: 'status',
+      },
+    });
+    assert.equal(scopeMismatch.state, 'unavailable-native-multiple-object-identifiers');
+    assert.deepEqual(scopeMismatch.mentionedExternalIds, ['simple@example.test']);
   });
 });
 
@@ -746,8 +846,10 @@ test('structured scopes preserve declared field intent and may fill missing sele
       'What is the current status?',
     ]) {
       const conflict = await product.verify({ question, scope: { ...scope, field: 'title' } });
-      assert.equal(conflict.state, 'unavailable-native-field-ambiguous');
+      assert.equal(conflict.state, 'unavailable-native-question-residual-not-declared');
       assert.equal(conflict.answerable, false);
+      assert.equal(conflict.query.fieldPath, 'title');
+      assert.deepEqual(conflict.uncoveredWords, ['status']);
       assert.deepEqual(conflict.context, []);
       assert.equal(conflict.verification.absenceReceipt, null);
       const matching = await product.verify({ question, scope });
@@ -757,11 +859,7 @@ test('structured scopes preserve declared field intent and may fill missing sele
         ['Done'],
       );
     }
-    for (const question of [
-      'Inspect this object.',
-      'Inspect task-1.',
-      'What is the task status and title?',
-    ]) {
+    for (const question of ['Inspect this object.', 'Inspect task-1.']) {
       const narrowed = await product.verify({ question, scope });
       assert.equal(narrowed.answerable, true);
       assert.deepEqual(
@@ -769,6 +867,13 @@ test('structured scopes preserve declared field intent and may fill missing sele
         ['Done'],
       );
     }
+    const multipleFields = await product.verify({
+      question: 'What is the task status and title?',
+      scope,
+    });
+    assert.equal(multipleFields.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(multipleFields.answerable, false);
+    assert.deepEqual(multipleFields.uncoveredWords, ['title']);
     for (const question of ['Inspect this object.', 'What is the current status of task-999?']) {
       const absent = await product.verify({
         question,
@@ -792,7 +897,9 @@ test('structured scopes preserve declared field intent and may fill missing sele
       at: '2026-01-15T00:00:00.000Z',
       scope: { ...scope, field: 'title' },
     });
-    assert.equal(historical.state, 'unavailable-native-field-ambiguous');
+    assert.equal(historical.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(historical.query.fieldPath, 'title');
+    assert.deepEqual(historical.uncoveredWords, ['status']);
     assert.deepEqual(historical.context, []);
     const mcp = createSourceNativeProductMcpHandler(openSourceNativeProduct({ artifactRoot }));
     const response = await mcp.handle({
@@ -808,8 +915,10 @@ test('structured scopes preserve declared field intent and may fill missing sele
       },
     });
     const mcpResult = JSON.parse(response.result.content[0].text);
-    assert.equal(mcpResult.state, 'unavailable-native-field-ambiguous');
+    assert.equal(mcpResult.state, 'unavailable-native-question-residual-not-declared');
     assert.equal(mcpResult.answerable, false);
+    assert.equal(mcpResult.query.fieldPath, 'title');
+    assert.deepEqual(mcpResult.uncoveredWords, ['status']);
     assert.deepEqual(mcpResult.context, []);
     const cli = spawnSync(
       process.execPath,
@@ -831,8 +940,10 @@ test('structured scopes preserve declared field intent and may fill missing sele
     );
     assert.equal(cli.status, 0, cli.stderr);
     const cliResult = JSON.parse(cli.stdout);
-    assert.equal(cliResult.state, 'unavailable-native-field-ambiguous');
+    assert.equal(cliResult.state, 'unavailable-native-question-residual-not-declared');
     assert.equal(cliResult.answerable, false);
+    assert.equal(cliResult.query.fieldPath, 'title');
+    assert.deepEqual(cliResult.uncoveredWords, ['status']);
     assert.deepEqual(cliResult.context, []);
   });
   await withProduct(

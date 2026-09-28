@@ -230,9 +230,16 @@ const PROPOSITION_POLARITIES = new Set(['mixed', 'negative', 'positive']);
 const PROPOSITION_RELATION_TYPES = new Set(['contradicts', 'qualifies']);
 const compare = (left: unknown, right: unknown): number =>
   Buffer.compare(Buffer.from(String(left)), Buffer.from(String(right)));
-const fail = (code: string): never => {
+interface SourceNativeFieldFailureContext {
+  relativePath?: string;
+  externalId?: string;
+  fieldPath?: string;
+  detail?: string;
+}
+const fail = (code: string, context: SourceNativeFieldFailureContext = {}): never => {
   const error = new TypeError(code) as TypeError & { code: string };
   error.code = code;
+  Object.assign(error, context);
   throw error;
 };
 const freeze = <T>(value: T): T => {
@@ -241,6 +248,37 @@ const freeze = <T>(value: T): T => {
     Object.freeze(value);
   }
   return value;
+};
+// Cache only validator-owned results. The caller's input root remains mutable.
+const validatedMapCache = new WeakMap<object, SourceNativeObjectMap>();
+// Canonical maps are JSON-shaped. Exotic prototypes and accessors stay uncached.
+const isMemoizableSourceNativeObjectMap = (value: unknown): value is object => {
+  const seen = new Set<object>();
+  const visit = (row: unknown): boolean => {
+    if (row === null || typeof row !== 'object') return true;
+    if (seen.has(row)) return true;
+    seen.add(row);
+    try {
+      if (!Object.isFrozen(row)) return false;
+      const prototype = Object.getPrototypeOf(row);
+      if (
+        Array.isArray(row)
+          ? prototype !== Array.prototype
+          : prototype !== Object.prototype && prototype !== null
+      ) {
+        return false;
+      }
+      for (const key of Reflect.ownKeys(row)) {
+        if (typeof key !== 'string') return false;
+        const descriptor = Object.getOwnPropertyDescriptor(row, key);
+        if (!descriptor || !('value' in descriptor) || !visit(descriptor.value)) return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  return visit(value);
 };
 const isRecord = (value: unknown): value is UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -640,6 +678,7 @@ function validateCanonicalProposition(
 
 function exactField({
   source,
+  externalId,
   fieldPath,
   value,
   codeUnitStart,
@@ -653,6 +692,7 @@ function exactField({
   actorResolutionEvidence: actorResolutionEvidenceInput = null,
 }: {
   source: SourceNativeSource;
+  externalId?: string;
   fieldPath: string;
   value: string;
   codeUnitStart: number;
@@ -681,7 +721,12 @@ function exactField({
         fieldBusinessEntityKeys.some((key) => typeof key !== 'string' || !key))) ||
     source.content.slice(codeUnitStart, codeUnitStart + value.length) !== value
   ) {
-    fail('SOURCE_NATIVE_FIELD_SPAN');
+    fail('SOURCE_NATIVE_FIELD_SPAN', {
+      relativePath: source.relativePath,
+      ...(externalId === undefined ? {} : { externalId }),
+      fieldPath,
+      detail: 'field span does not match source content at codeUnitStart',
+    });
   }
   const canonicalProposition =
     canonicalPropositionInput === null
@@ -766,15 +811,22 @@ function compileObject(input: ExactObjectInput, source: SourceNativeSource): Sou
   ) {
     fail('SOURCE_NATIVE_BUSINESS_ENTITY_NAMESPACE');
   }
-  const fields = input.fields.map((field: ExactFieldInput) => exactField({ source, ...field }));
+  const fields = input.fields.map((field: ExactFieldInput) =>
+    exactField({ source, externalId: objectIdentity.externalId, ...field }),
+  );
   if (new Set(fields.map((field) => field.fieldPath)).size !== fields.length)
     fail('SOURCE_NATIVE_OBJECT_FIELDS');
-  if (
-    fields.some((field) =>
-      (field.businessEntityKeys ?? []).some((key) => !businessEntityKeys.includes(key)),
-    )
-  )
-    fail('SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS');
+  const fieldWithUndeclaredBusinessEntityKey = fields.find((field) =>
+    (field.businessEntityKeys ?? []).some((key) => !businessEntityKeys.includes(key)),
+  );
+  if (fieldWithUndeclaredBusinessEntityKey !== undefined) {
+    fail('SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS', {
+      relativePath: input.relativePath,
+      externalId: objectIdentity.externalId,
+      fieldPath: fieldWithUndeclaredBusinessEntityKey.fieldPath,
+      detail: 'field businessEntityKeys must be declared by object.businessEntityKeys',
+    });
+  }
   const duplicateEvidenceFieldPaths = [...new Set(input.duplicateEvidenceFieldPaths)].sort(compare);
   if (
     duplicateEvidenceFieldPaths.length !== input.duplicateEvidenceFieldPaths.length ||
@@ -1222,6 +1274,18 @@ function validateCompiledRevision(revision: SourceNativeFieldRevision): void {
 }
 
 export function validateSourceNativeObjectMap(value: unknown): SourceNativeObjectMap {
+  if (value !== null && typeof value === 'object') {
+    const cached = validatedMapCache.get(value);
+    if (cached !== undefined) return cached;
+  }
+  const validated = validateSourceNativeObjectMapUncached(value);
+  if (isMemoizableSourceNativeObjectMap(validated)) {
+    validatedMapCache.set(validated, validated);
+  }
+  return validated;
+}
+
+function validateSourceNativeObjectMapUncached(value: unknown): SourceNativeObjectMap {
   const map = exactRecord(value, 'SOURCE_NATIVE_MAP');
   if (
     !Object.prototype.hasOwnProperty.call(map, 'schema') ||

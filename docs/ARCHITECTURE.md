@@ -1,7 +1,7 @@
 # Architecture
 
 OpenOntology compiles source observations into a typed map, then uses that map
-to return verified context. This guide describes `oont` 0.3.0-alpha.6.
+to return verified context. This guide describes `oont` 0.3.0-alpha.7.
 
 - Root SDK, CLI and MCP queries are read-only.
 - `oont/kernel` adds explicit source publication, semantic construction and
@@ -29,20 +29,39 @@ An ordinary query needs only `question`. Optional `scope` selects exact,
 case-sensitive source-system, object-type and field names. An unavailable
 result can include `availableFields` for discovery.
 
-- Scope can fill missing selectors or disambiguate matching candidates. It
-  cannot override a different recognized profile, field or explicit native ID
-  in the question.
+- Scope can fill missing selectors or disambiguate matching candidates. A
+  conflicting recognized profile or explicit native ID still refuses. An
+  explicit `scope.field` selects that declared field even when the question
+  names another declared field; the other field word remains subject to the
+  lexical coverage audit.
 - Shared object aliases can be disambiguated by source system. Multiple aliases
   for one field remain one candidate. These checks use declared vocabulary,
   not inferred semantic equivalence.
-- One quoted `titled` or `named` literal can select an identity through declared
-  title fields. Matching includes source system, object type and namespace.
+- One quoted `titled` literal selects an identity through a declared `title`
+  field. A quoted `named` literal uses the one field whose declared aliases
+  include `name` or `full name`, falling back to `title` when no name alias is
+  declared. Matching includes source system, object type and namespace.
   Repeated observations of one identity are not name collisions.
 - Literal contents do not supply IDs, field aliases or temporal intent.
   Recorded names are aliases across the source cut, not claims about a name
   at a requested time.
 - Missing coverage, unknown names, collisions and explicit ID conflicts refuse
   before verification. A mismatched profile cannot prove object absence.
+- After those selectors and temporal checks succeed, field resolution accounts
+  for question words consumed by declared aliases, identity selectors,
+  quoted-name masking, a bound successor anchor and a small query grammar.
+  Remaining words return
+  `unavailable-native-question-residual-not-declared` with `uncoveredWords`; a
+  selected field does not authorize answering a different question about it.
+  This is lexical accounting, not general semantic coverage.
+
+  For example, a query asking `What is the date of decision decision-1?` with
+  an explicit scope targeting object type `decision` and field `statement`
+  selects `statement`, but `date` remains subject to the coverage audit. When
+  the declared ID and other selectors are covered, the result is
+  `unavailable-native-question-residual-not-declared` with `date` uncovered and
+  no context. This precedence rule does not provide broader semantic
+  understanding of the question.
 
 The planner preserves explicit IDs and temporal selectors while masking quoted
 titles. A planner identity change also changes query-plan hashes; old Admissions

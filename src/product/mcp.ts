@@ -38,7 +38,7 @@ const EXACT_UTC_MILLISECOND_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$
 const SCOPE_SCHEMA = Object.freeze({
   type: 'object',
   description:
-    'Optional exact source profile. Omit scope when its names are unknown; use the question or returned availableFields to identify the declared profile. Scope may fill missing choices or narrow matching declared profiles and fields, but conflicting recognized choices refuse. A native object ID named in the question must agree with externalId.',
+    'Optional exact source profile. Omit scope when its names are unknown; use the question or returned availableFields to identify the declared profile. Scope may fill missing choices or narrow matching declared profiles. A conflicting recognized source profile or native object ID refuses. An explicit field selects that declared field even when the question names another declared field; unaccounted words remain subject to lexical coverage and may refuse. A native object ID named in the question must agree with externalId.',
   required: ['sourceSystem', 'objectType', 'field'],
   properties: {
     sourceSystem: {

@@ -250,6 +250,7 @@ export interface OpenOntologySearchResult {
   query: OpenOntologyResolvedQuery | null;
   mentionedExternalIds: string[] | undefined;
   unresolvedExternalIds: string[] | undefined;
+  uncoveredWords?: string[];
   selectionMode: string | null;
   matches: OpenOntologyMatch[];
   availableFields: OpenOntologyAvailableField[];
@@ -313,6 +314,7 @@ export interface OpenOntologyVerificationResult {
   }>;
   mentionedExternalIds: string[] | undefined;
   unresolvedExternalIds: string[] | undefined;
+  uncoveredWords?: string[];
   availableFields: OpenOntologyAvailableField[];
   verification: OpenOntologyVerificationMetadata;
   policy: OpenOntologyResultPolicy;

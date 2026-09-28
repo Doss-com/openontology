@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.7
+
+- Refuse unsupported residual question words after declared fields, names,
+  identifiers, quoted titles, anchors and query grammar are accounted for.
+- Reuse complete validation for the same validator-owned immutable native object
+  map. Caller-owned mutable inputs still validate.
+- Honor explicit scoped fields, uniquely declared name or full-name aliases,
+  whole email-shaped identifiers, and structured source-field error context.
+- Add packaged authoring guidance for canonical propositions, `qualifies` and
+  `contradicts` counterevidence relations, and temporal proof requirements.
+- The integrated question-coverage candidate still over-refuses two legitimate
+  held-out phrases. This release does not claim general semantic understanding.
+
 ## 0.3.0-alpha.6
 
 - Use the canonical source catalog digest consistently across native browse and

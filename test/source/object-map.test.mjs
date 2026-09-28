@@ -147,6 +147,80 @@ test('rejects missing, malformed, and inherited map headers at the validator bou
   }
 });
 
+test('memoizes only validator-owned immutable results and revalidates mutable caller input', () => {
+  const valid = compiledHeaderFixture();
+  const mutable = structuredClone(valid);
+  const validated = validateSourceNativeObjectMap(mutable);
+
+  assert.equal(validateSourceNativeObjectMap(validated), validated);
+  assert.equal(Object.isFrozen(validated), true);
+  assert.equal(Object.isFrozen(validated.nativeObjects), true);
+
+  mutable.schema = 2;
+  assert.throws(() => validateSourceNativeObjectMap(mutable), { code: 'SOURCE_NATIVE_MAP' });
+  assert.notEqual(validateSourceNativeObjectMap(structuredClone(valid)), validated);
+});
+
+test('does not memoize a validated map that retains an exotic nested prototype', () => {
+  const candidate = structuredClone(compiledHeaderFixture());
+  Object.setPrototypeOf(candidate.nativeObjects[0], { mutableMarker: true });
+
+  const first = validateSourceNativeObjectMap(candidate);
+  const second = validateSourceNativeObjectMap(first);
+  assert.notEqual(second, first);
+});
+
+test('does not memoize a validated map that retains an accessor', () => {
+  const candidate = structuredClone(compiledHeaderFixture());
+  let value = 'before';
+  Object.defineProperty(candidate.nativeObjects[0], 'mutableAccessor', {
+    configurable: true,
+    enumerable: false,
+    get: () => value,
+  });
+
+  const first = validateSourceNativeObjectMap(candidate);
+  value = 'after';
+  assert.notEqual(validateSourceNativeObjectMap(first), first);
+});
+
+test('does not memoize symbol or non-enumerable nested state', () => {
+  const symbolCandidate = structuredClone(compiledHeaderFixture());
+  const symbolValue = { changed: false };
+  const symbol = Symbol('mutable');
+  Object.defineProperty(symbolCandidate.nativeObjects[0], symbol, {
+    configurable: true,
+    enumerable: false,
+    value: symbolValue,
+    writable: true,
+  });
+  const symbolFirst = validateSourceNativeObjectMap(symbolCandidate);
+  symbolValue.changed = true;
+  assert.notEqual(validateSourceNativeObjectMap(symbolFirst), symbolFirst);
+
+  const hiddenCandidate = structuredClone(compiledHeaderFixture());
+  const hiddenValue = { changed: false };
+  Object.defineProperty(hiddenCandidate.nativeObjects[0], 'hiddenValue', {
+    configurable: true,
+    enumerable: false,
+    value: hiddenValue,
+    writable: true,
+  });
+  const hiddenFirst = validateSourceNativeObjectMap(hiddenCandidate);
+  hiddenValue.changed = true;
+  assert.notEqual(validateSourceNativeObjectMap(hiddenFirst), hiddenFirst);
+});
+
+test('validates a newly parsed identical map as a new identity', () => {
+  const original = compiledHeaderFixture();
+  const first = validateSourceNativeObjectMap(JSON.parse(JSON.stringify(original)));
+  const second = validateSourceNativeObjectMap(JSON.parse(JSON.stringify(first)));
+
+  assert.deepEqual(second, first);
+  assert.notEqual(second, first);
+  assert.equal(validateSourceNativeObjectMap(first), first);
+});
+
 test('compiles exact source-native field revisions and duplicate evidence without making either authoritative', () => {
   const oldTask = '# Old task title\nStatus: open\n';
   const newTask = '# Current task title\nStatus: complete\n';
@@ -471,6 +545,89 @@ test('rejects adapter spans that are not exact source bytes and ambiguous revisi
         ],
       }),
     { code: 'SOURCE_NATIVE_REVISION_ORDER' },
+  );
+});
+
+test('contextualizes field construction errors without exposing field values', () => {
+  const firstContent = 'Public title\n';
+  const secondContent = 'Private title\n';
+  const sources = [
+    source('clickup/acme/first.md', '2026-01-01T00:00:00.000Z', firstContent),
+    source('clickup/acme/second.md', '2026-01-02T00:00:00.000Z', secondContent),
+  ];
+  assert.throws(
+    () =>
+      compileSourceNativeObjectMap({
+        sources,
+        nativeObjectInputs: [
+          {
+            relativePath: sources[0].relativePath,
+            objectIdentity: {
+              home: 'ObjectDef/InstanceRef',
+              sourceSystem: 'clickup',
+              objectType: 'task',
+              externalId: 'task-public',
+            },
+            fields: [span(firstContent, 'title', 'Public title')],
+          },
+          {
+            relativePath: sources[1].relativePath,
+            objectIdentity: {
+              home: 'ObjectDef/InstanceRef',
+              sourceSystem: 'clickup',
+              objectType: 'task',
+              externalId: 'task-private',
+            },
+            fields: [{ fieldPath: 'private_note', value: 'private secret', codeUnitStart: 0 }],
+          },
+        ],
+      }),
+    (error) => {
+      assert.equal(error.code, 'SOURCE_NATIVE_FIELD_SPAN');
+      assert.equal(error.relativePath, 'clickup/acme/second.md');
+      assert.equal(error.externalId, 'task-private');
+      assert.equal(error.fieldPath, 'private_note');
+      assert.equal(error.detail, 'field span does not match source content at codeUnitStart');
+      assert.doesNotMatch(JSON.stringify(error), /private secret|Private title/u);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      compileSourceNativeObjectMap({
+        sources: [sources[0]],
+        nativeObjectInputs: [
+          {
+            relativePath: sources[0].relativePath,
+            objectIdentity: {
+              home: 'ObjectDef/InstanceRef',
+              sourceSystem: 'clickup',
+              objectType: 'task',
+              externalId: 'task-private',
+            },
+            businessEntityKeys: [],
+            fields: [
+              {
+                ...span(firstContent, 'private_note', 'Public title'),
+                businessEntityKeys: ['private-secret-key'],
+              },
+            ],
+          },
+        ],
+      }),
+    (error) => {
+      assert.equal(error.code, 'SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS');
+      assert.equal(error.relativePath, 'clickup/acme/first.md');
+      assert.equal(error.externalId, 'task-private');
+      assert.equal(error.fieldPath, 'private_note');
+      assert.equal(
+        error.detail,
+        'field businessEntityKeys must be declared by object.businessEntityKeys',
+      );
+      assert.doesNotMatch(JSON.stringify(error), /private-secret-key|Public title/u);
+      return true;
+    },
   );
 });
 

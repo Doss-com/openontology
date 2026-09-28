@@ -1236,8 +1236,15 @@ test('builds, reopens, searches, reads, and verifies an immutable source-native 
       );
     }
 
-    const current = await product.search({
+    const residual = await product.search({
       question: 'After Alpha, what is the current task title for task-1?',
+    });
+    assert.equal(residual.state, 'unavailable-native-question-residual-not-declared');
+    assert.deepEqual(residual.matches, []);
+    assert.deepEqual(residual.uncoveredWords, ['after', 'alpha']);
+
+    const current = await product.search({
+      question: 'What is the current task title for task-1?',
     });
     assert.equal(current.state, 'resolved-current-field');
     assert.equal(current.matches.length, 1);
@@ -2112,7 +2119,15 @@ test('refuses temporal questions that do not declare a supported intent', async 
       assert.deepEqual(result.context, [], question);
     }
 
-    const current = await product.verify('After Alpha, what is the current task title for task-1?');
+    const residual = await product.verify(
+      'After Alpha, what is the current task title for task-1?',
+    );
+    assert.equal(residual.state, 'unavailable-native-question-residual-not-declared');
+    assert.equal(residual.answerable, false);
+    assert.deepEqual(residual.context, []);
+    assert.deepEqual(residual.uncoveredWords, ['after', 'alpha']);
+
+    const current = await product.verify('What is the current task title for task-1?');
     assert.equal(current.state, 'resolved-current-field');
     assert.equal(current.answerable, true);
 
@@ -2238,7 +2253,7 @@ test('refuses transition-time questions before Resolver for every selector', asy
         question: 'What is the current status for task task-1?',
       }).plan.plannerSha256;
       expectedPlannerSha256 = stableObjectSha256({
-        adapter: 'source-native-product-query-v6-declared-scope-agreement-v3',
+        adapter: 'source-native-product-query-v8-named-lookup-v1',
         namespace: context.descriptor.namespace,
         querySchemas: context.descriptor.querySchemas,
       });
@@ -2323,6 +2338,68 @@ test('accepts a canonical backend URI through the Resolver CLI', () => {
     });
     assert.equal(disabled.status, 0, disabled.stderr);
     assert.equal(JSON.parse(disabled.stdout).readOnly, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Resolver CLI reports contextual build errors and names missing typed flags', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oont-source-native-product-errors-'));
+  const inputPath = join(root, 'input.json');
+  try {
+    const input = buildInput();
+    input.nativeObjectInputs[1].fields[0].codeUnitStart = 1;
+    writeFileSync(inputPath, JSON.stringify(input));
+    const build = spawnSync(
+      process.execPath,
+      [resolverCli, 'build', inputPath, '--out', join(root, 'artifact')],
+      { encoding: 'utf8' },
+    );
+    assert.equal(build.status, 1);
+    const failure = JSON.parse(build.stderr);
+    assert.deepEqual(failure, {
+      code: 'SOURCE_NATIVE_FIELD_SPAN',
+      relativePath: 'clickup/acme/rev-2.md',
+      externalId: 'task-1',
+      fieldPath: 'title',
+      detail: 'field span does not match source content at codeUnitStart',
+    });
+    assert.doesNotMatch(build.stderr, /Beta|Gamma/u);
+
+    const businessEntityInput = buildInput();
+    businessEntityInput.nativeObjectInputs[0].fields[0].businessEntityKeys = ['private-key'];
+    writeFileSync(inputPath, JSON.stringify(businessEntityInput));
+    const businessEntityBuild = spawnSync(
+      process.execPath,
+      [resolverCli, 'build', inputPath, '--out', join(root, 'business-entity-artifact')],
+      { encoding: 'utf8' },
+    );
+    assert.equal(businessEntityBuild.status, 1);
+    assert.deepEqual(JSON.parse(businessEntityBuild.stderr), {
+      code: 'SOURCE_NATIVE_FIELD_BUSINESS_ENTITY_KEYS',
+      relativePath: 'clickup/acme/rev-1.md',
+      externalId: 'task-1',
+      fieldPath: 'title',
+      detail: 'field businessEntityKeys must be declared by object.businessEntityKeys',
+    });
+    assert.doesNotMatch(businessEntityBuild.stderr, /private-key|Alpha/u);
+
+    for (const [flags, missing] of [
+      [['--source-system', 'clickup', '--object-type', 'task'], '--field'],
+      [['--field', 'title'], '--source-system, --object-type'],
+    ]) {
+      const result = spawnSync(
+        process.execPath,
+        [resolverCli, 'verify', join(root, 'missing-artifact'), 'What is the title?', ...flags],
+        { encoding: 'utf8' },
+      );
+      assert.equal(result.status, 2);
+      assert.match(
+        result.stderr,
+        new RegExp(`missing required typed scope flag\\(s\\): ${missing}`),
+      );
+      assert.doesNotMatch(result.stderr, /usage: oont <command>/u);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
