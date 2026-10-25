@@ -521,6 +521,9 @@ function hydrateIndex({
 }): SourceNativeObjectOntModule {
   const { map, sources: indexSources } = index;
   const packBytesByKey = new Map<string, Buffer>();
+  // Each source's verified bytes, kept for field-evidence checks: re-encoding the decoded text once per native
+  // object cost O(objects x source bytes) (a curated layer packs thousands of records into one source).
+  const verifiedBytes = new Map<string, Buffer>();
   const sources: Array<OpenSource & { content: string }> = indexSources.map((source) => {
     let bytes = packBytesByKey.get(source.blobDescriptor.key);
     if (!bytes) {
@@ -531,6 +534,7 @@ function hydrateIndex({
     if (objectBytesSha256(sourceBytes) !== source.sourceSha256) {
       fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     }
+    verifiedBytes.set(source.relativePath, sourceBytes);
     return freeze({
       ...source,
       content: sourceBytes.toString('utf8'),
@@ -543,7 +547,7 @@ function hydrateIndex({
     if (exactSource.sourceSha256 !== object.sourceSha256) fail('SOURCE_NATIVE_OBJECT_ONT_SOURCE');
     validateNativeObjectFieldEvidence({
       source: exactSource,
-      bytes: Buffer.from(exactSource.content),
+      bytes: verifiedBytes.get(exactSource.relativePath) ?? Buffer.from(exactSource.content),
       object,
     });
   }
