@@ -27,7 +27,7 @@ sufficient evidence receive a structured refusal.
 source observations → Ont → search, read and verify → agent context
 ```
 
-The current release is [0.3.0-alpha.7](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.7).
+The current release is [0.3.0-alpha.8](https://github.com/Doss-com/openontology/releases/tag/v0.3.0-alpha.8).
 This repository contains the open-source engine, CLI, SDK and MCP server.
 Hosted deployment and operation belong in a separate managed application.
 
@@ -37,7 +37,7 @@ Requires Node.js 24 or newer. Install the published package from your applicatio
 directory:
 
 ```bash
-npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.7/oont-0.3.0-alpha.7.tgz
+npm install https://github.com/Doss-com/openontology/releases/download/v0.3.0-alpha.8/oont-0.3.0-alpha.8.tgz
 ```
 
 The package and command are both named `oont`. Distribution is through GitHub
