@@ -965,6 +965,20 @@ export function readSourceNativeConstructionLedger({
 }
 
 /**
+ * The construction ledger's version without evaluating its records: the knowledge branch's commit and replay
+ * SHAs, the same two values readSourceNativeConstructionLedger reports. A cheap cache key for callers that
+ * reopen an Ont per request. Null when nothing has been admitted on the branch yet.
+ */
+export function readSourceNativeConstructionHead({
+  options = {},
+  knowledgeBranch,
+}: Pick<LedgerInput, 'options' | 'knowledgeBranch'>): { commitSha256: string; replaySha256: string } | null {
+  const state = openProductSourceContext(options);
+  const snapshot = readProtectedSnapshot(state, branchFor(state, knowledgeBranch));
+  return snapshot ? { commitSha256: snapshot.ref.commitSha256, replaySha256: snapshot.ref.replaySha256 } : null;
+}
+
+/**
  * Read eligible construction records from one retained source artifact cut.
  * The result is historical navigation input only. It is not current-source
  * authority and cannot authorize writes, compilation, review, or Admission.
