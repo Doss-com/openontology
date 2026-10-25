@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.9
+
+- Opening an Ont trusts the native object map's stored digest instead of
+  re-deriving every nested content hash. The map is read through its
+  content-addressed descriptor and was fully validated at build. Builds,
+  `check` and all other callers still validate fully, and full open still
+  refuses invalid field evidence. Cold open 680 ms to 300 ms on a 491-source,
+  3,500-object profile.
+
 ## 0.3.0-alpha.8
 
 - Expose `readSourceNativeConstructionHead` to read a construction ledger's
