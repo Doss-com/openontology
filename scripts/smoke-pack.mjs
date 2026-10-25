@@ -903,7 +903,7 @@ assert.deepEqual(kernelKeys, [
     'openSourceNativeProductWithConstruction',
     'openSourceNativeConstructionReview',
     'productSources','proofAuthorityForProjection','readSourceNativeProductArtifactDescriptor',
-    'readSourceNativeConstructionLedger',
+    'readSourceNativeConstructionHead','readSourceNativeConstructionLedger',
     'readSourceNativeConstructionLedgerAtArtifact',
     'rebindSourceNativeSemanticConstruction',
     'sourceNativeAdmissionStatement',

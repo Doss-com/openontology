@@ -481,6 +481,17 @@ test('only independently signed navigation is written; cold retry preserves sour
   assert.equal(f.state.store.readBlob(blob).bytes.toString(), canonical);
 });
 
+test('the construction head equals the ledger version without reading records', (t) => {
+  const f = fixture(t);
+  assert.equal(kernel.readSourceNativeConstructionHead({ options: f.options }), null);
+  f.write(f.admit());
+  const ledger = f.read();
+  assert.deepEqual(kernel.readSourceNativeConstructionHead({ options: f.options }), {
+    commitSha256: ledger.commitSha256,
+    replaySha256: ledger.replaySha256,
+  });
+});
+
 test('empty extraction is a valid proposal, not an Admission', (t) => {
   const f = fixture(t);
   const empty = f.compile({ ...f.input, objectDefs: [], claims: [] });

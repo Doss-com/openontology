@@ -44,6 +44,7 @@ export type {
 } from './construction/explorer.js';
 export {
   compileSourceNativeConstructionAdmissionRecord,
+  readSourceNativeConstructionHead,
   readSourceNativeConstructionLedger,
   readSourceNativeConstructionLedgerAtArtifact,
   sourceNativeConstructionAdmissionStatement,
