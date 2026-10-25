@@ -972,10 +972,15 @@ export function readSourceNativeConstructionLedger({
 export function readSourceNativeConstructionHead({
   options = {},
   knowledgeBranch,
-}: Pick<LedgerInput, 'options' | 'knowledgeBranch'>): { commitSha256: string; replaySha256: string } | null {
+}: Pick<LedgerInput, 'options' | 'knowledgeBranch'>): {
+  commitSha256: string;
+  replaySha256: string;
+} | null {
   const state = openProductSourceContext(options);
   const snapshot = readProtectedSnapshot(state, branchFor(state, knowledgeBranch));
-  return snapshot ? { commitSha256: snapshot.ref.commitSha256, replaySha256: snapshot.ref.replaySha256 } : null;
+  return snapshot
+    ? { commitSha256: snapshot.ref.commitSha256, replaySha256: snapshot.ref.replaySha256 }
+    : null;
 }
 
 /**
