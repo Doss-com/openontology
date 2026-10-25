@@ -1157,13 +1157,13 @@ function compileBusinessEntityEvidenceNeighborhoods(
   );
 }
 
-function exactNestedHash(value: unknown, field: string, code: string): void {
+function exactNestedHash(value: unknown, field: string, code: string, hashes = true): void {
   const record = exactRecord(value, code);
   const { [field]: observed, ...core } = record;
   if (
     typeof observed !== 'string' ||
     !SHA256.test(observed) ||
-    stableObjectSha256(core) !== observed
+    (hashes && stableObjectSha256(core) !== observed)
   )
     fail(code);
 }
@@ -1171,8 +1171,9 @@ function exactNestedHash(value: unknown, field: string, code: string): void {
 function validateCompiledField(
   field: SourceNativeField,
   object: SourceNativeObject | null = null,
+  hashes = true,
 ): void {
-  exactNestedHash(field, 'fieldSha256', 'SOURCE_NATIVE_MAP_FIELD');
+  exactNestedHash(field, 'fieldSha256', 'SOURCE_NATIVE_MAP_FIELD', hashes);
   if (
     field?.schema !== 1 ||
     field.kind !== 'OpenOntologySourceNativeFieldV1' ||
@@ -1209,8 +1210,8 @@ function validateCompiledField(
   }
 }
 
-function validateCompiledObject(object: SourceNativeObject): void {
-  exactNestedHash(object, 'nativeObjectSha256', 'SOURCE_NATIVE_MAP_OBJECT');
+function validateCompiledObject(object: SourceNativeObject, hashes = true): void {
+  exactNestedHash(object, 'nativeObjectSha256', 'SOURCE_NATIVE_MAP_OBJECT', hashes);
   let identity;
   try {
     identity = validateIdentity(object?.objectIdentity);
@@ -1226,7 +1227,7 @@ function validateCompiledObject(object: SourceNativeObject): void {
       object.sourceType ||
     !SHA256.test(object.sourceSha256 ?? '') ||
     !Number.isFinite(Date.parse(object.occurredAt)) ||
-    object.objectIdentitySha256 !== stableObjectSha256(identity) ||
+    (hashes && object.objectIdentitySha256 !== stableObjectSha256(identity)) ||
     !Array.isArray(object.businessEntityKeys) ||
     new Set(object.businessEntityKeys).size !== object.businessEntityKeys.length ||
     object.businessEntityKeys.some((key) => typeof key !== 'string' || !key) ||
@@ -1247,17 +1248,17 @@ function validateCompiledObject(object: SourceNativeObject): void {
   ) {
     fail('SOURCE_NATIVE_MAP_OBJECT');
   }
-  for (const field of object.fields) validateCompiledField(field, object);
+  for (const field of object.fields) validateCompiledField(field, object, hashes);
 }
 
-function validateCompiledRevision(revision: SourceNativeFieldRevision): void {
-  exactNestedHash(revision, 'revisionSha256', 'SOURCE_NATIVE_MAP_REVISION');
+function validateCompiledRevision(revision: SourceNativeFieldRevision, hashes = true): void {
+  exactNestedHash(revision, 'revisionSha256', 'SOURCE_NATIVE_MAP_REVISION', hashes);
   if (
     revision?.schema !== 1 ||
     revision.kind !== 'OpenOntologySourceNativeFieldRevisionV1' ||
     revision.relationType !== 'supersedes' ||
     !FIELD_PATH.test(revision.fieldPath ?? '') ||
-    revision.objectIdentitySha256 !== stableObjectSha256(revision.objectIdentity) ||
+    (hashes && revision.objectIdentitySha256 !== stableObjectSha256(revision.objectIdentity)) ||
     revision.sourceField?.fieldPath !== revision.fieldPath ||
     revision.targetField?.fieldPath !== revision.fieldPath ||
     !Number.isFinite(Date.parse(revision.sourceOccurredAt)) ||
@@ -1269,8 +1270,8 @@ function validateCompiledRevision(revision: SourceNativeFieldRevision): void {
   ) {
     fail('SOURCE_NATIVE_MAP_REVISION');
   }
-  validateCompiledField(revision.sourceField);
-  validateCompiledField(revision.targetField);
+  validateCompiledField(revision.sourceField, null, hashes);
+  validateCompiledField(revision.targetField, null, hashes);
 }
 
 export function validateSourceNativeObjectMap(value: unknown): SourceNativeObjectMap {
@@ -1278,14 +1279,28 @@ export function validateSourceNativeObjectMap(value: unknown): SourceNativeObjec
     const cached = validatedMapCache.get(value);
     if (cached !== undefined) return cached;
   }
-  const validated = validateSourceNativeObjectMapUncached(value);
+  const validated = validateSourceNativeObjectMapUncached(value, true);
   if (isMemoizableSourceNativeObjectMap(validated)) {
     validatedMapCache.set(validated, validated);
   }
   return validated;
 }
 
-function validateSourceNativeObjectMapUncached(value: unknown): SourceNativeObjectMap {
+/**
+ * Validate a map read back from a content-addressed blob whose stored digest matched its manifest. The build
+ * validated it fully before writing, so this checks shape, counts and cross-references but does not re-derive
+ * the nested content hashes. `check` and every write still validate fully.
+ */
+export function validateStoredSourceNativeObjectMap(value: unknown): SourceNativeObjectMap {
+  const validated = validateSourceNativeObjectMapUncached(value, false);
+  if (isMemoizableSourceNativeObjectMap(validated)) validatedMapCache.set(validated, validated);
+  return validated;
+}
+
+function validateSourceNativeObjectMapUncached(
+  value: unknown,
+  hashes: boolean,
+): SourceNativeObjectMap {
   const map = exactRecord(value, 'SOURCE_NATIVE_MAP');
   if (
     !Object.prototype.hasOwnProperty.call(map, 'schema') ||
@@ -1398,7 +1413,7 @@ function validateSourceNativeObjectMapUncached(value: unknown): SourceNativeObje
   const mappedPaths = new Set(nativeObjects.map((object) => object.relativePath));
   if (
     !SHA256.test(observedHash) ||
-    stableObjectSha256(core) !== observedHash ||
+    (hashes && stableObjectSha256(core) !== observedHash) ||
     nativeObjectCount !== nativeObjects.length ||
     !Number.isSafeInteger(sourceCount) ||
     sourceCount < 1 ||
@@ -1417,12 +1432,12 @@ function validateSourceNativeObjectMapUncached(value: unknown): SourceNativeObje
     map.exactSourcesRemainAuthority !== true
   )
     fail('SOURCE_NATIVE_MAP');
-  for (const object of nativeObjects) validateCompiledObject(object);
-  for (const revision of fieldRevisions) validateCompiledRevision(revision);
+  for (const object of nativeObjects) validateCompiledObject(object, hashes);
+  for (const revision of fieldRevisions) validateCompiledRevision(revision, hashes);
   for (const cluster of duplicateEvidenceClusters)
-    exactNestedHash(cluster, 'clusterSha256', 'SOURCE_NATIVE_MAP_CLUSTER');
+    exactNestedHash(cluster, 'clusterSha256', 'SOURCE_NATIVE_MAP_CLUSTER', hashes);
   for (const neighborhood of businessEntityEvidenceNeighborhoods) {
-    exactNestedHash(neighborhood, 'neighborhoodSha256', 'SOURCE_NATIVE_MAP_NEIGHBORHOOD');
+    exactNestedHash(neighborhood, 'neighborhoodSha256', 'SOURCE_NATIVE_MAP_NEIGHBORHOOD', hashes);
   }
   return freeze(typedMap);
 }
