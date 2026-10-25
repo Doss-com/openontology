@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.10
+
+- `openSourceNativeHistoricalProductRuntime` and the historical admitted-knowledge
+  and construction openers accept an `openedState`, so a host that needs the
+  exact state and a runtime opens the artifact once. Only states returned by
+  `openExactProductArtifactState` in the same process, for the same artifact,
+  are accepted.
+- The file object envelope checks base64 canonicity by length; the envelope hash
+  already covers the exact string.
+
 ## 0.3.0-alpha.9
 
 - Opening an Ont trusts the native object map's stored digest instead of
