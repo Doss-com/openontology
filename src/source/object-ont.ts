@@ -1,7 +1,7 @@
 /** Canonical ObjectOnt storage for a source-native map and its exact sources. */
 import { objectBytesSha256, stableObjectSha256, stableObjectText } from '../canonical-content.js';
 import { openObjectOntStore } from '../storage/ont-store.js';
-import { compileSourceNativeObjectMap, validateSourceNativeObjectMap } from './object-map.js';
+import { compileSourceNativeObjectMap, validateStoredSourceNativeObjectMap } from './object-map.js';
 import type {
   JsonObject,
   SourceNativeObjectInput,
@@ -356,8 +356,9 @@ function openIndexAtCommit({
   const mapBlob = store.readBlob(mapDescriptor);
   const mapValue = parseStableJson(mapBlob.bytes, 'SOURCE_NATIVE_OBJECT_ONT_MAP');
   if (!isRecord(mapValue)) fail('SOURCE_NATIVE_OBJECT_ONT_MAP');
+  // The map bytes matched the manifest's stored digest on read, and the build validated them fully.
   const map = isSourceNativeObjectMap(mapValue)
-    ? validateSourceNativeObjectMap(mapValue)
+    ? validateStoredSourceNativeObjectMap(mapValue)
     : fail('SOURCE_NATIVE_OBJECT_ONT_MAP');
   if (map.nativeObjectMapSha256 !== manifest.nativeObjectMapSha256) {
     fail('SOURCE_NATIVE_OBJECT_ONT_MAP');
