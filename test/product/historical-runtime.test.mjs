@@ -247,3 +247,30 @@ test('historical opener preserves exact-pack missing and corrupt refusals withou
     rmSync(corrupt.root, { recursive: true, force: true });
   }
 });
+
+test('historical runtime reuses a state this process opened for the same artifact, and only that', async () => {
+  const f = fixture();
+  try {
+    const state = openExactProductArtifactState({ artifactRoot: f.aRoot });
+    const reused = openSourceNativeHistoricalProductRuntime({ artifactRoot: f.aRoot }, null, state);
+    assert.equal(reused.status().sourceCommitSha256, f.a.receipt.commitSha256);
+    const result = await reused.verify(query());
+    assert.deepEqual(
+      result.context.map((row) => row.exactText),
+      ['A'],
+    );
+    assert.throws(
+      () => openSourceNativeHistoricalProductRuntime({ artifactRoot: f.bRoot }, null, state),
+      { code: 'SOURCE_NATIVE_PRODUCT_ARTIFACT' },
+    );
+    assert.throws(
+      () =>
+        openSourceNativeHistoricalProductRuntime({ artifactRoot: f.aRoot }, null, {
+          ...state,
+        }),
+      { code: 'SOURCE_NATIVE_PRODUCT_ARTIFACT' },
+    );
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});

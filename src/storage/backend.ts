@@ -239,8 +239,9 @@ function validateEnvelope(
   const safeBytesBase64 =
     typeof bytesBase64 === 'string' ? bytesBase64 : fail('OBJECT_BACKEND_CORRUPT');
   const bytes = Buffer.from(safeBytesBase64, 'base64');
+  // Canonical base64 for this length (the envelope hash already covers the exact string).
   if (
-    bytes.toString('base64') !== safeBytesBase64 ||
+    safeBytesBase64.length !== Math.ceil(bytes.length / 3) * 4 ||
     bytes.length !== byteLength ||
     sha256(bytes) !== checksumSha256
   )

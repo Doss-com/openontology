@@ -1064,8 +1064,27 @@ export function openProductState(options: ProductOptions = {}) {
 }
 
 /** Reopen and validate one immutable artifact cut without following its mutable branch ref. */
+const openedExactStates = new WeakSet<object>();
+
 export function openExactProductArtifactState(options: ProductOptions = {}) {
-  return openProductArtifactState(options, false);
+  const state = openProductArtifactState(options, false);
+  openedExactStates.add(state);
+  return state;
+}
+
+/**
+ * Return an exact state this process already opened for the same artifact, so a host that needs both the state
+ * and a runtime opens the cut once. Only states returned by openExactProductArtifactState are accepted.
+ */
+export function reuseExactProductArtifactState(
+  state: ReturnType<typeof openExactProductArtifactState>,
+  options: ProductOptions = {},
+): ReturnType<typeof openExactProductArtifactState> {
+  if (!openedExactStates.has(state)) fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
+  const { descriptor } = openProductArtifactStorage(options);
+  if (descriptor.artifactSha256 !== state.descriptor.artifactSha256)
+    fail('SOURCE_NATIVE_PRODUCT_ARTIFACT');
+  return state;
 }
 
 export function productSources(objectOnt: ObjectOnt): ProductSource[] {
