@@ -183,10 +183,11 @@ export function openSourceNativeProductWithConstruction(
     trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
     knowledgeBranch?: string;
     historical?: boolean;
+    openedState?: Parameters<typeof openSourceNativeProductWithAdmittedKnowledge>[1]['openedState'];
   },
   createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
 ) {
-  row(configuration, ['trustRegistry', 'knowledgeBranch', 'historical']);
+  row(configuration, ['trustRegistry', 'knowledgeBranch', 'historical', 'openedState']);
   if (createLifecycleAdapter !== null && typeof createLifecycleAdapter !== 'function')
     fail('INPUT');
   let captured: SourceNativeProductRuntimeContext | null = null;

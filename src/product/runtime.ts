@@ -21,6 +21,7 @@ import {
   openExactProductArtifactState,
   openProductState,
   productSources,
+  reuseExactProductArtifactState,
 } from '../source/artifact.js';
 import { compileProductQueryPlan, queryPlanner } from '../query/plan.js';
 import { OPENONTOLOGY_RESULT_STATES } from './result-state.js';
@@ -1008,14 +1009,18 @@ export function openSourceNativeProductRuntime(
 }
 
 /** Open a kernel-only product runtime against the descriptor's exact immutable source cut. */
+/** Pass `openedState` (from openExactProductArtifactState for the same artifact) to reuse it instead of reopening. */
 export function openSourceNativeHistoricalProductRuntime(
   options: ProductOptions = {},
   createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
+  openedState: ReturnType<typeof openExactProductArtifactState> | null = null,
 ) {
   return openSourceNativeProductRuntimeWithState(
     options,
     createLifecycleAdapter,
-    openExactProductArtifactState,
+    openedState === null
+      ? openExactProductArtifactState
+      : (stateOptions) => reuseExactProductArtifactState(openedState, stateOptions),
     'exact-artifact',
   );
 }

@@ -6,7 +6,7 @@ import {
   canonicalAdmissionSignature,
 } from './authentication.js';
 import type { SourceNativeAdmissionTrustEntry, TrustedAdmissionKey } from './authentication.js';
-import { openProductState } from '../source/artifact.js';
+import { openProductState, type openExactProductArtifactState } from '../source/artifact.js';
 import type { RefReadResult } from '../storage/ont-store.js';
 import {
   resolveSourceNativeField,
@@ -1863,6 +1863,8 @@ export function openSourceNativeProductWithAdmittedKnowledge(
     trustRegistry: readonly SourceNativeAdmissionTrustEntry[];
     knowledgeBranch?: string;
     historical?: boolean;
+    /** An exact state already opened for this artifact (historical only), reused instead of reopening. */
+    openedState?: ReturnType<typeof openExactProductArtifactState>;
   },
   createLifecycleAdapter: SourceNativeProductLifecycleAdapterFactory | null = null,
 ): SourceNativeAdmittedKnowledgeProduct {
@@ -1874,7 +1876,7 @@ export function openSourceNativeProductWithAdmittedKnowledge(
     typeof configurationValue !== 'object' ||
     Array.isArray(configurationValue) ||
     Object.keys(configurationValue).some(
-      (key) => !['trustRegistry', 'knowledgeBranch', 'historical'].includes(key),
+      (key) => !['trustRegistry', 'knowledgeBranch', 'historical', 'openedState'].includes(key),
     )
   ) {
     fail('SOURCE_NATIVE_ADMISSION_TRUST');
@@ -1883,11 +1885,14 @@ export function openSourceNativeProductWithAdmittedKnowledge(
     trustRegistry: trustInput,
     knowledgeBranch: knowledgeBranchInput,
     historical = false,
+    openedState = null,
   } = configurationValue;
-  if (typeof historical !== 'boolean') fail('SOURCE_NATIVE_ADMISSION_TRUST');
+  if (typeof historical !== 'boolean' || (openedState !== null && !historical))
+    fail('SOURCE_NATIVE_ADMISSION_TRUST');
   let context: SourceNativeProductRuntimeContext | null = null;
-  const openRuntime = historical
-    ? openSourceNativeHistoricalProductRuntime
+  const openRuntime: typeof openSourceNativeProductRuntime = historical
+    ? (runtimeOptions, adapter) =>
+        openSourceNativeHistoricalProductRuntime(runtimeOptions, adapter, openedState)
     : openSourceNativeProductRuntime;
   const product = openRuntime(options, (runtimeContext) => {
     context = runtimeContext;
