@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.0-alpha.8
+
+- Expose `readSourceNativeConstructionHead` to read a construction ledger's
+  version without evaluating its records.
+- Validate native object field evidence against each source's already verified
+  bytes during open, instead of re-encoding the source once per object. Cold
+  opens of sources that pack many objects no longer scale with objects times
+  source bytes.
+
 ## 0.3.0-alpha.7
 
 - Refuse unsupported residual question words after declared fields, names,
